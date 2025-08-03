@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+backend:
+build:
+context: .
+dockerfile: Dockerfile
+environment:
+- NODE_ENV=production
+- PORT=4000
+- MONGODB_URI=mongodb://mongo:27017/your-db
+- BASE_RPC_URL=${BASE_RPC_URL}
+- PRIVATE_KEY=${PRIVATE_KEY}
+- JWT_SECRET=${JWT_SECRET}
+- STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+- FRONTEND_URL=${FRONTEND_URL}
+- GCP_PROJECT_ID=${GCP_PROJECT_ID}
+- GCP_SECRET_NAME=${GCP_SECRET_NAME}
+ports:
+- "4000:4000"
+depends_on:
+- mongo
+
+mongo:
+image: mongo:6.0
+restart: always
+ports:
+- "27017:27017"
+volumes:
+- mongo-data:/data/db
+
+volumes:
+mongo-data:
+driver: local
