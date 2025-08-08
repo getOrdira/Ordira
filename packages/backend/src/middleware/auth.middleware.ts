@@ -1,46 +1,39 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { Manufacturer } from '../models/manufacturer.model';
+import { Request, Response, NextFunction } from 'express'
+import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.MFG_JWT_SECRET!;
-
-/**
- * Extend Express’s Request with `userId` for a manufacturer.
- */
 export interface AuthRequest extends Request {
-  userId?: string;
+  userId?: string
+}
+
+const JWT_SECRET = process.env.JWT_SECRET!
+if (!JWT_SECRET) {
+  throw new Error('Missing JWT_SECRET environment variable!')
 }
 
 /**
- * Middleware to authenticate manufacturers via JWT Bearer token.
- * On success, populates `req.userId` with the manufacturer’s ID.
+ * Middleware to authenticate requests using a JWT Bearer token.
+ * Populates `req.userId` with the token’s `sub` claim.
  */
-export async function authenticateManufacturer(
+export function authenticate(
   req: AuthRequest,
   res: Response,
   next: NextFunction
-) {
-  const authHeader = req.headers.authorization;
+): void | Response /* ← allow returning a Response */ {
+  const authHeader = req.headers.authorization
   if (!authHeader) {
-    return res.status(401).json({ error: 'No Authorization header provided.' });
+    return res.status(401).json({ error: 'No Authorization header provided.' })
   }
-  const [scheme, token] = authHeader.split(' ');
+
+  const [scheme, token] = authHeader.split(' ')
   if (scheme !== 'Bearer' || !token) {
-    return res.status(401).json({ error: 'Malformed Authorization header.' });
+    return res.status(401).json({ error: 'Malformed Authorization header.' })
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string };
-    const mfg     = await Manufacturer.findById(payload.id);
-    if (!mfg) {
-      return res.status(401).json({ error: 'Manufacturer not found.' });
-    }
-
-    req.userId = payload.id;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token.' });
+    const payload = jwt.verify(token, JWT_SECRET) as { sub: string }
+    req.userId = payload.sub
+    return next()
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token.' })
   }
 }
-
-

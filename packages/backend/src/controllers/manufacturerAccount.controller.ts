@@ -2,7 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/manufacturerAuth.middleware';
-import * as svc from '../services/manufacturerAccount.service';
+import * as svc from '../services/business/manufacturerAccount.service';
 
 export async function getManufacturerProfile(
   req: AuthRequest,

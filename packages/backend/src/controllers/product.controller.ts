@@ -1,6 +1,6 @@
 // src/controllers/product.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as productService from '../services/product.service';
+import * as productService from '../services/business/product.service';
 
 interface TenantRequest extends Request {
   tenant?: { business: { toString: () => string } };

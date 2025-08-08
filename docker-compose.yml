@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6.0
+    restart: always
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  api:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    depends_on:
+      - mongo
+    environment:
+     - NODE_ENV=production
+     - PORT=4000
+     - MONGODB_URI=mongodb://mongo:27017/your-db
+     - BASE_RPC_URL=${BASE_RPC_URL}
+     - PRIVATE_KEY=${PRIVATE_KEY}
+     - TOKEN_CONTRACT_ADDRESS=${TOKEN_CONTRACT_ADDRESS}
+     - NFT_FACTORY_ADDRESS=${NFT_FACTORY_ADDRESS}
+     - VOTING_FACTORY_ADDRESS=${VOTING_FACTORY_ADDRESS}
+     - CLOURFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+     - GODADDY_API_KEY=${GODADDY_API_KEY}
+     - GODADDY_API_SECRET=${GODADDY_API_SECRET}
+     - GODADDY_API_BASE_URL=${GODADDY_API_BASE_URL}
+     - SMTP_HOST=${SMTP_HOST}
+     - SMTP_PORT=${SMTP_PORT}
+     - SMTP_USER=${SMTP_USER}
+     - SMTP_PASS=${SMTP_PASS}
+     - JWT_SECRET=${JWT_SECRET}
+     - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+     - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+     - FRONTEND_URL=${FRONTEND_URL}
+     - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+     - GCP_SECRET_NAME=${GCP_SECRET_NAME}
+     - POSTMARK_API_KEY=${POSTMARK_API_KEY}
+     - POSTMARK_API_SECRET=${POSTMARK_API_SECRET}
+    ports:
+      - "4000:4000"
+    restart: on-failure
+
+volumes:
+  mongo-data:
+  driver: local

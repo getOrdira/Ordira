@@ -1,6 +1,6 @@
 // src/controllers/media.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as mediaService from '../services/media.service';
+import * as mediaService from '../services/business/media.service';
 
 interface TenantRequest extends Request {
   tenant?: { business: { toString: () => string } };

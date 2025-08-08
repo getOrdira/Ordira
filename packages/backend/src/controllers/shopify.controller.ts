@@ -1,6 +1,6 @@
 // src/controllers/shopify.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as shopifyService from '../services/shopify.service';
+import * as shopifyService from '../services/external/shopify.service';
 
 // Initiate OAuth install flow
 export async function connectShopify(req: Request & { user?: any }, res: Response, next: NextFunction) {

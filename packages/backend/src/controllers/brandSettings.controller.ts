@@ -1,7 +1,7 @@
 // src/controllers/brandSettings.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import * as brandSettingsService from '../services/brandSettings.service';
+import * as brandSettingsService from '../services/business/brandSettings.service';
 
 interface TenantRequest extends Request {
   tenant?: { business: { toString: () => string } };

@@ -1,6 +1,6 @@
 // src/controllers/woocommerce.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as wooService from '../services/shopify.service'; // replace with actual WooCommerce service
+import * as wooService from '../services/external/shopify.service'; // replace with actual WooCommerce service
 
 export async function connectWooCommerce(req: Request & { user?: any }, res: Response, next: NextFunction) {
   try {

@@ -1,17 +1,25 @@
 {
-  "name": "b2b-mono",
+  "name": "b2b",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "lerna": "^8.2.3"
   },
   "scripts": {
     "bootstrap": "npm install",
     "start:backend": "npm --workspace=packages/backend run dev",
-    "build:backend": "npm --workspace=packages/backend run build"
+    "build:backend": "npm --workspace=packages/backend run build",
+    "lint": "npm run lint --workspaces",
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces",
+    "test:backend": "jest --config packages/backend/jest.config.js"
+  },
+  "dependencies": {
+    "cron": "^4.3.3",
+    "node-cron": "^4.2.1"
   }
 }
-

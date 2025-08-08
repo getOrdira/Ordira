@@ -1,7 +1,7 @@
 // src/controllers/user.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import * as authService from '../services/auth.service';
+import * as authService from '../services/business/auth.service';
 
 
 export async function registerUser(

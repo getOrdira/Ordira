@@ -1,6 +1,6 @@
 // src/controllers/certificate.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as certService from '../services/certificate.service';
+import * as certService from '../services/business/certificate.service';
 
 interface TenantRequest extends Request {
   tenant?: { business: { toString: () => string } };

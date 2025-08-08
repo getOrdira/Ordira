@@ -1,6 +1,6 @@
 // src/middleware/apiKey.middleware.ts
 import { Request, Response, NextFunction } from 'express';
-import * as apiKeySvc from '../services/apiKey.service';
+import * as apiKeySvc from '../services/business/apiKey.service';
 
 export async function authenticateApiKey(
   req: Request,

@@ -1,7 +1,7 @@
 // Updated src/routes/products.routes.ts
 import { Router } from 'express';
 import * as productCtrl from '../controllers/product.controller';
-import { validateBody } from '../middlewares/validation.middleware';
+import { validateBody } from '../middleware/validation.middleware';
 import { createProductSchema, updateProductSchema } from '../validation/product.validation';
 
 const productsRouter = Router();

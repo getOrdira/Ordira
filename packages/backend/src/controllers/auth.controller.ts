@@ -13,7 +13,7 @@ import {
   RegisterUserInput,
   VerifyUserInput,
   LoginUserInput
-} from '../services/auth.service';
+} from '../services/business/auth.service';
 
 /**
  * POST /auth/register/business

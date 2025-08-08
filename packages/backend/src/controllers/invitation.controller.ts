@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import * as invSvc from '../services/invitation.service';
+import * as invSvc from '../services/business/invitation.service';
 
 interface TenantRequest extends Request {
   tenant?: { business: { toString: () => string } };

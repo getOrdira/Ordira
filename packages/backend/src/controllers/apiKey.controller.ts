@@ -2,7 +2,7 @@
 
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
-import * as apiKeySvc from '../services/apiKey.service';
+import * as apiKeySvc from '../services/business/apiKey.service';
 
 /**
  * POST /api/brand/api-keys

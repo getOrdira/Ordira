@@ -1,6 +1,6 @@
 // src/controllers/manufacturerProfile.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as svc from '../services/manufacturerProfile.service';
+import * as svc from '../services/business/manufacturerProfile.service';
 
 export async function listManufacturerProfiles(
   _req: Request, 

@@ -25,4 +25,7 @@ PendingVoteSchema.index(
   { unique: true }
 );
 
+PendingVoteSchema.index({ businessId: 1, proposalId: 1, userId: 1 }, { unique: true });
+PendingVoteSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+
 export const PendingVote = model<PendingVote>('PendingVote', PendingVoteSchema);

@@ -1,6 +1,6 @@
 // src/controllers/wix.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as wixService from '../services/wix.service';
+import * as wixService from '../services/external/wix.service';
 
 export async function connectWix(req: Request & { user?: any }, res: Response, next: NextFunction) {
   try {

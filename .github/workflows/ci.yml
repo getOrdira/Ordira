@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   build-and-test:
@@ -20,7 +23,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install all workspaces
+      - name: Install dependencies
         run: npm ci --workspaces --if-present
 
       - name: Lint
@@ -29,5 +32,12 @@ jobs:
       - name: Build
         run: npm run build --workspaces
 
-      - name: Run tests
-        run: npm test --workspaces
+      - name: Run tests with coverage
+        # Pass `--coverage` so jest picks up the config, and `--passWithNoTests` if you need it
+        run: npm test --workspaces -- --coverage
+
+      - name: Upload coverage to Codecov  # optional
+        if: success()
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage/lcov.info

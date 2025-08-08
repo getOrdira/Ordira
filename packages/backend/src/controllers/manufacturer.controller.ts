@@ -2,7 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/manufacturerAuth.middleware';
-import * as mfgService from '../services/manufacturer.service';
+import * as mfgService from '../services/business/manufacturer.service';
 
 /**
  * POST /api/manufacturer/register

@@ -92,6 +92,11 @@ import { startDomainCachePolling, isAllowedCustomDomain } from './cache/domainCa
     })
   );
 
+  app.use(
+  '/.well-known/acme-challenge',
+  express.static(path.join(process.cwd(), ' .well-known', 'acme-challenge'))
+);
+
   // Rate limiters
   const authLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many requests, try again later.' });
   app.use('/api/auth', authLimiter);

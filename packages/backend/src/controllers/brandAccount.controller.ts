@@ -1,7 +1,7 @@
 // src/controllers/brandAccount.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import * as brandAccountService from '../services/brandAccount.service';
+import * as brandAccountService from '../services/business/brandAccount.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 
 export async function getBrandProfile(

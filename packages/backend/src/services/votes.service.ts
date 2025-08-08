@@ -1,6 +1,6 @@
 // src/services/votes.service.ts
 
-import { JsonRpcProvider, Wallet, Contract, getBytes } from 'ethers';
+import { Contract, getBytes } from 'ethers';
 import votingFactoryAbi from '../abi/votingFactoryAbi.json';
 import votingAbi        from '../abi/votingAbi.json';
 import { BrandSettings } from '../models/brandSettings.model';
@@ -8,13 +8,14 @@ import { Subscription }  from '../models/subscription.model';
 import { VotingRecord }  from '../models/votingRecord.model';
 import * as billingService from './billing.service';
 import { notifyBrandOfNewVote } from './notification.service';
+import { getProvider, getSigner } from './blockchain/provider.service';
 
-const BASE_RPC_URL           = process.env.BASE_RPC_URL!;
-const PRIVATE_KEY            = process.env.PRIVATE_KEY!;
 const VOTING_FACTORY_ADDRESS = process.env.VOTING_FACTORY_ADDRESS!;
 
-const provider = new JsonRpcProvider(BASE_RPC_URL);
-const signer   = new Wallet(PRIVATE_KEY, provider);
+const provider = getProvider();
+const signer   = getSigner();
+
+
 /** Factory used only to deploy new brand contracts */
 const factory  = new Contract(
   VOTING_FACTORY_ADDRESS,

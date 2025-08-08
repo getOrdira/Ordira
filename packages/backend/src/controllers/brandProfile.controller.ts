@@ -1,6 +1,6 @@
 // src/controllers/brandProfile.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import * as svc from '../services/brandProfile.service';
+import * as svc from '../services/business/brandProfile.service';
 
 export async function listBrandProfiles(
   _req: Request, 
