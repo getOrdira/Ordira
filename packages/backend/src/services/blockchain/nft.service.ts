@@ -17,6 +17,19 @@ export interface NFTMintParams {
 }
 
 /**
+ * Custom error class for blockchain operations with status codes
+ */
+class BlockchainError extends Error {
+  statusCode: number;
+  
+  constructor(message: string, statusCode: number = 500) {
+    super(message);
+    this.name = 'BlockchainError';
+    this.statusCode = statusCode;
+  }
+}
+
+/**
  * Pure blockchain service for NFT operations
  * Handles contract deployment and minting without business logic
  */
@@ -28,7 +41,7 @@ export class NftService {
   private static getNftFactoryContract() {
     const factoryAddress = process.env.NFT_FACTORY_ADDRESS;
     if (!factoryAddress) {
-      throw new Error('NFT_FACTORY_ADDRESS not configured');
+      throw new BlockchainError('NFT_FACTORY_ADDRESS not configured', 500);
     }
     return BlockchainProviderService.getContract(factoryAddress, nftFactoryAbi);
   }
@@ -39,6 +52,18 @@ export class NftService {
   static async deployNFTContract(params: NFTDeployParams): Promise<ContractDeployment> {
     try {
       const { name, symbol, baseUri } = params;
+      
+      // Validate input parameters
+      if (!name?.trim()) {
+        throw new BlockchainError('Contract name is required', 400);
+      }
+      if (!symbol?.trim()) {
+        throw new BlockchainError('Contract symbol is required', 400);
+      }
+      if (!baseUri?.trim()) {
+        throw new BlockchainError('Base URI is required', 400);
+      }
+      
       const nftFactory = this.getNftFactoryContract();
       
       const tx = await nftFactory.deployNFT(name, symbol, baseUri);
@@ -46,7 +71,7 @@ export class NftService {
 
       const evt = receipt.events?.find((e: any) => e.event === 'NFTDeployed');
       if (!evt) {
-        throw new Error('NFTDeployed event not found in transaction receipt');
+        throw new BlockchainError('NFTDeployed event not found in transaction receipt', 500);
       }
 
       const contractAddress = evt.args.contractAddress as string;
@@ -57,8 +82,23 @@ export class NftService {
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString()
       };
-    } catch (error) {
-      throw new Error(`Failed to deploy NFT contract: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      // Handle specific blockchain errors
+      if (error.code === 'INSUFFICIENT_FUNDS') {
+        throw new BlockchainError('Insufficient funds for contract deployment', 400);
+      }
+      if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        throw new BlockchainError('Unable to estimate gas for deployment transaction', 400);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error during deployment', 503);
+      }
+      
+      throw new BlockchainError(`Failed to deploy NFT contract: ${error.message}`, 500);
     }
   }
 
@@ -69,6 +109,25 @@ export class NftService {
     try {
       const { contractAddress, recipient, tokenUri } = params;
       
+      // Validate input parameters
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!recipient?.trim()) {
+        throw new BlockchainError('Recipient address is required', 400);
+      }
+      if (!tokenUri?.trim()) {
+        throw new BlockchainError('Token URI is required', 400);
+      }
+      
+      // Validate Ethereum address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+        throw new BlockchainError('Invalid recipient address format', 400);
+      }
+      
       const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
       
       const tx = await nftContract.safeMint(recipient, tokenUri);
@@ -77,7 +136,7 @@ export class NftService {
       // Find the Transfer event to get the token ID
       const transferEvent = receipt.events?.find((e: any) => e.event === 'Transfer');
       if (!transferEvent) {
-        throw new Error('Transfer event not found in transaction receipt');
+        throw new BlockchainError('Transfer event not found in transaction receipt', 500);
       }
 
       const tokenId = transferEvent.args.tokenId.toString();
@@ -89,8 +148,26 @@ export class NftService {
         blockNumber: receipt.blockNumber,
         contractAddress
       };
-    } catch (error) {
-      throw new Error(`Failed to mint NFT: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      // Handle specific blockchain errors
+      if (error.code === 'INSUFFICIENT_FUNDS') {
+        throw new BlockchainError('Insufficient funds for minting transaction', 400);
+      }
+      if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        throw new BlockchainError('Unable to estimate gas for minting transaction', 400);
+      }
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Contract call failed - contract may not exist or method unavailable', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error during minting', 503);
+      }
+      
+      throw new BlockchainError(`Failed to mint NFT: ${error.message}`, 500);
     }
   }
 
@@ -99,6 +176,14 @@ export class NftService {
    */
   static async getUserContracts(userAddress: string): Promise<string[]> {
     try {
+      if (!userAddress?.trim()) {
+        throw new BlockchainError('User address is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
+        throw new BlockchainError('Invalid user address format', 400);
+      }
+      
       const nftFactory = this.getNftFactoryContract();
       const count = await nftFactory.getUserContractCount(userAddress);
       const contracts: string[] = [];
@@ -109,8 +194,19 @@ export class NftService {
       }
       
       return contracts;
-    } catch (error) {
-      throw new Error(`Failed to get user contracts: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Unable to retrieve user contracts - factory contract may be unavailable', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while fetching user contracts', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get user contracts: ${error.message}`, 500);
     }
   }
 
@@ -119,6 +215,14 @@ export class NftService {
    */
   static async getContractMetadata(contractAddress: string): Promise<NftContractInfo> {
     try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       
       const [name, symbol, totalSupply, owner] = await Promise.all([
@@ -136,8 +240,19 @@ export class NftService {
         owner,
         businessId: '' // This would be populated by business layer
       };
-    } catch (error) {
-      throw new Error(`Failed to get contract metadata: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Contract not found or not a valid ERC721 contract', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while fetching contract metadata', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get contract metadata: ${error.message}`, 500);
     }
   }
 
@@ -146,10 +261,32 @@ export class NftService {
    */
   static async getTokenURI(contractAddress: string, tokenId: string): Promise<string> {
     try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!tokenId?.trim()) {
+        throw new BlockchainError('Token ID is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       return await nftContract.tokenURI(tokenId);
-    } catch (error) {
-      throw new Error(`Failed to get token URI: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Token not found or contract unavailable', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while fetching token URI', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get token URI: ${error.message}`, 500);
     }
   }
 
@@ -158,10 +295,32 @@ export class NftService {
    */
   static async getTokenOwner(contractAddress: string, tokenId: string): Promise<string> {
     try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!tokenId?.trim()) {
+        throw new BlockchainError('Token ID is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       return await nftContract.ownerOf(tokenId);
-    } catch (error) {
-      throw new Error(`Failed to get token owner: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Token not found or contract unavailable', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while fetching token owner', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get token owner: ${error.message}`, 500);
     }
   }
 
@@ -170,6 +329,14 @@ export class NftService {
    */
   static async isValidNFTContract(contractAddress: string): Promise<boolean> {
     try {
+      if (!contractAddress?.trim()) {
+        return false;
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        return false;
+      }
+      
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       
       // Try to call supportsInterface for ERC721
@@ -192,6 +359,14 @@ export class NftService {
     txHash: string;
   }>> {
     try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       
       const transferEvents = await nftContract.queryFilter(
@@ -211,8 +386,19 @@ export class NftService {
           txHash: evt.transactionHash
         };
       });
-    } catch (error) {
-      throw new Error(`Failed to get transfer events: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Contract not found or unable to query events', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while fetching transfer events', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get transfer events: ${error.message}`, 500);
     }
   }
 
@@ -237,8 +423,12 @@ export class NftService {
           tokenId: event.tokenId,
           txHash: event.txHash
         }));
-    } catch (error) {
-      throw new Error(`Failed to get mint events: ${error.message}`);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      throw new BlockchainError(`Failed to get mint events: ${error.message}`, 500);
     }
   }
 
@@ -251,8 +441,12 @@ export class NftService {
       // NFT operations might need higher gas, add 15%
       const gasPrice = feeData.gasPrice! * BigInt(115) / BigInt(100);
       return gasPrice.toString();
-    } catch (error) {
-      throw new Error(`Failed to get gas price: ${error.message}`);
+    } catch (error: any) {
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while fetching gas price', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get gas price: ${error.message}`, 500);
     }
   }
 
@@ -265,6 +459,6 @@ export class NftService {
   }> {
     // This method maintains compatibility with your certificate service
     // You'll need to implement the business logic to get contract address from businessId
-    throw new Error('This method should be implemented in the business layer service');
+    throw new BlockchainError('This method should be implemented in the business layer service', 501);
   }
 }

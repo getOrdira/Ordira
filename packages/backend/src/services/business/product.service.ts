@@ -2,6 +2,16 @@
 import { Product, IProduct } from '../../models/product.model';
 import { MediaService } from './media.service';
 
+class ProductError extends Error {
+  statusCode: number;
+  
+  constructor(message: string, statusCode: number = 500) {
+    super(message);
+    this.name = 'ProductError';
+    this.statusCode = statusCode;
+  }
+}
+
 export interface ProductSummary {
   id: string;
   title: string;
@@ -399,14 +409,38 @@ export class ProductService {
   }
 
   /**
-   * Bulk update products
-   */
-  async bulkUpdateProducts(
-    productIds: string[],
-    updates: UpdateProductData,
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<{ updated: number; errors: string[] }> {
+ * Bulk update products
+ */
+async bulkUpdateProducts(
+  productIds: string[],
+  updates: UpdateProductData,
+  businessId?: string,
+  manufacturerId?: string
+): Promise<{ updated: number; errors: string[] }> {
+  try {
+    // Validate input parameters
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      throw new ProductError('Product IDs array is required and cannot be empty', 400);
+    }
+    
+    if (productIds.length > 100) {
+      throw new ProductError('Maximum 100 products can be updated at once', 400);
+    }
+    
+    if (!updates || Object.keys(updates).length === 0) {
+      throw new ProductError('Update data is required', 400);
+    }
+
+    // Validate all product IDs format (assuming MongoDB ObjectIds)
+    for (const productId of productIds) {
+      if (!productId?.trim()) {
+        throw new ProductError('Product ID cannot be empty', 400);
+      }
+      if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
+        throw new ProductError(`Invalid product ID format: ${productId}`, 400);
+      }
+    }
+
     const errors: string[] = [];
     let updated = 0;
 
@@ -414,13 +448,27 @@ export class ProductService {
       try {
         await this.updateProduct(productId, updates, businessId, manufacturerId);
         updated++;
-      } catch (error) {
-        errors.push(`Failed to update ${productId}: ${error.message}`);
+      } catch (error: any) {
+        // Handle different types of errors with appropriate context
+        if (error instanceof ProductError) {
+          errors.push(`Failed to update ${productId}: ${error.message}`);
+        } else if (error.statusCode) {
+          errors.push(`Failed to update ${productId}: ${error.message}`);
+        } else {
+          errors.push(`Failed to update ${productId}: ${error.message || 'Unknown error'}`);
+        }
       }
     }
 
     return { updated, errors };
+  } catch (error: any) {
+    if (error instanceof ProductError) {
+      throw error;
+    }
+    
+    throw new ProductError(`Failed to bulk update products: ${error.message}`, 500);
   }
+}
 
   /**
    * Get available product categories

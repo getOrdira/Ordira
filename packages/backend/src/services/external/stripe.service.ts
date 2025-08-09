@@ -67,4 +67,10 @@ export class StripeService {
   async validateWebhook(payload: Buffer, signature: string): Promise<Stripe.Event> {
     return stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET!);
   }
+  
+  async applyCouponToSubscription(subscriptionId: string, couponId: string): Promise<Stripe.Subscription> {
+  return await stripe.subscriptions.update(subscriptionId, {
+    coupon: couponId
+  });
+}
 }

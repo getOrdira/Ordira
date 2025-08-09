@@ -21,7 +21,7 @@ export class CertificateManagerService {
 
   async provisionCertForHost(hostname: string): Promise<void> {
     // 1) Prepare ACME client & new order
-    const client = await getAcmeClient();
+    const client = await this.getAcmeClient();
     const order = await client.createOrder({
       identifiers: [{ type: 'dns', value: hostname }]
     });
