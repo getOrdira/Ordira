@@ -34,7 +34,8 @@ export const updateBrandSettingsSchema = Joi.object({
     })
     .optional(),
 
-  logoUrl: commonSchemas.url
+  logoUrl: Joi.string()
+    .uri()
     .custom((value, helpers) => {
       // Validate logo URL requirements
       const validImageFormats = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
@@ -60,13 +61,15 @@ export const updateBrandSettingsSchema = Joi.object({
       return value;
     })
     .messages({
+      'string.uri': 'Logo URL must be a valid URL',
       'url.invalidLogo': 'Logo must be a valid image URL from a trusted hosting service'
     })
     .optional(),
 
   bannerImages: Joi.array()
     .items(
-      commonSchemas.url
+      Joi.string()
+        .uri()
         .custom((value, helpers) => {
           const validFormats = ['.png', '.jpg', '.jpeg', '.webp'];
           const hasValidFormat = validFormats.some(format => 
@@ -80,6 +83,7 @@ export const updateBrandSettingsSchema = Joi.object({
           return value;
         })
         .messages({
+          'string.uri': 'Banner image must be a valid URL',
           'url.invalidBanner': 'Banner images must be valid image URLs'
         })
     )
@@ -134,8 +138,13 @@ export const updateBrandSettingsSchema = Joi.object({
     .optional(),
 
   // Routing & hosting configuration
-  subdomain: commonSchemas.subdomain
-    .custom(async (value, helpers) => {
+  subdomain: Joi.string()
+    .trim()
+    .lowercase()
+    .pattern(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/)
+    .min(3)
+    .max(63)
+    .custom((value, helpers) => {
       // Reserved subdomains check (enhanced list)
       const reserved = [
         'www', 'api', 'admin', 'dashboard', 'app', 'mail', 'ftp',
@@ -159,13 +168,16 @@ export const updateBrandSettingsSchema = Joi.object({
       return value;
     })
     .messages({
+      'string.pattern.base': 'Subdomain can only contain lowercase letters, numbers, and hyphens',
+      'string.min': 'Subdomain must be at least 3 characters',
+      'string.max': 'Subdomain cannot exceed 63 characters',
       'string.reservedSubdomain': 'This subdomain is reserved and cannot be used',
       'string.inappropriateSubdomain': 'Subdomain contains inappropriate content'
     })
     .optional(),
 
   customDomain: Joi.string()
-    .domain({ tlds: { allow: true } })
+    .domain()
     .custom((value, helpers) => {
       // Validate custom domain format and restrictions
       const domain = value.toLowerCase();
@@ -192,6 +204,7 @@ export const updateBrandSettingsSchema = Joi.object({
       return value;
     })
     .messages({
+      'string.domain': 'Must be a valid domain name',
       'string.freeDomain': 'Free hosting domains are not allowed for custom domains',
       'string.wwwNotAllowed': 'Custom domain should not include www prefix',
       'string.invalidDomainFormat': 'Invalid domain format'
@@ -201,10 +214,11 @@ export const updateBrandSettingsSchema = Joi.object({
   // E-commerce integrations
   shopifyIntegration: Joi.object({
     shopifyDomain: Joi.string()
-      .domain({ tlds: { allow: false } })
+      .domain()
       .pattern(/\.myshopify\.com$/)
       .required()
       .messages({
+        'string.domain': 'Must be a valid domain',
         'string.pattern.base': 'Shopify domain must end with .myshopify.com'
       }),
     
@@ -214,6 +228,7 @@ export const updateBrandSettingsSchema = Joi.object({
       .max(128)
       .required()
       .messages({
+        'string.alphanum': 'Access token must be alphanumeric',
         'string.min': 'Invalid Shopify access token format',
         'string.max': 'Invalid Shopify access token format'
       }),
@@ -238,8 +253,11 @@ export const updateBrandSettingsSchema = Joi.object({
 
   wooCommerceIntegration: Joi.object({
     wooDomain: Joi.string()
-      .domain({ tlds: { allow: false } })
-      .required(),
+      .domain()
+      .required()
+      .messages({
+        'string.domain': 'Must be a valid domain'
+      }),
     
     wooConsumerKey: Joi.string()
       .pattern(/^ck_[a-f0-9]{40}$/)
@@ -265,6 +283,7 @@ export const updateBrandSettingsSchema = Joi.object({
       .max(1440)
       .default(30)
       .messages({
+        'number.integer': 'Sync interval must be an integer',
         'number.min': 'Sync interval must be at least 5 minutes',
         'number.max': 'Sync interval cannot exceed 24 hours'
       })
@@ -272,21 +291,31 @@ export const updateBrandSettingsSchema = Joi.object({
 
   wixIntegration: Joi.object({
     wixDomain: Joi.string()
-      .domain({ tlds: { allow: false } })
+      .domain()
       .pattern(/\.wixsite\.com$|\.wix\.com$/)
-      .required(),
+      .required()
+      .messages({
+        'string.domain': 'Must be a valid domain',
+        'string.pattern.base': 'Wix domain must end with .wixsite.com or .wix.com'
+      }),
     
     wixApiKey: Joi.string()
       .min(32)
       .max(128)
-      .required(),
+      .required()
+      .messages({
+        'string.min': 'Wix API key must be at least 32 characters',
+        'string.max': 'Wix API key cannot exceed 128 characters'
+      }),
     
-    wixRefreshToken: Joi.string()
-      .optional(),
+    wixRefreshToken: Joi.string().optional(),
     
     appId: Joi.string()
-      .uuid()
+      .guid({ version: 'uuidv4' })
       .optional()
+      .messages({
+        'string.guid': 'App ID must be a valid UUID'
+      })
   }).optional(),
 
   // Web3 & blockchain settings
@@ -317,17 +346,26 @@ export const updateBrandSettingsSchema = Joi.object({
     
     voteContract: Joi.string()
       .pattern(/^0x[a-fA-F0-9]{40}$/)
-      .optional(),
+      .optional()
+      .messages({
+        'string.pattern.base': 'Must be a valid Ethereum contract address'
+      }),
     
     nftContract: Joi.string()
       .pattern(/^0x[a-fA-F0-9]{40}$/)
-      .optional(),
+      .optional()
+      .messages({
+        'string.pattern.base': 'Must be a valid Ethereum contract address'
+      }),
     
     chainId: Joi.number()
       .integer()
       .valid(1, 3, 4, 5, 42, 137, 80001) // Ethereum, testnets, Polygon
       .default(1)
-      .optional(),
+      .optional()
+      .messages({
+        'any.only': 'Chain ID must be a supported blockchain network'
+      }),
     
     gasLimit: Joi.number()
       .integer()
@@ -335,38 +373,30 @@ export const updateBrandSettingsSchema = Joi.object({
       .max(8000000)
       .default(200000)
       .optional()
-  }).optional(),
-
-  // Subscription and billing settings
-  subscriptionSettings: Joi.object({
-    plan: commonSchemas.plan.optional(),
-    
-    billingCycle: Joi.string()
-      .valid('monthly', 'yearly')
-      .default('monthly')
-      .optional(),
-    
-    autoRenew: Joi.boolean()
-      .default(true)
-      .optional(),
-    
-    usageAlerts: Joi.object({
-      enabled: Joi.boolean().default(true),
-      thresholds: Joi.array()
-        .items(Joi.number().min(0).max(100))
-        .max(5)
-        .default([50, 75, 90])
-    }).optional()
+      .messages({
+        'number.integer': 'Gas limit must be an integer',
+        'number.min': 'Gas limit must be at least 21,000',
+        'number.max': 'Gas limit cannot exceed 8,000,000'
+      })
   }).optional(),
 
   // API and webhook configuration
   apiSettings: Joi.object({
-    webhookUrl: commonSchemas.url.optional(),
+    webhookUrl: Joi.string()
+      .uri()
+      .optional()
+      .messages({
+        'string.uri': 'Webhook URL must be a valid URL'
+      }),
     
     webhookSecret: Joi.string()
       .min(16)
       .max(128)
-      .optional(),
+      .optional()
+      .messages({
+        'string.min': 'Webhook secret must be at least 16 characters',
+        'string.max': 'Webhook secret cannot exceed 128 characters'
+      }),
     
     enabledEvents: Joi.array()
       .items(Joi.string().valid(
@@ -375,7 +405,10 @@ export const updateBrandSettingsSchema = Joi.object({
         'plan.upgraded', 'plan.downgraded', 'subscription.renewed'
       ))
       .max(20)
-      .optional(),
+      .optional()
+      .messages({
+        'array.max': 'Cannot enable more than 20 webhook events'
+      }),
     
     rateLimits: Joi.object({
       enabled: Joi.boolean().default(true),
@@ -383,12 +416,22 @@ export const updateBrandSettingsSchema = Joi.object({
         .integer()
         .min(1)
         .max(1000)
-        .default(100),
+        .default(100)
+        .messages({
+          'number.integer': 'Requests per minute must be an integer',
+          'number.min': 'Must allow at least 1 request per minute',
+          'number.max': 'Cannot exceed 1000 requests per minute'
+        }),
       burstLimit: Joi.number()
         .integer()
         .min(1)
         .max(2000)
         .default(200)
+        .messages({
+          'number.integer': 'Burst limit must be an integer',
+          'number.min': 'Must allow at least 1 burst request',
+          'number.max': 'Burst limit cannot exceed 2000'
+        })
     }).optional()
   }).optional(),
 
@@ -403,7 +446,10 @@ export const updateBrandSettingsSchema = Joi.object({
     
     facebookPixelId: Joi.string()
       .pattern(/^[0-9]{15,16}$/)
-      .optional(),
+      .optional()
+      .messages({
+        'string.pattern.base': 'Facebook Pixel ID must be 15-16 digits'
+      }),
     
     customTrackingScript: Joi.string()
       .max(10000)
@@ -414,7 +460,11 @@ export const updateBrandSettingsSchema = Joi.object({
         }
         return value;
       })
-      .optional(),
+      .optional()
+      .messages({
+        'string.max': 'Custom tracking script cannot exceed 10KB',
+        'string.invalidScript': 'Invalid script format - must have proper opening and closing tags'
+      }),
     
     enableHeatmaps: Joi.boolean().default(false),
     enableSessionRecording: Joi.boolean().default(false)
@@ -439,13 +489,25 @@ export const updateBrandSettingsSchema = Joi.object({
     keywords: Joi.array()
       .items(Joi.string().max(50))
       .max(20)
-      .optional(),
+      .optional()
+      .messages({
+        'array.max': 'Cannot have more than 20 keywords',
+        'string.max': 'Each keyword cannot exceed 50 characters'
+      }),
     
-    canonicalUrl: commonSchemas.url.optional(),
+    canonicalUrl: Joi.string()
+      .uri()
+      .optional()
+      .messages({
+        'string.uri': 'Canonical URL must be a valid URL'
+      }),
     
     robotsTxt: Joi.string()
       .max(5000)
-      .optional(),
+      .optional()
+      .messages({
+        'string.max': 'Robots.txt cannot exceed 5KB'
+      }),
     
     sitemap: Joi.boolean().default(true)
   }).optional(),
@@ -453,9 +515,17 @@ export const updateBrandSettingsSchema = Joi.object({
   // Security settings
   securitySettings: Joi.object({
     corsOrigins: Joi.array()
-      .items(commonSchemas.url.allow('*'))
+      .items(
+        Joi.alternatives().try(
+          Joi.string().uri(),
+          Joi.string().valid('*')
+        )
+      )
       .max(20)
-      .optional(),
+      .optional()
+      .messages({
+        'array.max': 'Cannot have more than 20 CORS origins'
+      }),
     
     cspDirectives: Joi.object()
       .pattern(
@@ -473,45 +543,187 @@ export const updateBrandSettingsSchema = Joi.object({
     ipWhitelist: Joi.array()
       .items(Joi.string().ip())
       .max(100)
-      .optional(),
+      .optional()
+      .messages({
+        'array.max': 'Cannot have more than 100 whitelisted IP addresses'
+      }),
     
     blockCountries: Joi.array()
       .items(Joi.string().length(2).uppercase())
       .max(50)
       .optional()
+      .messages({
+        'array.max': 'Cannot block more than 50 countries',
+        'string.length': 'Country codes must be exactly 2 characters',
+        'string.uppercase': 'Country codes must be uppercase (e.g., US, CA, GB)'
+      })
   }).optional()
 });
 
-// Quick branding update schema
+/**
+ * Schema for certificate wallet updates (security-critical)
+ */
+export const certificateWalletSchema = Joi.object({
+  certificateWallet: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .custom((value, helpers) => {
+      const address = value.toLowerCase();
+      
+      // Check for burn addresses and common invalid addresses
+      const invalidAddresses = [
+        '0x0000000000000000000000000000000000000000',
+        '0x000000000000000000000000000000000000dead',
+        '0xffffffffffffffffffffffffffffffffffffffff'
+      ];
+      
+      if (invalidAddresses.includes(address)) {
+        return helpers.error('string.invalidWalletAddress');
+      }
+      
+      return value;
+    })
+    .required()
+    .messages({
+      'string.pattern.base': 'Certificate wallet must be a valid Ethereum address (0x followed by 40 hex characters)',
+      'string.invalidWalletAddress': 'Invalid or restricted wallet address',
+      'any.required': 'Certificate wallet address is required'
+    })
+});
+
+/**
+ * Schema for quick branding updates (theme and logo only)
+ */
 export const quickBrandingSchema = Joi.object({
-  themeColor: commonSchemas.hexColor,
-  logoUrl: commonSchemas.optionalUrl
+  themeColor: Joi.string()
+    .pattern(/^#([0-9A-F]{3}){1,2}$/i)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Theme color must be a valid hex color (e.g., #FF0000 or #F00)'
+    }),
+
+  logoUrl: Joi.string()
+    .uri()
+    .optional()
+    .messages({
+      'string.uri': 'Logo URL must be a valid URL'
+    })
 });
 
-// Domain configuration schema
+/**
+ * Schema for domain configuration
+ */
 export const domainConfigSchema = Joi.object({
-  subdomain: commonSchemas.subdomain.optional(),
-  customDomain: Joi.string().domain().optional()
-}).or('subdomain', 'customDomain');
+  subdomain: Joi.string()
+    .trim()
+    .lowercase()
+    .pattern(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/)
+    .min(3)
+    .max(63)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Subdomain can only contain lowercase letters, numbers, and hyphens',
+      'string.min': 'Subdomain must be at least 3 characters',
+      'string.max': 'Subdomain cannot exceed 63 characters'
+    }),
 
-// Integration-specific schemas
+  customDomain: Joi.string()
+    .domain()
+    .optional()
+    .messages({
+      'string.domain': 'Custom domain must be a valid domain name'
+    })
+}).or('subdomain', 'customDomain')
+  .messages({
+    'object.missing': 'Either subdomain or customDomain must be provided'
+  });
+
+/**
+ * Schema for Shopify integration
+ */
 export const shopifyIntegrationSchema = Joi.object({
-  shopifyDomain: Joi.string().pattern(/\.myshopify\.com$/).required(),
-  shopifyAccessToken: Joi.string().min(32).required(),
-  shopifyWebhookSecret: Joi.string().optional()
+  shopifyDomain: Joi.string()
+    .pattern(/\.myshopify\.com$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Shopify domain must end with .myshopify.com',
+      'any.required': 'Shopify domain is required'
+    }),
+  
+  shopifyAccessToken: Joi.string()
+    .min(32)
+    .required()
+    .messages({
+      'string.min': 'Shopify access token must be at least 32 characters',
+      'any.required': 'Shopify access token is required'
+    }),
+  
+  shopifyWebhookSecret: Joi.string()
+    .optional()
 });
 
+/**
+ * Schema for WooCommerce integration
+ */
 export const wooCommerceIntegrationSchema = Joi.object({
-  wooDomain: Joi.string().domain().required(),
-  wooConsumerKey: Joi.string().pattern(/^ck_/).required(),
-  wooConsumerSecret: Joi.string().pattern(/^cs_/).required()
+  wooDomain: Joi.string()
+    .domain()
+    .required()
+    .messages({
+      'string.domain': 'WooCommerce domain must be a valid domain',
+      'any.required': 'WooCommerce domain is required'
+    }),
+  
+  wooConsumerKey: Joi.string()
+    .pattern(/^ck_/)
+    .required()
+    .messages({
+      'string.pattern.base': 'WooCommerce consumer key must start with "ck_"',
+      'any.required': 'WooCommerce consumer key is required'
+    }),
+  
+  wooConsumerSecret: Joi.string()
+    .pattern(/^cs_/)
+    .required()
+    .messages({
+      'string.pattern.base': 'WooCommerce consumer secret must start with "cs_"',
+      'any.required': 'WooCommerce consumer secret is required'
+    })
 });
 
-// Export all schemas
+/**
+ * Schema for Wix integration
+ */
+export const wixIntegrationSchema = Joi.object({
+  wixDomain: Joi.string()
+    .domain()
+    .pattern(/\.wixsite\.com$|\.wix\.com$/)
+    .required()
+    .messages({
+      'string.domain': 'Must be a valid domain',
+      'string.pattern.base': 'Wix domain must end with .wixsite.com or .wix.com',
+      'any.required': 'Wix domain is required'
+    }),
+  
+  wixApiKey: Joi.string()
+    .min(32)
+    .required()
+    .messages({
+      'string.min': 'Wix API key must be at least 32 characters',
+      'any.required': 'Wix API key is required'
+    }),
+  
+  wixRefreshToken: Joi.string().optional()
+});
+
+/**
+ * All brand settings validation schemas
+ */
 export const brandSettingsValidationSchemas = {
   updateBrandSettings: updateBrandSettingsSchema,
+  certificateWallet: certificateWalletSchema,
   quickBranding: quickBrandingSchema,
   domainConfig: domainConfigSchema,
   shopifyIntegration: shopifyIntegrationSchema,
-  wooCommerceIntegration: wooCommerceIntegrationSchema
+  wooCommerceIntegration: wooCommerceIntegrationSchema,
+  wixIntegration: wixIntegrationSchema
 };
