@@ -68,11 +68,12 @@ export async function createCheckoutSession(
     const { plan, couponCode, addons = [] } = req.validatedBody || req.body;
 
     if (!isPlanKey(plan)) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Invalid subscription plan',
         availablePlans: Object.keys(PLAN_DEFINITIONS),
         code: 'INVALID_PLAN'
-      });
+      })
+      return;
     }
 
     // Get current subscription info
@@ -154,10 +155,11 @@ export async function changePlan(
     const { plan } = req.validatedBody || req.body;
 
     if (!isPlanKey(plan)) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Invalid subscription plan',
         code: 'INVALID_PLAN'
-      });
+      })
+      return;
     }
 
     // Get current billing information
@@ -166,11 +168,12 @@ export async function changePlan(
 
     // Prevent unnecessary changes
     if (currentPlan === plan) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Already subscribed to this plan',
         currentPlan,
         code: 'SAME_PLAN'
-      });
+      })
+      return;
     }
 
     // Validate plan change permissions
@@ -179,12 +182,13 @@ export async function changePlan(
       // Check if downgrade is allowed based on current usage
       const usageCheck = await billingService.validateDowngrade(businessId, plan);
       if (!usageCheck.allowed) {
-        return res.status(400).json({
+         res.status(400).json({
           error: 'Cannot downgrade due to current usage',
           issues: usageCheck.issues,
           recommendations: usageCheck.recommendations,
           code: 'DOWNGRADE_BLOCKED'
-        });
+        })
+        return;
       }
     }
 
@@ -343,10 +347,11 @@ export async function updatePaymentMethod(
     const { paymentMethodId, billingAddress } = req.validatedBody || req.body;
 
     if (!paymentMethodId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Payment method ID is required',
         code: 'MISSING_PAYMENT_METHOD'
-      });
+      })
+      return;
     }
 
     // Update payment method with billing address
@@ -426,10 +431,11 @@ export async function handleStripeWebhook(
     event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
   } catch (error: any) {
     console.error('Webhook signature verification failed:', error.message);
-    return res.status(400).json({ 
+     res.status(400).json({ 
       error: `Webhook Error: ${error.message}`,
       code: 'WEBHOOK_VERIFICATION_FAILED'
-    });
+    })
+    return;
   }
 
   try {

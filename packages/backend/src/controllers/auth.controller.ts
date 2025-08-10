@@ -86,23 +86,23 @@ export async function registerBusinessHandler(
     // Log successful registration for analytics
     console.log(`Business registration: ${result.businessId} from IP: ${securityContext.ipAddress}`);
 
-    res.status(201).json({
-      businessId: result.businessId,
-      message: 'Business registered successfully. Please check your email for verification instructions.',
-      nextStep: 'email_verification',
-      estimatedVerificationTime: '5-10 minutes'
-    });
-  } catch (error) {
-    // Enhanced error logging with context
-    console.error('Business registration error:', {
-      error: error.message,
-      ip: getClientIp(req),
-      email: req.body?.email,
-      timestamp: new Date()
-    });
-    
-    next(error);
-  }
+ res.status(201).json({
+  businessId: result.businessId,
+  message: 'Business registered successfully. Please check your email for verification instructions.',
+  nextStep: 'email_verification',
+  estimatedVerificationTime: '5-10 minutes'
+});
+} catch (error) {
+  // Enhanced error logging with context
+  console.error('Business registration error:', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    ip: getClientIp(req),
+    email: (req.body as any)?.email, // ← Use type assertion
+    timestamp: new Date()
+  });
+  
+  next(error);
+}
 }
 
 /**
@@ -135,26 +135,26 @@ export async function verifyBusinessHandler(
     console.log(`Business verified: ${verificationData.businessId} from IP: ${securityContext.ipAddress}`);
 
     res.json({
-      token: result.token,
-      message: 'Business account verified successfully',
-      expiresIn: '7 days',
-      user: {
-        businessId: verificationData.businessId,
-        verified: true,
-        verifiedAt: new Date()
-      }
-    });
-  } catch (error) {
-    // Log failed verification attempts for security
-    console.warn('Business verification failed:', {
-      businessId: req.body?.businessId,
-      ip: getClientIp(req),
-      error: error.message,
-      timestamp: new Date()
-    });
-    
-    next(error);
+  token: result.token,
+  message: 'Business account verified successfully',
+  expiresIn: '7 days',
+  user: {
+    businessId: verificationData.businessId,
+    verified: true,
+    verifiedAt: new Date()
   }
+});
+} catch (error) {
+  // Log failed verification attempts for security
+  console.warn('Business verification failed:', {
+    businessId: (req.body as any)?.businessId, // ← Use type assertion
+    ip: getClientIp(req),
+    error: error instanceof Error ? error.message : 'Unknown error',
+    timestamp: new Date()
+  });
+  
+  next(error);
+}
 }
 
 /**
@@ -531,10 +531,11 @@ export async function refreshTokenHandler(
     const currentToken = req.headers.authorization?.split(' ')[1];
 
     if (!currentToken) {
-      return res.status(401).json({
+       res.status(401).json({
         error: 'No token provided',
         code: 'MISSING_TOKEN'
-      });
+      })
+      return;
     }
 
     // Generate new token

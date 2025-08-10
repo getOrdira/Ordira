@@ -178,13 +178,14 @@ export async function updateBrandSettings(
     // Validate plan permissions for requested features
     const restrictedFeatures = validatePlanFeatures(updateData, userPlan);
     if (restrictedFeatures.length > 0) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'Some features require a higher plan',
         restrictedFeatures,
         currentPlan: userPlan,
         requiredPlans: getRequiredPlans(restrictedFeatures),
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Get current settings for comparison
@@ -271,11 +272,12 @@ export async function updateCertificateWallet(
 
     // Validate Web3 feature access
     if (!['premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'Web3 features require Premium plan or higher',
         currentPlan: userPlan,
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Get current wallet for comparison
@@ -291,20 +293,22 @@ export async function updateCertificateWallet(
     });
 
     if (!walletValidation.valid) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Wallet validation failed',
         details: walletValidation.errors,
         code: 'WALLET_VALIDATION_FAILED'
-      });
+      })
+      return;
     }
 
     // Check for existing wallet usage
     const walletInUse = await brandSettingsService.isWalletInUse(certificateWallet, businessId);
     if (walletInUse) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Wallet address is already in use by another brand',
         code: 'WALLET_ALREADY_IN_USE'
-      });
+      })
+      return;
     }
 
     // Update wallet with enhanced security
@@ -385,21 +389,23 @@ export async function configureShopifyIntegration(
 
     // Validate integration permissions
     if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'E-commerce integrations require Growth plan or higher',
         currentPlan: userPlan,
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Test Shopify connection
     const connectionTest = await brandSettingsService.testShopifyConnection(integrationData);
     if (!connectionTest.success) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Shopify connection test failed',
         details: connectionTest.errors,
         code: 'SHOPIFY_CONNECTION_FAILED'
-      });
+      })
+      return;
     }
 
     // Configure integration
@@ -449,11 +455,12 @@ export async function removeIntegration(
     const { type } = req.params;
 
     if (!['shopify', 'woocommerce', 'wix'].includes(type)) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Invalid integration type',
         supportedTypes: ['shopify', 'woocommerce', 'wix'],
         code: 'INVALID_INTEGRATION_TYPE'
-      });
+      })
+      return;
     }
 
     // Remove integration with cleanup
@@ -498,11 +505,12 @@ export async function exportBrandSettings(
 
     // Validate format
     if (!['json', 'yaml', 'csv'].includes(format as string)) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid export format',
         supportedFormats: ['json', 'yaml', 'csv'],
         code: 'INVALID_FORMAT'
-      });
+      })
+      return;
     }
 
     // Export settings

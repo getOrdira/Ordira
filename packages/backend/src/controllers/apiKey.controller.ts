@@ -25,6 +25,7 @@ interface ApiKeyRequest extends AuthRequest, TenantRequest, ValidatedRequest {
   };
 }
 
+
 // Initialize services
 const apiKeyService = new ApiKeyService();
 const billingService = new BillingService();
@@ -47,36 +48,38 @@ export async function createKey(
     const planLimits = getApiKeyLimits(userPlan);
 
     if (currentKeys >= planLimits.maxKeys) {
-      return res.status(403).json({
+      res.status(403).json({
         error: 'API key limit reached for your plan',
         currentKeys,
         maxKeys: planLimits.maxKeys,
         plan: userPlan,
         code: 'API_KEY_LIMIT_REACHED'
       });
+      return;
     }
 
-    // Validate and process request data
+    // Validate and process request data with explicit typing
     const {
       name = 'Default API Key',
-      permissions = ['read'],
+      permissions = ['read'] as string[], // ← Add explicit type
       expiresAt,
       rateLimits,
       allowedOrigins,
       description
     } = req.validatedBody || req.body;
 
-    // Validate permissions against plan
-    const allowedPermissions = getPlanPermissions(userPlan);
-    const invalidPermissions = permissions.filter(p => !allowedPermissions.includes(p));
-    
+    // Validate permissions against plan with explicit typing
+    const allowedPermissions: string[] = getPlanPermissions(userPlan);
+    const invalidPermissions: string[] = permissions.filter((p: string) => !allowedPermissions.includes(p));
+
     if (invalidPermissions.length > 0) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Invalid permissions for your plan',
         invalidPermissions,
         allowedPermissions,
         code: 'INVALID_PERMISSIONS'
       });
+      return;
     }
 
     // Set plan-based rate limits if not provided
@@ -139,11 +142,16 @@ export async function listKeys(
 
     // Add enhanced metadata
     const enhancedKeys = await Promise.all(
-      keys.map(async (key) => {
-        const usage = await apiKeyService.getKeyUsageStats(key.keyId, '30d');
+      keys.map(async (apiKey) => {
+        // Use type assertion to access properties safely
+        const keyData = apiKey as any;
+        const keyIdentifier = keyData.keyId || keyData.key || keyData._id?.toString();
+        
+        const usage = await apiKeyService.getKeyUsageStats(keyIdentifier, '30d');
         
         return {
-          ...key,
+          ...apiKey,
+          keyId: keyIdentifier, // Ensure keyId is always present
           usage: {
             last30Days: usage.totalRequests,
             averageDaily: Math.round(usage.totalRequests / 30),
@@ -151,9 +159,9 @@ export async function listKeys(
             topEndpoints: usage.topEndpoints?.slice(0, 5) || []
           },
           security: {
-            isActive: !key.revoked && (!key.expiresAt || key.expiresAt > new Date()),
-            daysUntilExpiry: key.expiresAt ? 
-              Math.ceil((key.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null,
+            isActive: !apiKey.revoked && (!apiKey.expiresAt || apiKey.expiresAt > new Date()),
+            daysUntilExpiry: apiKey.expiresAt ? 
+              Math.ceil((apiKey.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null,
             rateLimitStatus: usage.rateLimitHits > 0 ? 'warning' : 'normal'
           }
         };
@@ -203,19 +211,21 @@ export async function updateKey(
     const userPlan = req.tenant?.plan || 'foundation';
 
     if (!keyId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Key ID is required',
         code: 'MISSING_KEY_ID'
-      });
+      })
+      return;
     }
 
     // Verify key ownership
     const existingKey = await apiKeyService.getApiKey(keyId, businessId);
     if (!existingKey) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'API key not found',
         code: 'API_KEY_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     const {
@@ -231,15 +241,16 @@ export async function updateKey(
     // Validate permissions if being updated
     if (permissions) {
       const allowedPermissions = getPlanPermissions(userPlan);
-      const invalidPermissions = permissions.filter(p => !allowedPermissions.includes(p));
+     const invalidPermissions = permissions.filter((p: string) => !allowedPermissions.includes(p)); 
       
       if (invalidPermissions.length > 0) {
-        return res.status(400).json({
+         res.status(400).json({
           error: 'Invalid permissions for your plan',
           invalidPermissions,
           allowedPermissions,
           code: 'INVALID_PERMISSIONS'
-        });
+        })
+        return;
       }
     }
 
@@ -285,19 +296,21 @@ export async function revokeKey(
     const { keyId } = req.params;
 
     if (!keyId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Key ID is required',
         code: 'MISSING_KEY_ID'
-      });
+      })
+      return;
     }
 
     // Verify key ownership and get usage stats before revoking
     const keyInfo = await apiKeyService.getApiKey(keyId, businessId);
     if (!keyInfo) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'API key not found',
         code: 'API_KEY_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Get final usage statistics
@@ -352,19 +365,21 @@ export async function getKeyUsage(
     const { timeframe = '30d', groupBy = 'day' } = req.query;
 
     if (!keyId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Key ID is required',
         code: 'MISSING_KEY_ID'
-      });
+      })
+      return;
     }
 
     // Verify key ownership
     const keyExists = await apiKeyService.getApiKey(keyId, businessId);
     if (!keyExists) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'API key not found',
         code: 'API_KEY_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Get detailed usage statistics
@@ -406,19 +421,21 @@ export async function rotateKey(
     const { keyId } = req.params;
 
     if (!keyId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Key ID is required',
         code: 'MISSING_KEY_ID'
-      });
+      })
+      return;
     }
 
     // Verify key ownership
     const existingKey = await apiKeyService.getApiKey(keyId, businessId);
     if (!existingKey) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'API key not found',
         code: 'API_KEY_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Rotate the API key

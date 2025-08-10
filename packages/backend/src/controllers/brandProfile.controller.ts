@@ -142,20 +142,22 @@ export async function getBrandProfile(
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Brand ID is required',
         code: 'MISSING_BRAND_ID'
-      });
+      })
+      return;
     }
 
     // Get comprehensive brand profile
     const profile = await brandProfileService.getDetailedBrandProfile(id);
 
     if (!profile) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Brand profile not found',
         code: 'BRAND_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Get public analytics (non-sensitive data)
@@ -228,10 +230,11 @@ export async function getBrandProfileForManufacturer(
     const profile = await brandProfileService.getBrandProfileForManufacturer(brandId, manufacturerId);
 
     if (!profile) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Brand profile not found',
         code: 'BRAND_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Check connection status
@@ -285,11 +288,12 @@ export async function initiateConnection(
     // Verify manufacturer can connect to this brand
     const canConnect = await manufacturerService.canConnectToBrand(manufacturerId, brandId);
     if (!canConnect.allowed) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Cannot connect to this brand',
         reason: canConnect.reason,
         code: 'CONNECTION_NOT_ALLOWED'
-      });
+      })
+      return;
     }
 
     // Create connection request
@@ -388,10 +392,11 @@ export async function getSearchSuggestions(
     const { q: query } = req.query;
 
     if (!query || query.length < 2) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Query must be at least 2 characters long',
         code: 'QUERY_TOO_SHORT'
-      });
+      })
+      return;
     }
 
     // Get comprehensive search suggestions
@@ -470,10 +475,11 @@ export async function reportBrand(
     const { reason, description, evidence } = req.validatedBody || req.body;
 
     if (!brandId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Brand ID is required',
         code: 'MISSING_BRAND_ID'
-      });
+      })
+      return;
     }
 
     // Create report with tracking

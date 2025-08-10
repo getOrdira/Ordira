@@ -121,13 +121,14 @@ export async function updateBrandProfile(
     // Validate plan permissions for certain fields
     const restrictedFields = validatePlanPermissions(updateData, userPlan);
     if (restrictedFields.length > 0) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'Some fields require a higher plan',
         restrictedFields,
         currentPlan: userPlan,
         requiredPlan: 'premium',
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Get current profile for comparison
@@ -211,11 +212,12 @@ export async function submitVerification(
     // Check if verification is already in progress
     const currentStatus = await brandAccountService.getVerificationStatus(businessId);
     if (currentStatus.status === 'pending') {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Verification already in progress',
         currentStatus,
         code: 'VERIFICATION_IN_PROGRESS'
-      });
+      })
+      return;
     }
 
     // Validate required documents based on plan
@@ -223,12 +225,13 @@ export async function submitVerification(
     const missingDocs = requiredDocs.filter(doc => !verificationData[doc]);
     
     if (missingDocs.length > 0) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Missing required verification documents',
         missingDocuments: missingDocs,
         requiredDocuments: requiredDocs,
         code: 'MISSING_DOCUMENTS'
-      });
+      })
+      return;
     }
 
     // Submit verification with enhanced tracking
@@ -322,20 +325,22 @@ export async function deactivateAccount(
     // Verify password for security
     const passwordValid = await brandAccountService.verifyPassword(businessId, confirmPassword);
     if (!passwordValid) {
-      return res.status(401).json({
+       res.status(401).json({
         error: 'Invalid password',
         code: 'INVALID_PASSWORD'
-      });
+      })
+      return;
     }
 
     // Check for active subscriptions
     const activeBilling = await billingService.getBillingInfo(businessId).catch(() => null);
     if (activeBilling && activeBilling.subscriptionStatus === 'active') {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Please cancel your subscription before deactivating account',
         subscriptionInfo: activeBilling,
         code: 'ACTIVE_SUBSCRIPTION'
-      });
+      })
+      return;
     }
 
     // Process account deactivation
@@ -392,11 +397,12 @@ export async function getAccountAnalytics(
 
     // Check plan permissions for analytics
     if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'Account analytics require Growth plan or higher',
         currentPlan: userPlan,
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Get account analytics
@@ -441,10 +447,11 @@ export async function exportAccountData(
 
     // Validate export permissions
     if (format === 'pdf' && !['premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({
+      res.status(403).json({
         error: 'PDF export requires Premium plan or higher',
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Generate export data

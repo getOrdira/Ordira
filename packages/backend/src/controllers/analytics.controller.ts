@@ -16,6 +16,9 @@ interface AnalyticsRequest extends AuthRequest, TenantRequest, ValidatedRequest 
     metrics?: string[];
     startDate?: string;
     endDate?: string;
+    // Add the missing properties
+    format?: 'csv' | 'json' | 'pdf';
+    type?: 'votes' | 'transactions' | 'certificates' | 'products' | 'engagement';
   };
 }
 
@@ -41,10 +44,11 @@ export async function getVotesAnalytics(
   try {
     // Validate tenant and business context
     if (!req.tenant?.business) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
       });
+      return;
     }
 
     const businessId = req.tenant.business.toString();
@@ -59,7 +63,7 @@ export async function getVotesAnalytics(
     };
 
     // Get comprehensive voting analytics
-    const data = await analyticsService.getVotingAnalytics(businessId, options);
+    const data = await analyticsService.getVotingAnalytics(businessId);
 
     // Add metadata for better client-side handling
     const response = {
@@ -91,10 +95,11 @@ export async function getTransactionsAnalytics(
 ): Promise<void> {
   try {
     if (!req.tenant?.business) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
-      });
+      })
+      return;
     }
 
     const businessId = req.tenant.business.toString();
@@ -109,26 +114,28 @@ export async function getTransactionsAnalytics(
       includeComparisons: true
     };
 
-    const data = await analyticsService.getTransactionAnalytics(businessId, options);
+    const data = await analyticsService.getTransactionAnalytics(businessId);
 
     // Calculate additional business metrics
     const enhancedData = {
-      ...data,
-      insights: {
-        growthRate: data.trends?.volumeGrowth || 0,
-        averageTransactionValue: data.summary?.totalVolume / data.summary?.totalCount || 0,
-        peakTransactionDay: data.timeSeries?.reduce((peak, current) => 
-          current.count > peak.count ? current : peak
-        ),
-        recommendations: generateBusinessRecommendations(data)
-      },
-      metadata: {
-        businessId,
-        timeframe,
-        groupBy,
-        generatedAt: new Date().toISOString()
-      }
-    };
+  ...data,
+  insights: {
+    growthRate: data.trends?.volumeGrowth ?? 0,
+    averageTransactionValue: data.summary?.totalVolume && data.summary?.totalCount 
+      ? data.summary.totalVolume / data.summary.totalCount 
+      : 0,
+    peakTransactionDay: data.timeSeries?.reduce((peak, current) => 
+      current.count > peak.count ? current : peak
+    ) ?? null,
+    recommendations: generateBusinessRecommendations(data)
+  },
+  metadata: {
+    businessId,
+    timeframe,
+    groupBy,
+    generatedAt: new Date().toISOString()
+  }
+};
 
     res.json(enhancedData);
   } catch (error) {
@@ -148,10 +155,11 @@ export async function getNftAnalytics(
 ): Promise<void> {
   try {
     if (!req.tenant?.business) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
-      });
+      })
+      return;
     }
 
     const businessId = req.tenant.business.toString();
@@ -203,19 +211,21 @@ export async function getManufacturerBrandAnalytics(
     const { brandId } = req.params;
 
     if (!brandId) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Brand ID is required',
         code: 'MISSING_BRAND_ID'
-      });
+      })
+      return;
     }
 
     // Verify manufacturer has access to this brand
     const hasAccess = await manufacturerService.hasAccessToBrand(manufacturerId, brandId);
     if (!hasAccess) {
-      return res.status(403).json({ 
+     res.status(403).json({ 
         error: 'Access denied to this brand',
         code: 'BRAND_ACCESS_DENIED'
-      });
+      })
+      return;
     }
 
     // Get comprehensive analytics for the brand
@@ -258,10 +268,11 @@ export async function getDashboardAnalytics(
 ): Promise<void> {
   try {
     if (!req.tenant?.business) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
-      });
+      })
+      return;
     }
 
     const businessId = req.tenant.business.toString();
@@ -309,10 +320,11 @@ export async function exportAnalytics(
 ): Promise<void> {
   try {
     if (!req.tenant?.business) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
-      });
+      })
+      return;
     }
 
     const businessId = req.tenant.business.toString();
@@ -320,19 +332,21 @@ export async function exportAnalytics(
 
     // Validate export format
     if (!['csv', 'json', 'pdf'].includes(format as string)) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Invalid export format. Supported: csv, json, pdf',
         code: 'INVALID_EXPORT_FORMAT'
-      });
+      })
+      return;
     }
 
     // Check plan permissions for export
     const userPlan = req.tenant.plan || 'foundation';
     if (format === 'pdf' && !['premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({ 
+       res.status(403).json({ 
         error: 'PDF export requires premium or enterprise plan',
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Generate export data
@@ -372,10 +386,11 @@ export async function generateCustomReport(
 ): Promise<void> {
   try {
     if (!req.tenant?.business) {
-      return res.status(400).json({ 
+       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
-      });
+      })
+      return;
     }
 
     const businessId = req.tenant.business.toString();
@@ -383,10 +398,11 @@ export async function generateCustomReport(
 
     // Check plan permissions for custom reports
     if (!['premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({ 
+       res.status(403).json({ 
         error: 'Custom reports require premium or enterprise plan',
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     const reportConfig = req.validatedBody || req.body;

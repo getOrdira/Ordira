@@ -95,13 +95,13 @@ export const deployVotingContract = asyncHandler(async (
       },
       deployment: {
         transactionHash: deploymentResult.txHash,
-        networkId: process.env.CHAIN_ID || '1',
+        networkId: process.env.CHAIN_ID || '5453',
         gasUsed: 'estimated', // Would need blockchain service to get actual gas
         deploymentCost: 'estimated' // Would need gas price calculation
       },
       blockchain: {
-        network: process.env.BLOCKCHAIN_NETWORK || 'ethereum',
-        explorer: `https://etherscan.io/tx/${deploymentResult.txHash}`
+        network: process.env.BLOCKCHAIN_NETWORK || 'base',
+        explorer: `https://basescan.org/tx/${deploymentResult.txHash}`
       }
     }
   });
@@ -159,8 +159,8 @@ export const createProposal = asyncHandler(async (
       blockchain: {
         transactionHash: proposalResult.txHash,
         blockchainId: proposalResult.proposalId,
-        network: process.env.BLOCKCHAIN_NETWORK || 'ethereum',
-        explorer: `https://etherscan.io/tx/${proposalResult.txHash}`
+        network: process.env.BLOCKCHAIN_NETWORK || 'base',
+        explorer: `https://basescan.org/tx/${proposalResult.txHash}`
       },
       metadata: {
         votingStarted: true,
@@ -345,8 +345,8 @@ export const submitVote = asyncHandler(async (
           submittedAt: new Date().toISOString()
         },
         blockchain: {
-          network: process.env.BLOCKCHAIN_NETWORK || 'ethereum',
-          explorer: `https://etherscan.io/tx/${batchResult.txHash}`
+          network: process.env.BLOCKCHAIN_NETWORK || 'base',
+          explorer: `https://basescan.org/tx/${batchResult.txHash}`
         }
       }
     });

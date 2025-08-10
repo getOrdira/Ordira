@@ -57,7 +57,7 @@ export async function addDomainMapping(
 
     // Validate plan permissions for custom domains
     if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
-      return res.status(403).json({
+      res.status(403).json({
         error: 'Custom domain mapping requires Growth plan or higher',
         currentPlan: userPlan,
         requiredPlan: 'growth',
@@ -67,7 +67,8 @@ export async function addDomainMapping(
           autoRenewal: 'Growth+'
         },
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Check domain mapping limits
@@ -75,35 +76,38 @@ export async function addDomainMapping(
     const planLimits = getDomainLimits(userPlan);
 
     if (currentMappings >= planLimits.maxDomains) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'Domain mapping limit reached for your plan',
         currentMappings,
         maxAllowed: planLimits.maxDomains,
         plan: userPlan,
         code: 'DOMAIN_LIMIT_REACHED'
-      });
+      })
+      return;
     }
 
     // Validate domain format and availability
     const domainValidation = await domainMappingService.validateDomain(domain, businessId);
     if (!domainValidation.valid) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Domain validation failed',
         domain,
         issues: domainValidation.issues,
         suggestions: domainValidation.suggestions,
         code: 'DOMAIN_VALIDATION_FAILED'
-      });
+      })
+      return;
     }
 
     // Check if domain is already mapped
     const existingMapping = await domainMappingService.findExistingMapping(domain);
     if (existingMapping && existingMapping.businessId !== businessId) {
-      return res.status(409).json({
+       res.status(409).json({
         error: 'Domain is already mapped to another account',
         domain,
         code: 'DOMAIN_ALREADY_MAPPED'
-      });
+      })
+      return;
     }
 
     // Validate custom certificate if provided
@@ -114,11 +118,12 @@ export async function addDomainMapping(
       );
       
       if (!certValidation.valid) {
-        return res.status(400).json({
+         res.status(400).json({
           error: 'Custom certificate validation failed',
           issues: certValidation.issues,
           code: 'CERTIFICATE_VALIDATION_FAILED'
-        });
+        })
+        return;
       }
     }
 
@@ -268,20 +273,22 @@ export async function getDomainMapping(
     const { domainId } = req.params;
 
     if (!domainId) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Domain ID is required',
         code: 'MISSING_DOMAIN_ID'
-      });
+      })
+      return;
     }
 
     // Get detailed domain mapping information
     const mapping = await domainMappingService.getDetailedDomainMapping(businessId, domainId);
 
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Get domain health and performance metrics
@@ -334,19 +341,21 @@ export async function verifyDomain(
     // Get domain mapping
     const mapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Validate verification status
     if (mapping.status !== 'pending_verification') {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Domain is not in pending verification status',
         currentStatus: mapping.status,
         code: 'INVALID_VERIFICATION_STATUS'
-      });
+      })
+      return;
     }
 
     // Perform domain verification
@@ -357,13 +366,14 @@ export async function verifyDomain(
     });
 
     if (!verification.success) {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Domain verification failed',
         details: verification.errors,
         suggestions: verification.suggestions,
         retryAfter: verification.retryAfter,
         code: 'VERIFICATION_FAILED'
-      });
+      })
+      return;
     }
 
     // Clear tenant cache to reflect domain activation
@@ -424,18 +434,20 @@ export async function updateDomainMapping(
     // Get existing mapping
     const existingMapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!existingMapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Validate update permissions
     if (existingMapping.status === 'deleting') {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Cannot update domain mapping being deleted',
         code: 'DOMAIN_BEING_DELETED'
-      });
+      })
+      return;
     }
 
     // Update domain mapping
@@ -485,18 +497,20 @@ export async function removeDomainMapping(
     // Get domain mapping
     const mapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Validate deletion permissions
     if (mapping.status === 'deleting') {
-      return res.status(400).json({
+       res.status(400).json({
         error: 'Domain mapping is already being deleted',
         code: 'DOMAIN_ALREADY_DELETING'
-      });
+      })
+      return;
     }
 
     // Remove domain mapping with cleanup
@@ -555,19 +569,21 @@ export async function renewCertificate(
     // Get domain mapping
     const mapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Validate renewal permissions
     if (mapping.status !== 'active') {
-      return res.status(400).json({
+     res.status(400).json({
         error: 'Can only renew certificates for active domains',
         currentStatus: mapping.status,
         code: 'INVALID_STATUS_FOR_RENEWAL'
-      });
+      })
+      return;
     }
 
     // Renew certificate
@@ -618,10 +634,11 @@ export async function getDomainHealth(
     // Get domain mapping
     const mapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Perform real-time health check
@@ -668,20 +685,22 @@ export async function getDomainAnalytics(
 
     // Check analytics permissions
     if (!['enterprise'].includes(userPlan)) {
-      return res.status(403).json({
+       res.status(403).json({
         error: 'Domain analytics require Enterprise plan',
         currentPlan: userPlan,
         code: 'PLAN_UPGRADE_REQUIRED'
-      });
+      })
+      return;
     }
 
     // Get domain mapping
     const mapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Get comprehensive analytics
@@ -727,10 +746,11 @@ export async function testDomain(
     // Get domain mapping
     const mapping = await domainMappingService.getDomainMapping(businessId, domainId);
     if (!mapping) {
-      return res.status(404).json({
+       res.status(404).json({
         error: 'Domain mapping not found',
         code: 'DOMAIN_NOT_FOUND'
-      });
+      })
+      return;
     }
 
     // Perform comprehensive domain test
