@@ -53,7 +53,7 @@ const changePasswordSchema = Joi.object({
  */
 router.post(
   '/register/business',
-  strictRateLimiter({ max: 5, windowMs: 15 * 60 * 1000 }), // 5 attempts per 15 minutes
+  strictRateLimiter(), // 5 attempts per 15 minutes
   validateBody(authValidationSchemas.registerBusiness),
   authCtrl.registerBusinessHandler
 );
@@ -67,7 +67,7 @@ router.post(
  */
 router.post(
   '/verify/business',
-  strictRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 }), // 10 attempts per 15 minutes
+  strictRateLimiter(), // 10 attempts per 15 minutes
   validateBody(authValidationSchemas.verifyBusiness),
   authCtrl.verifyBusinessHandler
 );
@@ -81,7 +81,7 @@ router.post(
  */
 router.post(
   '/login/business',
-  strictRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 }), // 10 attempts per 15 minutes
+  strictRateLimiter(), // 10 attempts per 15 minutes
   validateBody(authValidationSchemas.loginBusiness),
   authCtrl.loginBusinessHandler
 );
@@ -99,7 +99,7 @@ router.post(
  */
 router.post(
   '/register/user',
-  strictRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 }), // 10 attempts per 15 minutes
+  strictRateLimiter(), // 10 attempts per 15 minutes
   validateBody(authValidationSchemas.registerUser),
   authCtrl.registerUserHandler
 );
@@ -113,7 +113,7 @@ router.post(
  */
 router.post(
   '/verify/user',
-  strictRateLimiter({ max: 15, windowMs: 15 * 60 * 1000 }), // 15 attempts per 15 minutes
+  strictRateLimiter(), // 15 attempts per 15 minutes
   validateBody(authValidationSchemas.verifyUser),
   authCtrl.verifyUserHandler
 );
@@ -127,7 +127,7 @@ router.post(
  */
 router.post(
   '/login/user',
-  strictRateLimiter({ max: 15, windowMs: 15 * 60 * 1000 }), // 15 attempts per 15 minutes
+  strictRateLimiter(), // 15 attempts per 15 minutes
   validateBody(authValidationSchemas.loginUser),
   authCtrl.loginUserHandler
 );
@@ -145,7 +145,7 @@ router.post(
  */
 router.post(
   '/forgot-password',
-  strictRateLimiter({ max: 5, windowMs: 30 * 60 * 1000 }), // 5 attempts per 30 minutes
+  strictRateLimiter(), // 5 attempts per 30 minutes
   validateBody(authValidationSchemas.forgotPassword),
   authCtrl.forgotPasswordHandler
 );
@@ -159,7 +159,7 @@ router.post(
  */
 router.post(
   '/reset-password',
-  strictRateLimiter({ max: 10, windowMs: 30 * 60 * 1000 }), // 10 attempts per 30 minutes
+  strictRateLimiter(), // 10 attempts per 30 minutes
   validateBody(authValidationSchemas.resetPassword),
   authCtrl.resetPasswordHandler
 );
@@ -179,7 +179,7 @@ router.post(
 router.post(
   '/change-password',
   authenticate,
-  dynamicRateLimiter({ max: 5, windowMs: 15 * 60 * 1000 }), // 5 attempts per 15 minutes
+  dynamicRateLimiter(), // 5 attempts per 15 minutes
   validateBody(changePasswordSchema),
   authCtrl.changePasswordHandler
 );
@@ -193,7 +193,7 @@ router.post(
  */
 router.post(
   '/refresh',
-  dynamicRateLimiter({ max: 20, windowMs: 15 * 60 * 1000 }), // 20 attempts per 15 minutes
+  dynamicRateLimiter(), // 20 attempts per 15 minutes
   validateBody(refreshTokenSchema),
   authCtrl.refreshTokenHandler
 );
@@ -209,7 +209,7 @@ router.post(
 router.post(
   '/logout',
   authenticate,
-  dynamicRateLimiter({ max: 30, windowMs: 15 * 60 * 1000 }), // 30 attempts per 15 minutes
+  dynamicRateLimiter(), // 30 attempts per 15 minutes
   validateBody(logoutSchema),
   authCtrl.logoutHandler
 );
@@ -224,7 +224,7 @@ router.post(
 router.get(
   '/me',
   authenticate,
-  dynamicRateLimiter({ max: 60, windowMs: 60 * 1000 }), // 60 requests per minute
+  dynamicRateLimiter(), // 60 requests per minute
   authCtrl.getCurrentUserHandler
 );
 
@@ -241,7 +241,7 @@ router.get(
  */
 router.post(
   '/resend-verification',
-  strictRateLimiter({ max: 3, windowMs: 15 * 60 * 1000 }), // 3 attempts per 15 minutes
+  strictRateLimiter(), // 3 attempts per 15 minutes
   validateBody(authValidationSchemas.resendVerification),
   authCtrl.resendVerificationHandler
 );
@@ -261,7 +261,7 @@ router.post(
 router.post(
   '/2fa/setup',
   authenticate,
-  dynamicRateLimiter({ max: 5, windowMs: 30 * 60 * 1000 }), // 5 attempts per 30 minutes
+  dynamicRateLimiter(), // 5 attempts per 30 minutes
   validateBody(authValidationSchemas.setupTwoFactor),
   authCtrl.setupTwoFactorHandler
 );
@@ -277,7 +277,7 @@ router.post(
 router.post(
   '/2fa/verify',
   authenticate,
-  dynamicRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 }), // 10 attempts per 15 minutes
+  dynamicRateLimiter(), // 10 attempts per 15 minutes
   validateBody(authValidationSchemas.verifyTwoFactor),
   authCtrl.verifyTwoFactorHandler
 );
@@ -293,7 +293,7 @@ router.post(
 router.post(
   '/2fa/disable',
   authenticate,
-  dynamicRateLimiter({ max: 3, windowMs: 30 * 60 * 1000 }), // 3 attempts per 30 minutes
+  dynamicRateLimiter(), // 3 attempts per 30 minutes
   validateBody(Joi.object({
     currentPassword: Joi.string().required(),
     confirmDisable: Joi.boolean().valid(true).required()
@@ -314,7 +314,7 @@ router.post(
  */
 router.post(
   '/account-recovery',
-  strictRateLimiter({ max: 3, windowMs: 24 * 60 * 60 * 1000 }), // 3 attempts per 24 hours
+  strictRateLimiter(), // 3 attempts per 24 hours
   validateBody(authValidationSchemas.accountRecovery),
   authCtrl.accountRecoveryHandler
 );
@@ -329,7 +329,7 @@ router.post(
 router.get(
   '/sessions',
   authenticate,
-  dynamicRateLimiter({ max: 20, windowMs: 15 * 60 * 1000 }), // 20 requests per 15 minutes
+  dynamicRateLimiter(), // 20 requests per 15 minutes
   authCtrl.getActiveSessionsHandler
 );
 
@@ -344,7 +344,7 @@ router.get(
 router.delete(
   '/sessions/:sessionId',
   authenticate,
-  dynamicRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 }), // 10 requests per 15 minutes
+  dynamicRateLimiter(), // 10 requests per 15 minutes
   authCtrl.revokeSessionHandler
 );
 
@@ -359,7 +359,7 @@ router.delete(
 router.post(
   '/sessions/revoke-all',
   authenticate,
-  dynamicRateLimiter({ max: 5, windowMs: 30 * 60 * 1000 }), // 5 attempts per 30 minutes
+  dynamicRateLimiter(), // 5 attempts per 30 minutes
   validateBody(Joi.object({
     currentPassword: Joi.string().required(),
     reason: Joi.string().max(200).optional()
@@ -382,7 +382,7 @@ router.post(
 router.get(
   '/login-history',
   authenticate,
-  dynamicRateLimiter({ max: 30, windowMs: 15 * 60 * 1000 }), // 30 requests per 15 minutes
+  dynamicRateLimiter(), // 30 requests per 15 minutes
   authCtrl.getLoginHistoryHandler
 );
 
@@ -397,7 +397,7 @@ router.get(
 router.get(
   '/security-events',
   authenticate,
-  dynamicRateLimiter({ max: 20, windowMs: 15 * 60 * 1000 }), // 20 requests per 15 minutes
+  dynamicRateLimiter(), // 20 requests per 15 minutes
   authCtrl.getSecurityEventsHandler
 );
 
@@ -412,7 +412,7 @@ router.get(
 router.put(
   '/security-preferences',
   authenticate,
-  dynamicRateLimiter({ max: 10, windowMs: 30 * 60 * 1000 }), // 10 requests per 30 minutes
+  dynamicRateLimiter(), // 10 requests per 30 minutes
   validateBody(Joi.object({
     emailNotifications: Joi.object({
       loginAlerts: Joi.boolean().default(true),
@@ -440,7 +440,7 @@ router.put(
  */
 router.post(
   '/check-email',
-  dynamicRateLimiter({ max: 20, windowMs: 15 * 60 * 1000 }), // 20 requests per 15 minutes
+  dynamicRateLimiter(), // 20 requests per 15 minutes
   validateBody(Joi.object({
     email: Joi.string().email().required()
   })),
@@ -456,7 +456,7 @@ router.post(
  */
 router.post(
   '/validate-password',
-  dynamicRateLimiter({ max: 30, windowMs: 15 * 60 * 1000 }), // 30 requests per 15 minutes
+  dynamicRateLimiter(), // 30 requests per 15 minutes
   validateBody(Joi.object({
     password: Joi.string().required()
   })),
@@ -472,7 +472,7 @@ router.post(
  */
 router.get(
   '/health',
-  dynamicRateLimiter({ max: 60, windowMs: 60 * 1000 }), // 60 requests per minute
+  dynamicRateLimiter(), // 60 requests per minute
   (req, res) => {
     res.json({
       success: true,
