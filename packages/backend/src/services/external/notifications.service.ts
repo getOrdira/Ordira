@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
 import { Business } from '../../models/business.model';
 import { Manufacturer } from '../../models/manufacturer.model';
 import { BrandSettings } from '../../models/brandSettings.model';
+import { Certificate } from '../../models/certificate.model';
 import { Notification, INotification } from '../../models/notification.model';
 import { PlanKey } from '../../constants/plans';
 import { Types } from 'mongoose';
@@ -59,9 +60,47 @@ export interface BulkNotificationResult {
   }>;
 }
 
+// ✨ New interfaces for Web3 transfer notifications
+export interface TransferNotificationData {
+  certificateId: string;
+  tokenId: string;
+  brandWallet: string;
+  txHash?: string;
+  transferredAt?: Date;
+  gasUsed?: string;
+  transferTime?: number;
+}
+
+export interface TransferFailureData {
+  certificateId: string;
+  tokenId: string;
+  error: string;
+  attemptNumber: number;
+  maxAttempts: number;
+  nextRetryAt?: Date;
+  gasWasted?: string;
+}
+
+export interface SlackNotification {
+  text: string;
+  channel?: string;
+  username?: string;
+  iconEmoji?: string;
+  attachments?: Array<{
+    color?: string;
+    title?: string;
+    text?: string;
+    fields?: Array<{
+      title: string;
+      value: string;
+      short?: boolean;
+    }>;
+  }>;
+}
+
 /**
- * Enhanced external notifications service with validation, security, and analytics
- * Handles email sending, message formatting, and notification tracking
+ * Enhanced external notifications service with Web3 transfer notifications
+ * Handles email sending, Slack integration, webhooks, and notification tracking
  */
 export class NotificationsService {
 
@@ -96,7 +135,7 @@ export class NotificationsService {
     success: boolean,
     metadata?: Record<string, any>
   ): void {
-    const maskedEmail = UtilsService.maskEmail(recipient);
+    const maskedRecipient = recipient.includes('@') ? UtilsService.maskEmail(recipient) : recipient;
     const timestamp = UtilsService.formatDate(new Date(), { 
       year: 'numeric', 
       month: 'short', 
@@ -105,7 +144,7 @@ export class NotificationsService {
       minute: '2-digit'
     });
     
-    console.log(`[NOTIFICATIONS] ${timestamp} - ${event} - ${type} - ${maskedEmail} - ${success ? 'SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata)}` : ''}`);
+    console.log(`[NOTIFICATIONS] ${timestamp} - ${event} - ${type} - ${maskedRecipient} - ${success ? 'SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata)}` : ''}`);
   }
 
   private async retryEmailSend(
@@ -122,6 +161,19 @@ export class NotificationsService {
 
   private formatCurrency(amount: number, currency: string = 'USD'): string {
     return UtilsService.formatCurrency(amount, currency);
+  }
+
+  private formatBlockchainAddress(address: string): string {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  }
+
+  private formatGasAmount(gasWei: string): string {
+    try {
+      const gasFloat = parseFloat(gasWei) / 1e18; // Convert wei to ETH
+      return gasFloat.toFixed(6) + ' ETH';
+    } catch {
+      return gasWei + ' wei';
+    }
   }
 
   /** ─────────────────────────────────────────────────────────────────────────── */
@@ -184,10 +236,10 @@ export class NotificationsService {
       const maxRetries = options.retryCount || 3;
       await this.retryEmailSend(
         async () => {
-        await transport.sendMail(emailPayload);
-      },
-       maxRetries
-    );
+          await transport.sendMail(emailPayload);
+        },
+        maxRetries
+      );
 
       this.logNotificationEvent('EMAIL_SENT', normalizedEmail, 'EMAIL', true, {
         emailId,
@@ -272,7 +324,474 @@ export class NotificationsService {
   }
 
   /** ─────────────────────────────────────────────────────────────────────────── */
-  /** Business Notification Methods                                             */
+  /** 🚀 New Web3 Transfer Notification Methods                                  */
+  /** ─────────────────────────────────────────────────────────────────────────── */
+
+  /**
+   * 🎉 NFT Transfer Success Notification
+   */
+  async sendTransferSuccessNotification(
+    businessId: string,
+    transferData: TransferNotificationData
+  ): Promise<void> {
+    this.validateUserId(businessId, 'business');
+
+    try {
+      const [business, brandSettings] = await Promise.all([
+        Business.findById(businessId).select('businessName email'),
+        BrandSettings.findOne({ business: businessId })
+      ]);
+
+      if (!business) {
+        throw { statusCode: 404, message: 'Business not found' };
+      }
+
+      const notificationSettings = brandSettings?.getTransferSettings()?.notificationSettings;
+      
+      // Send email notification if enabled
+      if (notificationSettings?.emailNotifications && notificationSettings?.notifyOnSuccess) {
+        const template = this.getTransferSuccessEmailTemplate(transferData);
+        
+        if (business.email && UtilsService.isValidEmail(business.email)) {
+          await this.sendEmail(business.email, template.subject, template.text, template.html, {
+            priority: 'normal',
+            trackingEnabled: true
+          });
+        }
+      }
+
+      // Send Slack notification if configured
+      if (notificationSettings?.slackIntegration?.enabled) {
+        await this.sendSlackTransferNotification(brandSettings, transferData, 'success');
+      }
+
+      // Send webhook notification if configured
+      if (notificationSettings?.webhookNotifications && notificationSettings?.webhookUrl) {
+        await this.sendWebhookNotification(notificationSettings.webhookUrl, {
+          event: 'transfer_success',
+          businessId,
+          data: transferData
+        });
+      }
+
+      // Create in-app notification
+      await this.createInAppNotification({
+        business: businessId,
+        type: 'transfer_success',
+        message: `NFT certificate ${transferData.tokenId} successfully transferred to your wallet`,
+        data: UtilsService.cleanObject({
+          certificateId: transferData.certificateId,
+          tokenId: transferData.tokenId,
+          brandWallet: transferData.brandWallet,
+          txHash: transferData.txHash,
+          transferredAt: transferData.transferredAt,
+          gasUsed: transferData.gasUsed
+        }),
+        read: false
+      });
+
+      // Update brand transfer analytics
+      if (brandSettings) {
+        await brandSettings.updateTransferAnalytics({
+          success: true,
+          gasUsed: transferData.gasUsed,
+          transferTime: transferData.transferTime
+        });
+      }
+
+      this.logNotificationEvent('TRANSFER_SUCCESS_NOTIFICATION', business.email, 'WEB3_TRANSFER', true, {
+        businessId,
+        certificateId: transferData.certificateId,
+        tokenId: transferData.tokenId,
+        txHash: transferData.txHash
+      });
+
+    } catch (error) {
+      console.error('Failed to send transfer success notification:', error);
+      this.logNotificationEvent('TRANSFER_SUCCESS_NOTIFICATION', businessId, 'WEB3_TRANSFER', false, {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * ⚠️ NFT Transfer Failure Notification
+   */
+  async sendTransferFailureNotification(
+    businessId: string,
+    failureData: TransferFailureData
+  ): Promise<void> {
+    this.validateUserId(businessId, 'business');
+
+    try {
+      const [business, brandSettings] = await Promise.all([
+        Business.findById(businessId).select('businessName email'),
+        BrandSettings.findOne({ business: businessId })
+      ]);
+
+      if (!business) {
+        throw { statusCode: 404, message: 'Business not found' };
+      }
+
+      const notificationSettings = brandSettings?.getTransferSettings()?.notificationSettings;
+      const isUrgent = failureData.attemptNumber >= failureData.maxAttempts;
+      
+      // Send email notification if enabled
+      if (notificationSettings?.emailNotifications && notificationSettings?.notifyOnFailure) {
+        const template = this.getTransferFailureEmailTemplate(failureData);
+        
+        if (business.email && UtilsService.isValidEmail(business.email)) {
+          await this.sendEmail(business.email, template.subject, template.text, template.html, {
+            priority: isUrgent ? 'high' : 'normal',
+            trackingEnabled: true
+          });
+        }
+      }
+
+      // Send Slack notification if configured
+      if (notificationSettings?.slackIntegration?.enabled) {
+        await this.sendSlackTransferNotification(brandSettings, failureData, 'failure');
+      }
+
+      // Send webhook notification if configured
+      if (notificationSettings?.webhookNotifications && notificationSettings?.webhookUrl) {
+        await this.sendWebhookNotification(notificationSettings.webhookUrl, {
+          event: 'transfer_failure',
+          businessId,
+          data: failureData
+        });
+      }
+
+      // Create in-app notification
+      await this.createInAppNotification({
+        business: businessId,
+        type: 'transfer_failure',
+        message: `NFT certificate ${failureData.tokenId} transfer failed (attempt ${failureData.attemptNumber}/${failureData.maxAttempts})`,
+        data: UtilsService.cleanObject({
+          certificateId: failureData.certificateId,
+          tokenId: failureData.tokenId,
+          error: failureData.error,
+          attemptNumber: failureData.attemptNumber,
+          maxAttempts: failureData.maxAttempts,
+          nextRetryAt: failureData.nextRetryAt,
+          isUrgent
+        }),
+        read: false
+      });
+
+      // Update brand transfer analytics
+      if (brandSettings) {
+        await brandSettings.updateTransferAnalytics({
+          success: false,
+          gasUsed: failureData.gasWasted
+        });
+      }
+
+      this.logNotificationEvent('TRANSFER_FAILURE_NOTIFICATION', business.email, 'WEB3_TRANSFER', true, {
+        businessId,
+        certificateId: failureData.certificateId,
+        tokenId: failureData.tokenId,
+        error: failureData.error,
+        attemptNumber: failureData.attemptNumber
+      });
+
+    } catch (error) {
+      console.error('Failed to send transfer failure notification:', error);
+      this.logNotificationEvent('TRANSFER_FAILURE_NOTIFICATION', businessId, 'WEB3_TRANSFER', false, {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 🔄 NFT Transfer Retry Notification
+   */
+  async sendTransferRetryNotification(
+    businessId: string,
+    retryData: Omit<TransferFailureData, 'error'> & { previousError: string }
+  ): Promise<void> {
+    this.validateUserId(businessId, 'business');
+
+    try {
+      const [business, brandSettings] = await Promise.all([
+        Business.findById(businessId).select('businessName email'),
+        BrandSettings.findOne({ business: businessId })
+      ]);
+
+      if (!business) {
+        throw { statusCode: 404, message: 'Business not found' };
+      }
+
+      const notificationSettings = brandSettings?.getTransferSettings()?.notificationSettings;
+      
+      // Only send if retry notifications are enabled
+      if (notificationSettings?.notifyOnRetry) {
+        // Send email notification if enabled
+        if (notificationSettings?.emailNotifications) {
+          const template = this.getTransferRetryEmailTemplate(retryData);
+          
+          if (business.email && UtilsService.isValidEmail(business.email)) {
+            await this.sendEmail(business.email, template.subject, template.text, template.html, {
+              priority: 'normal',
+              trackingEnabled: true
+            });
+          }
+        }
+
+        // Send Slack notification if configured
+        if (notificationSettings?.slackIntegration?.enabled) {
+          await this.sendSlackTransferNotification(brandSettings, retryData, 'retry');
+        }
+
+        // Create in-app notification
+        await this.createInAppNotification({
+          business: businessId,
+          type: 'transfer_retry',
+          message: `Retrying NFT certificate ${retryData.tokenId} transfer (attempt ${retryData.attemptNumber}/${retryData.maxAttempts})`,
+          data: UtilsService.cleanObject({
+            certificateId: retryData.certificateId,
+            tokenId: retryData.tokenId,
+            attemptNumber: retryData.attemptNumber,
+            maxAttempts: retryData.maxAttempts,
+            previousError: retryData.previousError,
+            nextRetryAt: retryData.nextRetryAt
+          }),
+          read: false
+        });
+      }
+
+      this.logNotificationEvent('TRANSFER_RETRY_NOTIFICATION', business.email, 'WEB3_TRANSFER', true, {
+        businessId,
+        certificateId: retryData.certificateId,
+        tokenId: retryData.tokenId,
+        attemptNumber: retryData.attemptNumber
+      });
+
+    } catch (error) {
+      console.error('Failed to send transfer retry notification:', error);
+      this.logNotificationEvent('TRANSFER_RETRY_NOTIFICATION', businessId, 'WEB3_TRANSFER', false, {
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * 💼 Wallet Connection/Verification Notifications
+   */
+  async sendWalletChangeNotification(
+    businessId: string,
+    walletData: {
+      previousWallet?: string;
+      newWallet: string;
+      changeDate: Date;
+      verificationStatus?: 'verified' | 'pending' | 'failed';
+    }
+  ): Promise<void> {
+    this.validateUserId(businessId, 'business');
+
+    try {
+      const business = await Business.findById(businessId).select('businessName email');
+      if (!business) {
+        throw { statusCode: 404, message: 'Business not found' };
+      }
+
+      const template = this.getWalletChangeEmailTemplate(walletData);
+      
+      if (business.email && UtilsService.isValidEmail(business.email)) {
+        await this.sendEmail(business.email, template.subject, template.text, template.html, {
+          priority: 'high',
+          trackingEnabled: true
+        });
+      }
+
+      // Create in-app notification
+      await this.createInAppNotification({
+        business: businessId,
+        type: 'wallet_change',
+        message: walletData.previousWallet 
+          ? `Web3 wallet updated successfully` 
+          : `Web3 wallet connected successfully`,
+        data: UtilsService.cleanObject({
+          previousWallet: walletData.previousWallet,
+          newWallet: walletData.newWallet,
+          changeDate: walletData.changeDate,
+          verificationStatus: walletData.verificationStatus || 'pending'
+        }),
+        read: false
+      });
+
+      this.logNotificationEvent('WALLET_CHANGE_NOTIFICATION', business.email, 'WEB3_WALLET', true, {
+        businessId,
+        walletChanged: !!walletData.previousWallet,
+        verificationStatus: walletData.verificationStatus
+      });
+
+    } catch (error) {
+      console.error('Failed to send wallet change notification:', error);
+      this.logNotificationEvent('WALLET_CHANGE_NOTIFICATION', businessId, 'WEB3_WALLET', false, {
+        error: error.message
+      });
+    }
+  }
+
+  /** ─────────────────────────────────────────────────────────────────────────── */
+  /** 📱 Slack Integration Methods                                               */
+  /** ─────────────────────────────────────────────────────────────────────────── */
+
+  /**
+   * Send Slack notification for transfer events
+   */
+  private async sendSlackTransferNotification(
+    brandSettings: any,
+    data: any,
+    eventType: 'success' | 'failure' | 'retry'
+  ): Promise<void> {
+    const slackConfig = brandSettings?.transferPreferences?.notificationSettings?.slackIntegration;
+    
+    if (!slackConfig?.enabled || !slackConfig?.webhookUrl) {
+      return;
+    }
+
+    const notification = this.buildSlackTransferMessage(data, eventType);
+    
+    try {
+      const response = await fetch(slackConfig.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...notification,
+          channel: slackConfig.channel || '#general'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Slack API error: ${response.status}`);
+      }
+
+      this.logNotificationEvent('SLACK_NOTIFICATION', slackConfig.channel, 'SLACK', true, {
+        eventType,
+        tokenId: data.tokenId
+      });
+
+    } catch (error) {
+      console.error('Failed to send Slack notification:', error);
+      this.logNotificationEvent('SLACK_NOTIFICATION', slackConfig.channel, 'SLACK', false, {
+        error: error.message
+      });
+    }
+  }
+
+  private buildSlackTransferMessage(data: any, eventType: 'success' | 'failure' | 'retry'): SlackNotification {
+    const baseMessage = {
+      username: 'Ordira NFT Bot',
+      iconEmoji: ':zap:'
+    };
+
+    switch (eventType) {
+      case 'success':
+        return {
+          ...baseMessage,
+          text: `✅ NFT Transfer Successful`,
+          attachments: [{
+            color: 'good',
+            title: `Certificate ${data.tokenId}`,
+            fields: [
+              { title: 'Token ID', value: data.tokenId, short: true },
+              { title: 'Wallet', value: this.formatBlockchainAddress(data.brandWallet), short: true },
+              { title: 'Gas Used', value: data.gasUsed ? this.formatGasAmount(data.gasUsed) : 'N/A', short: true },
+              { title: 'Tx Hash', value: `<https://basescan.io/tx/${data.txHash}|View on Basescan>`, short: false }
+            ]
+          }]
+        };
+
+      case 'failure':
+        return {
+          ...baseMessage,
+          text: `❌ NFT Transfer Failed`,
+          attachments: [{
+            color: 'danger',
+            title: `Certificate ${data.tokenId}`,
+            fields: [
+              { title: 'Token ID', value: data.tokenId, short: true },
+              { title: 'Attempt', value: `${data.attemptNumber}/${data.maxAttempts}`, short: true },
+              { title: 'Error', value: data.error.substring(0, 100), short: false },
+              { title: 'Next Retry', value: data.nextRetryAt ? new Date(data.nextRetryAt).toLocaleString() : 'No retry scheduled', short: false }
+            ]
+          }]
+        };
+
+      case 'retry':
+        return {
+          ...baseMessage,
+          text: `🔄 NFT Transfer Retry`,
+          attachments: [{
+            color: 'warning',
+            title: `Certificate ${data.tokenId}`,
+            fields: [
+              { title: 'Token ID', value: data.tokenId, short: true },
+              { title: 'Attempt', value: `${data.attemptNumber}/${data.maxAttempts}`, short: true },
+              { title: 'Previous Error', value: data.previousError.substring(0, 100), short: false }
+            ]
+          }]
+        };
+
+      default:
+        return baseMessage;
+    }
+  }
+
+  /** ─────────────────────────────────────────────────────────────────────────── */
+  /** 🌐 Webhook Integration Methods                                             */
+  /** ─────────────────────────────────────────────────────────────────────────── */
+
+  /**
+   * Send webhook notification
+   */
+  private async sendWebhookNotification(
+    webhookUrl: string,
+    payload: {
+      event: string;
+      businessId: string;
+      data: any;
+      timestamp?: string;
+    }
+  ): Promise<void> {
+    try {
+      const webhookPayload = {
+        ...payload,
+        timestamp: payload.timestamp || new Date().toISOString(),
+        version: '1.0'
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Ordira-Webhook/1.0'
+        },
+        body: JSON.stringify(webhookPayload),
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook error: ${response.status} ${response.statusText}`);
+      }
+
+      this.logNotificationEvent('WEBHOOK_NOTIFICATION', webhookUrl, 'WEBHOOK', true, {
+        event: payload.event,
+        businessId: payload.businessId
+      });
+
+    } catch (error) {
+      console.error('Failed to send webhook notification:', error);
+      this.logNotificationEvent('WEBHOOK_NOTIFICATION', webhookUrl, 'WEBHOOK', false, {
+        error: error.message
+      });
+    }
+  }
+
+  /** ─────────────────────────────────────────────────────────────────────────── */
+  /** Existing Business Notification Methods (Enhanced)                         */
   /** ─────────────────────────────────────────────────────────────────────────── */
 
   /**
@@ -323,6 +842,71 @@ export class NotificationsService {
   }
 
   /**
+   * 4️⃣ Certificate minted → notify Brand (Enhanced with transfer status)
+   */
+  async notifyBrandOfCertificateMinted(
+    businessId: string, 
+    certificateId: string,
+    certificateData?: {
+      tokenId?: string;
+      txHash?: string;
+      recipient?: string;
+      transferScheduled?: boolean;
+      brandWallet?: string;
+      autoTransferEnabled?: boolean;
+    }
+  ): Promise<void> {
+    this.validateUserId(businessId, 'business');
+
+    if (!certificateId || certificateId.trim().length === 0) {
+      throw { statusCode: 400, message: 'Valid certificate ID is required' };
+    }
+
+    const [business, brandSettings] = await Promise.all([
+      Business.findById(businessId).select('businessName email'),
+      BrandSettings.findOne({ business: businessId })
+    ]);
+    
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+
+    const template = this.getCertificateMintedEmailTemplate(certificateId, certificateData);
+    
+    if (business.email && UtilsService.isValidEmail(business.email)) {
+      await this.sendEmail(business.email, template.subject, template.text, template.html, {
+        priority: 'normal',
+        trackingEnabled: true
+      });
+    }
+
+    // Create enhanced in-app notification with transfer status
+    await this.createInAppNotification({
+      business: businessId,
+      type: 'certificate',
+      message: template.text,
+      data: UtilsService.cleanObject({ 
+        certificateId,
+        mintTimestamp: new Date().toISOString(),
+        hasWeb3: brandSettings?.hasWeb3Features() || false,
+        transferScheduled: certificateData?.transferScheduled || false,
+        autoTransferEnabled: certificateData?.autoTransferEnabled || false,
+        ...certificateData
+      }),
+      read: false
+    });
+
+    this.logNotificationEvent('CERTIFICATE_MINTED', business.email, 'BLOCKCHAIN', true, {
+      businessId,
+      certificateId,
+      transferScheduled: certificateData?.transferScheduled,
+      hasWeb3: brandSettings?.hasWeb3Features()
+    });
+  }
+
+  // [Previous methods continue...]
+
+  /**
    * 2️⃣ Invite accepted → notify Brand (Enhanced)
    */
   async notifyBrandOfInviteAccepted(manufacturerId: string, brandId: string): Promise<void> {
@@ -348,7 +932,6 @@ export class NotificationsService {
       });
     }
 
-    // Create enhanced in-app notification
     await this.createInAppNotification({
       business: brandId,
       type: 'invite_accepted',
@@ -398,7 +981,6 @@ export class NotificationsService {
       });
     }
 
-    // Create enhanced in-app notification
     await this.createInAppNotification({
       business: businessId,
       type: 'vote',
@@ -415,58 +997,6 @@ export class NotificationsService {
       businessId,
       proposalId,
       voteData
-    });
-  }
-
-  /**
-   * 4️⃣ Certificate minted → notify Brand (Enhanced)
-   */
-  async notifyBrandOfCertificateMinted(
-    businessId: string, 
-    certificateId: string,
-    certificateData?: {
-      tokenId?: string;
-      txHash?: string;
-      recipient?: string;
-    }
-  ): Promise<void> {
-    this.validateUserId(businessId, 'business');
-
-    if (!certificateId || certificateId.trim().length === 0) {
-      throw { statusCode: 400, message: 'Valid certificate ID is required' };
-    }
-
-    const biz = await Business.findById(businessId).select('businessName email');
-    if (!biz) {
-      throw { statusCode: 404, message: 'Business not found' };
-    }
-
-    const template = this.getCertificateMintedEmailTemplate(certificateId, certificateData);
-    
-    if (biz.email && UtilsService.isValidEmail(biz.email)) {
-      await this.sendEmail(biz.email, template.subject, template.text, template.html, {
-        priority: 'normal',
-        trackingEnabled: true
-      });
-    }
-
-    // Create enhanced in-app notification
-    await this.createInAppNotification({
-      business: businessId,
-      type: 'certificate',
-      message: template.text,
-      data: UtilsService.cleanObject({ 
-        certificateId,
-        mintTimestamp: new Date().toISOString(),
-        ...certificateData
-      }),
-      read: false
-    });
-
-    this.logNotificationEvent('CERTIFICATE_MINTED', biz.email, 'BLOCKCHAIN', true, {
-      businessId,
-      certificateId,
-      certificateData
     });
   }
 
@@ -496,7 +1026,6 @@ export class NotificationsService {
       });
     }
 
-    // Create enhanced in-app notification
     await this.createInAppNotification({
       business: biz._id.toString(),
       type: 'billing_renewal',
@@ -551,7 +1080,6 @@ export class NotificationsService {
       });
     }
 
-    // Create enhanced in-app notification
     await this.createInAppNotification({
       business: businessId,
       type: 'payment_failed',
@@ -578,13 +1106,13 @@ export class NotificationsService {
    */
   async notifyBrandOfUsageLimitWarning(
     businessId: string, 
-    limitType: 'votes' | 'certificates', 
+    limitType: 'votes' | 'certificates' | 'transfers', 
     usage: number, 
     limit: number
   ): Promise<void> {
     this.validateUserId(businessId, 'business');
 
-    if (!['votes', 'certificates'].includes(limitType)) {
+    if (!['votes', 'certificates', 'transfers'].includes(limitType)) {
       throw { statusCode: 400, message: 'Invalid limit type specified' };
     }
 
@@ -598,7 +1126,6 @@ export class NotificationsService {
     }
 
     const settings = await BrandSettings.findOne({ business: businessId });
-
     const percentage = Math.round((usage / limit) * 100);
     const template = this.getUsageLimitWarningEmailTemplate(limitType, usage, limit, percentage);
     
@@ -609,7 +1136,6 @@ export class NotificationsService {
       });
     }
 
-    // Create enhanced in-app notification
     await this.createInAppNotification({
       business: businessId,
       type: 'usage_warning',
@@ -619,7 +1145,7 @@ export class NotificationsService {
         usage, 
         limit,
         percentage,
-         currentPlan: settings?.plan,
+        currentPlan: settings?.plan,
         warningDate: new Date().toISOString()
       }),
       read: false
@@ -673,7 +1199,6 @@ export class NotificationsService {
       });
     }
 
-    // Create enhanced in-app notification
     const notificationData: any = {
       type: 'message',
       message: template.text,
@@ -710,18 +1235,16 @@ export class NotificationsService {
    * Create enhanced in-app notification with validation
    */
   private async createInAppNotification(data: any): Promise<INotification> {
-    // Validate required fields
     if (!data.type || !data.message) {
       throw { statusCode: 400, message: 'Notification type and message are required' };
     }
 
-    // Clean and validate data
     const cleanedData = UtilsService.cleanObject({
       ...data,
       createdAt: new Date(),
       metadata: {
         source: 'notifications_service',
-        version: '1.0'
+        version: '2.0'
       }
     });
 
@@ -744,7 +1267,6 @@ export class NotificationsService {
       serverInfo: undefined as any
     };
 
-    // Check configuration
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
       result.errors.push('Missing SMTP configuration (SMTP_HOST, SMTP_USER, or SMTP_PASS)');
       return result;
@@ -752,19 +1274,15 @@ export class NotificationsService {
 
     result.isConfigured = true;
 
-    // Test connection
     try {
       const verification = await transport.verify();
       result.canConnect = verification;
       
-      // Get server info if possible
-      try {
-        result.serverInfo = {
-          host: process.env.SMTP_HOST,
-          port: process.env.SMTP_PORT,
-          secure: Number(process.env.SMTP_PORT) === 465
-        };
-      } catch {}
+      result.serverInfo = {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        secure: Number(process.env.SMTP_PORT) === 465
+      };
 
     } catch (error) {
       result.errors.push(`SMTP connection failed: ${error.message}`);
@@ -786,7 +1304,6 @@ export class NotificationsService {
       priority?: 'low' | 'normal' | 'high';
     } = {}
   ): Promise<BulkNotificationResult> {
-    // Validate inputs
     if (!Array.isArray(recipients) || recipients.length === 0) {
       throw { statusCode: 400, message: 'Recipients array is required and cannot be empty' };
     }
@@ -803,11 +1320,9 @@ export class NotificationsService {
     const errors: string[] = [];
     const details: BulkNotificationResult['details'] = [];
 
-    // Process in batches to avoid overwhelming the email server
     for (let i = 0; i < recipients.length; i += batchSize) {
       const batch = recipients.slice(i, i + batchSize);
       
-      // Process batch concurrently
       const batchPromises = batch.map(async (recipient) => {
         const recipientResult = {
           email: recipient.email,
@@ -817,12 +1332,10 @@ export class NotificationsService {
         };
 
         try {
-          // Validate recipient email
           if (!UtilsService.isValidEmail(recipient.email)) {
             throw new Error('Invalid email address');
           }
 
-          // Personalize message if name is provided
           const personalizedMessage = recipient.name 
             ? message.replace(/{{name}}/g, UtilsService.titleCase(recipient.name))
             : message;
@@ -832,7 +1345,6 @@ export class NotificationsService {
             retryCount: 2
           });
           
-          // Create in-app notification
           const notificationData: any = {
             type: 'announcement',
             message: personalizedMessage,
@@ -865,10 +1377,8 @@ export class NotificationsService {
         return recipientResult;
       });
 
-      // Wait for batch to complete
       await Promise.all(batchPromises);
 
-      // Add delay between batches (except for the last batch)
       if (i + batchSize < recipients.length) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -885,8 +1395,327 @@ export class NotificationsService {
   }
 
   /** ─────────────────────────────────────────────────────────────────────────── */
-  /** Email Template Methods                                                    */
+  /** 🎨 Enhanced Email Template Methods (Web3 Focused)                          */
   /** ─────────────────────────────────────────────────────────────────────────── */
+
+  private getTransferSuccessEmailTemplate(transferData: TransferNotificationData): EmailTemplate {
+    const formattedWallet = this.formatBlockchainAddress(transferData.brandWallet);
+    const gasUsed = transferData.gasUsed ? this.formatGasAmount(transferData.gasUsed) : 'N/A';
+    
+    return {
+      subject: `✅ NFT Certificate ${transferData.tokenId} Transferred Successfully`,
+      text: `Great news! Your NFT certificate has been successfully transferred to your wallet.\n\nDetails:\n• Token ID: ${transferData.tokenId}\n• Your Wallet: ${formattedWallet}\n• Transaction Hash: ${transferData.txHash}\n• Gas Used: ${gasUsed}\n\nThe certificate is now in your wallet and you have full ownership. You can view it on blockchain explorers or in your Web3 wallet.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #28a745; text-align: center;">🎉 Transfer Successful!</h2>
+          <p>Great news! Your NFT certificate has been successfully transferred to your wallet.</p>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #333;">Transfer Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Token ID:</td>
+                <td style="padding: 8px 0; color: #333;">${transferData.tokenId}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Your Wallet:</td>
+                <td style="padding: 8px 0; color: #333; font-family: monospace;">${formattedWallet}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Gas Used:</td>
+                <td style="padding: 8px 0; color: #333;">${gasUsed}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Transaction:</td>
+                <td style="padding: 8px 0;">
+                  <a href="https://basescan.io/tx/${transferData.txHash}" style="color: #007bff; text-decoration: none;">View on Basescan</a>
+                </td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #0c5460;">
+              <strong>✅ Ownership Confirmed:</strong> The certificate is now in your wallet and you have full ownership.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL}/certificates" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px;">View Certificate</a>
+            <a href="https://basescan.io/tx/${transferData.txHash}" style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">View Transaction</a>
+          </div>
+        </div>
+      `
+    };
+  }
+
+  private getTransferFailureEmailTemplate(failureData: TransferFailureData): EmailTemplate {
+    const isLastAttempt = failureData.attemptNumber >= failureData.maxAttempts;
+    const urgencyColor = isLastAttempt ? '#dc3545' : '#fd7e14';
+    const urgencyIcon = isLastAttempt ? '🚨' : '⚠️';
+    
+    return {
+      subject: `${urgencyIcon} NFT Transfer ${isLastAttempt ? 'Failed' : 'Retry'} - Certificate ${failureData.tokenId}`,
+      text: `${isLastAttempt ? 'URGENT: ' : ''}NFT certificate transfer ${isLastAttempt ? 'failed permanently' : 'encountered an issue'}.\n\nDetails:\n• Token ID: ${failureData.tokenId}\n• Attempt: ${failureData.attemptNumber}/${failureData.maxAttempts}\n• Error: ${failureData.error}\n\n${isLastAttempt ? 'Please contact support for manual transfer.' : `Next retry: ${failureData.nextRetryAt ? new Date(failureData.nextRetryAt).toLocaleString() : 'Not scheduled'}`}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: ${urgencyColor}; text-align: center;">${urgencyIcon} Transfer ${isLastAttempt ? 'Failed' : 'Issue'}</h2>
+          <p>${isLastAttempt ? 'URGENT: ' : ''}NFT certificate transfer ${isLastAttempt ? 'failed permanently' : 'encountered an issue'}.</p>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #333;">Transfer Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Token ID:</td>
+                <td style="padding: 8px 0; color: #333;">${failureData.tokenId}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Attempt:</td>
+                <td style="padding: 8px 0; color: #333;">${failureData.attemptNumber} of ${failureData.maxAttempts}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Error:</td>
+                <td style="padding: 8px 0; color: #dc3545; word-break: break-word;">${failureData.error}</td>
+              </tr>
+              ${failureData.nextRetryAt && !isLastAttempt ? `
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Next Retry:</td>
+                <td style="padding: 8px 0; color: #333;">${new Date(failureData.nextRetryAt).toLocaleString()}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+          
+          ${isLastAttempt ? `
+            <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #721c24;">
+                <strong>⚠️ Action Required:</strong> All automatic retry attempts have been exhausted. Your certificate is still secure in our relayer wallet, but manual intervention is needed to complete the transfer.
+              </p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL}/support" style="background: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Contact Support</a>
+            </div>
+          ` : `
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>🔄 Automatic Retry:</strong> We'll automatically retry the transfer. Your certificate remains secure in our system.
+              </p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL}/certificates" style="background: #fd7e14; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">View Status</a>
+            </div>
+          `}
+        </div>
+      `
+    };
+  }
+
+  private getTransferRetryEmailTemplate(retryData: any): EmailTemplate {
+    return {
+      subject: `🔄 Retrying NFT Transfer - Certificate ${retryData.tokenId}`,
+      text: `We're retrying the transfer of your NFT certificate.\n\nDetails:\n• Token ID: ${retryData.tokenId}\n• Retry Attempt: ${retryData.attemptNumber}/${retryData.maxAttempts}\n• Previous Error: ${retryData.previousError}\n\nWe'll notify you when the transfer completes or if further action is needed.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #fd7e14; text-align: center;">🔄 Transfer Retry in Progress</h2>
+          <p>We're retrying the transfer of your NFT certificate.</p>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #333;">Retry Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Token ID:</td>
+                <td style="padding: 8px 0; color: #333;">${retryData.tokenId}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Retry Attempt:</td>
+                <td style="padding: 8px 0; color: #333;">${retryData.attemptNumber} of ${retryData.maxAttempts}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Previous Error:</td>
+                <td style="padding: 8px 0; color: #dc3545; word-break: break-word;">${retryData.previousError}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background: #cce5ff; border: 1px solid #99d3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #004085;">
+              <strong>🔄 In Progress:</strong> We'll notify you when the transfer completes or if further action is needed.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL}/certificates" style="background: #fd7e14; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Monitor Progress</a>
+          </div>
+        </div>
+      `
+    };
+  }
+
+  private getWalletChangeEmailTemplate(walletData: {
+    previousWallet?: string;
+    newWallet: string;
+    changeDate: Date;
+    verificationStatus?: 'verified' | 'pending' | 'failed';
+  }): EmailTemplate {
+    const isNewConnection = !walletData.previousWallet;
+    const formattedNewWallet = this.formatBlockchainAddress(walletData.newWallet);
+    const formattedPrevWallet = walletData.previousWallet ? this.formatBlockchainAddress(walletData.previousWallet) : null;
+    const statusColor = walletData.verificationStatus === 'verified' ? '#28a745' : 
+                       walletData.verificationStatus === 'failed' ? '#dc3545' : '#fd7e14';
+    const statusText = walletData.verificationStatus === 'verified' ? 'Verified ✅' : 
+                      walletData.verificationStatus === 'failed' ? 'Failed ❌' : 'Pending ⏳';
+
+    return {
+      subject: `🔐 Web3 Wallet ${isNewConnection ? 'Connected' : 'Updated'} Successfully`,
+      text: `Your Web3 wallet has been ${isNewConnection ? 'connected' : 'updated'} successfully.\n\nDetails:\n${formattedPrevWallet ? `• Previous Wallet: ${formattedPrevWallet}\n` : ''}• New Wallet: ${formattedNewWallet}\n• Status: ${statusText}\n• Date: ${walletData.changeDate.toLocaleString()}\n\n${walletData.verificationStatus === 'verified' ? 'Your NFT certificates will now be automatically transferred to this wallet.' : 'Wallet verification is required before automatic transfers can begin.'}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; text-align: center;">🔐 Wallet ${isNewConnection ? 'Connected' : 'Updated'}</h2>
+          <p>Your Web3 wallet has been ${isNewConnection ? 'connected' : 'updated'} successfully.</p>
+          
+          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0 0 15px 0; color: #333;">Wallet Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              ${formattedPrevWallet ? `
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Previous Wallet:</td>
+                <td style="padding: 8px 0; color: #6c757d; font-family: monospace;">${formattedPrevWallet}</td>
+              </tr>
+              ` : ''}
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">New Wallet:</td>
+                <td style="padding: 8px 0; color: #333; font-family: monospace;">${formattedNewWallet}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #dee2e6;">
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Status:</td>
+                <td style="padding: 8px 0; color: ${statusColor}; font-weight: bold;">${statusText}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Date:</td>
+                <td style="padding: 8px 0; color: #333;">${walletData.changeDate.toLocaleString()}</td>
+              </tr>
+            </table>
+          </div>
+          
+          ${walletData.verificationStatus === 'verified' ? `
+            <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #155724;">
+                <strong>🎉 Ready for Auto-Transfers:</strong> Your NFT certificates will now be automatically transferred to this wallet.
+              </p>
+            </div>
+          ` : `
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>⏳ Verification Required:</strong> Wallet verification is needed before automatic transfers can begin.
+              </p>
+            </div>
+          `}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL}/settings/web3" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px;">Web3 Settings</a>
+            <a href="${process.env.FRONTEND_URL}/certificates" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">View Certificates</a>
+          </div>
+          
+          <div style="background: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h4 style="margin: 0 0 10px 0; color: #495057;">Security Note</h4>
+            <p style="margin: 0; color: #6c757d; font-size: 14px;">
+              If you didn't make this change, please contact our support team immediately. Always keep your wallet private keys secure and never share them with anyone.
+            </p>
+          </div>
+        </div>
+      `
+    };
+  }
+
+  private getCertificateMintedEmailTemplate(certificateId: string, certificateData?: {
+    tokenId?: string;
+    txHash?: string;
+    recipient?: string;
+    transferScheduled?: boolean;
+    brandWallet?: string;
+    autoTransferEnabled?: boolean;
+  }): EmailTemplate {
+    const hasWeb3 = certificateData?.autoTransferEnabled;
+    const transferScheduled = certificateData?.transferScheduled;
+    const blockchainInfo = certificateData ? `\n\nBlockchain Details:\n• Token ID: ${certificateData.tokenId}\n• Transaction: ${certificateData.txHash}\n• Recipient: ${certificateData.recipient}${hasWeb3 ? `\n• Auto-Transfer: ${transferScheduled ? 'Scheduled' : 'Disabled'}` : ''}` : '';
+    
+    return {
+      subject: `🎖️ NFT Certificate Minted Successfully - ${certificateId}`,
+      text: `Your NFT certificate ${certificateId} has been minted successfully on the blockchain.${blockchainInfo}\n\n${hasWeb3 && transferScheduled ? 'The certificate will be automatically transferred to your Web3 wallet shortly.' : hasWeb3 ? 'The certificate will remain in our secure relayer wallet.' : 'The certificate is securely stored in our system.'}\n\nYou can view the certificate in your dashboard.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; text-align: center;">Certificate Minted Successfully 🎖️</h2>
+          <p>Your NFT certificate <strong>${certificateId}</strong> has been minted successfully on the blockchain.</p>
+          
+          ${certificateData ? `
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin: 0 0 15px 0; color: #333;">Blockchain Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #dee2e6;">
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Token ID:</td>
+                  <td style="padding: 8px 0; color: #333;">${certificateData.tokenId}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #dee2e6;">
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Recipient:</td>
+                  <td style="padding: 8px 0; color: #333;">${certificateData.recipient}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #dee2e6;">
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Transaction:</td>
+                  <td style="padding: 8px 0;">
+                    <a href="https://basescan.io/tx/${certificateData.txHash}" style="color: #007bff; text-decoration: none; word-break: break-all;">${certificateData.txHash}</a>
+                  </td>
+                </tr>
+                ${hasWeb3 ? `
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Auto-Transfer:</td>
+                  <td style="padding: 8px 0; color: ${transferScheduled ? '#28a745' : '#fd7e14'}; font-weight: bold;">
+                    ${transferScheduled ? '✅ Scheduled' : '⏸️ Disabled'}
+                  </td>
+                </tr>
+                ` : ''}
+              </table>
+            </div>
+          ` : ''}
+          
+          ${hasWeb3 && transferScheduled ? `
+            <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #0c5460;">
+                <strong>🚀 Auto-Transfer Scheduled:</strong> The certificate will be automatically transferred to your Web3 wallet (${certificateData?.brandWallet ? this.formatBlockchainAddress(certificateData.brandWallet) : 'configured wallet'}) shortly.
+              </p>
+            </div>
+          ` : hasWeb3 ? `
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>🔒 Secure Storage:</strong> The certificate will remain in our secure relayer wallet as per your settings.
+              </p>
+            </div>
+          ` : `
+            <div style="background: #e2e3e5; border: 1px solid #d6d8db; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; color: #383d41;">
+                <strong>🏦 Secure Storage:</strong> The certificate is securely stored in our system. Consider upgrading to Premium for Web3 wallet integration.
+              </p>
+            </div>
+          `}
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL}/certificates/${certificateId}" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px;">View Certificate</a>
+            <a href="https://basecan.io/tx/${certificateData?.txHash}" style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">View on Blockchain</a>
+          </div>
+          
+          ${!hasWeb3 ? `
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+              <p style="margin: 0 0 10px 0; color: #495057;">Want automatic transfers to your Web3 wallet?</p>
+              <a href="${process.env.FRONTEND_URL}/billing/upgrade" style="background: #007bff; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; font-size: 14px;">Upgrade to Premium</a>
+            </div>
+          ` : ''}
+        </div>
+      `
+    };
+  }
+
+  // [Previous template methods continue with enhancements...]
 
   private getVerificationEmailTemplate(code: string): EmailTemplate {
     return {
@@ -932,7 +1761,7 @@ export class NotificationsService {
   private getWelcomeEmailTemplate(name: string, userType: 'brand' | 'manufacturer'): EmailTemplate {
     const platformName = userType === 'brand' ? 'brand dashboard' : 'manufacturer portal';
     const features = userType === 'brand' 
-      ? ['Create voting campaigns', 'Connect with manufacturers', 'Track customer engagement', 'Generate insights']
+      ? ['Create voting campaigns', 'Connect with manufacturers', 'Track customer engagement', 'Generate NFT certificates', 'Web3 wallet integration (Premium)']
       : ['Connect with brands', 'Access voting analytics', 'View partnership opportunities', 'Track performance'];
 
     return {
@@ -1035,38 +1864,6 @@ export class NotificationsService {
     };
   }
 
-  private getCertificateMintedEmailTemplate(certificateId: string, certificateData?: {
-    tokenId?: string;
-    txHash?: string;
-    recipient?: string;
-  }): EmailTemplate {
-    const blockchainInfo = certificateData ? `\n\nBlockchain Details:\n• Token ID: ${certificateData.tokenId}\n• Transaction: ${certificateData.txHash}\n• Recipient: ${certificateData.recipient}` : '';
-    
-    return {
-      subject: `NFT Certificate Minted Successfully - ${certificateId}`,
-      text: `Your NFT certificate ${certificateId} has been minted successfully on the blockchain.${blockchainInfo}\n\nYou can view the certificate in your dashboard.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333; text-align: center;">Certificate Minted Successfully 🎖️</h2>
-          <p>Your NFT certificate <strong>${certificateId}</strong> has been minted successfully on the blockchain.</p>
-          ${certificateData ? `
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <h4 style="margin: 0 0 10px 0; color: #555;">Blockchain Details:</h4>
-              <ul style="margin: 0; color: #666; word-break: break-all;">
-                <li>Token ID: <strong>${certificateData.tokenId}</strong></li>
-                <li>Transaction: <strong>${certificateData.txHash}</strong></li>
-                <li>Recipient: <strong>${certificateData.recipient}</strong></li>
-              </ul>
-            </div>
-          ` : ''}
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL}/certificates" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">View Certificate</a>
-          </div>
-        </div>
-      `
-    };
-  }
-
   private getPlanRenewalEmailTemplate(plan: PlanKey): EmailTemplate {
     return {
       subject: `Your ${UtilsService.titleCase(plan)} Plan Has Been Renewed`,
@@ -1128,7 +1925,7 @@ export class NotificationsService {
   }
 
   private getUsageLimitWarningEmailTemplate(
-    limitType: 'votes' | 'certificates', 
+    limitType: 'votes' | 'certificates' | 'transfers', 
     usage: number, 
     limit: number, 
     percentage: number
