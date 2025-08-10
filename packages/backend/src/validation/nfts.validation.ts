@@ -165,8 +165,8 @@ export const deployNftSchema = Joi.object({
   networkConfig: Joi.object({
     chainId: Joi.number()
       .integer()
-      .valid(1, 5, 137, 80001, 56, 97, 43114, 43113, 250, 4002) // Major networks
-      .default(1)
+      .valid(8453, 84532, 1, 137) // Major networks
+      .default(8453)
       .messages({
         'any.only': 'Unsupported blockchain network'
       })

@@ -360,8 +360,8 @@ export const updateBrandSettingsSchema = Joi.object({
     
     chainId: Joi.number()
       .integer()
-      .valid(1, 3, 4, 5, 42, 137, 80001) // Ethereum, testnets, Polygon
-      .default(1)
+      .valid(8453, 84532, 1, 137) // Base, Ethereum, testnets, Polygon
+      .default(8453)
       .optional()
       .messages({
         'any.only': 'Chain ID must be a supported blockchain network'
