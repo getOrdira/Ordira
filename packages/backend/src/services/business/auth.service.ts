@@ -6,6 +6,7 @@ import { Business } from '../../models/business.model';
 import { User } from '../../models/user.model';
 import { NotificationsService } from '../external/notifications.service';
 import { UtilsService } from '../utils/utils.service';
+import mongoose from 'mongoose'
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const JWT_EXPIRES_IN = '7d';
@@ -82,6 +83,57 @@ export class AuthService {
     return UtilsService.generateSecureToken(32);
   }
 
+  private async isTokenBlacklisted(token: string): Promise<boolean> {
+  try {
+    // If using database blacklist
+    const BlacklistedToken = mongoose.model('BlacklistedToken');
+    const blacklisted = await BlacklistedToken.findOne({ token });
+    return !!blacklisted;
+    
+    // If using Redis
+    // return !!(await redis.get(`blacklist:${token}`));
+  } catch (error) {
+    console.warn('Failed to check token blacklist:', error);
+    return false; // Assume not blacklisted if check fails
+  }
+}
+
+private async blacklistToken(token: string, userId: string): Promise<void> {
+  try {
+    const BlacklistedToken = mongoose.model('BlacklistedToken');
+    await BlacklistedToken.create({
+      token,
+      userId,
+      blacklistedAt: new Date(),
+      expiresAt: this.getTokenExpiration(token)
+    });
+  } catch (error) {
+    console.warn('Failed to blacklist token:', error);
+    // Don't throw - token refresh should still work
+  }
+}
+
+private getUserPermissions(account: any, accountType: string): string[] {
+  const basePermissions = ['read_profile', 'update_profile'];
+  
+  if (accountType === 'business') {
+    return [
+      ...basePermissions,
+      'manage_business',
+      'create_api_keys',
+      'view_analytics',
+      'manage_certificates',
+      'manage_voting'
+    ];
+  } else {
+    return [
+      ...basePermissions,
+      'participate_voting',
+      'view_certificates'
+    ];
+  }
+}
+
   private validateBusinessInput(data: RegisterBusinessInput): void {
     // Enhanced validation using UtilsService
     if (!UtilsService.isValidEmail(data.email)) {
@@ -121,13 +173,33 @@ export class AuthService {
     };
   }
 
-  private logSecurityEvent(event: string, identifier: string, success: boolean): void {
-    const maskedIdentifier = UtilsService.isValidEmail(identifier) 
-      ? UtilsService.maskEmail(identifier)
-      : UtilsService.maskPhone(identifier);
-    
-    console.log(`[AUTH] ${event} - ${maskedIdentifier} - ${success ? 'SUCCESS' : 'FAILED'}`);
+  private logSecurityEvent(
+  event: string, 
+  identifier: string, 
+  success: boolean, 
+  additionalData?: any
+): void {
+  const logData: any = {
+    event,
+    identifier: UtilsService.maskEmail(identifier),
+    success,
+    timestamp: new Date()
+  };
+
+  // Add security context if available
+  if (additionalData?.securityContext) {
+    logData.ip = additionalData.securityContext.ipAddress;
+    logData.userAgent = additionalData.securityContext.userAgent;
   }
+
+  // Add any additional data
+  if (additionalData) {
+    const { securityContext, ...otherData } = additionalData;
+    Object.assign(logData, otherData);
+  }
+
+  console.log(`Security Event: ${event}`, logData);
+}
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Business Authentication Methods                                           */
@@ -222,50 +294,85 @@ export class AuthService {
   /**
    * Logs in a verified business with enhanced security
    */
-  async loginBusiness(input: LoginBusinessInput): Promise<{ token: string }> {
-    const { emailOrPhone, password } = input;
-    
-    // Normalize the input
-    const normalizedInput = UtilsService.isValidEmail(emailOrPhone)
-      ? UtilsService.normalizeEmail(emailOrPhone)
-      : UtilsService.normalizePhone(emailOrPhone);
+  async loginBusiness(input: LoginBusinessInput & { rememberMe?: boolean }): Promise<{ 
+  token: string;
+  businessId: string;
+  email: string;
+  businessName: string;
+  isEmailVerified: boolean;
+  plan?: string;
+  requiresTwoFactor?: boolean;
+  rememberToken?: string;
+  emailOrPhone: string;
+  user: {
+    businessId: string;
+    email: string;
+    verified: boolean;
+  };
+  expiresIn: string;
+}> {
+  const { emailOrPhone, password, rememberMe } = input;
+  
+  // Normalize the input
+  const normalizedInput = UtilsService.isValidEmail(emailOrPhone)
+    ? UtilsService.normalizeEmail(emailOrPhone)
+    : UtilsService.normalizePhone(emailOrPhone);
 
-    const biz = await Business.findOne({
-      $or: [
-        { email: normalizedInput },
-        { phone: normalizedInput }
-      ]
-    });
+  const biz = await Business.findOne({
+    $or: [
+      { email: normalizedInput },
+      { phone: normalizedInput }
+    ]
+  });
 
-    if (!biz) {
-      this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false);
-      throw { statusCode: 404, message: 'Business not found.' };
-    }
+  if (!biz) {
+    this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false);
+    throw { statusCode: 404, message: 'Business not found.' };
+  }
 
-    if (!biz.isEmailVerified) {
-      this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false);
-      throw { statusCode: 403, message: 'Account not verified.' };
-    }
+  if (!biz.isEmailVerified) {
+    this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false);
+    throw { statusCode: 403, message: 'Account not verified.' };
+  }
 
-    const valid = await bcrypt.compare(password, biz.password);
-    if (!valid) {
-      this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false);
-      throw { statusCode: 401, message: 'Invalid credentials.' };
-    }
+  const valid = await bcrypt.compare(password, biz.password);
+  if (!valid) {
+    this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false);
+    throw { statusCode: 401, message: 'Invalid credentials.' };
+  }
 
-    const token = jwt.sign(
-      { 
+  const token = jwt.sign(
+    { 
+      sub: biz._id.toString(),
+      type: 'business',
+      email: biz.email
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+
+  // Generate remember token if requested
+  let rememberToken;
+  if (rememberMe) {
+    rememberToken = jwt.sign(
+      {
         sub: biz._id.toString(),
-        type: 'business',
+        type: 'business_remember',
         email: biz.email
       },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: '30d' } // 30 days for remember token
     );
-
-    this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, true);
-    return { token };
   }
+
+  this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, true);
+  
+  return { 
+    token, 
+    businessId: biz._id.toString(),
+    rememberToken 
+  };
+}
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** User Authentication Methods                                               */
@@ -348,11 +455,89 @@ export class AuthService {
     return { token };
   }
 
+  async getCurrentUser(userId: string): Promise<any> {
+  try {
+    // Check both Business and User collections
+    const [business, user] = await Promise.all([
+      Business.findById(userId).select('-password -emailCode -passwordResetCode -passwordResetExpires'),
+      User.findById(userId).select('-password -emailCode -passwordResetCode -passwordResetExpires')
+    ]);
+
+    const account = business || user;
+    if (!account) {
+      throw { statusCode: 404, message: 'User not found' };
+    }
+
+    // Determine account type and permissions
+    const accountType = business ? 'business' : 'user';
+    const permissions = this.getUserPermissions(account, accountType);
+
+    // Build comprehensive user info
+    const userInfo = {
+      id: account._id,
+      email: account.email,
+      accountType,
+      isEmailVerified: account.isEmailVerified,
+      createdAt: account.createdAt,
+      lastLoginAt: account.lastLoginAt,
+      
+      // Business-specific fields
+      ...(business && {
+        firstName: business.firstName,
+        lastName: business.lastName,
+        businessName: business.businessName,
+        industry: business.industry,
+        companySize: business.companySize,
+        website: business.website,
+        profilePictureUrl: business.profilePictureUrl,
+        description: business.description,
+        walletAddress: business.walletAddress,
+        profileCompleteness: business.getProfileCompleteness?.() || 0
+      }),
+
+      // User-specific fields
+      ...(user && {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        preferences: user.preferences,
+        profilePictureUrl: user.profilePictureUrl
+      }),
+
+      permissions
+    };
+
+    // Log user info access
+    this.logSecurityEvent('USER_INFO_ACCESSED', account.email, true, {
+      userId,
+      accountType
+    });
+
+    return userInfo;
+  } catch (error) {
+    this.logSecurityEvent('USER_INFO_ACCESS_FAILED', userId, false, {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
+  }
+}
+
   /**
    * Logs in a customer user with enhanced security
    */
-  async loginUser(input: LoginUserInput): Promise<{ token: string }> {
-    const { email, password } = input;
+  async loginUser(input: LoginUserInput & { 
+  securityContext?: any;
+  rememberMe?: boolean;  // ← Explicitly allow rememberMe
+}): Promise<{
+  token: string;
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isEmailVerified: boolean;
+  preferences: any;
+  rememberToken?: string;
+}> {
+    const { email, password, rememberMe } = input;
     const normalized = UtilsService.normalizeEmail(email);
     
     const user = await User.findOne({ email: normalized });
@@ -381,84 +566,174 @@ export class AuthService {
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+    let rememberToken;
+  if (rememberMe) {
+    rememberToken = jwt.sign(
+      {
+        sub: user._id.toString(),
+        type: 'user_remember',
+        email: user.email,
+        purpose: 'remember_me'
+      },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+  }
 
     this.logSecurityEvent('LOGIN_USER', normalized, true);
-    return { token };
+    return {
+    token,
+    userId: user._id.toString(),
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    isEmailVerified: user.isEmailVerified,
+    preferences: user.preferences || {},
+    rememberToken,
+    rememberMe,
+  };
   }
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Password Reset Methods                                                    */
   /** ─────────────────────────────────────────────────────────────────────────── */
 
+  
+
   /**
    * Initiates password reset process
    */
-  async initiatePasswordReset(input: PasswordResetInput): Promise<void> {
-    const { email } = input;
-    const normalized = UtilsService.normalizeEmail(email);
+  async initiatePasswordReset(
+  input: PasswordResetInput & { securityContext?: any }
+): Promise<void> {
+  const { email, securityContext } = input;
+  const normalized = UtilsService.normalizeEmail(email);
 
-    // Check both business and user collections
-    const [business, user] = await Promise.all([
-      Business.findOne({ email: normalized }),
-      User.findOne({ email: normalized })
-    ]);
-
-    const account = business || user;
-    if (!account) {
-      // Don't reveal if email exists for security
-      return;
-    }
-
-    const resetCode = this.generateCode();
-    const resetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    account.passwordResetCode = resetCode;
-    account.passwordResetExpires = resetExpires;
-    await account.save();
-
-    try {
-      await this.notificationsService.sendPasswordResetCode(normalized, resetCode);
-      this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, true);
-    } catch (error) {
-      console.error(`Failed to send password reset email to ${UtilsService.maskEmail(normalized)}:`, error);
-    }
+  // Log the password reset attempt with security context
+  if (securityContext) {
+    console.log('Password reset attempt initiated:', {
+      email: UtilsService.maskEmail(normalized),
+      ip: securityContext.ipAddress,
+      userAgent: securityContext.userAgent,
+      timestamp: securityContext.timestamp
+    });
   }
 
-  /**
-   * Confirms password reset with new password
-   */
-  async confirmPasswordReset(input: PasswordResetConfirmInput): Promise<void> {
-    const { email, resetCode, newPassword } = input;
-    const normalized = UtilsService.normalizeEmail(email);
+  // Check both business and user collections
+  const [business, user] = await Promise.all([
+    Business.findOne({ email: normalized }),
+    User.findOne({ email: normalized })
+  ]);
 
-    // Check both collections
-    const [business, user] = await Promise.all([
-      Business.findOne({ 
-        email: normalized,
-        passwordResetCode: resetCode,
-        passwordResetExpires: { $gt: new Date() }
-      }),
-      User.findOne({ 
-        email: normalized,
-        passwordResetCode: resetCode,
-        passwordResetExpires: { $gt: new Date() }
-      })
-    ]);
-
-    const account = business || user;
-    if (!account) {
-      this.logSecurityEvent('PASSWORD_RESET_CONFIRM', normalized, false);
-      throw { statusCode: 400, message: 'Invalid or expired reset code.' };
-    }
-
-    // Update password and clear reset fields
-    account.password = await bcrypt.hash(newPassword, 12);
-    account.passwordResetCode = undefined;
-    account.passwordResetExpires = undefined;
-    await account.save();
-
-    this.logSecurityEvent('PASSWORD_RESET_CONFIRM', normalized, true);
+  const account = business || user;
+  if (!account) {
+    // Log failed attempt for security monitoring
+    this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, false, {
+      reason: 'email_not_found',
+      securityContext
+    });
+    
+    // Don't reveal if email exists for security
+    return;
   }
+
+  // Check for rate limiting (optional but recommended)
+  const recentAttempts = await this.checkPasswordResetRateLimit(normalized, securityContext);
+  if (recentAttempts > 5) { // Max 5 attempts per hour
+    this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, false, {
+      reason: 'rate_limited',
+      attempts: recentAttempts,
+      securityContext
+    });
+    return; // Silently fail to prevent enumeration
+  }
+
+  const resetCode = this.generateCode();
+  const resetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+  account.passwordResetCode = resetCode;
+  account.passwordResetExpires = resetExpires;
+  
+  // Track reset attempts for rate limiting
+  account.passwordResetAttempts = (account.passwordResetAttempts || 0) + 1;
+  account.lastPasswordResetAttempt = new Date();
+  
+  await account.save();
+
+  try {
+    await this.notificationsService.sendPasswordResetCode(normalized, resetCode);
+    this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, true, {
+      accountType: business ? 'business' : 'user',
+      securityContext
+    });
+  } catch (error) {
+    console.error(`Failed to send password reset email to ${UtilsService.maskEmail(normalized)}:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      securityContext
+    });
+    
+    // Log email delivery failure
+    this.logSecurityEvent('PASSWORD_RESET_EMAIL_FAILED', normalized, false, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      securityContext
+    });
+  }
+}
+
+async confirmPasswordReset(
+  input: PasswordResetConfirmInput & { securityContext?: any }
+): Promise<void> {
+  const { email, resetCode, newPassword, securityContext } = input;
+  const normalized = UtilsService.normalizeEmail(email);
+
+  // Log password reset confirmation attempt
+  if (securityContext) {
+    console.log('Password reset confirmation attempt:', {
+      email: UtilsService.maskEmail(normalized),
+      ip: securityContext.ipAddress,
+      userAgent: securityContext.userAgent,
+      timestamp: securityContext.timestamp
+    });
+  }
+
+  // Check both collections
+  const [business, user] = await Promise.all([
+    Business.findOne({ 
+      email: normalized,
+      passwordResetCode: resetCode,
+      passwordResetExpires: { $gt: new Date() }
+    }),
+    User.findOne({ 
+      email: normalized,
+      passwordResetCode: resetCode,
+      passwordResetExpires: { $gt: new Date() }
+    })
+  ]);
+
+  const account = business || user;
+  if (!account) {
+    this.logSecurityEvent('PASSWORD_RESET_CONFIRM', normalized, false, {
+      reason: 'invalid_or_expired_code',
+      securityContext
+    });
+    throw { statusCode: 400, message: 'Invalid or expired reset code.' };
+  }
+
+  // Update password and clear reset fields
+  account.password = await bcrypt.hash(newPassword, 12);
+  account.passwordResetCode = undefined;
+  account.passwordResetExpires = undefined;
+  account.passwordResetAttempts = 0; // Reset attempts counter
+  account.lastPasswordResetAttempt = undefined;
+  account.lastPasswordChangeAt = new Date(); // Track when password was changed
+  
+  await account.save();
+
+  this.logSecurityEvent('PASSWORD_RESET_CONFIRM', normalized, true, {
+    accountType: business ? 'business' : 'user',
+    securityContext
+  });
+}
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Utility Methods                                                           */
@@ -495,6 +770,113 @@ export class AuthService {
       throw { statusCode: 500, message: 'Failed to send verification email.' };
     }
   }
+
+  // In your AuthService class
+async invalidateToken(token: string, userId: string): Promise<void> {
+  try {
+    await this.addTokenToBlacklist(token, userId);
+    
+    
+    this.logSecurityEvent('TOKEN_INVALIDATED', userId, true);
+  } catch (error) {
+    console.error('Token invalidation failed:', error);
+    this.logSecurityEvent('TOKEN_INVALIDATION_FAILED', userId, false);
+    throw error;
+  }
+}
+
+// Helper method for blacklisting tokens
+private async addTokenToBlacklist(token: string, userId: string): Promise<void> {
+  // You can implement this in several ways:
+  
+  // Option 1: Store in database (create a BlacklistedToken model)
+  const BlacklistedToken = mongoose.model('BlacklistedToken');
+  await BlacklistedToken.create({
+    token: token,
+    userId: userId,
+    blacklistedAt: new Date(),
+    expiresAt: this.getTokenExpiration(token) // Extract expiration from JWT
+  });
+  
+  // Option 2: Store in Redis (if you're using Redis)
+  // await redis.setex(`blacklist:${token}`, tokenTtl, userId);
+}
+
+// Helper to extract token expiration
+private getTokenExpiration(token: string): Date {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    return new Date(payload.exp * 1000); // JWT exp is in seconds
+  } catch (error) {
+    // Default to 24 hours if can't parse
+    return new Date(Date.now() + 24 * 60 * 60 * 1000);
+  }
+}
+
+async refreshToken(currentToken: string, userId: string): Promise<string> {
+  try {
+    // Verify the current token is valid
+    const decoded = jwt.verify(currentToken, JWT_SECRET) as any;
+    
+    // Check if the token belongs to the requesting user
+    if (decoded.sub !== userId) {
+      throw { statusCode: 401, message: 'Token user mismatch' };
+    }
+
+    // Optional: Check if token is blacklisted
+    const isBlacklisted = await this.isTokenBlacklisted(currentToken);
+    if (isBlacklisted) {
+      throw { statusCode: 401, message: 'Token has been invalidated' };
+    }
+
+    // Get user/business data for new token
+    const [business, user] = await Promise.all([
+      Business.findById(userId),
+      User.findById(userId)
+    ]);
+
+    const account = business || user;
+    if (!account) {
+      throw { statusCode: 404, message: 'Account not found' };
+    }
+
+    // Check if account is still active
+    if (!account.isEmailVerified) {
+      throw { statusCode: 403, message: 'Account not verified' };
+    }
+
+    // Generate new token
+    const newToken = jwt.sign(
+      {
+        sub: account._id.toString(),
+        type: business ? 'business' : 'user',
+        email: account.email,
+        tokenVersion: account.tokenVersion || 0 // Include token version if using
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // Optional: Blacklist the old token
+    await this.blacklistToken(currentToken, userId);
+
+    // Log token refresh
+    this.logSecurityEvent('TOKEN_REFRESHED', account.email, true, {
+      userId,
+      accountType: business ? 'business' : 'user'
+    });
+
+    return newToken;
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw { statusCode: 401, message: 'Invalid token' };
+    }
+    if (error instanceof jwt.TokenExpiredError) {
+      throw { statusCode: 401, message: 'Token expired' };
+    }
+    throw error;
+  }
+}
 
   /**
    * Resends verification code for user with rate limiting

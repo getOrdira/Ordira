@@ -321,6 +321,67 @@ export class NotificationService {
     return this.mapToSummary(notification);
   }
 
+  async sendPlanChangeNotification(email: string, oldPlan: string, newPlan: string): Promise<void> {
+    const subject = `Plan Changed: Welcome to ${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}!`;
+    const template = 'plan-change';
+    
+    await this.sendEmail({
+      to: email,
+      subject,
+      template,
+      data: {
+        oldPlan: oldPlan.charAt(0).toUpperCase() + oldPlan.slice(1),
+        newPlan: newPlan.charAt(0).toUpperCase() + newPlan.slice(1),
+        changeDate: new Date().toLocaleDateString()
+      }
+    });
+  }
+
+  async sendCancellationConfirmation(email: string, plan: string): Promise<void> {
+    const subject = 'Subscription Cancelled - We\'re Sorry to See You Go';
+    
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'cancellation-confirmation',
+      data: {
+        plan: plan.charAt(0).toUpperCase() + plan.slice(1),
+        cancelDate: new Date().toLocaleDateString()
+      }
+    });
+  }
+
+  async sendRenewalConfirmation(email: string, plan: string, amount: number): Promise<void> {
+    const subject = 'Subscription Renewed Successfully';
+    
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'renewal-confirmation',
+      data: {
+        plan: plan.charAt(0).toUpperCase() + plan.slice(1),
+        amount: (amount / 100).toFixed(2), // Convert cents to dollars
+        renewalDate: new Date().toLocaleDateString(),
+        nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      }
+    });
+  }
+
+  async sendPaymentFailedNotification(email: string, invoiceId: string): Promise<void> {
+    const subject = 'Payment Failed - Action Required';
+    
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'payment-failed',
+      data: {
+        invoiceId,
+        failureDate: new Date().toLocaleDateString(),
+        retryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()
+      }
+    });
+  }
+
   /**
    * Helper methods
    */
@@ -340,6 +401,8 @@ export class NotificationService {
 
     return query;
   }
+
+  
 
   private buildNotificationQuery(
     businessId?: string,
@@ -379,4 +442,41 @@ export class NotificationService {
       createdAt: notification.createdAt
     };
   }
+
+   private async sendEmail(emailData: {
+    to: string;
+    subject: string;
+    template: string;
+    data: any;
+  }): Promise<void> {
+    try {
+      // Implement with your email service (SendGrid, AWS SES, etc.)
+      console.log(`Sending email: ${emailData.subject} to ${emailData.to}`);
+      
+      // Example with SendGrid:
+      // await this.sendgrid.send({
+      //   to: emailData.to,
+      //   from: process.env.FROM_EMAIL!,
+      //   subject: emailData.subject,
+      //   templateId: this.getTemplateId(emailData.template),
+      //   dynamicTemplateData: emailData.data
+      // });
+      
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      throw error;
+    }
+  }
+
+  private getTemplateId(templateName: string): string {
+    const templates = {
+      'plan-change': process.env.SENDGRID_PLAN_CHANGE_TEMPLATE_ID!,
+      'cancellation-confirmation': process.env.SENDGRID_CANCELLATION_TEMPLATE_ID!,
+      'renewal-confirmation': process.env.SENDGRID_RENEWAL_TEMPLATE_ID!,
+      'payment-failed': process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID!
+    };
+    
+    return templates[templateName as keyof typeof templates] || '';
+  }
 }
+
