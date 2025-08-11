@@ -9,6 +9,7 @@ import { PlanKey } from '../../constants/plans';
 import { Types } from 'mongoose';
 import { UtilsService } from '../utils/utils.service';
 import path from 'path';
+import stripe from 'stripe'
 
 const transport = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -1046,6 +1047,298 @@ export class NotificationsService {
     });
   }
 
+  async sendPaymentFailedNotification(subscriptionIdOrEmail: string, failureData?: any): Promise<void> {
+  try {
+    let email: string;
+    let businessName: string = 'Valued Customer';
+    let invoiceId: string = 'Unknown';
+    let attemptCount: number = 1;
+    let amount: number = 0;
+    let nextRetryDate: Date | null = null;
+
+    // Handle different parameter patterns
+    if (subscriptionIdOrEmail.includes('@')) {
+      // First parameter is email
+      email = subscriptionIdOrEmail;
+      if (failureData) {
+        invoiceId = failureData.invoiceId || failureData;
+        attemptCount = failureData.attemptCount || 1;
+        amount = failureData.amount || 0;
+        nextRetryDate = failureData.nextRetryDate || null;
+        businessName = failureData.businessName || businessName;
+      }
+    } else if (subscriptionIdOrEmail.startsWith('sub_')) {
+      // First parameter is subscription ID
+      const subscriptionId = subscriptionIdOrEmail;
+      
+      // Get subscription details from Stripe
+      const subscription = await this.getSubscriptionDetails(subscriptionId);
+      const businessId = subscription.metadata?.businessId;
+      
+      if (!businessId) {
+        throw new Error('Business ID not found in subscription metadata');
+      }
+
+      // Get business details
+      const business = await Business.findById(businessId);
+      if (!business) {
+        throw new Error(`Business not found: ${businessId}`);
+      }
+
+      email = business.email;
+      businessName = business.businessName || `${business.firstName} ${business.lastName}`;
+      
+      // If failureData is provided, use it; otherwise get from Stripe
+      if (failureData) {
+        invoiceId = failureData.invoiceId || failureData;
+        attemptCount = failureData.attemptCount || 1;
+        amount = failureData.amount || 0;
+      }
+    } else {
+      // Assume it's a business ID
+      const business = await Business.findById(subscriptionIdOrEmail);
+      if (!business) {
+        throw new Error(`Business not found: ${subscriptionIdOrEmail}`);
+      }
+      
+      email = business.email;
+      businessName = business.businessName || `${business.firstName} ${business.lastName}`;
+      
+      if (failureData) {
+        invoiceId = failureData.invoiceId || failureData;
+        attemptCount = failureData.attemptCount || 1;
+        amount = failureData.amount || 0;
+      }
+    }
+
+    const subject = `Payment Failed - Action Required ${attemptCount > 1 ? `(Attempt ${attemptCount})` : ''}`;
+    
+    const templateData = {
+      businessName,
+      email,
+      invoiceId,
+      attemptCount,
+      amount: (amount / 100).toFixed(2), // Convert cents to dollars
+      currency: 'USD',
+      failureDate: new Date().toLocaleDateString(),
+      nextRetryDate: nextRetryDate ? nextRetryDate.toLocaleDateString() : 'within 3-5 business days',
+      
+      // Urgency and action items
+      isFirstAttempt: attemptCount === 1,
+      isSecondAttempt: attemptCount === 2,
+      isFinalWarning: attemptCount >= 3,
+      
+      // URLs for action
+      updatePaymentUrl: `${process.env.FRONTEND_URL}/billing/payment-methods`,
+      accountUrl: `${process.env.FRONTEND_URL}/billing`,
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      supportPhone: process.env.SUPPORT_PHONE || '1-800-SUPPORT',
+      
+      // Additional info
+      year: new Date().getFullYear(),
+      companyName: process.env.COMPANY_NAME || 'Your Company'
+    };
+
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'payment-failed',
+      data: templateData
+    });
+
+    console.log(`Payment failure notification sent to: ${email} (attempt ${attemptCount})`);
+
+  } catch (error) {
+    console.error('Failed to send payment failure notification:', {
+      subscriptionIdOrEmail,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
+    // Don't throw - payment failure processing should continue
+  }
+}
+
+  async sendRenewalConfirmation(subscriptionIdOrEmail: string, planOrAmount?: string | number, amount?: number): Promise<void> {
+  try {
+    let email: string;
+    let businessName: string = 'Valued Customer';
+    let plan: string;
+    let renewalAmount: number;
+
+    // Handle different parameter patterns
+    if (subscriptionIdOrEmail.includes('@')) {
+      // First parameter is email (from BillingService call pattern)
+      email = subscriptionIdOrEmail;
+      plan = planOrAmount as string || 'subscription';
+      renewalAmount = amount || 0;
+    } else if (subscriptionIdOrEmail.startsWith('sub_')) {
+      // First parameter is subscription ID (from your current call)
+      const subscriptionId = subscriptionIdOrEmail;
+      
+      // Get subscription details from Stripe
+      const subscription = await this.getSubscriptionDetails(subscriptionId);
+      const businessId = subscription.metadata?.businessId;
+      
+      if (!businessId) {
+        throw new Error('Business ID not found in subscription metadata');
+      }
+
+      // Get business details
+      const business = await Business.findById(businessId);
+      if (!business) {
+        throw new Error(`Business not found: ${businessId}`);
+      }
+
+      email = business.email;
+      businessName = business.businessName || `${business.firstName} ${business.lastName}`;
+      plan = subscription.metadata?.plan || 'subscription';
+      renewalAmount = subscription.items.data[0]?.price?.unit_amount || 0;
+    } else {
+      // Assume it's a business ID
+      const business = await Business.findById(subscriptionIdOrEmail);
+      if (!business) {
+        throw new Error(`Business not found: ${subscriptionIdOrEmail}`);
+      }
+      
+      email = business.email;
+      businessName = business.businessName || `${business.firstName} ${business.lastName}`;
+      plan = planOrAmount as string || 'subscription';
+      renewalAmount = amount || 0;
+    }
+
+    const subject = 'Subscription Renewed Successfully';
+    
+    const templateData = {
+      businessName,
+      email,
+      plan: plan.charAt(0).toUpperCase() + plan.slice(1),
+      amount: (renewalAmount / 100).toFixed(2), // Convert cents to dollars
+      currency: 'USD',
+      renewalDate: new Date().toLocaleDateString(),
+      nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(), // 30 days from now
+      billingPeriod: '30 days',
+      
+      // Account info
+      accountUrl: `${process.env.FRONTEND_URL}/billing`,
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      
+      // Additional info
+      year: new Date().getFullYear(),
+      companyName: process.env.COMPANY_NAME || 'Your Company'
+    };
+
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'subscription-renewal',
+      data: templateData
+    });
+
+    console.log(`Renewal confirmation sent successfully to: ${email}`);
+
+  } catch (error) {
+    console.error('Failed to send renewal confirmation:', {
+      subscriptionIdOrEmail,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
+  }
+}
+
+  async sendCancellationConfirmation(businessIdOrEmail: string, cancellationData: any): Promise<void> {
+  try {
+    let email: string;
+    let businessName: string = 'Valued Customer';
+
+    // Check if first parameter is email or businessId
+    if (businessIdOrEmail.includes('@')) {
+      email = businessIdOrEmail;
+    } else {
+      // It's a businessId, get the business details
+      const business = await Business.findById(businessIdOrEmail);
+      if (!business) {
+        throw new Error('Business not found for cancellation confirmation');
+      }
+      email = business.email;
+      businessName = business.businessName || business.firstName + ' ' + business.lastName;
+    }
+
+    const subject = 'Subscription Cancelled - We\'re Sorry to See You Go';
+    
+    const templateData = {
+      businessName,
+      email,
+      plan: cancellationData.plan || 'subscription',
+      cancelDate: new Date().toLocaleDateString(),
+      effectiveDate: cancellationData.effectiveDate || new Date().toLocaleDateString(),
+      refundAmount: cancellationData.refundAmount || null,
+      finalBillingDate: cancellationData.finalBillingDate || null,
+      // Feedback and support
+      feedbackUrl: `${process.env.FRONTEND_URL}/feedback`,
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      // Re-activation info
+      reactivationUrl: `${process.env.FRONTEND_URL}/billing`,
+      year: new Date().getFullYear()
+    };
+
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'cancellation-confirmation',
+      templateData
+    });
+
+    console.log(`Cancellation confirmation sent to: ${email}`);
+
+  } catch (error) {
+    console.error('Failed to send cancellation confirmation:', {
+      businessIdOrEmail,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
+  }
+}
+
+  async sendPlanChangeNotification(email: string, oldPlan: string, newPlan: string, changeType?: 'upgrade' | 'downgrade'): Promise<void> {
+  try {
+    const subject = `Plan Updated: Welcome to ${this.capitalizePlan(newPlan)}!`;
+    
+    // Determine if it's an upgrade or downgrade
+    const planLevels = { foundation: 0, growth: 1, premium: 2, enterprise: 3 };
+    const isUpgrade = planLevels[newPlan as keyof typeof planLevels] > planLevels[oldPlan as keyof typeof planLevels];
+    
+    const templateData = {
+      oldPlan: this.capitalizePlan(oldPlan),
+      newPlan: this.capitalizePlan(newPlan),
+      changeType: isUpgrade ? 'upgrade' : 'downgrade',
+      changeDate: new Date().toLocaleDateString(),
+      effectiveDate: new Date().toLocaleDateString(),
+      // Add plan-specific benefits
+      newFeatures: this.getPlanFeatures(newPlan),
+      // Add support information
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com'
+    };
+
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'plan-change-notification',
+      templateData
+    });
+
+    console.log(`Plan change notification sent: ${email} changed from ${oldPlan} to ${newPlan}`);
+    
+  } catch (error) {
+    console.error('Failed to send plan change notification:', {
+      email,
+      oldPlan,
+      newPlan,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
+  }
+}
+
   /**
    * 6️⃣ Payment failed → notify Brand (Enhanced)
    */
@@ -1393,6 +1686,42 @@ export class NotificationsService {
 
     return { sent, failed, errors, details };
   }
+
+  private capitalizePlan(plan: string): string {
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+
+private getPlanFeatures(plan: string): string[] {
+  const features = {
+    foundation: [
+      'Basic API access',
+      'Community support',
+      'Standard documentation'
+    ],
+    growth: [
+      'Increased API limits',
+      'Email support',
+      'Basic analytics',
+      'API key management'
+    ],
+    premium: [
+      'Advanced API features',
+      'Priority support',
+      'Advanced analytics',
+      'Custom integrations',
+      'Webhook support'
+    ],
+    enterprise: [
+      'Unlimited API access',
+      'Dedicated support',
+      'Custom solutions',
+      'SLA guarantees',
+      'Advanced security features'
+    ]
+  };
+  
+  return features[plan as keyof typeof features] || features.foundation;
+}
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** 🎨 Enhanced Email Template Methods (Web3 Focused)                          */
@@ -1992,4 +2321,17 @@ export class NotificationsService {
       `
     };
   }
+
+  private async getSubscriptionDetails(subscriptionId: string): Promise<any> {
+  try {
+    // If you have Stripe access in NotificationsService
+    const stripe = new stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2023-10-16'
+    });
+    return await stripe.subscriptions.retrieve(subscriptionId);
+  } catch (error) {
+    console.error('Failed to get subscription details:', error);
+    throw error;
+  }
+}
 }
