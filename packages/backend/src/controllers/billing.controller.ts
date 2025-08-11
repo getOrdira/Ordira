@@ -82,28 +82,28 @@ export async function createCheckoutSession(
     const isDowngrade = currentBilling && getPlanLevel(plan) < getPlanLevel(currentBilling.plan);
 
     // Check for Web3 token discounts
-    let tokenDiscount = null;
-    if (req.tenant?.certificateWallet) {
-      tokenDiscount = await tokenDiscountService.getCouponForWallet(
-        req.tenant.certificateWallet
-      );
-    }
+   let tokenDiscount = null;
+if (req.tenant?.web3Settings?.certificateWallet) {
+  tokenDiscount = await tokenDiscountService.getCouponForWallet(
+    req.tenant.web3Settings.certificateWallet
+  );
+}
 
     // Prepare checkout session configuration
     const sessionConfig = {
-      businessId,
-      plan,
-      couponCode: tokenDiscount || couponCode,
-      addons,
-      isUpgrade,
-      isDowngrade,
-      metadata: {
-        businessId,
-        plan,
-        upgradeFrom: currentBilling?.plan,
-        walletAddress: req.tenant?.certificateWallet
-      }
-    };
+  businessId,
+  plan,
+  couponCode: tokenDiscount || couponCode,
+  addons,
+  isUpgrade,
+  isDowngrade,
+  metadata: {
+    businessId,
+    plan,
+    upgradeFrom: currentBilling?.plan,
+    walletAddress: req.tenant?.web3Settings?.certificateWallet
+  }
+};
 
     // Create or update subscription and get checkout session
     const checkoutSession = await billingService.createCheckoutSession(sessionConfig);
@@ -176,21 +176,21 @@ export async function changePlan(
       return;
     }
 
-    // Validate plan change permissions
-    const isDowngrade = getPlanLevel(plan) < getPlanLevel(currentPlan);
-    if (isDowngrade) {
-      // Check if downgrade is allowed based on current usage
-      const usageCheck = await billingService.validateDowngrade(businessId, plan);
-      if (!usageCheck.allowed) {
-         res.status(400).json({
-          error: 'Cannot downgrade due to current usage',
-          issues: usageCheck.issues,
-          recommendations: usageCheck.recommendations,
-          code: 'DOWNGRADE_BLOCKED'
-        })
-        return;
-      }
-    }
+    // Fix the method call to pass all required arguments
+const isDowngrade = getPlanLevel(plan) < getPlanLevel(currentPlan);
+if (isDowngrade) {
+  // Check if downgrade is allowed based on current usage
+  const usageCheck = await billingService.validateDowngrade(currentPlan, plan, businessId);
+  if (!usageCheck.allowed) {
+    res.status(400).json({
+      error: 'Cannot downgrade due to current usage',
+      issues: usageCheck.issues,
+      recommendations: usageCheck.recommendations,
+      code: 'DOWNGRADE_BLOCKED'
+    });
+    return;
+  }
+}
 
     // Process plan change
     const result = await billingService.changePlan(businessId, plan, {
@@ -267,14 +267,14 @@ export async function getPlan(
     const availableDiscounts = await getAvailableDiscounts(businessId, req.tenant);
 
     res.json({
-      currentPlan: {
-        id: billingInfo.plan,
-        name: formatPlanName(billingInfo.plan),
-        features: PLAN_DEFINITIONS[billingInfo.plan],
-        subscriptionStatus: billingInfo.subscriptionStatus,
-        currentPeriodEnd: billingInfo.currentPeriodEnd,
-        cancelAtPeriodEnd: billingInfo.cancelAtPeriodEnd
-      },
+       currentPlan: {
+    id: billingInfo.plan,
+    name: formatPlanName(billingInfo.plan),
+    features: PLAN_DEFINITIONS[billingInfo.plan as keyof typeof PLAN_DEFINITIONS] || PLAN_DEFINITIONS.foundation,
+    subscriptionStatus: billingInfo.subscriptionStatus,
+    currentPeriodEnd: billingInfo.currentPeriodEnd,
+    cancelAtPeriodEnd: billingInfo.cancelAtPeriodEnd
+  },
       usage: {
         current: usageStats,
         limits: getPlanLimits(billingInfo.plan),
@@ -355,10 +355,8 @@ export async function updatePaymentMethod(
     }
 
     // Update payment method with billing address
-    const result = await billingService.updatePaymentMethod(businessId, {
-      paymentMethodId,
-      billingAddress
-    });
+    // Current method signature: updatePaymentMethod(businessId: string, paymentMethodId: string)
+const result = await billingService.updatePaymentMethod(businessId, paymentMethodId);
 
     // Track payment method update
     trackManufacturerAction('update_payment_method');
@@ -508,11 +506,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   const subscriptionId = invoice.subscription!.toString();
   
   // Handle failed payment
-  await billingService.handleFailedPayment(subscriptionId, {
-    invoiceId: invoice.id,
-    attemptCount: invoice.attempt_count || 1,
-    nextPaymentAttempt: invoice.next_payment_attempt
-  });
+  await billingService.handleFailedPayment(subscriptionId, invoice.id);
   
   // Send payment failed notification
   await notificationsService.sendPaymentFailedNotification(subscriptionId);
@@ -645,24 +639,25 @@ function generateUsageRecommendations(usage: any, limits: any, projections: any)
 
 async function calculatePricingSummary(plan: PlanKey, couponCode?: string, addons: string[] = []): Promise<any> {
   const basePlan = PLAN_DEFINITIONS[plan];
-  let total = basePlan.price || 0;
   
+  // Ensure price is always a number
+  let total = Number(basePlan.price) || 0;
+
   // Add addon pricing
   const addonPricing = addons.reduce((sum, addon) => {
-    // Calculate addon pricing based on type
     return sum + getAddonPrice(addon);
   }, 0);
-  
+
   total += addonPricing;
-  
+
   // Apply coupon discount
   let discount = 0;
   if (couponCode) {
     discount = await calculateCouponDiscount(couponCode, total);
   }
-  
+
   return {
-    basePrice: basePlan.price || 0,
+    basePrice: Number(basePlan.price) || 0,
     addons: addonPricing,
     subtotal: total,
     discount,

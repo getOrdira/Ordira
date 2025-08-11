@@ -25,6 +25,11 @@ interface AuthControllerRequest extends Request, ValidatedRequest {
   };
 }
 
+interface LoginUserRequest extends AuthRequest, ValidatedRequest {
+  body: LoginUserInput;
+  validatedBody?: LoginUserInput;
+}
+
 interface BusinessAuthRequest extends AuthControllerRequest {
   body: RegisterBusinessInput | VerifyBusinessInput | LoginBusinessInput;
 }
@@ -175,7 +180,7 @@ export async function loginBusinessHandler(
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
-      deviceFingerprint: req.body.deviceFingerprint
+      deviceFingerprint: (req.body as any).deviceFingerprint // ← Use type assertion
     };
 
     // Enhanced login with security checks
@@ -185,7 +190,11 @@ export async function loginBusinessHandler(
     });
 
     // Log successful login
-    console.log(`Business login: ${result.businessId} from IP: ${securityContext.ipAddress}`);
+    console.log(`Business login successful from IP: ${securityContext.ipAddress}`, {
+  token: result.token ? 'present' : 'missing',
+  timestamp: new Date(),
+  userAgent: securityContext.userAgent
+});
 
     // Set secure cookie if remember me is enabled
     if (loginData.rememberMe) {
@@ -214,16 +223,16 @@ export async function loginBusinessHandler(
       }
     });
   } catch (error) {
-    // Enhanced error logging for security monitoring
-    console.warn('Business login failed:', {
-      identifier: req.body?.emailOrPhone,
-      ip: getClientIp(req),
-      error: error.message,
-      timestamp: new Date()
-    });
-    
-    next(error);
-  }
+  // Enhanced error logging for security monitoring
+  console.warn('Business login failed:', {
+    identifier: req.body?.emailOrPhone,
+    ip: getClientIp(req),
+    error: error instanceof Error ? error.message : 'Unknown error',
+    timestamp: new Date()
+  });
+  
+  next(error);
+}
 }
 
 /**
@@ -237,6 +246,7 @@ export async function registerUserHandler(
 ): Promise<void> {
   try {
     const registrationData = req.validatedBody || req.body;
+    const userType = registrationData.businessName ? 'brand' : 'manufacturer';
     
     // Add security context
     const securityContext = {
@@ -256,27 +266,27 @@ export async function registerUserHandler(
     await notificationsService.sendWelcomeEmail(
       registrationData.email,
       registrationData.firstName || 'User',
-      'customer'
+      userType
     );
 
     // Log successful registration
     console.log(`User registration: ${registrationData.email} from IP: ${securityContext.ipAddress}`);
 
     res.status(201).json({
-      message: 'User registered successfully. Please check your email for verification instructions.',
-      nextStep: 'email_verification',
-      email: registrationData.email
-    });
-  } catch (error) {
-    console.error('User registration error:', {
-      error: error.message,
-      ip: getClientIp(req),
-      email: req.body?.email,
-      timestamp: new Date()
-    });
-    
-    next(error);
-  }
+  message: 'User registered successfully. Please check your email for verification instructions.',
+  nextStep: 'email_verification',
+  email: registrationData.email
+});
+} catch (error) {
+  console.error('User registration error:', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    ip: getClientIp(req),
+    email: req.body?.email,
+    timestamp: new Date()
+  });
+  
+  next(error);
+}
 }
 
 /**
@@ -309,25 +319,25 @@ export async function verifyUserHandler(
     console.log(`User verified: ${verificationData.email} from IP: ${securityContext.ipAddress}`);
 
     res.json({
-      token: result.token,
-      message: 'Email verified successfully',
-      expiresIn: '7 days',
-      user: {
-        email: verificationData.email,
-        verified: true,
-        verifiedAt: new Date()
-      }
-    });
-  } catch (error) {
-    console.warn('User verification failed:', {
-      email: req.body?.email,
-      ip: getClientIp(req),
-      error: error.message,
-      timestamp: new Date()
-    });
-    
-    next(error);
+  token: result.token,
+  message: 'Email verified successfully',
+  expiresIn: '7 days',
+  user: {
+    email: verificationData.email,
+    verified: true,
+    verifiedAt: new Date()
   }
+});
+} catch (error) {
+  console.warn('User verification failed:', {
+    email: req.body?.email,
+    ip: getClientIp(req),
+    error: error instanceof Error ? error.message : 'Unknown error',
+    timestamp: new Date()
+  });
+  
+  next(error);
+}
 }
 
 /**
@@ -342,26 +352,43 @@ export async function loginUserHandler(
   try {
     const loginData = req.validatedBody || req.body;
     
+    // Validate required fields
+    if (!loginData || !loginData.email || !loginData.password) {
+      res.status(400).json({ 
+        error: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS'
+      });
+      return;
+    }
+
+    // Safely extract properties
+    const email = loginData.email;
+    const password = loginData.password;
+    const rememberMe = (loginData as any).rememberMe || false;
+    const deviceFingerprint = (loginData as any).deviceFingerprint;
+    
     // Enhanced security context
     const securityContext = {
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
-      deviceFingerprint: req.body.deviceFingerprint
+      deviceFingerprint
     };
 
     // Enhanced login
     const result = await authService.loginUser({
-      ...loginData,
+      email,
+      password,
+      rememberMe,
       securityContext
     });
 
     // Log successful login
-    console.log(`User login: ${loginData.email} from IP: ${securityContext.ipAddress}`);
+    console.log(`User login: ${email} from IP: ${securityContext.ipAddress}`);
 
     // Set secure cookie if remember me is enabled
-    if (loginData.rememberMe) {
+    if (rememberMe && result.rememberToken) {
       res.cookie('remember_token', result.rememberToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -385,16 +412,15 @@ export async function loginUserHandler(
     });
   } catch (error) {
     console.warn('User login failed:', {
-      email: req.body?.email,
+      email: (req.body as any)?.email,
       ip: getClientIp(req),
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
     
     next(error);
   }
 }
-
 /**
  * POST /api/auth/forgot-password
  * Initiate password reset process with enhanced security
@@ -414,9 +440,8 @@ export async function forgotPasswordHandler(
     };
 
     // Initiate password reset
-    await authService.initiateForgotPassword({
+    await authService.initiatePasswordReset({
       email,
-      phone,
       securityContext
     });
 
@@ -460,7 +485,7 @@ export async function resetPasswordHandler(
     };
 
     // Complete password reset
-    await authService.resetPassword({
+    await authService.confirmPasswordReset({
       ...resetData,
       securityContext
     });
@@ -473,15 +498,15 @@ export async function resetPasswordHandler(
       nextStep: 'login'
     });
   } catch (error) {
-    console.warn('Password reset failed:', {
-      token: req.body?.token?.substring(0, 8) + '...',
-      ip: getClientIp(req),
-      error: error.message,
-      timestamp: new Date()
-    });
-    
-    next(error);
-  }
+  console.warn('Password reset failed:', {
+    token: req.body?.token?.substring(0, 8) + '...',
+    ip: getClientIp(req),
+    error: error instanceof Error ? error.message : 'Unknown error',
+    timestamp: new Date()
+  });
+  
+  next(error);
+}
 }
 
 /**
