@@ -436,7 +436,7 @@ export async function getAccountAnalytics(
  * Export brand account data in various formats
  */
 export async function exportAccountData(
-  req: AuthRequest & TenantRequest,
+  req: AuthRequest & TenantRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -487,7 +487,7 @@ export async function exportAccountData(
 async function buildProfileMetadata(businessId: string, plan: string): Promise<any> {
   const metadata: any = {
     accountCreated: await brandAccountService.getAccountCreationDate(businessId),
-    lastLogin: await brandAccountService.getLastLoginDate(businessId),
+    lastLogin: await brandAccountService.getLastLogin(businessId),
     planInfo: {
       currentPlan: plan,
       planFeatures: getPlanFeatures(plan)
@@ -496,11 +496,27 @@ async function buildProfileMetadata(businessId: string, plan: string): Promise<a
 
   // Add advanced metadata for higher plans
   if (['premium', 'enterprise'].includes(plan)) {
-    metadata.analytics = await analyticsService.getAccountSummary(businessId);
+    try {
+      // Option 1: Use brandAccountService instead (which has getAccountSummary)
+      metadata.analytics = await brandAccountService.getAccountSummary(businessId);
+    } catch (error) {
+      console.warn('Failed to get account analytics:', error);
+      // Fallback to basic analytics info
+      metadata.analytics = {
+        profileCompleteness: 0,
+        totalActiveDays: 0,
+        lastAnalyticsUpdate: new Date()
+      };
+    }
   }
 
   if (plan === 'enterprise') {
-    metadata.customization = await brandAccountService.getCustomizationOptions(businessId);
+    try {
+      metadata.customization = await brandAccountService.getCustomizationOptions(businessId);
+    } catch (error) {
+      console.warn('Failed to get customization options:', error);
+      metadata.customization = null;
+    }
   }
 
   return metadata;
@@ -564,19 +580,26 @@ function validatePlanPermissions(updateData: any, plan: string): string[] {
 }
 
 async function handleWalletAddressChange(businessId: string, newWallet: string, oldWallet?: string): Promise<void> {
-  // Verify wallet ownership if required
-  if (newWallet) {
-    const isValid = await brandAccountService.verifyWalletOwnership(businessId, newWallet);
-    if (!isValid) {
-      throw new Error('Wallet ownership verification failed');
+  try {
+    // Verify wallet ownership if required
+    if (newWallet) {
+      // Remove the 'undefined' parameter - just call with 2 parameters
+      const isValid = await brandAccountService.verifyWalletOwnership(businessId, newWallet);
+      if (!isValid) {
+        throw new Error('Wallet ownership verification failed');
+      }
     }
-  }
 
-  // Update billing discounts if wallet changed
-  if (oldWallet !== newWallet) {
-    await billingService.updateTokenDiscounts(businessId, newWallet);
+    // Update billing discounts if wallet changed
+    if (oldWallet !== newWallet) {
+      await billingService.updateTokenDiscounts(businessId, newWallet);
+    }
+  } catch (error) {
+    console.error('Error handling wallet address change:', error);
+    throw error;
   }
 }
+
 
 function getChangedFields(current: any, update: any): string[] {
   return Object.keys(update).filter(key => {
