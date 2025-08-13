@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Base Colors */
+    --background: #ffffff;
+    --foreground: #171717;
+    --accent: #3B82F6;
+    --accent-dark: #2563EB;
+    --dark: #171717;
+    --muted: #6B7280;
+  
+    /* Semantic Colors (add these) */
+    --success: #10B981;
+    --success-dark: #059669;
+    --warning: #F59E0B;
+    --warning-dark: #D97706;
+    --error: #EF4444;
+    --error-dark: #DC2626;
+    
+    /* Chart Colors */
+    --chart-primary: var(--accent);
+    --chart-secondary: var(--muted);
+    --chart-success: var(--success);
+    --chart-warning: var(--warning);
+    
+    /* Component Colors */
+    --card-bg: var(--background);
+    --card-border: #E5E7EB;
+    --button-primary: var(--accent);
+    --button-secondary: var(--muted);
+  }
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
