@@ -297,7 +297,8 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       requestId
     };
     
-    return res.status(400).json(response);
+    res.status(400).json(response)
+    return;
   }
   
   // Normalize the error

@@ -37,7 +37,7 @@ const DEFAULT_OPTIONS: ValidationOptions = {
 /**
  * Custom Joi extensions for common validation patterns
  */
-const customJoi = Joi.extend({
+export const customJoi = Joi.extend({
   type: 'mongoId',
   base: Joi.string(),
   messages: {
