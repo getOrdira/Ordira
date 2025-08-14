@@ -23,11 +23,19 @@ export interface IBusiness extends Document {
   contactEmail?: string;
   socialUrls?: string[];
   walletAddress?: string;
+  certificateWallet: string;
   
   // Additional security and account management
   lastLoginAt?: Date;
   loginAttempts?: number;
   lockUntil?: Date;
+  
+  // ADD THESE PASSWORD RESET FIELDS:
+  passwordResetCode?: string;
+  passwordResetExpires?: Date;
+  passwordResetAttempts?: number;
+  lastPasswordResetAttempt?: Date;
+  lastPasswordChangeAt?: Date;
   
   // Enhanced profile
   website?: string;
@@ -81,7 +89,7 @@ const BusinessSchema = new Schema<IBusiness>(
       trim: true,
       match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
     },
-    
+
     // Required business info
     businessName: { 
       type: String, 
@@ -205,15 +213,37 @@ const BusinessSchema = new Schema<IBusiness>(
     // Security fields
     lastLoginAt: { type: Date },
     loginAttempts: { type: Number, default: 0 },
-    lockUntil: { type: Date }
+    lockUntil: { type: Date },
+    
+    // Password reset fields
+    passwordResetCode: { 
+      type: String,
+      select: false // Don't include in queries for security
+    },
+    passwordResetExpires: { 
+      type: Date,
+      select: false // Don't include in queries for security
+    },
+    passwordResetAttempts: { 
+      type: Number, 
+      default: 0 
+    },
+    lastPasswordResetAttempt: { 
+      type: Date 
+    },
+    lastPasswordChangeAt: { 
+      type: Date 
+    }
   },
-  { 
+  {
     timestamps: true,
     toJSON: { 
       virtuals: true,
       transform: function(doc, ret) {
         delete ret.password;
         delete ret.emailCode;
+        delete ret.passwordResetCode; // Don't expose in JSON
+        delete ret.passwordResetExpires; // Don't expose in JSON
         delete ret.__v;
         delete ret.loginAttempts;
         delete ret.lockUntil;

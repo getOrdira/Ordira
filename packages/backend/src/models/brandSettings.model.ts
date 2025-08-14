@@ -24,11 +24,13 @@ export interface IBrandSettings extends Document {
     walletVerifiedAt?: Date;
     walletSignature?: string;
     
+    
     // Contract addresses
     voteContract?: string;
     nftContract?: string;
     chainId: number;
     networkName: string;
+  
     
     // Gas optimization
     gasSettings?: {
@@ -46,6 +48,36 @@ export interface IBrandSettings extends Document {
       allowedSigners?: string[];
       sessionTimeout: number; // minutes
     };
+
+    // E-commerce integrations
+  shopifyIntegration?: {
+    shopifyDomain: string;
+    shopifyAccessToken: string;
+    shopifyWebhookSecret?: string;
+    syncProducts?: boolean;
+    syncOrders?: boolean;
+    autoMintOnPurchase?: boolean; // Auto-mint certificates on product purchase
+    lastSyncAt?: Date;
+  };
+  
+  wooCommerceIntegration?: {
+    wooDomain: string;
+    wooConsumerKey: string;
+    wooConsumerSecret: string;
+    apiVersion?: string;
+    syncInterval?: number;
+    autoMintOnPurchase?: boolean;
+    lastSyncAt?: Date;
+  };
+  
+  wixIntegration?: {
+    wixDomain: string;
+    wixApiKey: string;
+    wixRefreshToken?: string;
+    autoMintOnPurchase?: boolean;
+    lastSyncAt?: Date;
+  };
+  
   };
   
   // ✨ Comprehensive transfer preferences
@@ -374,7 +406,8 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
           max: [1440, 'Session timeout cannot exceed 24 hours'],
           default: 60
         }
-      }
+      },
+      
     },
     
     // ✨ Comprehensive transfer preferences

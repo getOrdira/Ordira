@@ -307,7 +307,7 @@ CertificateSchema.virtual('canRetryTransfer').get(function() {
 });
 
 CertificateSchema.virtual('nextRetryDate').get(function() {
-  if (!this.canRetryTransfer) return null;
+  if (!this.retryTransfer) return null;
   
   // Exponential backoff: 2^attempts * 5 minutes
   const backoffMinutes = Math.pow(2, this.transferAttempts) * 5;
@@ -606,36 +606,6 @@ CertificateSchema.statics.getStatistics = async function(businessId: string) {
   return result;
 };
 
-/**
- * Batch retry failed transfers
- */
-CertificateSchema.statics.retryFailedTransfers = async function(limit: number = 50) {
-  const failedCertificates = await this.findFailedTransfers().limit(limit);
-  
-  const results = {
-    processed: 0,
-    successful: 0,
-    failed: 0,
-    errors: [] as string[]
-  };
-
-  for (const cert of failedCertificates) {
-    try {
-      results.processed++;
-      const success = await cert.retryTransfer();
-      if (success) {
-        results.successful++;
-      } else {
-        results.failed++;
-      }
-    } catch (error: any) {
-      results.failed++;
-      results.errors.push(`Certificate ${cert._id}: ${error.message}`);
-    }
-  }
-
-  return results;
-};
 
 // ===== PRE/POST HOOKS =====
 
