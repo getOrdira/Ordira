@@ -1,6 +1,6 @@
 // src/validation/brandAccount.validation.ts
 import Joi from 'joi';
-import { commonSchemas, customJoi } from '../middleware/validation.middleware';
+import { commonSchemas } from '../middleware/validation.middleware';
 
 /**
  * Enhanced brand account validation with comprehensive business logic and security

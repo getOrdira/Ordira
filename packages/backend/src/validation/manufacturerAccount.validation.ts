@@ -1,6 +1,6 @@
 // src/validation/manufacturerAccount.validation.ts
 import Joi from 'joi';
-import { commonSchemas, customJoi } from '../middleware/validation.middleware';
+import { commonSchemas } from '../middleware/validation.middleware';
 
 /**
  * Enhanced manufacturer account validation with comprehensive business logic and verification

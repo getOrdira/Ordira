@@ -1,6 +1,6 @@
 // src/validation/nfts.validation.ts
 import Joi from 'joi';
-import { commonSchemas, customJoi } from '../middleware/validation.middleware';
+import { commonSchemas } from '../middleware/validation.middleware';
 
 /**
  * Enhanced NFT validation with comprehensive Web3 and business logic

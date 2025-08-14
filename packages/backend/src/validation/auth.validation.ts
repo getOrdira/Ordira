@@ -1,6 +1,6 @@
 // src/validation/auth.validation.ts
 import Joi from 'joi';
-import { commonSchemas, customJoi } from '../middleware/validation.middleware';
+import { commonSchemas } from '../middleware/validation.middleware';
 
 /**
  * Enhanced authentication validation schemas with comprehensive security and business logic
@@ -234,40 +234,21 @@ export const verifyBusinessSchema = Joi.object({
 });
 
 // Business login validation
-export const loginBusinessSchema = Joi.object({
-  emailOrPhone: Joi.alternatives()
-    .try(
-      commonSchemas.email,
-      commonSchemas.phone
-    )
+const loginBusinessSchema = Joi.object({
+  emailOrPhone: Joi.string()
     .required()
     .messages({
-      'alternatives.match': 'Must be a valid email address or phone number'
+      'any.required': 'Email or phone number is required'
     }),
-  
   password: Joi.string()
-    .min(1)
-    .max(128)
+    .min(8)
     .required()
     .messages({
-      'string.empty': 'Password is required',
-      'string.max': 'Password is too long'
+      'string.min': 'Password must be at least 8 characters',
+      'any.required': 'Password is required'
     }),
-
-  // Security features
-  rememberMe: Joi.boolean().default(false).optional(),
-  
-  deviceFingerprint: Joi.string().optional(),
-  
-  captchaToken: Joi.string()
-    .when('$requireCaptcha', {
-      is: true,
-      then: Joi.required(),
-      otherwise: Joi.optional()
-    })
-    .messages({
-      'any.required': 'Captcha verification is required'
-    })
+  rememberMe: Joi.boolean().optional(),
+  deviceFingerprint: Joi.string().optional()
 });
 
 // User (customer) registration validation
