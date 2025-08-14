@@ -83,6 +83,44 @@ export class BillingService {
   }
 }
 
+async removeTokenDiscounts(businessId: string): Promise<any> {
+  try {
+    const billing = await this.getBillingInfo(businessId);
+    if (!billing || !billing.stripeSubscriptionId) {
+      return { message: 'No active subscription found' };
+    }
+
+    // Remove discounts from Stripe subscription
+    if (billing.status === 'active') {
+      await this.stripe.subscriptions.update(billing.stripeSubscriptionId, {
+        discounts: []
+      });
+    }
+
+    // Update local billing record
+    await this.updateLocalBilling(businessId, {
+      tokenDiscounts: null,
+      activeDiscountApplied: false,
+      tokenDiscountsUpdatedAt: new Date(),
+      discountRemovedAt: new Date()
+    });
+
+    console.log(`Token discounts removed for business ${businessId}`);
+
+    return {
+      success: true,
+      message: 'Token discounts removed successfully',
+      subscriptionUpdated: billing.status === 'active'
+    };
+  } catch (error) {
+    console.error('Error removing token discounts:', error);
+    throw { 
+      statusCode: 500, 
+      message: 'Failed to remove token discounts' 
+    };
+  }
+}
+
  // In your BillingService class - update the method signature and implementation
 
 async validateDowngrade(fromPlan: string, toPlan: string, businessId: string): Promise<{
@@ -132,6 +170,102 @@ async validateDowngrade(fromPlan: string, toPlan: string, businessId: string): P
     };
   }
 }
+
+/**
+ * Update token discounts for billing - called from brand account service
+ * This method updates billing-related token discounts and applies them to active subscriptions
+ */
+async updateTokenDiscounts(businessId: string, walletAddress?: string): Promise<any> {
+  try {
+    // Get current billing info
+    const billing = await this.getBillingInfo(businessId);
+    if (!billing) {
+      return { 
+        hasDiscounts: false, 
+        message: 'No billing record found' 
+      };
+    }
+
+    // Get business and wallet information
+    const business = await Business.findById(businessId);
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+
+    // Use provided wallet or get from business web3 settings
+    const targetWallet = walletAddress || business.web3Settings?.certificateWallet;
+    
+    if (!targetWallet || !business.web3Settings?.walletVerified) {
+      return { 
+        hasDiscounts: false, 
+        message: 'No verified wallet found',
+        billingId: billing.id
+      };
+    }
+
+    // Check for token-based billing discounts
+    const tokenService = new TokenDiscountService();
+    const tokenDiscounts = await tokenService.getCouponForWallet(targetWallet);
+
+    // Update local billing record with discount information
+    const discountUpdates: any = {
+      tokenDiscounts: tokenDiscounts || null,
+      tokenDiscountsUpdatedAt: new Date(),
+      walletAddress: targetWallet
+    };
+
+    // If there's an active subscription, apply the discount
+    let subscriptionUpdated = false;
+    if (billing.stripeSubscriptionId && billing.status === 'active' && tokenDiscounts) {
+      try {
+        await this.applyTokenDiscountToSubscription(billing.stripeSubscriptionId, tokenDiscounts);
+        discountUpdates.activeDiscountApplied = true;
+        discountUpdates.discountAppliedAt = new Date();
+        subscriptionUpdated = true;
+      } catch (discountError) {
+        console.warn('Failed to apply token discount to subscription:', discountError);
+        discountUpdates.discountApplicationError = discountError instanceof Error ? discountError.message : 'Unknown error';
+      }
+    }
+
+    // Update the billing record
+    await this.updateLocalBilling(businessId, discountUpdates);
+
+    // Calculate potential savings
+    const potentialSavings = this.calculatePotentialSavings(billing.plan, tokenDiscounts);
+
+    const result = {
+      hasDiscounts: !!tokenDiscounts,
+      discounts: tokenDiscounts || null,
+      walletAddress: targetWallet,
+      billingId: billing.id,
+      subscriptionUpdated,
+      potentialSavings,
+      lastUpdated: new Date(),
+      message: tokenDiscounts 
+        ? `Token discounts applied${subscriptionUpdated ? ' to active subscription' : ''}` 
+        : 'No token discounts available'
+    };
+
+    // Log the update
+    console.log(`Billing token discounts updated for business ${businessId}:`, {
+      hasDiscounts: result.hasDiscounts,
+      subscriptionUpdated,
+      discountType: tokenDiscounts?.type || 'none'
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Error updating billing token discounts:', error);
+    throw { 
+      statusCode: 500, 
+      message: 'Failed to update billing token discounts',
+      originalError: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+
 
   async changePlan(businessId: string, newPlan: string, options: any = {}): Promise<any> {
     const business = await Business.findById(businessId);
@@ -316,6 +450,8 @@ async validateDowngrade(fromPlan: string, toPlan: string, businessId: string): P
       period: { start: startDate, end: endDate }
     };
   }
+
+  
 
   async calculateUsageProjections(businessId: string): Promise<any> {
     const usage30d = await this.getDetailedUsage(businessId, '30d');
@@ -512,6 +648,35 @@ async validateDowngrade(fromPlan: string, toPlan: string, businessId: string): P
     return null;
   }
 }
+
+private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
+  if (!tokenDiscount) {
+    return { monthlySavings: 0, annualSavings: 0, currency: 'usd' };
+  }
+
+  const planPricing = this.getPlanPricing(plan);
+  if (!planPricing) {
+    return { monthlySavings: 0, annualSavings: 0, currency: 'usd' };
+  }
+
+  const monthlyPrice = planPricing.amount / 100; // Convert from cents
+  let discountAmount = 0;
+
+  if (tokenDiscount.type === 'percentage') {
+    discountAmount = monthlyPrice * (tokenDiscount.discount / 100);
+  } else if (tokenDiscount.type === 'fixed_amount') {
+    discountAmount = tokenDiscount.discount / 100; // Convert from cents
+  }
+
+  return {
+    monthlySavings: Math.round(discountAmount * 100) / 100, // Round to 2 decimal places
+    annualSavings: Math.round(discountAmount * 12 * 100) / 100,
+    currency: 'usd',
+    discountType: tokenDiscount.type,
+    discountValue: tokenDiscount.discount
+  };
+}
+
 
 private async applyTokenDiscountToSubscription(subscriptionId: string, tokenDiscount: any): Promise<void> {
   try {

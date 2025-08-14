@@ -358,18 +358,17 @@ export class ManufacturerService {
   /**
    * Get connection stats with enhanced metrics
    */
-  async getConnectionStats(mfgId: string): Promise<{
-    totalConnectedBrands: number;
-    recentConnections: number;
-    analyticsAccess: number;
-    topIndustries: Array<{ industry: string; count: number }>;
-    connectionTrend: Array<{ month: string; connections: number }>;
-  }> {
-    const mfg = await Manufacturer.findById(mfgId).populate({
+  async getConnectionStatus(manufacturerId: string, brandId: string): Promise<{
+  status: 'none' | 'pending' | 'connected' | 'rejected';
+  connectedAt?: Date;
+  history: any[];
+}> {
+  try {
+    const mfg = await Manufacturer.findById(manufacturerId).populate({
       path: 'brands',
       populate: {
         path: 'business',
-        select: 'industry createdAt'
+        select: 'businessName industry createdAt'
       }
     });
 
@@ -377,37 +376,66 @@ export class ManufacturerService {
       throw { statusCode: 404, message: 'Manufacturer not found' };
     }
 
-    const totalConnectedBrands = mfg.brands?.length || 0;
+    // Check if this brand is in the manufacturer's connected brands
+    const connectedBrand = mfg.brands?.find((brand: any) => 
+      brand.business?._id?.toString() === brandId || brand._id?.toString() === brandId
+    );
+
+    if (connectedBrand) {
+      return {
+        status: 'connected',
+        connectedAt: connectedBrand.createdAt || new Date(),
+        history: [
+          {
+            event: 'connection_established',
+            timestamp: connectedBrand.createdAt || new Date(),
+            details: `Connected with ${connectedBrand.business?.businessName || 'brand'}`
+          }
+        ]
+      };
+    }
+
+    // If you have an Invitation/Connection Request model, check for pending status
+    // For now, we'll check if there might be a pending invitation
+    // You might want to create an Invitation model and check it here
     
-    // Count recent connections (last 30 days)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const recentConnections = mfg.brands.filter((brand: any) => 
-      brand.createdAt && brand.createdAt > thirtyDaysAgo
-    ).length;
+    // Example if you have an Invitation model:
+    // const pendingInvitation = await Invitation.findOne({
+    //   manufacturer: manufacturerId,
+    //   brand: brandId,
+    //   status: 'pending'
+    // });
+    
+    // if (pendingInvitation) {
+    //   return {
+    //     status: 'pending',
+    //     connectedAt: undefined,
+    //     history: [
+    //       {
+    //         event: 'invitation_sent',
+    //         timestamp: pendingInvitation.createdAt,
+    //         details: 'Invitation sent, awaiting response'
+    //       }
+    //     ]
+    //   };
+    // }
 
-    // Get industry distribution
-    const industryCount = new Map<string, number>();
-    mfg.brands.forEach((brand: any) => {
-      const industry = brand.business?.industry || 'Other';
-      industryCount.set(industry, (industryCount.get(industry) || 0) + 1);
-    });
-
-    const topIndustries = Array.from(industryCount.entries())
-      .map(([industry, count]) => ({ industry, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    // Generate connection trend (simplified - you might want to track this differently)
-    const connectionTrend = this.generateConnectionTrend(mfg.brands);
-
+    // Default to no connection
     return {
-      totalConnectedBrands,
-      recentConnections,
-      analyticsAccess: totalConnectedBrands,
-      topIndustries,
-      connectionTrend
+      status: 'none',
+      connectedAt: undefined,
+      history: []
+    };
+
+  } catch (error) {
+    console.error('Error getting connection status:', error);
+    return {
+      status: 'none',
+      connectedAt: undefined,
+      history: []
     };
   }
+}
 
   private generateConnectionTrend(brands: any[]): Array<{ month: string; connections: number }> {
     const monthCounts = new Map<string, number>();
@@ -427,6 +455,227 @@ export class ManufacturerService {
       .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
       .slice(-6); // Last 6 months
   }
+
+  /**
+ * Check if a manufacturer can connect to a specific brand
+ */
+async canConnectToBrand(manufacturerId: string, brandId: string): Promise<{
+  canConnect: boolean;
+  reason?: string;
+  requirements?: string[];
+}> {
+  try {
+    // Check if manufacturer exists
+    const manufacturer = await Manufacturer.findById(manufacturerId);
+    if (!manufacturer) {
+      return {
+        canConnect: false,
+        reason: 'Manufacturer not found'
+      };
+    }
+
+    // Check if brand exists
+    const brand = await Business.findById(brandId);
+    if (!brand) {
+      return {
+        canConnect: false,
+        reason: 'Brand not found'
+      };
+    }
+
+    // Check if brand is active
+    if (!brand.isActive) {
+      return {
+        canConnect: false,
+        reason: 'Brand account is not active'
+      };
+    }
+
+    // Check if already connected
+    const connectionStatus = await this.getConnectionStatus(manufacturerId, brandId);
+    if (connectionStatus.status === 'connected') {
+      return {
+        canConnect: false,
+        reason: 'Already connected to this brand'
+      };
+    }
+
+    // Check if there's a pending invitation
+    if (connectionStatus.status === 'pending') {
+      return {
+        canConnect: false,
+        reason: 'Connection request already pending'
+      };
+    }
+
+    // Check manufacturer profile completeness
+    const requirements = [];
+    if (!manufacturer.isEmailVerified) {
+      requirements.push('Email verification required');
+    }
+
+    if (!manufacturer.description || manufacturer.description.trim().length < 50) {
+      requirements.push('Complete profile description (minimum 50 characters)');
+    }
+
+    if (!manufacturer.industry) {
+      requirements.push('Industry selection required');
+    }
+
+    if (!manufacturer.servicesOffered || manufacturer.servicesOffered.length === 0) {
+      requirements.push('Services offered must be specified');
+    }
+
+    // Check if manufacturer has minimum profile completeness
+    const profileCompleteness = this.calculateManufacturerProfileCompleteness(manufacturer);
+    if (profileCompleteness < 60) {
+      requirements.push('Profile must be at least 60% complete');
+    }
+
+    // If there are requirements, cannot connect yet
+    if (requirements.length > 0) {
+      return {
+        canConnect: false,
+        reason: 'Profile requirements not met',
+        requirements
+      };
+    }
+
+    // All checks passed
+    return {
+      canConnect: true
+    };
+
+  } catch (error) {
+    console.error('Error checking if manufacturer can connect to brand:', error);
+    return {
+      canConnect: false,
+      reason: 'Error checking connection eligibility'
+    };
+  }
+}
+
+/**
+ * Create a connection request from manufacturer to brand
+ */
+async createConnectionRequest(
+  manufacturerId: string, 
+  brandId: string,
+  requestData: {
+    message?: string;
+    proposedServices?: string[];
+    timeline?: string;
+    budget?: string;
+    portfolio?: string; // Add portfolio if you need it
+  }
+): Promise<{
+  success: boolean;
+  connectionRequestId?: string;
+  message: string;
+  nextSteps?: string[];
+}> {
+  try {
+    // First check if connection is allowed
+    const canConnect = await this.canConnectToBrand(manufacturerId, brandId);
+    if (!canConnect.canConnect) {
+      return {
+        success: false,
+        message: canConnect.reason || 'Cannot create connection request',
+        nextSteps: canConnect.requirements
+      };
+    }
+
+    // Get manufacturer and brand details
+    const [manufacturer, brand] = await Promise.all([
+      Manufacturer.findById(manufacturerId),
+      Business.findById(brandId)
+    ]);
+
+    if (!manufacturer || !brand) {
+      return {
+        success: false,
+        message: 'Manufacturer or brand not found'
+      };
+    }
+
+    // Create connection request ID
+    const connectionRequestId = `CR_${Date.now()}_${manufacturerId.slice(-6)}_${brandId.slice(-6)}`;
+
+    // For now, we'll simulate creating the connection request
+    // In a real implementation, you'd create a ConnectionRequest model
+     const connectionRequest = {
+    id: connectionRequestId,
+    manufacturerId,
+    brandId,
+    manufacturerName: manufacturer.name,
+    brandName: brand.businessName,
+    message: requestData.message || `${manufacturer.name} would like to connect and explore partnership opportunities.`,
+    proposedServices: requestData.proposedServices || manufacturer.servicesOffered || [],
+    timeline: requestData.timeline || 'To be discussed',
+    budget: requestData.budget || 'To be discussed',
+    portfolio: requestData.portfolio || null, // Handle portfolio
+    status: 'pending',
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  };
+
+    // TODO: Save to ConnectionRequest model when implemented
+    // await ConnectionRequest.create(connectionRequest);
+
+    // For now, just log the request
+    console.log('Connection request created:', connectionRequest);
+
+    // Send notification to brand (you might want to use your notifications service)
+    // await notificationsService.sendConnectionRequestNotification(brandId, connectionRequest);
+
+    return {
+      success: true,
+      connectionRequestId,
+      message: `Connection request sent to ${brand.businessName}`,
+      nextSteps: [
+        'Wait for brand response (typically 7-14 days)',
+        'Prepare project requirements and timeline',
+        'Review brand\'s existing partnerships',
+        'Monitor request status in your dashboard'
+      ]
+    };
+
+  } catch (error) {
+    console.error('Error creating connection request:', error);
+    return {
+      success: false,
+      message: 'Failed to create connection request'
+    };
+  }
+}
+
+async getConnectionRequestStatus(manufacturerId: string, brandId: string): Promise<{
+  hasActiveRequest: boolean;
+  requestId?: string;
+  status?: 'pending' | 'approved' | 'rejected' | 'expired';
+  createdAt?: Date;
+  expiresAt?: Date;
+}> {
+  try {
+    // TODO: Implement with ConnectionRequest model
+    // const request = await ConnectionRequest.findOne({
+    //   manufacturerId,
+    //   brandId,
+    //   status: { $in: ['pending', 'approved'] }
+    // });
+
+    // For now, return no active request
+    return {
+      hasActiveRequest: false
+    };
+
+  } catch (error) {
+    console.error('Error getting connection request status:', error);
+    return {
+      hasActiveRequest: false
+    };
+  }
+}
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Analytics Methods                                                         */
@@ -609,6 +858,38 @@ export class ManufacturerService {
     
     return score;
   }
+
+  /**
+ * Calculate manufacturer profile completeness
+ */
+private calculateManufacturerProfileCompleteness(manufacturer: any): number {
+  let completeness = 0;
+  const totalFields = 10;
+
+  // Basic info (30 points)
+  if (manufacturer.name) completeness += 3;
+  if (manufacturer.email) completeness += 3;
+  if (manufacturer.isEmailVerified) completeness += 4;
+
+  // Profile details (40 points)
+  if (manufacturer.description && manufacturer.description.length >= 50) completeness += 10;
+  if (manufacturer.industry) completeness += 5;
+  if (manufacturer.contactEmail) completeness += 3;
+  if (manufacturer.servicesOffered && manufacturer.servicesOffered.length > 0) completeness += 7;
+
+  // Business info (20 points)
+  if (manufacturer.moq && manufacturer.moq > 0) completeness += 5;
+  if (manufacturer.location) completeness += 5;
+  if (manufacturer.website) completeness += 5;
+  if (manufacturer.certifications && manufacturer.certifications.length > 0) completeness += 5;
+
+  // Additional features (10 points)
+  if (manufacturer.profilePictureUrl) completeness += 3;
+  if (manufacturer.socialUrls && manufacturer.socialUrls.length > 0) completeness += 2;
+
+  return Math.min(completeness * 10, 100); // Convert to percentage
+}
+
 
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Utility Methods                                                           */

@@ -130,7 +130,7 @@ export class AnalyticsBusinessService {
     let byProposal: Record<string, number> = {};
 
     if (settings?.voteContract) {
-      const events = await this.contractsService.getVoteEventsFromContract(settings.voteContract);
+      const events = await BlockchainContractsService.getVoteEventsFromContract(settings.voteContract);
       totalOnChainVotes = events.length;
       
       for (const event of events) {

@@ -504,6 +504,14 @@ export class NotificationsService {
     }
   }
 
+  async sendCertificateRevocationNotification(businessId: string, data: any): Promise<void> {
+  console.log('sendCertificateRevocationNotification called - stub implementation');
+}
+
+async sendSettingsChangeNotification(businessId: string, changes: any): Promise<void> {
+  console.log('sendSettingsChangeNotification called - stub implementation');
+}
+
   /**
    * 🔄 NFT Transfer Retry Notification
    */
@@ -1155,6 +1163,213 @@ export class NotificationsService {
     });
     
     // Don't throw - payment failure processing should continue
+  }
+}
+
+/**
+ * Send verification submission confirmation email
+ * Called when a business submits documents for verification
+ */
+async sendVerificationSubmissionConfirmation(
+  businessId: string, 
+  verificationType: 'business' | 'identity' | 'wallet',
+  submissionData?: {
+    documentsUploaded?: string[];
+    estimatedReviewTime?: string;
+    referenceId?: string;
+  }
+): Promise<void> {
+  this.validateUserId(businessId, 'business');
+
+  if (!['business', 'identity', 'wallet'].includes(verificationType)) {
+    throw { statusCode: 400, message: 'Invalid verification type specified' };
+  }
+
+  try {
+    const business = await Business.findById(businessId).select('businessName email');
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+
+    const template = this.getVerificationSubmissionEmailTemplate(verificationType, submissionData);
+    
+    if (business.email && UtilsService.isValidEmail(business.email)) {
+      await this.sendEmail(business.email, template.subject, template.text, template.html, {
+        priority: 'normal',
+        trackingEnabled: true
+      });
+    }
+
+    // Create in-app notification
+    await this.createInAppNotification({
+      business: businessId,
+      type: 'verification_submitted',
+      message: template.text,
+      data: UtilsService.cleanObject({
+        verificationType,
+        submissionDate: new Date().toISOString(),
+        referenceId: submissionData?.referenceId,
+        estimatedReviewTime: submissionData?.estimatedReviewTime,
+        documentsCount: submissionData?.documentsUploaded?.length || 0
+      }),
+      read: false
+    });
+
+    this.logNotificationEvent('VERIFICATION_SUBMISSION_SENT', business.email, 'VERIFICATION', true, {
+      businessId,
+      verificationType,
+      submissionData
+    });
+
+    console.log(`Verification submission confirmation sent for business ${businessId}: ${verificationType}`);
+  } catch (error) {
+    console.error('Failed to send verification submission confirmation:', error);
+    this.logNotificationEvent('VERIFICATION_SUBMISSION_FAILED', businessId, 'VERIFICATION', false, {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
+  }
+}
+
+/**
+ * Send account deactivation confirmation email
+ * Called when a business account is deactivated
+ */
+async sendAccountDeactivationConfirmation(
+  businessId: string,
+  deactivationData: {
+    reason?: string;
+    feedback?: string;
+    deactivatedAt: Date;
+    reactivationPossible: boolean;
+    dataRetentionPeriod?: number; // in days
+    id: string;
+  }
+): Promise<void> {
+  this.validateUserId(businessId, 'business');
+
+  try {
+    const business = await Business.findById(businessId).select('businessName email');
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+
+    const template = this.getAccountDeactivationEmailTemplate(business.businessName, deactivationData);
+    
+    if (business.email && UtilsService.isValidEmail(business.email)) {
+      await this.sendEmail(business.email, template.subject, template.text, template.html, {
+        priority: 'high',
+        trackingEnabled: true
+      });
+    }
+
+    // Create in-app notification (if account isn't immediately deleted)
+    if (deactivationData.reactivationPossible) {
+      await this.createInAppNotification({
+        business: businessId,
+        type: 'account_deactivated',
+        message: template.text,
+        data: UtilsService.cleanObject({
+          deactivationId: deactivationData.id,
+          deactivatedAt: deactivationData.deactivatedAt.toISOString(),
+          reason: deactivationData.reason,
+          reactivationPossible: deactivationData.reactivationPossible,
+          dataRetentionPeriod: deactivationData.dataRetentionPeriod
+        }),
+        read: false
+      });
+    }
+
+    this.logNotificationEvent('ACCOUNT_DEACTIVATION_SENT', business.email, 'ACCOUNT_MANAGEMENT', true, {
+      businessId,
+      deactivationId: deactivationData.id,
+      reason: deactivationData.reason,
+      reactivationPossible: deactivationData.reactivationPossible
+    });
+
+    console.log(`Account deactivation confirmation sent for business ${businessId}`);
+  } catch (error) {
+    console.error('Failed to send account deactivation confirmation:', error);
+    this.logNotificationEvent('ACCOUNT_DEACTIVATION_FAILED', businessId, 'ACCOUNT_MANAGEMENT', false, {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
+  }
+}
+
+/**
+ * Send profile change notification email
+ * Called when significant profile changes are made
+ */
+async sendProfileChangeNotification(
+  businessId: string,
+  changedFields: string[],
+  changeData?: {
+    previousValues?: Record<string, any>;
+    newValues?: Record<string, any>;
+    changeSource?: 'user' | 'admin' | 'system';
+    ipAddress?: string;
+  }
+): Promise<void> {
+  this.validateUserId(businessId, 'business');
+
+  if (!changedFields || changedFields.length === 0) {
+    throw { statusCode: 400, message: 'Changed fields are required' };
+  }
+
+  try {
+    const business = await Business.findById(businessId).select('businessName email');
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+
+    // Only send notification for significant changes
+    const significantFields = ['businessName', 'email', 'walletAddress', 'contactEmail', 'industry'];
+    const significantChanges = changedFields.filter(field => significantFields.includes(field));
+    
+    if (significantChanges.length === 0) {
+      console.log(`No significant profile changes for business ${businessId}, skipping notification`);
+      return;
+    }
+
+    const template = this.getProfileChangeEmailTemplate(business.businessName, significantChanges, changeData);
+    
+    if (business.email && UtilsService.isValidEmail(business.email)) {
+      await this.sendEmail(business.email, template.subject, template.text, template.html, {
+        priority: 'normal',
+        trackingEnabled: true
+      });
+    }
+
+    // Create in-app notification
+    await this.createInAppNotification({
+      business: businessId,
+      type: 'profile_changed',
+      message: template.text,
+      data: UtilsService.cleanObject({
+        changedFields: significantChanges,
+        changeDate: new Date().toISOString(),
+        changeSource: changeData?.changeSource || 'user',
+        securityRelevant: significantChanges.some(field => ['email', 'walletAddress'].includes(field)),
+        ipAddress: changeData?.ipAddress
+      }),
+      read: false
+    });
+
+    this.logNotificationEvent('PROFILE_CHANGE_SENT', business.email, 'PROFILE_MANAGEMENT', true, {
+      businessId,
+      changedFields: significantChanges,
+      changeSource: changeData?.changeSource,
+      securityRelevant: significantChanges.some(field => ['email', 'walletAddress'].includes(field))
+    });
+
+    console.log(`Profile change notification sent for business ${businessId}: ${significantChanges.join(', ')}`);
+  } catch (error) {
+    console.error('Failed to send profile change notification:', error);
+    this.logNotificationEvent('PROFILE_CHANGE_FAILED', businessId, 'PROFILE_MANAGEMENT', false, {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
   }
 }
 
@@ -2321,6 +2536,164 @@ private getPlanFeatures(plan: string): string[] {
       `
     };
   }
+
+  /**
+ * Get verification submission email template
+ */
+private getVerificationSubmissionEmailTemplate(
+  verificationType: string, 
+  submissionData?: any
+): EmailTemplate {
+  const typeLabels = {
+    business: 'Business Verification',
+    identity: 'Identity Verification', 
+    wallet: 'Wallet Verification'
+  };
+  
+  const typeLabel = typeLabels[verificationType as keyof typeof typeLabels] || 'Verification';
+  const estimatedTime = submissionData?.estimatedReviewTime || '2-3 business days';
+  const referenceId = submissionData?.referenceId || `VER_${Date.now()}`;
+
+  return {
+    subject: `${typeLabel} Submitted Successfully`,
+    text: `Your ${typeLabel.toLowerCase()} has been submitted successfully.\n\nReference ID: ${referenceId}\nEstimated Review Time: ${estimatedTime}\n\nWe'll email you once the review is complete. You can check the status anytime in your dashboard.\n\nThank you for your patience!`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333; text-align: center;">${typeLabel} Submitted ✅</h2>
+        <p>Your <strong>${typeLabel.toLowerCase()}</strong> has been submitted successfully.</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;"><strong>Reference ID:</strong> ${referenceId}</p>
+          <p style="margin: 0 0 10px 0;"><strong>Estimated Review Time:</strong> ${estimatedTime}</p>
+          ${submissionData?.documentsUploaded ? `<p style="margin: 0;"><strong>Documents Uploaded:</strong> ${submissionData.documentsUploaded.length}</p>` : ''}
+        </div>
+
+        <p>We'll email you once the review is complete. You can check the status anytime in your dashboard.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL}/account/verification" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Check Status</a>
+        </div>
+        
+        <p style="color: #666; font-size: 14px; text-align: center;">
+          Thank you for your patience!
+        </p>
+      </div>
+    `
+  };
+}
+
+/**
+ * Get account deactivation email template
+ */
+private getAccountDeactivationEmailTemplate(
+  businessName: string,
+  deactivationData: any
+): EmailTemplate {
+  const reactivationInfo = deactivationData.reactivationPossible 
+    ? `Your account can be reactivated within ${deactivationData.dataRetentionPeriod || 30} days by contacting our support team.`
+    : 'This deactivation is permanent and your data will be deleted.';
+
+  return {
+    subject: 'Account Deactivated - We\'re Sorry to See You Go',
+    text: `Dear ${businessName},\n\nYour account has been successfully deactivated as requested.\n\nDeactivation Details:\n• Date: ${deactivationData.deactivatedAt.toLocaleDateString()}\n• Reference: ${deactivationData.id}\n${deactivationData.reason ? `• Reason: ${deactivationData.reason}` : ''}\n\n${reactivationInfo}\n\nIf you have any questions, please contact our support team.\n\nThank you for being part of our community.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333; text-align: center;">Account Deactivated</h2>
+        <p>Dear <strong>${businessName}</strong>,</p>
+        
+        <p>Your account has been successfully deactivated as requested.</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #555;">Deactivation Details</h3>
+          <p style="margin: 0 0 10px 0;"><strong>Date:</strong> ${deactivationData.deactivatedAt.toLocaleDateString()}</p>
+          <p style="margin: 0 0 10px 0;"><strong>Reference:</strong> ${deactivationData.id}</p>
+          ${deactivationData.reason ? `<p style="margin: 0;"><strong>Reason:</strong> ${deactivationData.reason}</p>` : ''}
+        </div>
+
+        <div style="background: ${deactivationData.reactivationPossible ? '#d4edda' : '#f8d7da'}; border: 1px solid ${deactivationData.reactivationPossible ? '#c3e6cb' : '#f5c6cb'}; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; color: ${deactivationData.reactivationPossible ? '#155724' : '#721c24'};">
+            ${reactivationInfo}
+          </p>
+        </div>
+
+        ${deactivationData.reactivationPossible ? `
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@yourcompany.com'}" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Contact Support</a>
+          </div>
+        ` : ''}
+        
+        <p style="color: #666; font-size: 14px;">
+          If you have any questions, please contact our support team.<br>
+          Thank you for being part of our community.
+        </p>
+      </div>
+    `
+  };
+}
+
+/**
+ * Get profile change email template
+ */
+private getProfileChangeEmailTemplate(
+  businessName: string,
+  changedFields: string[],
+  changeData?: any
+): EmailTemplate {
+  const fieldLabels: Record<string, string> = {
+    businessName: 'Business Name',
+    email: 'Email Address',
+    walletAddress: 'Wallet Address', 
+    contactEmail: 'Contact Email',
+    industry: 'Industry'
+  };
+
+  const changedFieldsList = changedFields.map(field => fieldLabels[field] || field).join(', ');
+  const isSecurityRelevant = changedFields.some(field => ['email', 'walletAddress'].includes(field));
+  const changeSource = changeData?.changeSource || 'user';
+
+  return {
+    subject: `Profile Updated - ${businessName}`,
+    text: `Your profile has been updated.\n\nChanges Made:\n${changedFields.map(field => `• ${fieldLabels[field] || field}`).join('\n')}\n\nChange Date: ${new Date().toLocaleString()}\nChanged By: ${changeSource}\n\n${isSecurityRelevant ? 'This change affects your account security. If you didn\'t make this change, please contact support immediately.' : 'If you didn\'t make this change, please contact support.'}\n\nView your profile in the dashboard to see all details.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333; text-align: center;">Profile Updated</h2>
+        <p>Hello <strong>${businessName}</strong>,</p>
+        
+        <p>Your profile has been updated with the following changes:</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #555;">Changes Made</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            ${changedFields.map(field => `<li>${fieldLabels[field] || field}</li>`).join('')}
+          </ul>
+          <p style="margin: 15px 0 0 0; font-size: 14px; color: #666;">
+            <strong>Change Date:</strong> ${new Date().toLocaleString()}<br>
+            <strong>Changed By:</strong> ${changeSource}
+          </p>
+        </div>
+
+        ${isSecurityRelevant ? `
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #856404;">
+              ⚠️ <strong>Security Notice:</strong> This change affects your account security. If you didn't make this change, please contact support immediately.
+            </p>
+          </div>
+        ` : `
+          <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0; color: #0c5460;">
+              If you didn't make this change, please contact support.
+            </p>
+          </div>
+        `}
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL}/account/profile" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px;">View Profile</a>
+          <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@yourcompany.com'}" style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Contact Support</a>
+        </div>
+      </div>
+    `
+  };
+}
 
   private async getSubscriptionDetails(subscriptionId: string): Promise<any> {
   try {

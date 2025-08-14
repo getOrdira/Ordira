@@ -590,7 +590,6 @@ private getUserPermissions(account: any, accountType: string): string[] {
     isEmailVerified: user.isEmailVerified,
     preferences: user.preferences || {},
     rememberToken,
-    rememberMe,
   };
   }
 
@@ -599,6 +598,79 @@ private getUserPermissions(account: any, accountType: string): string[] {
   /** ─────────────────────────────────────────────────────────────────────────── */
 
   
+
+   /**
+   * Initiates password reset process
+   */
+
+   async requestPasswordReset(input: PasswordResetInput & { securityContext?: any }): Promise<void> {
+    const { email, securityContext } = input;
+    const normalized = UtilsService.normalizeEmail(email);  
+    // Log the password reset attempt with security context
+    if (securityContext) {
+      console.log('Password reset attempt initiated:', {
+        email: UtilsService.maskEmail(normalized),
+        ip: securityContext.ipAddress,
+        userAgent: securityContext.userAgent,
+        timestamp: securityContext.timestamp
+      });
+    }
+    // Check both business and user collections
+    const [business, user] = await Promise.all([
+      Business.findOne({ email: normalized }),
+      User.findOne({ email: normalized })
+    ]);
+    const account = business || user;
+    if (!account) {
+      // Log failed attempt for security monitoring
+      this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, false, {
+        reason: 'email_not_found',
+        securityContext
+      });
+      // Don't reveal if email exists for security
+      return;
+    }
+    // Check for rate limiting (optional but recommended)
+    const recentAttempts = await this.checkPasswordResetRateLimit(normalized, securityContext);
+    if (recentAttempts > 5) { // Max 5 attempts per hour
+      this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, false, {
+        reason: 'rate_limited',
+        attempts: recentAttempts,
+        securityContext
+      });
+      return; // Silently fail to prevent enumeration
+    }
+    const resetCode = this.generateCode();
+    const resetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    account.passwordResetCode = resetCode;
+    account.passwordResetExpires = resetExpires;
+    // Track reset attempts for rate limiting
+    account.passwordResetAttempts = (account.passwordResetAttempts || 0) + 1;
+    account.lastPasswordResetAttempt = new Date();
+    await account.save();
+    try {
+      await this.notificationsService.sendPasswordResetCode(normalized, resetCode);
+      this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, true, {
+        accountType: business ? 'business' : 'user',
+        securityContext
+      });
+    } catch (error) {
+      console.error(`Failed to send password reset email to ${UtilsService.maskEmail(normalized)}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        securityContext
+      });
+      // Log email delivery failure
+      this.logSecurityEvent('PASSWORD_RESET_EMAIL_FAILED', normalized, false, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        securityContext
+      });
+    }
+  }
+
+
+
+
+
 
   /**
    * Initiates password reset process
