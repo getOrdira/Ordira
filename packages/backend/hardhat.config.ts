@@ -8,20 +8,16 @@ dotenv.config();
 const config: HardhatUserConfig = {
   solidity: "0.8.19",
   networks: {
-    hardhat: {},
-    goerli: {
-      url: process.env.GOERLI_RPC_URL!,
-      accounts: process.env.DEPLOYER_KEY
-        ? [process.env.DEPLOYER_KEY]
-        : []
-    },
-    mainnet: {
-      url: process.env.MAINNET_RPC_URL!,
-      accounts: process.env.DEPLOYER_KEY
-        ? [process.env.DEPLOYER_KEY]
-        : []
-    }
+  hardhat: {},
+  base: {
+    url: process.env.BASE_RPC_URL!,
+    accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : []
   },
+  'base-sepolia': {
+    url: process.env.BASE_SEPOLIA_RPC_URL!,
+    accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : []
+  }
+},
   paths: {
     sources:    "./contracts",
     artifacts:  "./artifacts",

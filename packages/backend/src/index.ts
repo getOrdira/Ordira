@@ -34,7 +34,6 @@ import userRoutes from './routes/user.routes';
 import manufacturerRoutes from './routes/manufacturer.routes';
 import mediaRoutes from './routes/media.routes';
 import productRoutes from './routes/products.routes';
-import collectionRoutes from './routes/collections.routes';
 import brandSettingsRoutes from './routes/brandSettings.routes';
 import votesRoutes from './routes/votes.routes';
 import nftsRoutes from './routes/nfts.routes';
@@ -280,12 +279,6 @@ import { votingValidationSchemas } from './validation/votes.validation';
     app.use('/api/products', 
       validateBody(productValidationSchemas.createProduct),
       productRoutes
-    );
-
-    // Collections with tenant verification
-    app.use('/api/collections', 
-      requireTenantSetup,
-      collectionRoutes
     );
 
     // Enhanced brand settings with plan-based features
