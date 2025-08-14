@@ -439,8 +439,6 @@ export const listVotes = asyncHandler(async (
         proposalId: vote.proposalId,
         userId: vote.userId,
         voteId: vote.voteId,
-        voteType: vote.voteType || 'for',
-        reason: vote.reason,
         recordedAt: vote.createdAt,
         status: 'pending'
       })),
@@ -683,8 +681,6 @@ export const getProposalDetails = asyncHandler(async (
         })),
         pending: pendingVotes.map(vote => ({
           userId: vote.userId,
-          voteType: vote.voteType || 'for',
-          reason: vote.reason,
           recordedAt: vote.createdAt
         }))
       },
@@ -693,11 +689,6 @@ export const getProposalDetails = asyncHandler(async (
         submittedVotes: proposalVotes.length,
         pendingVotes: pendingVotes.length,
         participationRate: '0%', // Would need total eligible voters
-        voteDistribution: {
-          for: pendingVotes.filter(v => v.voteType === 'for').length,
-          against: pendingVotes.filter(v => v.voteType === 'against').length,
-          abstain: pendingVotes.filter(v => v.voteType === 'abstain').length
-        }
       },
       retrievedAt: new Date().toISOString()
     }

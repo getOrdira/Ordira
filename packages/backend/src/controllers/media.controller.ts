@@ -103,7 +103,6 @@ export const uploadMedia = asyncHandler(async (
       uploadStats: {
         fileSize: req.file.size,
         fileType: req.file.mimetype,
-        processingTime: Date.now() - req.file.uploadStartTime || 0
       }
     }
   });
@@ -141,7 +140,7 @@ export const uploadMultipleMedia = asyncHandler(async (
   const metadata = req.validatedBody || {};
 
   // Upload multiple files through service
-  const results = await mediaService.saveMultipleMedia(req.files, businessId, metadata);
+  const results = await mediaService.saveMultipleMedia(req.files, businessId);
 
   // Return standardized response
   res.status(201).json({

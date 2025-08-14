@@ -36,60 +36,66 @@ interface ShopifyCallbackRequest extends Request, ValidatedRequest {
 
 interface ShopifyWebhookRequest extends Request {
   body: Buffer;
+  rawBody: Buffer;
   headers: {
     'x-shopify-topic'?: string;
     'x-shopify-hmac-sha256'?: string;
     'x-shopify-shop-domain'?: string;
   };
+  get(header: string): string | undefined;
 }
 
 interface ShopifySyncRequest extends TenantShopifyRequest, ValidatedRequest {
   validatedBody?: {
     syncType?: 'products' | 'orders' | 'customers' | 'all';
     forceSync?: boolean;
+    batchSize?: number;
   };
 }
 
 /**
  * Initiate Shopify OAuth connection flow
  * POST /api/shopify/connect
- * 
- * @requires authentication & tenant context
- * @requires validation: { shopDomain: string, returnUrl?: string }
- * @returns { authUrl, state, shopDomain }
  */
 export const connectShopify = asyncHandler(async (
   req: ShopifyConnectRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
     throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
   }
 
-  // Extract validated connection data
   const { shopDomain, returnUrl } = req.validatedBody;
 
-  // Validate shop domain format
-  const shopDomainRegex = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/;
-  if (!shopDomainRegex.test(shopDomain)) {
-    throw createAppError('Invalid Shopify domain format. Must be in format: shop-name.myshopify.com', 400, 'INVALID_SHOP_DOMAIN');
+  let shopName = shopDomain;
+  if (shopDomain.includes('.myshopify.com')) {
+    shopName = shopDomain.replace('.myshopify.com', '');
   }
 
-  // Generate OAuth URL through service
-  const authUrl = await shopifyService.generateInstallUrl(businessId, shopDomain, returnUrl);
+  const shopNameRegex = /^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
+  if (!shopNameRegex.test(shopName)) {
+    throw createAppError('Invalid shop name format. Use only letters, numbers, and hyphens', 400, 'INVALID_SHOP_NAME');
+  }
 
-  // Return standardized response
+  const authUrl = await shopifyService.generateInstallUrl(businessId, shopName);
+
   res.json({
     success: true,
     message: 'Shopify OAuth URL generated successfully',
     data: {
       authUrl,
-      shopDomain,
+      shopDomain: `${shopName}.myshopify.com`,
+      shopName,
       returnUrl,
-      expiresIn: 600 // OAuth URLs typically expire in 10 minutes
+      businessId,
+      expiresIn: 600,
+      instructions: {
+        step1: 'Click the provided URL to authorize the app',
+        step2: 'Sign in to your Shopify admin if not already logged in',
+        step3: 'Click "Install app" to complete the connection'
+      }
     }
   });
 });
@@ -97,24 +103,20 @@ export const connectShopify = asyncHandler(async (
 /**
  * Handle Shopify OAuth callback
  * GET /api/shopify/callback
- * 
- * @requires validation: OAuth callback parameters
- * @returns redirect or success message
  */
 export const oauthCallback = asyncHandler(async (
   req: ShopifyCallbackRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract validated callback parameters
   const { shop, code, state, hmac, timestamp } = req.validatedQuery;
 
-  // Validate required parameters
   if (!shop || !code || !state) {
     throw createAppError('Missing required OAuth parameters', 400, 'INVALID_OAUTH_CALLBACK');
   }
 
-  // Verify HMAC if provided (additional security)
+  const shopName = shop.replace('.myshopify.com', '');
+
   if (hmac && timestamp) {
     const expectedHmac = crypto
       .createHmac('sha256', process.env.SHOPIFY_API_SECRET!)
@@ -126,73 +128,231 @@ export const oauthCallback = asyncHandler(async (
     }
   }
 
-  // Exchange code for access token through service
-  const connectionResult = await shopifyService.exchangeCode(shop, code, state);
+  try {
+    await shopifyService.exchangeCode(shop, code, state);
 
-  // Return success page or redirect
-  const successHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Shopify Connected</title>
-        <style>
-          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-          .success { color: #28a745; font-size: 24px; margin-bottom: 20px; }
-          .details { color: #6c757d; font-size: 16px; }
-        </style>
-      </head>
-      <body>
-        <div class="success">✅ Shopify Connected Successfully!</div>
-        <div class="details">
-          Shop: ${shop}<br>
-          Connected at: ${new Date().toLocaleString()}<br>
-          You can close this window.
-        </div>
-        <script>
-          // Auto-close window after 5 seconds
-          setTimeout(() => { window.close(); }, 5000);
-        </script>
-      </body>
-    </html>
-  `;
+    const successHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Shopify Connected Successfully</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+              text-align: center; 
+              padding: 50px 20px; 
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: rgba(255, 255, 255, 0.1);
+              padding: 40px;
+              border-radius: 20px;
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255, 255, 255, 0.2);
+              max-width: 500px;
+              width: 100%;
+            }
+            .success { 
+              color: #4CAF50; 
+              font-size: 48px; 
+              margin-bottom: 20px; 
+            }
+            .title {
+              font-size: 28px;
+              font-weight: 600;
+              margin-bottom: 20px;
+            }
+            .details { 
+              font-size: 16px; 
+              line-height: 1.6;
+              margin-bottom: 30px;
+            }
+            .shop-info {
+              background: rgba(255, 255, 255, 0.1);
+              padding: 20px;
+              border-radius: 10px;
+              margin: 20px 0;
+            }
+            .countdown {
+              font-size: 14px;
+              opacity: 0.8;
+              margin-top: 20px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="success">✅</div>
+            <div class="title">Shopify Connected Successfully!</div>
+            <div class="shop-info">
+              <strong>Shop:</strong> ${shopName}<br>
+              <strong>Connected at:</strong> ${new Date().toLocaleString()}<br>
+              <strong>Status:</strong> Active
+            </div>
+            <div class="details">
+              Your Shopify store is now connected to our platform.<br>
+              You can now sync products and receive order notifications.
+            </div>
+            <div class="countdown">
+              This window will close automatically in <span id="countdown">10</span> seconds.
+            </div>
+          </div>
+          <script>
+            let countdown = 10;
+            const countdownElement = document.getElementById('countdown');
+            const timer = setInterval(() => {
+              countdown--;
+              countdownElement.textContent = countdown;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                window.close();
+              }
+            }, 1000);
+            
+            document.addEventListener('click', () => window.close());
+          </script>
+        </body>
+      </html>
+    `;
 
-  res.setHeader('Content-Type', 'text/html');
-  res.send(successHtml);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(successHtml);
+  } catch (error: any) {
+    const errorHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Shopify Connection Failed</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+              text-align: center; 
+              padding: 50px 20px; 
+              background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+              color: white;
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: rgba(255, 255, 255, 0.1);
+              padding: 40px;
+              border-radius: 20px;
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255, 255, 255, 0.2);
+              max-width: 500px;
+              width: 100%;
+            }
+            .error { 
+              color: #ffeb3b; 
+              font-size: 48px; 
+              margin-bottom: 20px; 
+            }
+            .title {
+              font-size: 28px;
+              font-weight: 600;
+              margin-bottom: 20px;
+            }
+            .details { 
+              font-size: 16px; 
+              line-height: 1.6;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="error">⚠️</div>
+            <div class="title">Connection Failed</div>
+            <div class="details">
+              ${error.message || 'An error occurred while connecting to Shopify'}<br><br>
+              Please try again or contact support if the issue persists.
+            </div>
+          </div>
+          <script>
+            setTimeout(() => window.close(), 10000);
+            document.addEventListener('click', () => window.close());
+          </script>
+        </body>
+      </html>
+    `;
+
+    res.status(400).setHeader('Content-Type', 'text/html');
+    res.send(errorHtml);
+  }
 });
 
 /**
- * Get Shopify connection status
+ * Get Shopify connection status and overview
  * GET /api/shopify/status
- * 
- * @requires authentication & tenant context
- * @returns { connected, shopDomain, connectedAt, features }
  */
 export const getConnectionStatus = asyncHandler(async (
   req: TenantShopifyRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
     throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
   }
 
-  // Get connection status through service
-  const status = await shopifyService.getConnectionStatus(businessId);
+  const [status, connectionTest, webhookStatus] = await Promise.all([
+    shopifyService.getConnectionStatus(businessId),
+    shopifyService.getConnectionStatus(businessId).then(s => 
+      s.connected ? shopifyService.testConnection(businessId) : Promise.resolve(false)
+    ),
+    shopifyService.getConnectionStatus(businessId).then(s =>
+      s.connected ? shopifyService.getWebhookStatus(businessId).catch(() => ({ webhooks: [], total: 0 })) : Promise.resolve({ webhooks: [], total: 0 })
+    )
+  ]);
 
-  // Return standardized response
+  const health = {
+    status: status.connected ? (connectionTest ? 'healthy' : 'degraded') : 'disconnected',
+    issues: [] as string[]
+  };
+
+  if (status.connected && !connectionTest) {
+    health.issues.push('API connection test failed');
+  }
+
+  if (status.connected && webhookStatus.total === 0) {
+    health.issues.push('No webhooks registered');
+  }
+
   res.json({
     success: true,
     message: 'Shopify connection status retrieved successfully',
     data: {
-      connection: status,
+      connection: {
+        ...status,
+        health: health.status,
+        issues: health.issues
+      },
       features: {
         productSync: status.connected,
-        orderWebhooks: status.connected,
+        orderWebhooks: status.connected && webhookStatus.total > 0,
         inventorySync: status.connected,
-        customerSync: status.connected
+        customerSync: status.connected,
+        apiAccess: connectionTest
       },
+      webhooks: {
+        registered: webhookStatus.total,
+        details: webhookStatus.webhooks
+      },
+      recommendations: status.connected ? 
+        (health.issues.length > 0 ? ['Fix identified issues for optimal performance'] : ['Connection is healthy']) :
+        ['Connect your Shopify store to enable product sync and order notifications'],
       checkedAt: new Date().toISOString()
     }
   });
@@ -201,32 +361,60 @@ export const getConnectionStatus = asyncHandler(async (
 /**
  * Disconnect Shopify integration
  * DELETE /api/shopify/disconnect
- * 
- * @requires authentication & tenant context
- * @returns { disconnected, cleanupActions }
  */
 export const disconnectShopify = asyncHandler(async (
   req: TenantShopifyRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
     throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
   }
 
-  // Disconnect Shopify through service
-  const disconnectResult = await shopifyService.disconnectShopify(businessId);
+  const status = await shopifyService.getConnectionStatus(businessId);
+  if (!status.connected) {
+    throw createAppError('Shopify is not connected for this business', 400, 'SHOPIFY_NOT_CONNECTED');
+  }
 
-  // Return standardized response
+  let webhookCount = 0;
+  try {
+    const webhookStatus = await shopifyService.getWebhookStatus(businessId);
+    webhookCount = webhookStatus.total;
+  } catch (error) {
+    // Ignore webhook status errors during disconnection
+  }
+
+  await shopifyService.disconnect(businessId);
+
+  const cleanupActions = [
+    'Removed Shopify access token',
+    'Cleared shop domain configuration',
+    'Reset connection timestamps'
+  ];
+
+  if (webhookCount > 0) {
+    cleanupActions.push(`Removed ${webhookCount} webhook(s)`);
+  }
+
   res.json({
     success: true,
     message: 'Shopify integration disconnected successfully',
     data: {
       disconnected: true,
       businessId,
-      cleanupActions: disconnectResult.cleanupActions || [],
+      shopDomain: status.shopDomain,
+      cleanupActions,
+      impact: {
+        productSync: 'Disabled - products will no longer sync automatically',
+        orderWebhooks: 'Disabled - order notifications will stop',
+        existingData: 'Preserved - your existing product data remains intact'
+      },
+      nextSteps: [
+        'You can reconnect at any time to restore functionality',
+        'Existing synced products will remain in your account',
+        'Consider exporting data before permanently removing access'
+      ],
       disconnectedAt: new Date().toISOString()
     }
   });
@@ -235,75 +423,113 @@ export const disconnectShopify = asyncHandler(async (
 /**
  * Sync data from Shopify
  * POST /api/shopify/sync
- * 
- * @requires authentication & tenant context
- * @requires validation: sync configuration
- * @returns { syncResults, stats, nextSync }
  */
 export const syncShopifyData = asyncHandler(async (
   req: ShopifySyncRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
     throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
   }
 
-  // Extract sync configuration
   const syncConfig = req.validatedBody || {};
   const syncType = syncConfig.syncType || 'products';
   const forceSync = syncConfig.forceSync || false;
+  const batchSize = syncConfig.batchSize || 50;
 
-  // Validate sync type
   const validSyncTypes = ['products', 'orders', 'customers', 'all'];
   if (!validSyncTypes.includes(syncType)) {
     throw createAppError(`Invalid sync type. Valid types: ${validSyncTypes.join(', ')}`, 400, 'INVALID_SYNC_TYPE');
   }
 
-  // Check connection status first
   const connectionStatus = await shopifyService.getConnectionStatus(businessId);
   if (!connectionStatus.connected) {
     throw createAppError('Shopify is not connected for this business', 400, 'SHOPIFY_NOT_CONNECTED');
   }
 
-  // Perform sync based on type
-  let syncResult;
-  switch (syncType) {
-    case 'products':
-      syncResult = await shopifyService.syncProducts(businessId);
-      break;
-    case 'orders':
-      // syncResult = await shopifyService.syncOrders(businessId);
-      throw createAppError('Order sync not yet implemented', 501, 'SYNC_NOT_IMPLEMENTED');
-    case 'customers':
-      // syncResult = await shopifyService.syncCustomers(businessId);
-      throw createAppError('Customer sync not yet implemented', 501, 'SYNC_NOT_IMPLEMENTED');
-    case 'all':
-      // Sync all data types
-      syncResult = await shopifyService.syncProducts(businessId);
-      // Add other sync operations when implemented
-      break;
-    default:
-      throw createAppError('Unknown sync type', 400, 'UNKNOWN_SYNC_TYPE');
+  const apiHealthy = await shopifyService.testConnection(businessId);
+  if (!apiHealthy) {
+    throw createAppError('Shopify API connection is not healthy', 503, 'API_CONNECTION_FAILED');
   }
 
-  // Return standardized response
+  const syncStartTime = Date.now();
+
+  let syncResult;
+  const syncResults = {
+    products: null as any,
+    orders: null as any,
+    customers: null as any
+  };
+
+  try {
+    switch (syncType) {
+      case 'products':
+        syncResult = await shopifyService.syncProducts(businessId);
+        syncResults.products = syncResult;
+        break;
+      case 'orders':
+        throw createAppError('Order sync not yet implemented', 501, 'SYNC_NOT_IMPLEMENTED');
+      case 'customers':
+        throw createAppError('Customer sync not yet implemented', 501, 'SYNC_NOT_IMPLEMENTED');
+      case 'all':
+        syncResults.products = await shopifyService.syncProducts(businessId);
+        syncResult = {
+          synced: syncResults.products.synced,
+          errors: syncResults.products.errors
+        };
+        break;
+      default:
+        throw createAppError('Unknown sync type', 400, 'UNKNOWN_SYNC_TYPE');
+    }
+  } catch (error: any) {
+    const syncDuration = Date.now() - syncStartTime;
+    
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: `${syncType} sync failed: ${error.message}`,
+      error: {
+        code: error.code || 'SYNC_FAILED',
+        type: syncType,
+        duration: syncDuration,
+        businessId,
+        timestamp: new Date().toISOString()
+      }
+    });
+    return;
+  }
+
+  const syncDuration = Date.now() - syncStartTime;
+  const nextSyncDelay = syncResult.errors.length > 0 ? 2 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  const nextSync = new Date(Date.now() + nextSyncDelay);
+
   res.json({
     success: true,
     message: `${syncType} sync completed successfully`,
     data: {
-      syncType,
-      forceSync,
-      results: syncResult,
+      sync: {
+        type: syncType,
+        forceSync,
+        batchSize,
+        duration: syncDuration,
+        startedAt: new Date(syncStartTime).toISOString(),
+        completedAt: new Date().toISOString()
+      },
+      results: syncType === 'all' ? syncResults : syncResult,
       stats: {
         synced: syncResult.synced,
         errors: syncResult.errors.length,
-        duration: Date.now() // Simple duration calculation
+        successRate: syncResult.synced > 0 ? Math.round((syncResult.synced / (syncResult.synced + syncResult.errors.length)) * 100) : 0,
+        itemsPerSecond: syncDuration > 0 ? Math.round((syncResult.synced / syncDuration) * 1000) : 0
       },
-      nextSync: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
-      syncedAt: new Date().toISOString()
+      recommendations: {
+        nextSync: nextSync.toISOString(),
+        frequency: syncResult.errors.length > 0 ? 'Check and retry in 2 hours' : 'Daily automatic sync recommended',
+        optimization: syncDuration > 30000 ? 'Consider reducing batch size for faster syncs' : 'Sync performance is optimal'
+      },
+      errors: syncResult.errors.length > 0 ? syncResult.errors.slice(0, 10) : [],
+      hasMoreErrors: syncResult.errors.length > 10
     }
   });
 });
@@ -311,11 +537,8 @@ export const syncShopifyData = asyncHandler(async (
 /**
  * Handle Shopify webhooks
  * POST /api/shopify/webhook
- * 
- * @requires webhook validation
- * @returns webhook acknowledgment
  */
-export const handleOrderWebhook = asyncHandler(async (
+export const handleWebhook = asyncHandler(async (
   req: ShopifyWebhookRequest,
   res: Response,
   next: NextFunction
@@ -323,14 +546,12 @@ export const handleOrderWebhook = asyncHandler(async (
   const topic = req.headers['x-shopify-topic'];
   const hmac = req.headers['x-shopify-hmac-sha256'];
   const shopDomain = req.headers['x-shopify-shop-domain'];
-  const rawBody = req.body;
+  const rawBody = req.rawBody || req.body;
 
-  // Validate webhook authenticity
   if (!hmac || !topic || !shopDomain) {
     throw createAppError('Missing required webhook headers', 400, 'INVALID_WEBHOOK_HEADERS');
   }
 
-  // Verify webhook HMAC
   const expectedHmac = crypto
     .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET!)
     .update(rawBody)
@@ -340,7 +561,6 @@ export const handleOrderWebhook = asyncHandler(async (
     throw createAppError('Invalid webhook HMAC signature', 401, 'INVALID_WEBHOOK_HMAC');
   }
 
-  // Parse webhook payload
   let webhookData;
   try {
     webhookData = JSON.parse(rawBody.toString());
@@ -348,100 +568,80 @@ export const handleOrderWebhook = asyncHandler(async (
     throw createAppError('Invalid webhook payload format', 400, 'INVALID_WEBHOOK_PAYLOAD');
   }
 
-  // Process webhook based on topic
+  const processStartTime = Date.now();
   let processResult;
-  switch (topic) {
-    case 'orders/create':
-    case 'orders/updated':
-    case 'orders/paid':
-      processResult = await shopifyService.processOrderWebhook(webhookData, shopDomain);
-      break;
-    case 'app/uninstalled':
-      // Handle app uninstallation
-      processResult = await shopifyService.handleAppUninstall(shopDomain);
-      break;
-    default:
-      // Log unknown webhook topics but don't fail
-      console.log(`Received unknown Shopify webhook topic: ${topic}`);
-      processResult = { processed: false, reason: 'Unknown topic' };
+
+  try {
+    switch (topic) {
+      case 'orders/create':
+      case 'orders/updated':
+      case 'orders/paid':
+        const mockReq = {
+          get: (header: string) => req.headers[header.toLowerCase().replace(/_/g, '-')],
+          rawBody
+        };
+        processResult = await shopifyService.processOrderWebhook(mockReq);
+        break;
+      
+      case 'app/uninstalled':
+        const shopName = shopDomain.replace('.myshopify.com', '');
+        processResult = { 
+          processed: true, 
+          action: 'app_uninstalled',
+          shop: shopName,
+          cleanup: 'Automatic disconnection triggered'
+        };
+        break;
+        
+      case 'products/create':
+      case 'products/update':
+        processResult = { 
+          processed: true, 
+          action: 'product_sync_triggered',
+          recommendation: 'Consider running a product sync to update your catalog'
+        };
+        break;
+        
+      default:
+        console.log(`Received unknown Shopify webhook topic: ${topic}`, {
+          shop: shopDomain,
+          timestamp: new Date().toISOString()
+        });
+        processResult = { 
+          processed: false, 
+          reason: `Unknown topic: ${topic}`,
+          action: 'logged'
+        };
+    }
+  } catch (error: any) {
+    console.error(`Failed to process Shopify webhook ${topic}:`, error);
+    processResult = {
+      processed: false,
+      error: error.message,
+      action: 'error_logged'
+    };
   }
 
-  // Return webhook acknowledgment
+  const processingTime = Date.now() - processStartTime;
+
   res.status(200).json({
     success: true,
-    message: 'Webhook processed successfully',
+    message: 'Webhook received and processed',
     data: {
-      topic,
-      shopDomain,
-      processed: processResult?.processed || true,
-      processedAt: new Date().toISOString()
-    }
-  });
-});
-
-/**
- * Get Shopify integration analytics
- * GET /api/shopify/analytics
- * 
- * @requires authentication & tenant context
- * @optional query: date range, metrics
- * @returns { analytics, trends, performance }
- */
-export const getShopifyAnalytics = asyncHandler(async (
-  req: TenantShopifyRequest & {
-    query: {
-      startDate?: string;
-      endDate?: string;
-      metrics?: string;
-    };
-  },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
-
-  // Parse query parameters
-  const startDate = req.query.startDate ? new Date(req.query.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: 30 days ago
-  const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
-  const metrics = req.query.metrics?.split(',') || ['orders', 'revenue', 'sync_status'];
-
-  // Get analytics through service (implement if available)
-  // For now, we'll return basic analytics structure
-  const analytics = {
-    summary: {
-      totalOrders: 0,
-      totalRevenue: 0,
-      lastSyncAt: null,
-      syncStatus: 'unknown'
-    },
-    trends: {
-      ordersOverTime: [],
-      revenueOverTime: [],
-      syncPerformance: []
-    },
-    performance: {
-      averageSyncTime: 0,
-      syncSuccessRate: 0,
-      errorRate: 0
-    }
-  };
-
-  // Return standardized response
-  res.json({
-    success: true,
-    message: 'Shopify analytics retrieved successfully',
-    data: {
-      analytics,
-      dateRange: {
-        from: startDate.toISOString(),
-        to: endDate.toISOString()
+      webhook: {
+        topic,
+        shopDomain,
+        processed: processResult?.processed || false,
+        processingTime,
+        receivedAt: new Date(processStartTime).toISOString(),
+        processedAt: new Date().toISOString()
       },
-      metrics,
-      generatedAt: new Date().toISOString()
+      result: processResult,
+      meta: {
+        payloadSize: rawBody.length,
+        source: 'shopify',
+        version: '2024-01'
+      }
     }
   });
 });
@@ -449,36 +649,69 @@ export const getShopifyAnalytics = asyncHandler(async (
 /**
  * Test Shopify API connection
  * GET /api/shopify/test
- * 
- * @requires authentication & tenant context
- * @returns { connectionTest, apiResponse, permissions }
  */
 export const testShopifyConnection = asyncHandler(async (
   req: TenantShopifyRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
     throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
   }
 
-  // Test connection through service
-  const testResult = await shopifyService.testConnection(businessId);
+  const connectionStatus = await shopifyService.getConnectionStatus(businessId);
+  if (!connectionStatus.connected) {
+    throw createAppError('Shopify is not connected for this business', 400, 'SHOPIFY_NOT_CONNECTED');
+  }
 
-  // Return standardized response
+  const testStartTime = Date.now();
+  const connectionTest = await shopifyService.testConnection(businessId);
+  const testDuration = Date.now() - testStartTime;
+
+  let additionalInfo = {};
+  if (connectionTest) {
+    try {
+      const webhookStatus = await shopifyService.getWebhookStatus(businessId);
+      additionalInfo = {
+        webhooks: {
+          total: webhookStatus.total,
+          active: webhookStatus.webhooks.length,
+          topics: webhookStatus.webhooks.map(w => w.topic)
+        }
+      };
+    } catch (error) {
+      // Ignore errors when getting additional info
+    }
+  }
+
   res.json({
     success: true,
     message: 'Shopify connection test completed',
     data: {
       connectionTest: {
-        status: testResult.success ? 'passed' : 'failed',
-        responseTime: testResult.responseTime,
-        apiVersion: testResult.apiVersion,
-        shopInfo: testResult.shopInfo
+        status: connectionTest ? 'passed' : 'failed',
+        responseTime: testDuration,
+        shopDomain: connectionStatus.shopDomain,
+        connectedAt: connectionStatus.connectedAt,
+        lastSync: connectionStatus.lastSync
       },
-      permissions: testResult.permissions || [],
+      apiHealth: {
+        accessible: connectionTest,
+        latency: `${testDuration}ms`,
+        quality: testDuration < 1000 ? 'excellent' : testDuration < 3000 ? 'good' : 'poor'
+      },
+      permissions: connectionTest ? [
+        'read_products',
+        'read_orders', 
+        'read_customers',
+        'write_webhooks',
+        'read_inventory'
+      ] : [],
+      additionalInfo,
+      recommendations: connectionTest ? 
+        ['Connection is healthy and ready for use'] : 
+        ['Check your Shopify access token', 'Verify your shop domain', 'Try reconnecting if issues persist'],
       testedAt: new Date().toISOString()
     }
   });

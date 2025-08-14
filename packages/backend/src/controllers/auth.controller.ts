@@ -225,7 +225,7 @@ export async function loginBusinessHandler(
   } catch (error) {
   // Enhanced error logging for security monitoring
   console.warn('Business login failed:', {
-    identifier: req.body?.emailOrPhone,
+    identifier: req.body?.email,
     ip: getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
