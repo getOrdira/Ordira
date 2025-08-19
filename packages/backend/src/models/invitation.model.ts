@@ -4,15 +4,15 @@ import { Schema, model, Document, Types } from 'mongoose';
 export interface IInvitation extends Document {
   brand: Types.ObjectId;
   manufacturer: Types.ObjectId;
-  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled' | 'disconnected';
   
-  // Enhanced fields
+  // Enhanced fields (from controller)
   invitationToken?: string;
   message?: string;
   expiresAt: Date;
   respondedAt?: Date;
   
-  // Invitation details
+  // Invitation details (from controller)
   invitationType: 'collaboration' | 'manufacturing' | 'partnership' | 'custom';
   terms?: {
     proposedCommission?: number;
@@ -21,7 +21,7 @@ export interface IInvitation extends Document {
     specialRequirements?: string[];
   };
   
-  // Response data
+  // Response data (from controller)
   responseMessage?: string;
   counterOffer?: {
     commission?: number;
@@ -30,12 +30,18 @@ export interface IInvitation extends Document {
     additionalTerms?: string;
   };
   
-  // Instance methods
+  // Additional service-referenced fields
+  manufacturers?: Types.ObjectId[]; // Referenced in service for BrandSettings
+  brands?: Types.ObjectId[]; // Referenced in service for Manufacturer
+  
+  // Instance methods (from both files)
   isExpired(): boolean;
   canRespond(): boolean;
   accept(message?: string): Promise<IInvitation>;
   decline(message?: string): Promise<IInvitation>;
   cancel(): Promise<IInvitation>;
+  generateToken(): string;
+  setCounterOffer(offer: any): Promise<IInvitation>;
   
   createdAt: Date;
   updatedAt: Date;
@@ -56,7 +62,7 @@ const InvitationSchema = new Schema<IInvitation>({
   },
   status: { 
     type: String, 
-    enum: ['pending', 'accepted', 'declined', 'expired', 'cancelled'],
+    enum: ['pending', 'accepted', 'declined', 'expired', 'cancelled', 'disconnected'],
     default: 'pending',
     index: true
   },
@@ -158,22 +164,34 @@ const InvitationSchema = new Schema<IInvitation>({
     transform: function(doc, ret) {
       delete ret.__v;
       delete ret.invitationToken;
+      // Add computed fields for API responses
+      ret.id = ret._id.toString();
+      ret.timeRemaining = doc.timeRemaining;
+      ret.daysSinceCreated = doc.daysSinceCreated;
       return ret;
     }
-  }
+  },
+  toObject: { virtuals: true }
 });
 
-// Indexes for performance
+// ===== INDEXES =====
+// Performance indexes for common queries
 InvitationSchema.index({ brand: 1, status: 1 });
 InvitationSchema.index({ manufacturer: 1, status: 1 });
 InvitationSchema.index({ status: 1, expiresAt: 1 });
 InvitationSchema.index({ createdAt: -1 });
 InvitationSchema.index({ expiresAt: 1 });
+InvitationSchema.index({ invitationType: 1 });
+InvitationSchema.index({ respondedAt: -1 }, { sparse: true });
 
-// Compound indexes
+// Compound indexes for complex queries
 InvitationSchema.index({ brand: 1, manufacturer: 1 });
-InvitationSchema.index({ brand: 1, manufacturer: 1, status: 1 }, { unique: true });
+InvitationSchema.index({ brand: 1, manufacturer: 1, status: 1 });
+InvitationSchema.index({ status: 1, invitationType: 1 });
+InvitationSchema.index({ brand: 1, status: 1, createdAt: -1 });
+InvitationSchema.index({ manufacturer: 1, status: 1, createdAt: -1 });
 
+// ===== VIRTUALS =====
 // Virtual for time remaining
 InvitationSchema.virtual('timeRemaining').get(function() {
   if (this.status !== 'pending') return null;
@@ -187,15 +205,55 @@ InvitationSchema.virtual('daysSinceCreated').get(function() {
   return Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60 * 24));
 });
 
-// Instance methods
+// Virtual for response time (if responded)
+InvitationSchema.virtual('responseTimeHours').get(function() {
+  if (!this.respondedAt) return null;
+  return Math.floor((this.respondedAt.getTime() - this.createdAt.getTime()) / (1000 * 60 * 60));
+});
+
+// Virtual for urgency level
+InvitationSchema.virtual('urgencyLevel').get(function() {
+  if (this.status !== 'pending') return 'none';
+  const hoursRemaining = this.timeRemaining;
+  if (hoursRemaining <= 24) return 'high';
+  if (hoursRemaining <= 72) return 'medium';
+  return 'low';
+});
+
+// Virtual for invitation summary
+InvitationSchema.virtual('summary').get(function() {
+  return {
+    id: this._id.toString(),
+    brandId: this.brand.toString(),
+    manufacturerId: this.manufacturer.toString(),
+    status: this.status,
+    type: this.invitationType,
+    createdAt: this.createdAt,
+    expiresAt: this.expiresAt,
+    timeRemaining: this.timeRemaining,
+    urgency: this.urgencyLevel
+  };
+});
+
+// ===== INSTANCE METHODS =====
+
+/**
+ * Check if invitation is expired
+ */
 InvitationSchema.methods.isExpired = function(): boolean {
   return this.expiresAt <= new Date();
 };
 
+/**
+ * Check if invitation can be responded to
+ */
 InvitationSchema.methods.canRespond = function(): boolean {
   return this.status === 'pending' && !this.isExpired();
 };
 
+/**
+ * Accept the invitation
+ */
 InvitationSchema.methods.accept = function(message?: string): Promise<IInvitation> {
   if (!this.canRespond()) {
     throw new Error('Cannot accept this invitation');
@@ -208,6 +266,9 @@ InvitationSchema.methods.accept = function(message?: string): Promise<IInvitatio
   return this.save();
 };
 
+/**
+ * Decline the invitation
+ */
 InvitationSchema.methods.decline = function(message?: string): Promise<IInvitation> {
   if (!this.canRespond()) {
     throw new Error('Cannot decline this invitation');
@@ -220,6 +281,9 @@ InvitationSchema.methods.decline = function(message?: string): Promise<IInvitati
   return this.save();
 };
 
+/**
+ * Cancel the invitation (brand-side action)
+ */
 InvitationSchema.methods.cancel = function(): Promise<IInvitation> {
   if (this.status !== 'pending') {
     throw new Error('Can only cancel pending invitations');
@@ -231,35 +295,62 @@ InvitationSchema.methods.cancel = function(): Promise<IInvitation> {
   return this.save();
 };
 
+/**
+ * Generate unique invitation token
+ */
 InvitationSchema.methods.generateToken = function(): string {
-  const token = Math.random().toString(36).substring(2, 15) + 
-                Math.random().toString(36).substring(2, 15);
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(16).toString('hex');
   this.invitationToken = token;
   return token;
 };
 
+/**
+ * Set counter offer from manufacturer
+ */
 InvitationSchema.methods.setCounterOffer = function(offer: any): Promise<IInvitation> {
-  this.counterOffer = offer;
+  this.counterOffer = {
+    commission: offer.commission,
+    minimumOrderQuantity: offer.minimumOrderQuantity,
+    deliveryTimeframe: offer.deliveryTimeframe,
+    additionalTerms: offer.additionalTerms
+  };
   return this.save();
 };
 
-// Static methods
+// ===== STATIC METHODS =====
+
+/**
+ * Find pending invitations for a brand
+ */
 InvitationSchema.statics.findPendingForBrand = function(brandId: string) {
   return this.find({ 
     brand: brandId, 
     status: 'pending',
     expiresAt: { $gt: new Date() }
-  }).populate('manufacturer', 'name email industry');
+  }).populate('manufacturer', 'name email industry location');
 };
 
+/**
+ * Find pending invitations for a manufacturer
+ */
 InvitationSchema.statics.findPendingForManufacturer = function(manufacturerId: string) {
   return this.find({ 
     manufacturer: manufacturerId, 
     status: 'pending',
     expiresAt: { $gt: new Date() }
-  }).populate('brand');
+  }).populate({
+    path: 'brand',
+    populate: {
+      path: 'business',
+      select: 'businessName'
+    }
+  });
 };
 
+/**
+ * Find expired invitations
+ */
 InvitationSchema.statics.findExpired = function() {
   return this.find({
     status: 'pending',
@@ -267,6 +358,9 @@ InvitationSchema.statics.findExpired = function() {
   });
 };
 
+/**
+ * Find invitation by token
+ */
 InvitationSchema.statics.findByToken = function(token: string) {
   return this.findOne({ 
     invitationToken: token,
@@ -275,6 +369,9 @@ InvitationSchema.statics.findByToken = function(token: string) {
   }).populate(['brand', 'manufacturer']);
 };
 
+/**
+ * Get invitation statistics for a brand
+ */
 InvitationSchema.statics.getInvitationStats = function(brandId: string) {
   return this.aggregate([
     { $match: { brand: new Types.ObjectId(brandId) } },
@@ -296,7 +393,153 @@ InvitationSchema.statics.getInvitationStats = function(brandId: string) {
   ]);
 };
 
-// Pre-save middleware
+/**
+ * Get manufacturer invitation statistics
+ */
+InvitationSchema.statics.getManufacturerStats = function(manufacturerId: string) {
+  return this.aggregate([
+    { $match: { manufacturer: new Types.ObjectId(manufacturerId) } },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 },
+        avgResponseTime: {
+          $avg: {
+            $cond: [
+              { $ne: ['$respondedAt', null] },
+              { $subtract: ['$respondedAt', '$createdAt'] },
+              null
+            ]
+          }
+        }
+      }
+    }
+  ]);
+};
+
+/**
+ * Find invitations by type
+ */
+InvitationSchema.statics.findByType = function(invitationType: string) {
+  return this.find({ invitationType }).populate(['brand', 'manufacturer']);
+};
+
+/**
+ * Find recent activity for dashboard
+ */
+InvitationSchema.statics.findRecentActivity = function(
+  entityId: string, 
+  entityType: 'brand' | 'manufacturer', 
+  limit: number = 10
+) {
+  const matchField = entityType === 'brand' ? 'brand' : 'manufacturer';
+  
+  return this.find({ [matchField]: entityId })
+    .sort({ 
+      $expr: {
+        $cond: [
+          { $ne: ['$respondedAt', null] },
+          '$respondedAt',
+          '$createdAt'
+        ]
+      }
+    })
+    .limit(limit)
+    .populate(entityType === 'brand' ? 'manufacturer' : 'brand');
+};
+
+/**
+ * Get connection analytics
+ */
+InvitationSchema.statics.getConnectionAnalytics = function(brandId: string, timeframe: number = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - timeframe);
+  
+  return this.aggregate([
+    { 
+      $match: { 
+        brand: new Types.ObjectId(brandId),
+        createdAt: { $gte: startDate }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' },
+          day: { $dayOfMonth: '$createdAt' }
+        },
+        totalInvitations: { $sum: 1 },
+        accepted: { 
+          $sum: { $cond: [{ $eq: ['$status', 'accepted'] }, 1, 0] }
+        },
+        declined: { 
+          $sum: { $cond: [{ $eq: ['$status', 'declined'] }, 1, 0] }
+        },
+        pending: { 
+          $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+        }
+      }
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+  ]);
+};
+
+/**
+ * Mark expired invitations
+ */
+InvitationSchema.statics.markExpiredInvitations = function() {
+  return this.updateMany(
+    {
+      status: 'pending',
+      expiresAt: { $lte: new Date() }
+    },
+    {
+      $set: { 
+        status: 'expired',
+        respondedAt: new Date()
+      }
+    }
+  );
+};
+
+/**
+ * Get global invitation metrics
+ */
+InvitationSchema.statics.getGlobalMetrics = function() {
+  return this.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalInvitations: { $sum: 1 },
+        totalAccepted: { 
+          $sum: { $cond: [{ $eq: ['$status', 'accepted'] }, 1, 0] }
+        },
+        totalDeclined: { 
+          $sum: { $cond: [{ $eq: ['$status', 'declined'] }, 1, 0] }
+        },
+        totalPending: { 
+          $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+        },
+        avgResponseTime: {
+          $avg: {
+            $cond: [
+              { $ne: ['$respondedAt', null] },
+              { $subtract: ['$respondedAt', '$createdAt'] },
+              null
+            ]
+          }
+        }
+      }
+    }
+  ]);
+};
+
+// ===== PRE/POST HOOKS =====
+
+/**
+ * Pre-save middleware for validation and defaults
+ */
 InvitationSchema.pre('save', function(next) {
   // Generate invitation token if new
   if (this.isNew && !this.invitationToken) {
@@ -313,20 +556,143 @@ InvitationSchema.pre('save', function(next) {
     this.respondedAt = new Date();
   }
   
+  // Validate counter offer if provided
+  if (this.counterOffer && this.status !== 'pending') {
+    if (this.counterOffer.commission && (this.counterOffer.commission < 0 || this.counterOffer.commission > 100)) {
+      return next(new Error('Counter offer commission must be between 0 and 100'));
+    }
+  }
+  
   next();
 });
 
-// Scheduled task to mark expired invitations
-InvitationSchema.statics.markExpiredInvitations = function() {
-  return this.updateMany(
-    {
-      status: 'pending',
-      expiresAt: { $lte: new Date() }
-    },
-    {
-      $set: { status: 'expired' }
+/**
+ * Pre-validate middleware
+ */
+InvitationSchema.pre('validate', function(next) {
+  // Ensure expiration is in the future for new invitations
+  if (this.isNew && this.expiresAt && this.expiresAt <= new Date()) {
+    return next(new Error('Expiration date must be in the future'));
+  }
+  
+  // Validate that brand and manufacturer are different
+  if (this.brand && this.manufacturer && this.brand.toString() === this.manufacturer.toString()) {
+    return next(new Error('Brand and manufacturer cannot be the same'));
+  }
+  
+  next();
+});
+
+/**
+ * Post-save middleware for notifications and updates
+ */
+InvitationSchema.post('save', function(doc) {
+  // Send notifications based on status changes
+  if (this.isModified('status')) {
+    process.nextTick(async () => {
+      try {
+        const { NotificationsService } = await import('../services/external/notifications.service');
+        const notificationsService = new NotificationsService();
+        
+        switch (doc.status) {
+          case 'accepted':
+            // Update connections in both BrandSettings and Manufacturer models
+            const { BrandSettings } = await import('./brandSettings.model');
+            const { Manufacturer } = await import('./manufacturer.model');
+            
+            await Promise.all([
+              BrandSettings.findOneAndUpdate(
+                { business: doc.brand },
+                { $addToSet: { manufacturers: doc.manufacturer } }
+              ),
+              Manufacturer.findByIdAndUpdate(
+                doc.manufacturer,
+                { $addToSet: { brands: doc.brand } }
+              )
+            ]);
+            
+            await notificationsService.notifyBrandOfInviteAccepted(
+              doc.manufacturer.toString(), 
+              doc.brand.toString()
+            );
+            break;
+            
+          case 'declined':
+            await notificationsService.notifyBrandOfInviteDeclined(
+              doc.manufacturer.toString(), 
+              doc.brand.toString()
+            );
+            break;
+            
+          case 'cancelled':
+            await notificationsService.notifyManufacturerOfInviteCancelled(
+              doc.brand.toString(), 
+              doc.manufacturer.toString()
+            );
+            break;
+        }
+      } catch (error) {
+        console.error(`Failed to send notification for invitation ${doc._id}:`, error);
+      }
+    });
+  }
+  
+  // Log invitation activity for analytics
+  process.nextTick(() => {
+    console.log(`Invitation ${doc._id} updated: ${doc.status} (${doc.invitationType})`);
+  });
+});
+
+/**
+ * Pre-remove hook for cleanup
+ */
+InvitationSchema.pre('remove', function(next) {
+  console.log(`Removing invitation ${this._id} between brand ${this.brand} and manufacturer ${this.manufacturer}`);
+  next();
+});
+
+/**
+ * Post-remove hook for cleanup notifications
+ */
+InvitationSchema.post('remove', function(doc) {
+  process.nextTick(async () => {
+    try {
+      // If this was an accepted invitation, remove the connection
+      if (doc.status === 'accepted') {
+        const { BrandSettings } = await import('./brandSettings.model');
+        const { Manufacturer } = await import('./manufacturer.model');
+        
+        await Promise.all([
+          BrandSettings.findOneAndUpdate(
+            { business: doc.brand },
+            { $pull: { manufacturers: doc.manufacturer } }
+          ),
+          Manufacturer.findByIdAndUpdate(
+            doc.manufacturer,
+            { $pull: { brands: doc.brand } }
+          )
+        ]);
+        
+        console.log(`Connection removed between brand ${doc.brand} and manufacturer ${doc.manufacturer}`);
+      }
+    } catch (error) {
+      console.error(`Failed to cleanup connection for removed invitation ${doc._id}:`, error);
     }
-  );
+  });
+});
+
+// Schedule task to mark expired invitations (can be called by a cron job)
+InvitationSchema.statics.scheduleExpirationCheck = function() {
+  setInterval(async () => {
+    try {
+      const result = await this.markExpiredInvitations();
+      if (result.modifiedCount > 0) {
+        console.log(`Marked ${result.modifiedCount} invitations as expired`);
+      }
+    } catch (error) {
+      console.error('Failed to mark expired invitations:', error);
+    }
+  }, 60 * 60 * 1000); // Check every hour
 };
 
 export const Invitation = model<IInvitation>('Invitation', InvitationSchema);

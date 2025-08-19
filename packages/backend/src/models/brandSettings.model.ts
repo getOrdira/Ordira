@@ -1,4 +1,3 @@
-// src/models/brandSettings.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IBrandSettings extends Document {
@@ -15,144 +14,179 @@ export interface IBrandSettings extends Document {
   customDomain?: string;
   enableSsl?: boolean;
   
-  // ✨ Enhanced Web3 settings with comprehensive wallet integration
-  web3Settings?: {
-    // Primary wallet configuration
-    certificateWallet: string;
-    walletType: 'metamask' | 'walletconnect' | 'coinbase' | 'hardware' | 'other';
-    walletVerified: boolean;
-    walletVerifiedAt?: Date;
-    walletSignature?: string;
-    
-    
-    // Contract addresses
-    voteContract?: string;
-    nftContract?: string;
-    chainId: number;
-    networkName: string;
+  // Certificate wallet (referenced in controller)
+  certificateWallet?: string;
   
+  // Email Gating Configuration
+  emailGating?: {
+    enabled: boolean;
+    mode: 'whitelist' | 'blacklist' | 'disabled';
+    allowUnregistered: boolean;
+    requireApproval: boolean;
+    autoSyncEnabled: boolean;
+    syncSources: ('shopify' | 'woocommerce' | 'csv' | 'api')[];
+    welcomeEmailEnabled: boolean;
+    accessDeniedMessage: string;
     
-    // Gas optimization
-    gasSettings?: {
-      maxGasPrice: number; // in gwei
-      gasLimit: number;
-      priorityFee?: number; // EIP-1559
-      useGasOptimization: boolean;
-    };
-    
-    // Security settings
-    securitySettings?: {
-      requireSignatureForTransfers: boolean;
-      enableMultisig: boolean;
-      multisigThreshold?: number;
-      allowedSigners?: string[];
-      sessionTimeout: number; // minutes
-    };
-
-    // E-commerce integrations
-  shopifyIntegration?: {
-    shopifyDomain: string;
-    shopifyAccessToken: string;
-    shopifyWebhookSecret?: string;
-    syncProducts?: boolean;
-    syncOrders?: boolean;
-    autoMintOnPurchase?: boolean; // Auto-mint certificates on product purchase
-    lastSyncAt?: Date;
-  };
-  
-  wooCommerceIntegration?: {
-    wooDomain: string;
-    wooConsumerKey: string;
-    wooConsumerSecret: string;
-    apiVersion?: string;
-    syncInterval?: number;
-    autoMintOnPurchase?: boolean;
-    lastSyncAt?: Date;
-  };
-  
-  wixIntegration?: {
-    wixDomain: string;
-    wixApiKey: string;
-    wixRefreshToken?: string;
-    autoMintOnPurchase?: boolean;
-    lastSyncAt?: Date;
-  };
-  
-  };
-  
-  // ✨ Comprehensive transfer preferences
-  transferPreferences?: {
-    // Basic transfer settings
-    autoTransfer: boolean;
-    transferDelay: number; // minutes after minting
-    transferTimeout: number; // milliseconds for blockchain operations
-    
-    // Batch processing
-    batchTransfer: boolean;
-    batchSize: number; // certificates per batch
-    batchInterval: number; // minutes between batches
-    
-    // Retry logic
-    retryFailedTransfers: boolean;
-    maxRetryAttempts: number;
-    retryBackoffStrategy: 'linear' | 'exponential' | 'custom';
-    retryDelayBase: number; // base delay in minutes
-    retryDelayMax: number; // maximum delay in minutes
-    
-    // Notification preferences
-    notificationSettings: {
-      notifyOnTransfer: boolean;
-      notifyOnFailure: boolean;
-      notifyOnRetry: boolean;
-      notifyOnSuccess: boolean;
-      emailNotifications: boolean;
-      webhookNotifications: boolean;
-      webhookUrl?: string;
-      slackIntegration?: {
-        webhookUrl: string;
-        channel: string;
+    // Advanced gating settings
+    gatingRules?: {
+      domainWhitelist?: string[];
+      domainBlacklist?: string[];
+      emailPatterns?: string[];
+      maxVotesPerEmail?: number;
+      votingWindow?: {
         enabled: boolean;
+        startDate?: Date;
+        endDate?: Date;
+        timezone?: string;
       };
+      geographicRestrictions?: {
+        enabled: boolean;
+        allowedCountries?: string[];
+        blockedCountries?: string[];
+      };
+      ipWhitelist?: string[];
+      ipBlacklist?: string[];
     };
     
-    // Advanced transfer rules
-    transferRules?: {
-      // Time-based rules
-      businessHoursOnly: boolean;
-      businessHoursStart?: string; // "09:00"
-      businessHoursEnd?: string; // "17:00"
-      timezone?: string; // "America/New_York"
-      excludeWeekends: boolean;
-      excludeHolidays: boolean;
-      
-      // Conditional transfers
-      minimumValueThreshold?: number; // in wei
-      requireCustomerConfirmation: boolean;
-      autoTransferWhitelist?: string[]; // wallet addresses
-      autoTransferBlacklist?: string[]; // wallet addresses
-      
-      // Rate limiting
-      maxTransfersPerHour: number;
-      maxTransfersPerDay: number;
-      cooldownPeriod: number; // minutes between transfers to same address
+    // Analytics and monitoring
+    gatingAnalytics?: {
+      totalEmailsChecked: number;
+      totalEmailsAllowed: number;
+      totalEmailsDenied: number;
+      lastResetDate?: Date;
+      dailyStats?: {
+        date: string;
+        checked: number;
+        allowed: number;
+        denied: number;
+        topDenialReasons: string[];
+      }[];
+    };
+    
+    // Integration settings
+    integrationSettings?: {
+      syncWithCRM?: boolean;
+      crmWebhookUrl?: string;
+      notifyOnDenial?: boolean;
+      notifyOnApproval?: boolean;
+      customWebhookUrl?: string;
+      slackNotifications?: {
+        enabled: boolean;
+        webhookUrl?: string;
+        channel?: string;
+        notifyOnDenial?: boolean;
+        notifyOnApproval?: boolean;
+      };
     };
   };
   
   // E-commerce integrations
+  shopifyDomain?: string;
+  shopifyAccessToken?: string;
+  shopifyWebhookSecret?: string;
+  shopifyConfig?: {
+    syncProducts?: boolean;
+    syncOrders?: boolean;
+    configuredBy?: string;
+    configuredAt?: Date;
+  };
+  shopifyUpdatedAt?: Date;
+  
+  wooDomain?: string;
+  wooConsumerKey?: string;
+  wooConsumerSecret?: string;
+  wooUpdatedAt?: Date;
+  
+  wixDomain?: string;
+  wixApiKey?: string;
+  wixRefreshToken?: string;
+  
+  // Enhanced Web3 settings
+  web3Settings?: {
+    certificateWallet?: string;
+    walletType?: 'metamask' | 'walletconnect' | 'coinbase' | 'hardware' | 'other';
+    walletVerified?: boolean;
+    walletVerifiedAt?: Date;
+    walletSignature?: string;
+    voteContract?: string;
+    nftContract?: string;
+    chainId?: number;
+    networkName?: string;
+    gasSettings?: {
+      maxGasPrice?: number;
+      gasLimit?: number;
+      priorityFee?: number;
+      useGasOptimization?: boolean;
+    };
+    securitySettings?: {
+      requireSignatureForTransfers?: boolean;
+      enableMultisig?: boolean;
+      multisigThreshold?: number;
+      allowedSigners?: string[];
+      sessionTimeout?: number;
+    };
+  };
+  
+  // Transfer preferences
+  transferPreferences?: {
+    autoTransfer?: boolean;
+    transferDelay?: number;
+    transferTimeout?: number;
+    batchTransfer?: boolean;
+    batchSize?: number;
+    batchInterval?: number;
+    retryFailedTransfers?: boolean;
+    maxRetryAttempts?: number;
+    retryBackoffStrategy?: 'linear' | 'exponential' | 'custom';
+    retryDelayBase?: number;
+    retryDelayMax?: number;
+    notificationSettings?: {
+      notifyOnTransfer?: boolean;
+      notifyOnFailure?: boolean;
+      notifyOnRetry?: boolean;
+      notifyOnSuccess?: boolean;
+      emailNotifications?: boolean;
+      webhookNotifications?: boolean;
+      webhookUrl?: string;
+      slackIntegration?: {
+        webhookUrl?: string;
+        channel?: string;
+        enabled?: boolean;
+      };
+    };
+    transferRules?: {
+      businessHoursOnly?: boolean;
+      businessHoursStart?: string;
+      businessHoursEnd?: string;
+      timezone?: string;
+      excludeWeekends?: boolean;
+      excludeHolidays?: boolean;
+      minimumValueThreshold?: string;
+      requireCustomerConfirmation?: boolean;
+      autoTransferWhitelist?: string[];
+      autoTransferBlacklist?: string[];
+      maxTransfersPerHour?: number;
+      maxTransfersPerDay?: number;
+      cooldownPeriod?: number;
+    };
+  };
+  
+  // E-commerce integrations (extended)
   shopifyIntegration?: {
-    shopifyDomain: string;
-    shopifyAccessToken: string;
+    shopifyDomain?: string;
+    shopifyAccessToken?: string;
     shopifyWebhookSecret?: string;
     syncProducts?: boolean;
     syncOrders?: boolean;
-    autoMintOnPurchase?: boolean; // Auto-mint certificates on product purchase
+    autoMintOnPurchase?: boolean;
     lastSyncAt?: Date;
   };
   
   wooCommerceIntegration?: {
-    wooDomain: string;
-    wooConsumerKey: string;
-    wooConsumerSecret: string;
+    wooDomain?: string;
+    wooConsumerKey?: string;
+    wooConsumerSecret?: string;
     apiVersion?: string;
     syncInterval?: number;
     autoMintOnPurchase?: boolean;
@@ -160,35 +194,37 @@ export interface IBrandSettings extends Document {
   };
   
   wixIntegration?: {
-    wixDomain: string;
-    wixApiKey: string;
+    wixDomain?: string;
+    wixApiKey?: string;
     wixRefreshToken?: string;
     autoMintOnPurchase?: boolean;
     lastSyncAt?: Date;
   };
   
-  // Plan and subscription with Web3 features
+  // Plan and subscription
   plan?: 'foundation' | 'growth' | 'premium' | 'enterprise';
   planLimits?: {
-    certificates: number;
-    votes: number;
-    customDomains: number;
-    apiCalls: number;
-    transfersPerMonth: number; // Web3 transfer limit
-    gasCredits: number; // Monthly gas credits in wei
-    webhookEndpoints: number;
+    certificates?: number;
+    votes?: number;
+    customDomains?: number;
+    apiCalls?: number;
+    transfersPerMonth?: number;
+    gasCredits?: string;
+    webhookEndpoints?: number;
+    emailGatingRules?: number;
+    gatedEmailsPerMonth?: number;
   };
   
-  // ✨ Transfer analytics and monitoring
+  // Transfer analytics
   transferAnalytics?: {
-    totalTransfers: number;
-    successfulTransfers: number;
-    failedTransfers: number;
-    totalGasUsed: string; // in wei
-    averageTransferTime: number; // milliseconds
+    totalTransfers?: number;
+    successfulTransfers?: number;
+    failedTransfers?: number;
+    totalGasUsed?: string;
+    averageTransferTime?: number;
     lastTransferAt?: Date;
     monthlyStats?: {
-      month: string; // "2025-01"
+      month: string;
       transfers: number;
       gasUsed: string;
       successRate: number;
@@ -201,7 +237,8 @@ export interface IBrandSettings extends Document {
     facebookPixelId?: string;
     enableHeatmaps?: boolean;
     enableSessionRecording?: boolean;
-    trackWeb3Events?: boolean; // Track wallet connections, transfers, etc.
+    trackWeb3Events?: boolean;
+    trackEmailGating?: boolean;
   };
   
   // SEO settings
@@ -216,6 +253,9 @@ export interface IBrandSettings extends Document {
   isActive?: boolean;
   lastUpdatedBy?: string;
   version?: number;
+  updateSource?: string;
+  updateMetadata?: any;
+  lastWalletVerification?: Date;
   
   // Instance methods
   hasWeb3Features(): boolean;
@@ -226,10 +266,261 @@ export interface IBrandSettings extends Document {
   isWithinBusinessHours(): boolean;
   canTransferNow(): { allowed: boolean; reason?: string };
   updateTransferAnalytics(transferData: any): Promise<void>;
+  hasEmailGating(): boolean;
+  isEmailGatingEnabled(): boolean;
+  getEmailGatingMode(): 'whitelist' | 'blacklist' | 'disabled';
+  updateGatingAnalytics(emailChecked: string, allowed: boolean, reason?: string): Promise<void>;
+  canEmailVote(email: string, context?: any): { allowed: boolean; reason?: string };
   
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Email Gating Settings Schema
+const emailGatingSettingsSchema = new Schema({
+  enabled: { 
+    type: Boolean, 
+    default: false,
+    index: true
+  },
+  mode: { 
+    type: String, 
+    enum: ['whitelist', 'blacklist', 'disabled'], 
+    default: 'disabled',
+    index: true
+  },
+  allowUnregistered: { 
+    type: Boolean, 
+    default: true 
+  },
+  requireApproval: { 
+    type: Boolean, 
+    default: false 
+  },
+  autoSyncEnabled: { 
+    type: Boolean, 
+    default: false 
+  },
+  syncSources: [{ 
+    type: String, 
+    enum: ['shopify', 'woocommerce', 'csv', 'api'] 
+  }],
+  welcomeEmailEnabled: { 
+    type: Boolean, 
+    default: true 
+  },
+  accessDeniedMessage: { 
+    type: String, 
+    maxlength: [500, 'Access denied message cannot exceed 500 characters'], 
+    default: 'Your email is not authorized to access this voting platform. Please contact the brand for access.',
+    trim: true
+  },
+  
+  // Advanced gating rules
+  gatingRules: {
+    domainWhitelist: [{
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [/^[a-z0-9.-]+\.[a-z]{2,}$/, 'Invalid domain format']
+    }],
+    domainBlacklist: [{
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [/^[a-z0-9.-]+\.[a-z]{2,}$/, 'Invalid domain format']
+    }],
+    emailPatterns: [{
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(pattern: string) {
+          try {
+            new RegExp(pattern);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        message: 'Invalid regular expression pattern'
+      }
+    }],
+    maxVotesPerEmail: {
+      type: Number,
+      min: [1, 'Max votes per email must be at least 1'],
+      max: [1000, 'Max votes per email cannot exceed 1000'],
+      default: 1
+    },
+    votingWindow: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      startDate: {
+        type: Date,
+        index: true
+      },
+      endDate: {
+        type: Date,
+        index: true
+      },
+      timezone: {
+        type: String,
+        default: 'UTC'
+      }
+    },
+    geographicRestrictions: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      allowedCountries: [{
+        type: String,
+        uppercase: true,
+        match: [/^[A-Z]{2}$/, 'Country code must be 2 uppercase letters']
+      }],
+      blockedCountries: [{
+        type: String,
+        uppercase: true,
+        match: [/^[A-Z]{2}$/, 'Country code must be 2 uppercase letters']
+      }]
+    },
+    ipWhitelist: [{
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(ip: string) {
+          return /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(ip);
+        },
+        message: 'Invalid IP address or CIDR format'
+      }
+    }],
+    ipBlacklist: [{
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(ip: string) {
+          return /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(ip);
+        },
+        message: 'Invalid IP address or CIDR format'
+      }
+    }]
+  },
+  
+  // Analytics and monitoring
+  gatingAnalytics: {
+    totalEmailsChecked: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total emails checked cannot be negative']
+    },
+    totalEmailsAllowed: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total emails allowed cannot be negative']
+    },
+    totalEmailsDenied: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total emails denied cannot be negative']
+    },
+    lastResetDate: {
+      type: Date,
+      index: true
+    },
+    dailyStats: [{
+      date: {
+        type: String,
+        match: [/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)']
+      },
+      checked: {
+        type: Number,
+        min: [0, 'Daily checked count cannot be negative'],
+        default: 0
+      },
+      allowed: {
+        type: Number,
+        min: [0, 'Daily allowed count cannot be negative'],
+        default: 0
+      },
+      denied: {
+        type: Number,
+        min: [0, 'Daily denied count cannot be negative'],
+        default: 0
+      },
+      topDenialReasons: [{
+        type: String,
+        trim: true
+      }]
+    }]
+  },
+  
+  // Integration settings
+  integrationSettings: {
+    syncWithCRM: {
+      type: Boolean,
+      default: false
+    },
+    crmWebhookUrl: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(v: string) {
+          return !v || /^https?:\/\/.+/.test(v);
+        },
+        message: 'CRM webhook URL must be a valid HTTP/HTTPS URL'
+      }
+    },
+    notifyOnDenial: {
+      type: Boolean,
+      default: false
+    },
+    notifyOnApproval: {
+      type: Boolean,
+      default: true
+    },
+    customWebhookUrl: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(v: string) {
+          return !v || /^https?:\/\/.+/.test(v);
+        },
+        message: 'Custom webhook URL must be a valid HTTP/HTTPS URL'
+      }
+    },
+    slackNotifications: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      webhookUrl: {
+        type: String,
+        trim: true,
+        validate: {
+          validator: function(v: string) {
+            return !v || /^https:\/\/hooks\.slack\.com\//.test(v);
+          },
+          message: 'Invalid Slack webhook URL'
+        },
+        select: false
+      },
+      channel: {
+        type: String,
+        trim: true,
+        match: [/^#[a-z0-9-_]+$/, 'Invalid Slack channel format']
+      },
+      notifyOnDenial: {
+        type: Boolean,
+        default: false
+      },
+      notifyOnApproval: {
+        type: Boolean,
+        default: false
+      }
+    }
+  }
+}, { _id: false });
 
 const BrandSettingsSchema = new Schema<IBrandSettings>(
   {
@@ -298,12 +589,109 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       default: true
     },
     
-    // ✨ Enhanced Web3 settings
+    // Certificate wallet
+    certificateWallet: {
+      type: String,
+      trim: true,
+      match: [/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'],
+      index: true,
+      sparse: true
+    },
+    
+    // Email Gating Configuration
+    emailGating: emailGatingSettingsSchema,
+    
+    // E-commerce integrations
+    shopifyDomain: {
+      type: String,
+      trim: true,
+      match: [/^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/, 'Invalid Shopify domain format'],
+      sparse: true
+    },
+    shopifyAccessToken: {
+      type: String,
+      trim: true,
+      select: false
+    },
+    shopifyWebhookSecret: {
+      type: String,
+      trim: true,
+      select: false
+    },
+    shopifyConfig: {
+      syncProducts: {
+        type: Boolean,
+        default: true
+      },
+      syncOrders: {
+        type: Boolean,
+        default: true
+      },
+      configuredBy: {
+        type: String,
+        trim: true
+      },
+      configuredAt: {
+        type: Date
+      }
+    },
+    shopifyUpdatedAt: {
+      type: Date,
+      index: true
+    },
+    
+    wooDomain: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(v: string) {
+          return !v || /^https?:\/\/.+/.test(v);
+        },
+        message: 'WooCommerce domain must be a valid URL'
+      }
+    },
+    wooConsumerKey: {
+      type: String,
+      trim: true,
+      match: [/^ck_[a-f0-9]{40}$/, 'Invalid WooCommerce consumer key format'],
+      select: false
+    },
+    wooConsumerSecret: {
+      type: String,
+      trim: true,
+      match: [/^cs_[a-f0-9]{40}$/, 'Invalid WooCommerce consumer secret format'],
+      select: false
+    },
+    wooUpdatedAt: {
+      type: Date,
+      index: true
+    },
+    
+    wixDomain: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function(v: string) {
+          return !v || /^https?:\/\/.+\.wixsite\.com/.test(v);
+        },
+        message: 'Wix domain must be a valid Wix site URL'
+      }
+    },
+    wixApiKey: {
+      type: String,
+      trim: true,
+      select: false
+    },
+    wixRefreshToken: {
+      type: String,
+      trim: true,
+      select: false
+    },
+    
+    // Enhanced Web3 settings
     web3Settings: {
-      // Primary wallet configuration
       certificateWallet: {
         type: String,
-        required: true,
         trim: true,
         match: [/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'],
         index: true
@@ -315,8 +703,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       },
       walletVerified: {
         type: Boolean,
-        default: false,
-        required: true
+        default: false
       },
       walletVerifiedAt: {
         type: Date,
@@ -325,10 +712,8 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       walletSignature: {
         type: String,
         trim: true,
-        select: false // Don't include in queries by default
+        select: false
       },
-      
-      // Contract addresses
       voteContract: {
         type: String,
         trim: true,
@@ -343,18 +728,14 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       },
       chainId: {
         type: Number,
-        enum: [1, 5, 11155111, 137, 80001, 56, 97], // Mainnet, Goerli, Sepolia, Polygon, Mumbai, BSC, BSC Testnet
-        default: 1,
-        required: true
+        enum: [1, 5, 11155111, 137, 80001, 56, 97],
+        default: 1
       },
       networkName: {
         type: String,
         enum: ['ethereum', 'goerli', 'sepolia', 'polygon', 'mumbai', 'bsc', 'bsc-testnet'],
-        default: 'ethereum',
-        required: true
+        default: 'ethereum'
       },
-      
-      // Gas optimization
       gasSettings: {
         maxGasPrice: {
           type: Number,
@@ -379,8 +760,6 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
           default: true
         }
       },
-      
-      // Security settings
       securitySettings: {
         requireSignatureForTransfers: {
           type: Boolean,
@@ -406,17 +785,14 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
           max: [1440, 'Session timeout cannot exceed 24 hours'],
           default: 60
         }
-      },
-      
+      }
     },
     
-    // ✨ Comprehensive transfer preferences
+    // Comprehensive transfer preferences
     transferPreferences: {
-      // Basic transfer settings
       autoTransfer: {
         type: Boolean,
         default: true,
-        required: true,
         index: true
       },
       transferDelay: {
@@ -431,8 +807,6 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
         max: [1800000, 'Transfer timeout cannot exceed 30 minutes'],
         default: 300000
       },
-      
-      // Batch processing
       batchTransfer: {
         type: Boolean,
         default: false
@@ -449,8 +823,6 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
         max: [1440, 'Batch interval cannot exceed 24 hours'],
         default: 30
       },
-      
-      // Retry logic
       retryFailedTransfers: {
         type: Boolean,
         default: true
@@ -478,8 +850,6 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
         max: [1440, 'Retry delay max cannot exceed 24 hours'],
         default: 120
       },
-      
-      // Notification preferences
       notificationSettings: {
         notifyOnTransfer: {
           type: Boolean,
@@ -537,10 +907,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
           }
         }
       },
-      
-      // Advanced transfer rules
       transferRules: {
-        // Time-based rules
         businessHoursOnly: {
           type: Boolean,
           default: false
@@ -567,10 +934,8 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
           type: Boolean,
           default: false
         },
-        
-        // Conditional transfers
         minimumValueThreshold: {
-          type: String, // Store as string to handle big numbers
+          type: String,
           default: '0'
         },
         requireCustomerConfirmation: {
@@ -587,8 +952,6 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
           trim: true,
           match: [/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format']
         }],
-        
-        // Rate limiting
         maxTransfersPerHour: {
           type: Number,
           min: [1, 'Max transfers per hour must be at least 1'],
@@ -610,7 +973,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       }
     },
     
-    // E-commerce integrations with auto-mint features
+    // E-commerce integrations (extended)
     shopifyIntegration: {
       shopifyDomain: {
         type: String,
@@ -637,7 +1000,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       },
       autoMintOnPurchase: {
         type: Boolean,
-        default: false
+         default: false
       },
       lastSyncAt: {
         type: Date,
@@ -720,7 +1083,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       }
     },
     
-    // Enhanced plan limits with Web3 features
+    // Plan and subscription
     plan: {
       type: String,
       enum: ['foundation', 'growth', 'premium', 'enterprise'],
@@ -754,17 +1117,27 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
         default: 1000
       },
       gasCredits: {
-        type: String, // Store as string to handle big numbers
+        type: String,
         default: '0'
       },
       webhookEndpoints: {
         type: Number,
         min: [0, 'Webhook endpoint limit cannot be negative'],
         default: 1
+      },
+      emailGatingRules: {
+        type: Number,
+        min: [0, 'Email gating rules limit cannot be negative'],
+        default: 10
+      },
+      gatedEmailsPerMonth: {
+        type: Number,
+        min: [0, 'Gated emails per month limit cannot be negative'],
+        default: 10000
       }
     },
     
-    // ✨ Transfer analytics and monitoring
+    // Transfer analytics
     transferAnalytics: {
       totalTransfers: {
         type: Number,
@@ -782,7 +1155,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
         min: [0, 'Failed transfers cannot be negative']
       },
       totalGasUsed: {
-        type: String, // Store as string to handle big numbers
+        type: String,
         default: '0'
       },
       averageTransferTime: {
@@ -817,7 +1190,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       }]
     },
     
-    // Enhanced analytics settings
+    // Analytics settings
     analyticsSettings: {
       googleAnalyticsId: {
         type: String,
@@ -838,6 +1211,10 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
         default: false
       },
       trackWeb3Events: {
+        type: Boolean,
+        default: true
+      },
+      trackEmailGating: {
         type: Boolean,
         default: true
       }
@@ -885,22 +1262,60 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
     version: {
       type: Number,
       default: 1
+    },
+    updateSource: {
+      type: String,
+      trim: true,
+      default: 'api'
+    },
+    updateMetadata: {
+      type: Schema.Types.Mixed
+    },
+    lastWalletVerification: {
+      type: Date,
+      index: true
     }
   },
   { 
     timestamps: true,
-    toJSON: { virtuals: true },
+    toJSON: { 
+      virtuals: true,
+      transform: function(doc, ret) {
+        // Don't expose sensitive data in JSON responses
+        delete ret.shopifyAccessToken;
+        delete ret.shopifyWebhookSecret;
+        delete ret.wooConsumerKey;
+        delete ret.wooConsumerSecret;
+        delete ret.wixApiKey;
+        delete ret.wixRefreshToken;
+        if (ret.web3Settings?.walletSignature) {
+          delete ret.web3Settings.walletSignature;
+        }
+        if (ret.emailGating?.integrationSettings?.slackNotifications?.webhookUrl) {
+          delete ret.emailGating.integrationSettings.slackNotifications.webhookUrl;
+        }
+        return ret;
+      }
+    },
     toObject: { virtuals: true }
   }
 );
 
 // ===== INDEXES =====
 BrandSettingsSchema.index({ business: 1 }, { unique: true });
+BrandSettingsSchema.index({ certificateWallet: 1 }, { sparse: true });
 BrandSettingsSchema.index({ 'web3Settings.certificateWallet': 1 }, { sparse: true });
 BrandSettingsSchema.index({ plan: 1, isActive: 1 });
 BrandSettingsSchema.index({ 'transferPreferences.autoTransfer': 1 });
 BrandSettingsSchema.index({ 'web3Settings.chainId': 1 });
 BrandSettingsSchema.index({ 'transferAnalytics.lastTransferAt': -1 });
+BrandSettingsSchema.index({ subdomain: 1 }, { unique: true, sparse: true });
+BrandSettingsSchema.index({ customDomain: 1 }, { unique: true, sparse: true });
+BrandSettingsSchema.index({ shopifyDomain: 1 }, { sparse: true });
+BrandSettingsSchema.index({ wooDomain: 1 }, { sparse: true });
+BrandSettingsSchema.index({ wixDomain: 1 }, { sparse: true });
+BrandSettingsSchema.index({ 'emailGating.enabled': 1, 'emailGating.mode': 1 });
+BrandSettingsSchema.index({ 'emailGating.gatingAnalytics.lastResetDate': -1 });
 
 // ===== VIRTUALS =====
 BrandSettingsSchema.virtual('hasCustomDomain').get(function() {
@@ -909,19 +1324,46 @@ BrandSettingsSchema.virtual('hasCustomDomain').get(function() {
 
 BrandSettingsSchema.virtual('integrationStatus').get(function() {
   return {
-    shopify: !!this.shopifyIntegration?.shopifyDomain,
-    woocommerce: !!this.wooCommerceIntegration?.wooDomain,
-    wix: !!this.wixIntegration?.wixDomain
+    shopify: !!(this.shopifyDomain || this.shopifyIntegration?.shopifyDomain),
+    woocommerce: !!(this.wooDomain || this.wooCommerceIntegration?.wooDomain),
+    wix: !!(this.wixDomain || this.wixIntegration?.wixDomain)
   };
 });
 
 BrandSettingsSchema.virtual('web3Status').get(function() {
+  const wallet = this.certificateWallet || this.web3Settings?.certificateWallet;
   return {
-    walletConnected: !!this.web3Settings?.certificateWallet,
+    walletConnected: !!wallet,
     walletVerified: this.web3Settings?.walletVerified || false,
     contractsDeployed: !!(this.web3Settings?.voteContract && this.web3Settings?.nftContract),
     autoTransferEnabled: this.shouldAutoTransfer(),
     networkSupported: this.web3Settings?.chainId ? [1, 137, 56].includes(this.web3Settings.chainId) : false
+  };
+});
+
+BrandSettingsSchema.virtual('emailGatingStatus').get(function() {
+  const gating = this.emailGating;
+  if (!gating) {
+    return {
+      enabled: false,
+      mode: 'disabled',
+      rulesCount: 0,
+      totalChecked: 0,
+      successRate: 0
+    };
+  }
+  
+  const analytics = gating.gatingAnalytics;
+  const totalChecked = analytics?.totalEmailsChecked || 0;
+  const totalAllowed = analytics?.totalEmailsAllowed || 0;
+  
+  return {
+    enabled: gating.enabled || false,
+    mode: gating.mode || 'disabled',
+    rulesCount: this.getEmailGatingRulesCount(),
+    totalChecked,
+    successRate: totalChecked > 0 ? Math.round((totalAllowed / totalChecked) * 100) : 0,
+    lastActivity: analytics?.lastResetDate
   };
 });
 
@@ -951,19 +1393,281 @@ BrandSettingsSchema.methods.hasWeb3Features = function(): boolean {
 };
 
 /**
+ * Check if email gating is available for this plan
+ */
+BrandSettingsSchema.methods.hasEmailGating = function(): boolean {
+  return ['growth', 'premium', 'enterprise'].includes(this.plan || 'foundation');
+};
+
+/**
+ * Check if email gating is enabled and properly configured
+ */
+BrandSettingsSchema.methods.isEmailGatingEnabled = function(): boolean {
+  return this.hasEmailGating() && 
+         this.emailGating?.enabled === true && 
+         this.emailGating?.mode !== 'disabled';
+};
+
+/**
+ * Get the current email gating mode
+ */
+BrandSettingsSchema.methods.getEmailGatingMode = function(): 'whitelist' | 'blacklist' | 'disabled' {
+  if (!this.isEmailGatingEnabled()) {
+    return 'disabled';
+  }
+  return this.emailGating?.mode || 'disabled';
+};
+
+/**
+ * Count the number of email gating rules configured
+ */
+BrandSettingsSchema.methods.getEmailGatingRulesCount = function(): number {
+  if (!this.emailGating?.gatingRules) {
+    return 0;
+  }
+  
+  const rules = this.emailGating.gatingRules;
+  let count = 0;
+  
+  if (rules.domainWhitelist?.length) count += rules.domainWhitelist.length;
+  if (rules.domainBlacklist?.length) count += rules.domainBlacklist.length;
+  if (rules.emailPatterns?.length) count += rules.emailPatterns.length;
+  if (rules.ipWhitelist?.length) count += rules.ipWhitelist.length;
+  if (rules.ipBlacklist?.length) count += rules.ipBlacklist.length;
+  if (rules.geographicRestrictions?.enabled) count += 1;
+  if (rules.votingWindow?.enabled) count += 1;
+  
+  return count;
+};
+
+/**
+ * Check if voting window is currently active
+ */
+BrandSettingsSchema.methods.isVotingWindowActive = function(): boolean {
+  const votingWindow = this.emailGating?.gatingRules?.votingWindow;
+  if (!votingWindow?.enabled || !votingWindow.startDate || !votingWindow.endDate) {
+    return true; // No window restrictions
+  }
+  
+  const now = new Date();
+  return now >= votingWindow.startDate && now <= votingWindow.endDate;
+};
+
+/**
+ * Check if an email can vote based on gating rules
+ */
+BrandSettingsSchema.methods.canEmailVote = function(
+  email: string, 
+  context?: { 
+    ip?: string; 
+    country?: string; 
+    userAgent?: string;
+    previousVotes?: number;
+  }
+): { allowed: boolean; reason?: string } {
+  // If email gating is not enabled, allow by default
+  if (!this.isEmailGatingEnabled()) {
+    return { allowed: true };
+  }
+  
+  const rules = this.emailGating?.gatingRules;
+  const mode = this.getEmailGatingMode();
+  
+  // Check voting window
+  if (!this.isVotingWindowActive()) {
+    return { allowed: false, reason: 'Voting window is not active' };
+  }
+  
+  // Check vote limit per email
+  if (rules?.maxVotesPerEmail && context?.previousVotes) {
+    if (context.previousVotes >= rules.maxVotesPerEmail) {
+      return { allowed: false, reason: 'Maximum votes per email exceeded' };
+    }
+  }
+  
+  // Extract domain from email
+  const emailDomain = email.split('@')[1]?.toLowerCase();
+  
+  // Check geographic restrictions
+  if (rules?.geographicRestrictions?.enabled && context?.country) {
+    const { allowedCountries, blockedCountries } = rules.geographicRestrictions;
+    
+    if (allowedCountries?.length && !allowedCountries.includes(context.country)) {
+      return { allowed: false, reason: 'Geographic restriction: country not allowed' };
+    }
+    
+    if (blockedCountries?.length && blockedCountries.includes(context.country)) {
+      return { allowed: false, reason: 'Geographic restriction: country blocked' };
+    }
+  }
+  
+  // Check IP restrictions
+  if (context?.ip) {
+    if (rules?.ipBlacklist?.length) {
+      const isBlocked = rules.ipBlacklist.some(blockedIp => {
+        return context.ip === blockedIp || context.ip?.startsWith(blockedIp.split('/')[0]);
+      });
+      if (isBlocked) {
+        return { allowed: false, reason: 'IP address blocked' };
+      }
+    }
+    
+    if (rules?.ipWhitelist?.length) {
+      const isAllowed = rules.ipWhitelist.some(allowedIp => {
+        return context.ip === allowedIp || context.ip?.startsWith(allowedIp.split('/')[0]);
+      });
+      if (!isAllowed) {
+        return { allowed: false, reason: 'IP address not whitelisted' };
+      }
+    }
+  }
+  
+  // Apply mode-specific rules
+  if (mode === 'whitelist') {
+    // Check domain whitelist
+    if (rules?.domainWhitelist?.length && emailDomain) {
+      if (rules.domainWhitelist.includes(emailDomain)) {
+        return { allowed: true };
+      }
+    }
+    
+    // Check email patterns
+    if (rules?.emailPatterns?.length) {
+      const matchesPattern = rules.emailPatterns.some(pattern => {
+        try {
+          const regex = new RegExp(pattern, 'i');
+          return regex.test(email);
+        } catch {
+          return false;
+        }
+      });
+      if (matchesPattern) {
+        return { allowed: true };
+      }
+    }
+    
+    // If whitelist mode and no matches, deny
+    return { allowed: false, reason: 'Email not found in whitelist' };
+    
+  } else if (mode === 'blacklist') {
+    // Check domain blacklist
+    if (rules?.domainBlacklist?.length && emailDomain) {
+      if (rules.domainBlacklist.includes(emailDomain)) {
+        return { allowed: false, reason: 'Domain is blacklisted' };
+      }
+    }
+    
+    // Check email patterns (for blacklist, patterns indicate blocked emails)
+    if (rules?.emailPatterns?.length) {
+      const matchesPattern = rules.emailPatterns.some(pattern => {
+        try {
+          const regex = new RegExp(pattern, 'i');
+          return regex.test(email);
+        } catch {
+          return false;
+        }
+      });
+      if (matchesPattern) {
+        return { allowed: false, reason: 'Email matches blocked pattern' };
+      }
+    }
+    
+    // If blacklist mode and no matches, allow
+    return { allowed: true };
+  }
+  
+  // Default fallback
+  return { allowed: this.emailGating?.allowUnregistered !== false };
+};
+
+/**
+ * Update email gating analytics
+ */
+BrandSettingsSchema.methods.updateGatingAnalytics = async function(
+  emailChecked: string, 
+  allowed: boolean, 
+  reason?: string
+): Promise<void> {
+  if (!this.emailGating) {
+    this.emailGating = {
+      enabled: false,
+      mode: 'disabled',
+      allowUnregistered: true,
+      requireApproval: false,
+      autoSyncEnabled: false,
+      syncSources: [],
+      welcomeEmailEnabled: true,
+      accessDeniedMessage: 'Your email is not authorized to access this voting platform. Please contact the brand for access.'
+    };
+  }
+  
+  if (!this.emailGating.gatingAnalytics) {
+    this.emailGating.gatingAnalytics = {
+      totalEmailsChecked: 0,
+      totalEmailsAllowed: 0,
+      totalEmailsDenied: 0,
+      dailyStats: []
+    };
+  }
+  
+  const analytics = this.emailGating.gatingAnalytics;
+  
+  // Update totals
+  analytics.totalEmailsChecked += 1;
+  if (allowed) {
+    analytics.totalEmailsAllowed += 1;
+  } else {
+    analytics.totalEmailsDenied += 1;
+  }
+  
+  // Update daily stats
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let todayStats = analytics.dailyStats?.find(stat => stat.date === today);
+  
+  if (!todayStats) {
+    todayStats = {
+      date: today,
+      checked: 0,
+      allowed: 0,
+      denied: 0,
+      topDenialReasons: []
+    };
+    if (!analytics.dailyStats) analytics.dailyStats = [];
+    analytics.dailyStats.push(todayStats);
+  }
+  
+  todayStats.checked += 1;
+  if (allowed) {
+    todayStats.allowed += 1;
+  } else {
+    todayStats.denied += 1;
+    if (reason && !todayStats.topDenialReasons.includes(reason)) {
+      todayStats.topDenialReasons.push(reason);
+      // Keep only top 5 reasons
+      if (todayStats.topDenialReasons.length > 5) {
+        todayStats.topDenialReasons = todayStats.topDenialReasons.slice(0, 5);
+      }
+    }
+  }
+  
+  // Keep only last 30 days of daily stats
+  if (analytics.dailyStats) {
+    analytics.dailyStats = analytics.dailyStats
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 30);
+  }
+  
+  await this.save();
+};
+
+/**
  * Check if automatic transfer should be performed
  */
 BrandSettingsSchema.methods.shouldAutoTransfer = function(): boolean {
-  // Must have Web3 features
   if (!this.hasWeb3Features()) return false;
-  
-  // Must have wallet configured and verified
-  if (!this.web3Settings?.certificateWallet || !this.web3Settings?.walletVerified) return false;
-  
-  // Check if auto-transfer is explicitly disabled
+  const wallet = this.certificateWallet || this.web3Settings?.certificateWallet;
+  if (!wallet || !this.web3Settings?.walletVerified) return false;
   if (this.transferPreferences?.autoTransfer === false) return false;
-  
-  // Default to enabled if wallet is configured and verified
   return true;
 };
 
@@ -971,10 +1675,11 @@ BrandSettingsSchema.methods.shouldAutoTransfer = function(): boolean {
  * Check if brand can transfer certificates to their wallet
  */
 BrandSettingsSchema.methods.canTransferToBrand = function(): boolean {
+  const wallet = this.certificateWallet || this.web3Settings?.certificateWallet;
   return this.hasWeb3Features() && 
-         !!this.web3Settings?.certificateWallet && 
+         !!wallet && 
          this.web3Settings?.walletVerified &&
-         this.validateWalletAddress(this.web3Settings.certificateWallet);
+         this.validateWalletAddress(wallet);
 };
 
 /**
@@ -1035,13 +1740,6 @@ BrandSettingsSchema.methods.canTransferNow = function(): { allowed: boolean; rea
   if (!this.isWithinBusinessHours()) {
     return { allowed: false, reason: 'Outside business hours' };
   }
-  
-  // Check rate limiting (simplified - would need Redis for full implementation)
-  const now = new Date();
-  const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  
-  // This would typically query a rate limiting store
-  // For now, we'll assume it's allowed
   
   return { allowed: true };
 };
@@ -1162,10 +1860,8 @@ BrandSettingsSchema.methods.updateTransferAnalytics = async function(transferDat
   }
   
   // Calculate success rate for the month
-  const monthlySuccessful = monthlyStats
-    .filter(stat => stat.month === currentMonth)
-    .reduce((acc, stat) => acc + stat.transfers, 0);
-  currentMonthStats.successRate = Math.round((monthlySuccessful / currentMonthStats.transfers) * 100);
+  const monthlySuccessfulTransfers = this.transferAnalytics.successfulTransfers;
+  currentMonthStats.successRate = Math.round((monthlySuccessfulTransfers / currentMonthStats.transfers) * 100);
   
   // Keep only last 12 months
   this.transferAnalytics.monthlyStats = monthlyStats
@@ -1178,11 +1874,37 @@ BrandSettingsSchema.methods.updateTransferAnalytics = async function(transferDat
 // ===== STATIC METHODS =====
 
 /**
+ * Find brands with email gating enabled
+ */
+BrandSettingsSchema.statics.findEmailGatingEnabled = function() {
+  return this.find({
+    'emailGating.enabled': true,
+    'emailGating.mode': { $in: ['whitelist', 'blacklist'] },
+    plan: { $in: ['growth', 'premium', 'enterprise'] },
+    isActive: true
+  });
+};
+
+/**
+ * Find brands by email gating mode
+ */
+BrandSettingsSchema.statics.findByEmailGatingMode = function(mode: 'whitelist' | 'blacklist' | 'disabled') {
+  return this.find({
+    'emailGating.enabled': mode !== 'disabled',
+    'emailGating.mode': mode,
+    isActive: true
+  });
+};
+
+/**
  * Find brands with auto-transfer enabled and verified wallets
  */
 BrandSettingsSchema.statics.findAutoTransferEnabled = function() {
   return this.find({
-    'web3Settings.certificateWallet': { $exists: true, $ne: null },
+    $or: [
+      { 'certificateWallet': { $exists: true, $ne: null } },
+      { 'web3Settings.certificateWallet': { $exists: true, $ne: null } }
+    ],
     'web3Settings.walletVerified': true,
     'transferPreferences.autoTransfer': { $ne: false },
     plan: { $in: ['premium', 'enterprise'] },
@@ -1195,7 +1917,10 @@ BrandSettingsSchema.statics.findAutoTransferEnabled = function() {
  */
 BrandSettingsSchema.statics.findNeedingTransferRetry = function() {
   return this.find({
-    'web3Settings.certificateWallet': { $exists: true, $ne: null },
+    $or: [
+      { 'certificateWallet': { $exists: true, $ne: null } },
+      { 'web3Settings.certificateWallet': { $exists: true, $ne: null } }
+    ],
     'web3Settings.walletVerified': true,
     'transferPreferences.retryFailedTransfers': true,
     plan: { $in: ['premium', 'enterprise'] },
@@ -1212,6 +1937,44 @@ BrandSettingsSchema.statics.findByNetwork = function(chainId: number) {
     'web3Settings.walletVerified': true,
     isActive: true
   });
+};
+
+/**
+ * Get email gating analytics summary across all brands
+ */
+BrandSettingsSchema.statics.getGlobalEmailGatingAnalytics = async function() {
+  const results = await this.aggregate([
+    {
+      $match: {
+        'emailGating.enabled': true,
+        'emailGating.gatingAnalytics.totalEmailsChecked': { $gt: 0 }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalBrands: { $sum: 1 },
+        totalEmailsChecked: { $sum: '$emailGating.gatingAnalytics.totalEmailsChecked' },
+        totalEmailsAllowed: { $sum: '$emailGating.gatingAnalytics.totalEmailsAllowed' },
+        totalEmailsDenied: { $sum: '$emailGating.gatingAnalytics.totalEmailsDenied' },
+        avgRulesPerBrand: { $avg: { $size: { $ifNull: ['$emailGating.gatingRules.domainWhitelist', []] } } }
+      }
+    }
+  ]);
+  
+  const result = results[0] || {
+    totalBrands: 0,
+    totalEmailsChecked: 0,
+    totalEmailsAllowed: 0,
+    totalEmailsDenied: 0,
+    avgRulesPerBrand: 0
+  };
+  
+  result.allowanceRate = result.totalEmailsChecked > 0 
+    ? Math.round((result.totalEmailsAllowed / result.totalEmailsChecked) * 100) 
+    : 0;
+  
+  return result;
 };
 
 /**
@@ -1264,46 +2027,79 @@ BrandSettingsSchema.statics.getGlobalTransferAnalytics = async function() {
  */
 BrandSettingsSchema.pre('save', function(next) {
   // Set default transfer preferences if wallet is being added
-  if (this.isModified('web3Settings.certificateWallet') && 
-      this.web3Settings?.certificateWallet && 
-      !this.transferPreferences) {
-    this.transferPreferences = {
-      autoTransfer: true,
-      transferDelay: 5,
-      transferTimeout: 300000,
-      batchTransfer: false,
-      batchSize: 10,
-      batchInterval: 30,
-      retryFailedTransfers: true,
-      maxRetryAttempts: 3,
-      retryBackoffStrategy: 'exponential',
-      retryDelayBase: 5,
-      retryDelayMax: 120,
-      notificationSettings: {
-        notifyOnTransfer: true,
-        notifyOnFailure: true,
-        notifyOnRetry: false,
-        notifyOnSuccess: true,
-        emailNotifications: true,
-        webhookNotifications: false
-      },
-      transferRules: {
-        businessHoursOnly: false,
-        businessHoursStart: '09:00',
-        businessHoursEnd: '17:00',
-        timezone: 'UTC',
-        excludeWeekends: false,
-        excludeHolidays: false,
-        requireCustomerConfirmation: false,
-        maxTransfersPerHour: 100,
-        maxTransfersPerDay: 500,
-        cooldownPeriod: 0
-      }
-    };
+  const wallet = this.certificateWallet || this.web3Settings?.certificateWallet;
+  if (this.isModified('certificateWallet') || this.isModified('web3Settings.certificateWallet')) {
+    if (wallet && !this.transferPreferences) {
+      this.transferPreferences = {
+        autoTransfer: true,
+        transferDelay: 5,
+        transferTimeout: 300000,
+        batchTransfer: false,
+        batchSize: 10,
+        batchInterval: 30,
+        retryFailedTransfers: true,
+        maxRetryAttempts: 3,
+        retryBackoffStrategy: 'exponential',
+        retryDelayBase: 5,
+        retryDelayMax: 120,
+        notificationSettings: {
+          notifyOnTransfer: true,
+          notifyOnFailure: true,
+          notifyOnRetry: false,
+          notifyOnSuccess: true,
+          emailNotifications: true,
+          webhookNotifications: false
+        },
+        transferRules: {
+          businessHoursOnly: false,
+          businessHoursStart: '09:00',
+          businessHoursEnd: '17:00',
+          timezone: 'UTC',
+          excludeWeekends: false,
+          excludeHolidays: false,
+          requireCustomerConfirmation: false,
+          maxTransfersPerHour: 100,
+          maxTransfersPerDay: 500,
+          cooldownPeriod: 0
+        }
+      };
+    }
+  }
+  
+  // Initialize email gating defaults if enabled
+  if (this.isModified('emailGating.enabled') && this.emailGating?.enabled) {
+    if (!this.emailGating.gatingAnalytics) {
+      this.emailGating.gatingAnalytics = {
+        totalEmailsChecked: 0,
+        totalEmailsAllowed: 0,
+        totalEmailsDenied: 0,
+        dailyStats: []
+      };
+    }
+    
+    // Set default gating rules if not present
+    if (!this.emailGating.gatingRules) {
+      this.emailGating.gatingRules = {
+        maxVotesPerEmail: 1,
+        votingWindow: {
+          enabled: false,
+          timezone: 'UTC'
+        },
+        geographicRestrictions: {
+          enabled: false
+        }
+      };
+    }
+  }
+  
+  // Validate email gating plan restrictions
+  if (this.emailGating?.enabled && !this.hasEmailGating()) {
+    this.emailGating.enabled = false;
+    this.emailGating.mode = 'disabled';
   }
   
   // Initialize transfer analytics if not present
-  if (this.web3Settings?.certificateWallet && !this.transferAnalytics) {
+  if (wallet && !this.transferAnalytics) {
     this.transferAnalytics = {
       totalTransfers: 0,
       successfulTransfers: 0,
@@ -1328,12 +2124,24 @@ BrandSettingsSchema.pre('save', function(next) {
     this.web3Settings.networkName = networkMap[this.web3Settings.chainId] || 'unknown';
   }
   
+  // Sync certificateWallet with web3Settings if only one is set
+  if (this.certificateWallet && !this.web3Settings?.certificateWallet) {
+    if (!this.web3Settings) this.web3Settings = {};
+    this.web3Settings.certificateWallet = this.certificateWallet;
+  } else if (this.web3Settings?.certificateWallet && !this.certificateWallet) {
+    this.certificateWallet = this.web3Settings.certificateWallet;
+  }
+  
   // Increment version on significant changes
   const significantFields = [
+    'certificateWallet',
     'web3Settings.certificateWallet', 
     'plan', 
     'transferPreferences',
-    'web3Settings.walletVerified'
+    'web3Settings.walletVerified',
+    'emailGating.enabled',
+    'emailGating.mode',
+    'emailGating.gatingRules'
   ];
   if (significantFields.some(field => this.isModified(field))) {
     this.version = (this.version || 0) + 1;
@@ -1346,10 +2154,12 @@ BrandSettingsSchema.pre('save', function(next) {
  * Post-save hook for notifications and cache management
  */
 BrandSettingsSchema.post('save', function(doc) {
+  const wallet = doc.certificateWallet || doc.web3Settings?.certificateWallet;
+  
   // Emit events for real-time updates
-  if (doc.isModified('web3Settings.certificateWallet')) {
+  if (doc.isModified('certificateWallet') || doc.isModified('web3Settings.certificateWallet')) {
     process.nextTick(() => {
-      console.log(`Brand ${doc.business} wallet updated: ${doc.web3Settings?.certificateWallet ? 'connected' : 'disconnected'}`);
+      console.log(`Brand ${doc.business} wallet updated: ${wallet ? 'connected' : 'disconnected'}`);
     });
   }
   
@@ -1365,8 +2175,14 @@ BrandSettingsSchema.post('save', function(doc) {
     });
   }
   
+  if (doc.isModified('emailGating')) {
+    process.nextTick(() => {
+      console.log(`Brand ${doc.business} email gating settings updated: ${doc.emailGating?.enabled ? 'enabled' : 'disabled'} (${doc.emailGating?.mode || 'disabled'})`);
+    });
+  }
+  
   // Clear relevant caches
-  if (doc.isModified('web3Settings') || doc.isModified('transferPreferences')) {
+  if (doc.isModified('web3Settings') || doc.isModified('transferPreferences') || doc.isModified('certificateWallet') || doc.isModified('emailGating')) {
     process.nextTick(() => {
       // Clear business settings cache
       console.log(`Clearing cache for business ${doc.business}`);
@@ -1379,7 +2195,7 @@ BrandSettingsSchema.post('save', function(doc) {
  */
 BrandSettingsSchema.pre('remove', function(next) {
   console.log(`Removing brand settings for business ${this.business}`);
-  // Could trigger cleanup of related data, cancel pending transfers, etc.
+  // Could trigger cleanup of related data, cancel pending transfers, clear email gating rules, etc.
   next();
 });
 

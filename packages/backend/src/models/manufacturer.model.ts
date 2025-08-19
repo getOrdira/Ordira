@@ -6,21 +6,23 @@ export interface IManufacturer extends Document {
   name: string;
   email: string;
   password: string;
-  brands: Types.ObjectId[];
+  brands: Types.ObjectId[]; // References to BrandSettings
   createdAt: Date;
   updatedAt: Date;
   
-  // Enhanced Profile Information
-  profilePictureUrl?: string;
+  // Core Profile Information (aligned with service methods)
+  industry?: string;
   description?: string;
+  contactEmail?: string;
   servicesOffered?: string[];
   moq?: number;
-  industry?: string;
-  contactEmail?: string;
-  socialUrls?: string[];
-  website?: string;
   
-  // Account Status & Verification
+  // Enhanced Profile Information
+  profilePictureUrl?: string;
+  website?: string;
+  socialUrls?: string[];
+  
+  // Account Status & Verification (aligned with controller logic)
   isActive?: boolean;
   deactivatedAt?: Date;
   isVerified?: boolean;
@@ -29,7 +31,7 @@ export interface IManufacturer extends Document {
   emailVerifiedAt?: Date;
   verificationToken?: string;
   
-  // Enhanced Business Information
+  // Business Information
   businessLicense?: string;
   certifications?: string[];
   establishedYear?: number;
@@ -55,7 +57,7 @@ export interface IManufacturer extends Document {
     sustainabilityPractices?: string[];
   };
   
-  // Business Metrics
+  // Connection & Business Metrics (aligned with service methods)
   totalConnections?: number;
   connectionRequests?: {
     sent: number;
@@ -77,7 +79,7 @@ export interface IManufacturer extends Document {
   };
   responseTimeCommitment?: number; // in hours
   
-  // Security & Access
+  // Security & Authentication (aligned with auth service)
   lastLoginAt?: Date;
   loginAttempts?: number;
   lockUntil?: Date;
@@ -86,11 +88,19 @@ export interface IManufacturer extends Document {
   twoFactorEnabled?: boolean;
   twoFactorSecret?: string;
   
-  // Profile Analytics
+  // Profile Analytics & Activity (aligned with dashboard methods)
   profileViews?: number;
   searchAppearances?: number;
   lastProfileUpdate?: Date;
   profileScore?: number; // calculated score based on completeness and activity
+  
+  // Activity Tracking (aligned with service calculations)
+  activityMetrics?: {
+    lastActiveAt?: Date;
+    profileCompleteness?: number;
+    engagementScore?: number;
+    responsiveness?: 'high' | 'medium' | 'low';
+  };
   
   // Partnership Preferences
   partnershipPreferences?: {
@@ -122,14 +132,6 @@ export interface IManufacturer extends Document {
     insuranceCoverage?: boolean;
   };
   
-  // Activity Tracking
-  activityMetrics?: {
-    lastActiveAt?: Date;
-    profileCompleteness?: number;
-    engagementScore?: number;
-    responsiveness?: 'high' | 'medium' | 'low';
-  };
-  
   // Notification Preferences
   notificationSettings?: {
     email?: {
@@ -149,7 +151,7 @@ export interface IManufacturer extends Document {
     };
   };
   
-  // Instance methods
+  // Instance methods (aligned with service requirements)
   comparePassword(candidatePassword: string): Promise<boolean>;
   isAccountActive(): boolean;
   getProfileCompleteness(): number;
@@ -167,7 +169,7 @@ export interface IManufacturer extends Document {
 }
 
 const ManufacturerSchema = new Schema<IManufacturer>({
-  // Core Required Fields
+  // Core Required Fields (aligned with registration validation)
   name: { 
     type: String, 
     required: [true, 'Name is required'],
@@ -193,7 +195,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
   },
   brands: [{ 
     type: Types.ObjectId, 
-    ref: 'BrandSettings',
+    ref: 'BrandSettings', // Properly aligned with service references
     validate: {
       validator: function(brands: Types.ObjectId[]) {
         return brands.length <= 100;
@@ -202,36 +204,17 @@ const ManufacturerSchema = new Schema<IManufacturer>({
     }
   }],
   
-  // Enhanced Profile Information
-  profilePictureUrl: { 
-    type: String, 
-    trim: true,
-    validate: {
-      validator: function(v: string) {
-        return !v || /^https?:\/\/.+/.test(v);
-      },
-      message: 'Profile picture must be a valid URL'
-    }
-  },
-  description: { 
-    type: String, 
-    trim: true, 
-    maxlength: [2000, 'Description cannot exceed 2000 characters']
-  },
-  servicesOffered: [{
-    type: String, 
-    trim: true,
-    maxlength: [100, 'Service name cannot exceed 100 characters']
-  }],
-  moq: { 
-    type: Number, 
-    min: [1, 'MOQ must be at least 1']
-  },
+  // Core Profile Information (aligned with update methods)
   industry: { 
     type: String, 
     trim: true,
     maxlength: [100, 'Industry cannot exceed 100 characters'],
     index: true
+  },
+  description: { 
+    type: String, 
+    trim: true, 
+    maxlength: [2000, 'Description cannot exceed 2000 characters']
   },
   contactEmail: { 
     type: String, 
@@ -244,16 +227,27 @@ const ManufacturerSchema = new Schema<IManufacturer>({
       message: 'Please enter a valid contact email'
     }
   },
-  socialUrls: [{
+  servicesOffered: [{
+    type: String, 
+    trim: true,
+    maxlength: [100, 'Service name cannot exceed 100 characters']
+  }],
+  moq: { 
+    type: Number, 
+    min: [1, 'MOQ must be at least 1']
+  },
+  
+  // Enhanced Profile Information
+  profilePictureUrl: { 
     type: String, 
     trim: true,
     validate: {
       validator: function(v: string) {
-        return /^https?:\/\/.+/.test(v);
+        return !v || /^https?:\/\/.+/.test(v);
       },
-      message: 'Social URLs must be valid HTTP/HTTPS URLs'
+      message: 'Profile picture must be a valid URL'
     }
-  }],
+  },
   website: {
     type: String,
     trim: true,
@@ -264,8 +258,18 @@ const ManufacturerSchema = new Schema<IManufacturer>({
       message: 'Website must be a valid URL'
     }
   },
+  socialUrls: [{
+    type: String, 
+    trim: true,
+    validate: {
+      validator: function(v: string) {
+        return /^https?:\/\/.+/.test(v);
+      },
+      message: 'Social URLs must be valid HTTP/HTTPS URLs'
+    }
+  }],
   
-  // Account Status & Verification
+  // Account Status & Verification (aligned with auth service)
   isActive: { type: Boolean, default: true, index: true },
   deactivatedAt: { type: Date },
   isVerified: { type: Boolean, default: false, index: true },
@@ -277,7 +281,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
     select: false // Don't include in queries by default
   },
   
-  // Enhanced Business Information
+  // Business Information
   businessLicense: { 
     type: String, 
     trim: true,
@@ -322,7 +326,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
     sustainabilityPractices: [{ type: String, trim: true }]
   },
   
-  // Business Metrics
+  // Connection & Business Metrics (aligned with service calculations)
   totalConnections: { type: Number, default: 0, min: 0 },
   connectionRequests: {
     sent: { type: Number, default: 0, min: 0 },
@@ -352,7 +356,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
   },
   responseTimeCommitment: { type: Number, min: 1, max: 168 }, // max 1 week
   
-  // Security & Access
+  // Security & Authentication (aligned with login/token methods)
   lastLoginAt: { type: Date, index: true },
   loginAttempts: { type: Number, default: 0, select: false },
   lockUntil: { type: Date, select: false },
@@ -361,11 +365,23 @@ const ManufacturerSchema = new Schema<IManufacturer>({
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecret: { type: String, select: false },
   
-  // Profile Analytics
+  // Profile Analytics & Activity (aligned with dashboard methods)
   profileViews: { type: Number, default: 0, min: 0 },
   searchAppearances: { type: Number, default: 0, min: 0 },
   lastProfileUpdate: { type: Date, default: Date.now },
   profileScore: { type: Number, min: 0, max: 100, default: 0 },
+  
+  // Activity Tracking (aligned with service calculations)
+  activityMetrics: {
+    lastActiveAt: { type: Date, default: Date.now },
+    profileCompleteness: { type: Number, min: 0, max: 100, default: 0 },
+    engagementScore: { type: Number, min: 0, max: 100, default: 0 },
+    responsiveness: { 
+      type: String, 
+      enum: ['high', 'medium', 'low'],
+      default: 'medium'
+    }
+  },
   
   // Partnership Preferences
   partnershipPreferences: {
@@ -408,19 +424,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
     insuranceCoverage: { type: Boolean, default: false }
   },
   
-  // Activity Tracking
-  activityMetrics: {
-    lastActiveAt: { type: Date, default: Date.now },
-    profileCompleteness: { type: Number, min: 0, max: 100, default: 0 },
-    engagementScore: { type: Number, min: 0, max: 100, default: 0 },
-    responsiveness: { 
-      type: String, 
-      enum: ['high', 'medium', 'low'],
-      default: 'medium'
-    }
-  },
-  
-  // Notification Preferences
+  // Notification Preferences (aligned with dashboard requirements)
   notificationSettings: {
     email: {
       connectionRequests: { type: Boolean, default: true },
@@ -456,7 +460,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
   }
 });
 
-// Comprehensive Indexes for Performance
+// Indexes for Performance (optimized for service queries)
 ManufacturerSchema.index({ email: 1 });
 ManufacturerSchema.index({ name: 1 });
 ManufacturerSchema.index({ industry: 1 });
@@ -469,14 +473,14 @@ ManufacturerSchema.index({ profileScore: -1 });
 ManufacturerSchema.index({ lastLoginAt: -1 });
 ManufacturerSchema.index({ createdAt: -1 });
 
-// Compound indexes for complex queries
+// Compound indexes for service search methods
 ManufacturerSchema.index({ isActive: 1, isVerified: 1 });
 ManufacturerSchema.index({ industry: 1, isActive: 1 });
 ManufacturerSchema.index({ isActive: 1, profileScore: -1 });
 ManufacturerSchema.index({ industry: 1, 'headquarters.country': 1 });
 ManufacturerSchema.index({ servicesOffered: 1, isActive: 1 });
 
-// Text index for search functionality
+// Text index for search functionality (aligned with service search)
 ManufacturerSchema.index({
   name: 'text',
   description: 'text',
@@ -484,7 +488,7 @@ ManufacturerSchema.index({
   industry: 'text'
 });
 
-// Virtuals
+// Virtuals (aligned with service return types)
 ManufacturerSchema.virtual('brandsCount').get(function() {
   return this.brands?.length || 0;
 });
@@ -507,7 +511,7 @@ ManufacturerSchema.virtual('isProfileComplete').get(function() {
   return this.getProfileCompleteness() >= 80;
 });
 
-// Enhanced Instance Methods
+// Instance Methods (aligned with service requirements)
 ManufacturerSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
   if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
@@ -517,6 +521,7 @@ ManufacturerSchema.methods.isAccountActive = function(): boolean {
   return this.isActive !== false && !this.deactivatedAt && !this.isLocked;
 };
 
+// Profile completeness calculation (aligned with service method)
 ManufacturerSchema.methods.getProfileCompleteness = function(): number {
   const requiredFields = [
     'name', 'email', 'description', 'industry', 'servicesOffered', 'moq'
@@ -537,7 +542,7 @@ ManufacturerSchema.methods.getProfileCompleteness = function(): number {
   
   // Required fields (50% weight)
   requiredFields.forEach(field => {
-    totalFields += 5; // Higher weight for required fields
+    totalFields += 5;
     const value = this[field];
     if (Array.isArray(value) ? value.length > 0 : value) {
       score += 5;
@@ -578,9 +583,9 @@ ManufacturerSchema.methods.calculateProfileScore = function(): number {
   const verificationBonus = this.isVerified ? 10 : 0;
   const emailVerificationBonus = this.isEmailVerified ? 5 : 0;
   const activityBonus = this.lastLoginAt && 
-    (Date.now() - this.lastLoginAt.getTime()) < 30 * 24 * 60 * 60 * 1000 ? 5 : 0; // Active in last 30 days
+    (Date.now() - this.lastLoginAt.getTime()) < 30 * 24 * 60 * 60 * 1000 ? 5 : 0;
   
-  const baseScore = completeness * 0.7; // 70% from completeness
+  const baseScore = completeness * 0.7;
   const bonuses = verificationBonus + emailVerificationBonus + activityBonus;
   
   return Math.min(Math.round(baseScore + bonuses), 100);
@@ -622,7 +627,6 @@ ManufacturerSchema.methods.updateActivityMetrics = function(): Promise<IManufact
   const completeness = this.getProfileCompleteness();
   const profileScore = this.calculateProfileScore();
   
-  // Calculate responsiveness based on response time
   let responsiveness = 'medium';
   if (this.averageResponseTime) {
     if (this.averageResponseTime <= 4) responsiveness = 'high';
@@ -645,38 +649,32 @@ ManufacturerSchema.methods.updateActivityMetrics = function(): Promise<IManufact
 ManufacturerSchema.methods.calculateEngagementScore = function(): number {
   let score = 0;
   
-  // Profile views engagement
   if (this.profileViews) {
     score += Math.min(this.profileViews * 0.1, 20);
   }
   
-  // Connection success rate
   const successRate = this.connectionSuccessRate;
   score += successRate * 0.3;
   
-  // Recent activity
   if (this.lastLoginAt && (Date.now() - this.lastLoginAt.getTime()) < 7 * 24 * 60 * 60 * 1000) {
-    score += 20; // Active in last week
+    score += 20;
   }
   
-  // Profile completeness bonus
   score += this.getProfileCompleteness() * 0.3;
   
   return Math.min(Math.round(score), 100);
 };
 
+// Eligibility check (aligned with service canConnectToBrand)
 ManufacturerSchema.methods.canConnectToBrand = async function(brandId: string): Promise<boolean> {
-  // Check if already connected
   if (this.brands.includes(brandId)) {
     return false;
   }
   
-  // Check account status
   if (!this.isAccountActive() || !this.isEmailVerified) {
     return false;
   }
   
-  // Check profile completeness
   if (this.getProfileCompleteness() < 60) {
     return false;
   }
@@ -685,8 +683,6 @@ ManufacturerSchema.methods.canConnectToBrand = async function(brandId: string): 
 };
 
 ManufacturerSchema.methods.getConnectionHistory = async function(): Promise<any[]> {
-  // This would typically involve a separate ConnectionHistory model
-  // For now, return basic info from the manufacturer's perspective
   return [
     {
       type: 'connection_requests_sent',
@@ -756,7 +752,6 @@ ManufacturerSchema.methods.updateConnectionStats = function(action: 'sent' | 're
   
   this.connectionRequests[action] += 1;
   
-  // Update total connections for approved requests
   if (action === 'approved') {
     this.totalConnections = (this.totalConnections || 0) + 1;
   }
@@ -764,87 +759,7 @@ ManufacturerSchema.methods.updateConnectionStats = function(action: 'sent' | 're
   return this.save();
 };
 
-// Enhanced Static Methods
-ManufacturerSchema.statics.findByIndustry = function(industry: string) {
-  return this.find({ 
-    industry, 
-    isActive: { $ne: false },
-    isEmailVerified: true
-  }).sort({ profileScore: -1, name: 1 });
-};
-
-ManufacturerSchema.statics.findVerified = function() {
-  return this.find({ 
-    isVerified: true,
-    isEmailVerified: true,
-    isActive: { $ne: false }
-  }).sort({ profileScore: -1, name: 1 });
-};
-
-ManufacturerSchema.statics.findTopPerformers = function(limit: number = 10) {
-  return this.find({
-    isActive: true,
-    isVerified: true,
-    profileScore: { $gte: 80 }
-  })
-  .sort({ profileScore: -1, totalConnections: -1 })
-  .limit(limit);
-};
-
-ManufacturerSchema.statics.getIndustryStats = function() {
-  return this.aggregate([
-    { $match: { isActive: { $ne: false } } },
-    { 
-      $group: { 
-        _id: '$industry', 
-        count: { $sum: 1 },
-        averageScore: { $avg: '$profileScore' },
-        verified: { $sum: { $cond: ['$isVerified', 1, 0] } }
-      } 
-    },
-    { $sort: { count: -1 } }
-  ]);
-};
-
-ManufacturerSchema.statics.searchManufacturers = function(searchTerm: string, options: any = {}) {
-  const query: any = {
-    isActive: true,
-    $or: [
-      { name: { $regex: searchTerm, $options: 'i' } },
-      { industry: { $regex: searchTerm, $options: 'i' } },
-      { servicesOffered: { $in: [new RegExp(searchTerm, 'i')] } },
-      { description: { $regex: searchTerm, $options: 'i' } }
-    ]
-  };
-  
-  // Add filters
-  if (options.industry) {
-    query.industry = { $regex: options.industry, $options: 'i' };
-  }
-  
-  if (options.verified !== undefined) {
-    query.isVerified = options.verified;
-  }
-  
-  if (options.minMoq !== undefined || options.maxMoq !== undefined) {
-    query.moq = {};
-    if (options.minMoq !== undefined) query.moq.$gte = options.minMoq;
-    if (options.maxMoq !== undefined) query.moq.$lte = options.maxMoq;
-  }
-  
-  if (options.services && options.services.length > 0) {
-    query.servicesOffered = { $in: options.services.map((s: string) => new RegExp(s, 'i')) };
-  }
-  
-  if (options.country) {
-    query['headquarters.country'] = { $regex: options.country, $options: 'i' };
-  }
-  
-  return this.find(query)
-    .sort({ profileScore: -1, totalConnections: -1 })
-    .limit(options.limit || 50);
-};
-
+// Static Methods (aligned with service search methods)
 ManufacturerSchema.statics.getManufacturerStats = function() {
   return this.aggregate([
     {
@@ -855,8 +770,7 @@ ManufacturerSchema.statics.getManufacturerStats = function() {
         verifiedManufacturers: { $sum: { $cond: ['$isVerified', 1, 0] } },
         emailVerifiedManufacturers: { $sum: { $cond: ['$isEmailVerified', 1, 0] } },
         averageProfileScore: { $avg: '$profileScore' },
-        averageConnections: { $avg: '$totalConnections' },
-        topIndustries: { $push: '$industry' }
+        averageConnections: { $avg: '$totalConnections' }
       }
     }
   ]);
@@ -891,9 +805,9 @@ ManufacturerSchema.statics.getEngagementMetrics = function(days: number = 30) {
   ]);
 };
 
-// Pre-save middleware
+// Pre-save middleware (aligned with service validation)
 ManufacturerSchema.pre('save', async function(next) {
-  // Hash password if modified
+  // Hash password if modified (aligned with auth service)
   if (this.isModified('password')) {
     try {
       const salt = await bcrypt.genSalt(12);
@@ -903,7 +817,7 @@ ManufacturerSchema.pre('save', async function(next) {
     }
   }
   
-  // Clean up arrays
+  // Clean up arrays (aligned with service normalization)
   if (this.socialUrls) {
     this.socialUrls = this.socialUrls.filter(url => url && url.trim());
   }
@@ -916,7 +830,7 @@ ManufacturerSchema.pre('save', async function(next) {
     this.certifications = this.certifications.filter(cert => cert && cert.trim());
   }
   
-  // Update profile completeness and score
+  // Update profile metrics (aligned with service calculations)
   if (this.isModified() && !this.isNew) {
     this.lastProfileUpdate = new Date();
     
@@ -933,7 +847,7 @@ ManufacturerSchema.pre('save', async function(next) {
     this.profileScore = this.calculateProfileScore();
   }
   
-  // Initialize default values for new documents
+  // Initialize defaults for new documents (aligned with service expectations)
   if (this.isNew) {
     if (!this.connectionRequests) {
       this.connectionRequests = { sent: 0, received: 0, approved: 0, rejected: 0 };
@@ -971,7 +885,7 @@ ManufacturerSchema.pre('save', async function(next) {
     this.profileScore = this.calculateProfileScore();
   }
   
-  // Update total connections when brands array changes
+  // Update total connections when brands array changes (aligned with service logic)
   if (this.isModified('brands')) {
     this.totalConnections = this.brands.length;
   }
@@ -979,9 +893,8 @@ ManufacturerSchema.pre('save', async function(next) {
   next();
 });
 
-// Post-save middleware for analytics
+// Post-save middleware for analytics (aligned with service tracking)
 ManufacturerSchema.post('save', function(doc) {
-  // Log important changes for analytics
   if (this.isModified('isVerified') && doc.isVerified) {
     console.log(`Manufacturer ${doc.email} verified at ${new Date()}`);
   }
@@ -991,10 +904,62 @@ ManufacturerSchema.post('save', function(doc) {
   }
 });
 
-// Pre-findOneAndUpdate middleware
+// Pre-findOneAndUpdate middleware (aligned with service updates)
 ManufacturerSchema.pre('findOneAndUpdate', function() {
-  // Update lastProfileUpdate when updating
   this.set({ lastProfileUpdate: new Date() });
 });
 
-export const Manufacturer = model<IManufacturer>('Manufacturer', ManufacturerSchema);
+export const Manufacturer = model<IManufacturer>('Manufacturer', ManufacturerSchema);.findByIndustry = function(industry: string) {
+  return this.find({ 
+    industry, 
+    isActive: { $ne: false },
+    isEmailVerified: true
+  }).sort({ profileScore: -1, name: 1 });
+};
+
+ManufacturerSchema.statics.findVerified = function() {
+  return this.find({ 
+    isVerified: true,
+    isEmailVerified: true,
+    isActive: { $ne: false }
+  }).sort({ profileScore: -1, name: 1 });
+};
+
+ManufacturerSchema.statics.searchManufacturers = function(searchTerm: string, options: any = {}) {
+  const query: any = {
+    isActive: true,
+    $or: [
+      { name: { $regex: searchTerm, $options: 'i' } },
+      { industry: { $regex: searchTerm, $options: 'i' } },
+      { servicesOffered: { $in: [new RegExp(searchTerm, 'i')] } },
+      { description: { $regex: searchTerm, $options: 'i' } }
+    ]
+  };
+  
+  if (options.industry) {
+    query.industry = { $regex: options.industry, $options: 'i' };
+  }
+  
+  if (options.verified !== undefined) {
+    query.isVerified = options.verified;
+  }
+  
+  if (options.minMoq !== undefined || options.maxMoq !== undefined) {
+    query.moq = {};
+    if (options.minMoq !== undefined) query.moq.$gte = options.minMoq;
+    if (options.maxMoq !== undefined) query.moq.$lte = options.maxMoq;
+  }
+  
+  if (options.services && options.services.length > 0) {
+    query.servicesOffered = { $in: options.services.map((s: string) => new RegExp(s, 'i')) };
+  }
+  
+  if (options.country) {
+    query['headquarters.country'] = { $regex: options.country, $options: 'i' };
+  }
+  
+  return this.find(query)
+    .sort({ profileScore: -1, totalConnections: -1 })
+    .limit(options.limit || 50);
+  
+};

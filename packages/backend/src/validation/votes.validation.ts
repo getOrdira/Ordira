@@ -97,7 +97,7 @@ export const deployVotingContractSchema = Joi.object({
       .pattern(/^0x[a-fA-F0-9]{40}$/)
       .required()
       .messages({
-        'string.pattern.base': 'Admin address must be a valid Ethereum address',
+        'string.pattern.base': 'Admin address must be a valid Base address',
         'any.required': 'Admin address is required'
       }),
 
@@ -105,14 +105,14 @@ export const deployVotingContractSchema = Joi.object({
       .pattern(/^0x[a-fA-F0-9]{40}$/)
       .optional()
       .messages({
-        'string.pattern.base': 'Treasury address must be a valid Ethereum address'
+        'string.pattern.base': 'Treasury address must be a valid Base address'
       }),
 
     tokenAddress: Joi.string()
       .pattern(/^0x[a-fA-F0-9]{40}$/)
       .optional()
       .messages({
-        'string.pattern.base': 'Token address must be a valid Ethereum address'
+        'string.pattern.base': 'Token address must be a valid Base address'
       })
   }).optional()
 });

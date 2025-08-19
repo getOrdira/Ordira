@@ -1,6 +1,6 @@
 // src/validation/brandSettings.validation.ts
 import Joi from 'joi';
-import { commonSchemas, customJoi } from '../middleware/validation.middleware';
+import { commonSchemas } from '../middleware/validation.middleware';
 
 /**
  * Enhanced brand settings validation with comprehensive customization and integration options

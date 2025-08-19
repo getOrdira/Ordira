@@ -73,12 +73,13 @@ export class BrandSettingsService {
    */
   async getEnhancedSettings(businessId: string): Promise<EnhancedBrandSettings> {
     const settings = await this.getSettings(businessId);
-    return {
+     {
       ...settings.toObject(),
       version: 1,
       lastUpdatedBy: businessId,
       updateSource: 'api'
-    };
+    }
+    return;
   }
 
   /**

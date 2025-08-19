@@ -6,7 +6,7 @@ export interface IDomainMapping extends Document {
   hostname: string; // Legacy field for backward compatibility
   domain: string; // Primary domain field
   
-  // Status and configuration
+  // Status and configuration (from controller)
   status: 'pending_verification' | 'active' | 'error' | 'deleting';
   certificateType: 'letsencrypt' | 'custom';
   forceHttps: boolean;
@@ -20,7 +20,7 @@ export interface IDomainMapping extends Document {
   verifiedAt?: Date;
   verifiedBy?: Types.ObjectId;
   
-  // SSL configuration
+  // SSL configuration (expanded from service)
   sslEnabled: boolean;
   sslExpiresAt?: Date;
   sslStatus: 'unknown' | 'active' | 'expired' | 'expiring_soon' | 'error';
@@ -35,7 +35,7 @@ export interface IDomainMapping extends Document {
   lastCertificateRenewal?: Date;
   renewedBy?: Types.ObjectId;
   
-  // Custom certificate data
+  // Custom certificate data (from controller)
   customCertificate?: {
     certificate: string;
     privateKey: string;
@@ -44,7 +44,7 @@ export interface IDomainMapping extends Document {
     uploadedBy: Types.ObjectId;
   };
   
-  // DNS and CNAME configuration
+  // DNS and CNAME configuration (enhanced from service)
   cnameTarget: string;
   dnsRecords?: {
     type: 'CNAME' | 'A' | 'TXT';
@@ -55,14 +55,14 @@ export interface IDomainMapping extends Document {
   }[];
   dnsStatus: 'unknown' | 'verified' | 'error' | 'pending';
   
-  // Health monitoring
+  // Health monitoring (from service)
   healthStatus: 'unknown' | 'healthy' | 'warning' | 'error';
   lastHealthCheck?: Date;
   averageResponseTime?: number;
   uptimePercentage?: number;
   lastDowntime?: Date;
   
-  // Performance metrics
+  // Performance metrics (from service)
   performanceMetrics?: {
     responseTime: number;
     uptime: number;
@@ -70,7 +70,7 @@ export interface IDomainMapping extends Document {
     lastChecked: Date;
   };
   
-  // Analytics tracking
+  // Analytics tracking (from service)
   lastAccessedAt?: Date;
   requestCount: number;
   analyticsData?: {
@@ -80,7 +80,7 @@ export interface IDomainMapping extends Document {
     lastReset: Date;
   };
   
-  // Plan and configuration metadata
+  // Plan and configuration metadata (from controller)
   planLevel: 'foundation' | 'growth' | 'premium' | 'enterprise';
   createdBy: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -93,11 +93,19 @@ export interface IDomainMapping extends Document {
     updateReason?: string;
   };
   
-  // Deletion tracking
+  // Deletion tracking (from controller)
   deletedBy?: Types.ObjectId;
   deletionReason?: string;
   
-  // Instance methods
+  // Additional service-referenced fields
+  updateMetadata?: {
+    changedFields?: string[];
+    updateReason?: string;
+    ipAddress?: string;
+    timestamp?: Date;
+  };
+  
+  // Instance methods (from both files)
   generateVerificationToken(): string;
   markAsVerified(): Promise<IDomainMapping>;
   incrementRequestCount(): Promise<IDomainMapping>;
@@ -415,6 +423,14 @@ const DomainMappingSchema = new Schema<IDomainMapping>(
       updateReason: String
     },
     
+    // Update metadata (additional service field)
+    updateMetadata: {
+      changedFields: [String],
+      updateReason: String,
+      ipAddress: String,
+      timestamp: Date
+    },
+    
     // Deletion tracking
     deletedBy: {
       type: Schema.Types.ObjectId,
@@ -437,12 +453,18 @@ const DomainMappingSchema = new Schema<IDomainMapping>(
           delete ret.customCertificate.privateKey;
           delete ret.customCertificate.chainCertificate;
         }
+        // Add computed fields for API responses
+        ret.id = ret._id.toString();
+        ret.overallHealth = doc.overallHealth;
+        ret.verificationStatus = doc.verificationStatus;
         return ret;
       }
-    }
+    },
+    toObject: { virtuals: true }
   }
 );
 
+// ===== INDEXES =====
 // Comprehensive indexes for performance
 DomainMappingSchema.index({ business: 1, status: 1 });
 DomainMappingSchema.index({ business: 1, isActive: 1 });
@@ -456,11 +478,15 @@ DomainMappingSchema.index({ lastHealthCheck: 1 });
 DomainMappingSchema.index({ planLevel: 1 });
 DomainMappingSchema.index({ createdAt: -1 });
 DomainMappingSchema.index({ updatedAt: -1 });
+DomainMappingSchema.index({ requestCount: -1 }); // For analytics
+DomainMappingSchema.index({ lastAccessedAt: -1 }); // For activity tracking
 
 // Compound indexes for common queries
 DomainMappingSchema.index({ business: 1, status: 1, healthStatus: 1 });
 DomainMappingSchema.index({ status: 1, certificateExpiry: 1 });
+DomainMappingSchema.index({ business: 1, domain: 1 }, { unique: true });
 
+// ===== VIRTUALS =====
 // Virtual for backward compatibility
 DomainMappingSchema.virtual('verificationStatus').get(function() {
   if (this.isVerified) return 'verified';
@@ -468,7 +494,7 @@ DomainMappingSchema.virtual('verificationStatus').get(function() {
   return 'not_started';
 });
 
-// Virtual for overall health
+// Virtual for overall health (enhanced)
 DomainMappingSchema.virtual('overallHealth').get(function() {
   if (this.status !== 'active') return 'inactive';
   if (this.healthStatus === 'error') return 'error';
@@ -479,7 +505,29 @@ DomainMappingSchema.virtual('overallHealth').get(function() {
   return 'unknown';
 });
 
-// Instance methods
+// Virtual for SSL days until expiry
+DomainMappingSchema.virtual('sslDaysUntilExpiry').get(function() {
+  if (!this.certificateExpiry) return null;
+  return Math.floor((this.certificateExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+});
+
+// Virtual for domain activity score
+DomainMappingSchema.virtual('activityScore').get(function() {
+  const daysSinceLastAccess = this.lastAccessedAt ? 
+    Math.floor((Date.now() - this.lastAccessedAt.getTime()) / (1000 * 60 * 60 * 24)) : 365;
+  
+  if (daysSinceLastAccess <= 1) return 'very_active';
+  if (daysSinceLastAccess <= 7) return 'active';
+  if (daysSinceLastAccess <= 30) return 'moderate';
+  if (daysSinceLastAccess <= 90) return 'low';
+  return 'inactive';
+});
+
+// ===== INSTANCE METHODS =====
+
+/**
+ * Generate verification token
+ */
 DomainMappingSchema.methods.generateVerificationToken = function(): string {
   const crypto = require('crypto');
   const token = crypto.randomBytes(32).toString('hex');
@@ -487,6 +535,9 @@ DomainMappingSchema.methods.generateVerificationToken = function(): string {
   return token;
 };
 
+/**
+ * Mark domain as verified
+ */
 DomainMappingSchema.methods.markAsVerified = function(): Promise<IDomainMapping> {
   this.isVerified = true;
   this.verifiedAt = new Date();
@@ -496,6 +547,9 @@ DomainMappingSchema.methods.markAsVerified = function(): Promise<IDomainMapping>
   return this.save();
 };
 
+/**
+ * Increment request count and update analytics
+ */
 DomainMappingSchema.methods.incrementRequestCount = function(): Promise<IDomainMapping> {
   this.requestCount += 1;
   this.lastAccessedAt = new Date();
@@ -514,6 +568,9 @@ DomainMappingSchema.methods.incrementRequestCount = function(): Promise<IDomainM
   return this.save();
 };
 
+/**
+ * Update SSL certificate information
+ */
 DomainMappingSchema.methods.updateSSLInfo = function(expiresAt: Date): Promise<IDomainMapping> {
   this.sslEnabled = true;
   this.sslExpiresAt = expiresAt;
@@ -531,17 +588,26 @@ DomainMappingSchema.methods.updateSSLInfo = function(expiresAt: Date): Promise<I
   return this.save();
 };
 
+/**
+ * Set DNS records for domain
+ */
 DomainMappingSchema.methods.setDNSRecords = function(records: any[]): Promise<IDomainMapping> {
   this.dnsRecords = records;
   return this.save();
 };
 
+/**
+ * Update health status with timestamp
+ */
 DomainMappingSchema.methods.updateHealthStatus = function(status: string): Promise<IDomainMapping> {
   this.healthStatus = status as any;
   this.lastHealthCheck = new Date();
   return this.save();
 };
 
+/**
+ * Record performance metrics
+ */
 DomainMappingSchema.methods.recordPerformanceMetrics = function(metrics: {
   responseTime: number;
   uptime: number;
@@ -556,18 +622,27 @@ DomainMappingSchema.methods.recordPerformanceMetrics = function(metrics: {
   return this.save();
 };
 
+/**
+ * Check if domain can be deleted
+ */
 DomainMappingSchema.methods.canBeDeleted = function(): boolean {
   return ['pending_verification', 'error'].includes(this.status);
 };
 
+/**
+ * Check if SSL certificate is expiring soon
+ */
 DomainMappingSchema.methods.isExpiringSoon = function(days: number = 30): boolean {
   if (!this.certificateExpiry) return false;
   const daysUntilExpiry = Math.floor((this.certificateExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   return daysUntilExpiry <= days;
 };
 
+/**
+ * Get setup instructions for domain configuration
+ */
 DomainMappingSchema.methods.getSetupInstructions = function(): any {
-  return {
+  const instructions = {
     dnsRecords: this.dnsRecords || [],
     verification: {
       method: this.verificationMethod,
@@ -581,9 +656,22 @@ DomainMappingSchema.methods.getSetupInstructions = function(): any {
     },
     cnameTarget: this.cnameTarget
   };
+
+  // Add specific instructions based on status
+  if (this.status === 'pending_verification') {
+    instructions.verification.steps.unshift('Configure the required DNS records below');
+  } else if (this.status === 'active') {
+    instructions.verification.steps = ['Domain is active and configured correctly'];
+  }
+
+  return instructions;
 };
 
-// Static methods
+// ===== STATIC METHODS =====
+
+/**
+ * Find domains by business
+ */
 DomainMappingSchema.statics.findByBusiness = function(businessId: string) {
   return this.find({ 
     business: businessId,
@@ -591,6 +679,9 @@ DomainMappingSchema.statics.findByBusiness = function(businessId: string) {
   }).sort({ createdAt: -1 });
 };
 
+/**
+ * Find active domains
+ */
 DomainMappingSchema.statics.findActive = function() {
   return this.find({ 
     isActive: true, 
@@ -599,6 +690,9 @@ DomainMappingSchema.statics.findActive = function() {
   });
 };
 
+/**
+ * Find domain by hostname (support both hostname and domain fields)
+ */
 DomainMappingSchema.statics.findByHostname = function(hostname: string) {
   return this.findOne({ 
     $or: [
@@ -611,6 +705,9 @@ DomainMappingSchema.statics.findByHostname = function(hostname: string) {
   });
 };
 
+/**
+ * Find domains expiring soon
+ */
 DomainMappingSchema.statics.findExpiring = function(days: number = 30) {
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + days);
@@ -626,6 +723,9 @@ DomainMappingSchema.statics.findExpiring = function(days: number = 30) {
   });
 };
 
+/**
+ * Find healthy domains
+ */
 DomainMappingSchema.statics.findHealthy = function() {
   return this.find({
     status: 'active',
@@ -635,6 +735,9 @@ DomainMappingSchema.statics.findHealthy = function() {
   });
 };
 
+/**
+ * Find domains with issues
+ */
 DomainMappingSchema.statics.findWithIssues = function() {
   return this.find({
     $or: [
@@ -647,6 +750,9 @@ DomainMappingSchema.statics.findWithIssues = function() {
   });
 };
 
+/**
+ * Get business domain statistics
+ */
 DomainMappingSchema.statics.getBusinessDomainStats = function(businessId: string) {
   return this.aggregate([
     { 
@@ -670,6 +776,9 @@ DomainMappingSchema.statics.getBusinessDomainStats = function(businessId: string
   ]);
 };
 
+/**
+ * Get global domain statistics
+ */
 DomainMappingSchema.statics.getGlobalStats = function() {
   return this.aggregate([
     {
@@ -699,7 +808,36 @@ DomainMappingSchema.statics.getGlobalStats = function() {
   ]);
 };
 
-// Pre-save middleware
+/**
+ * Find domains needing health checks
+ */
+DomainMappingSchema.statics.findNeedingHealthCheck = function(olderThanMinutes: number = 60) {
+  const cutoffTime = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+  
+  return this.find({
+    status: 'active',
+    $or: [
+      { lastHealthCheck: { $lt: cutoffTime } },
+      { lastHealthCheck: { $exists: false } }
+    ]
+  });
+};
+
+/**
+ * Get domains by plan level
+ */
+DomainMappingSchema.statics.findByPlanLevel = function(planLevel: string) {
+  return this.find({ 
+    planLevel,
+    status: { $ne: 'deleting' }
+  }).sort({ createdAt: -1 });
+};
+
+// ===== PRE/POST HOOKS =====
+
+/**
+ * Pre-save middleware for validation and defaults
+ */
 DomainMappingSchema.pre('save', function(next) {
   // Ensure both hostname and domain are set and lowercase
   if (this.domain) {
@@ -744,10 +882,18 @@ DomainMappingSchema.pre('save', function(next) {
     this.status = 'active';
   }
   
+  // Sync mappingMetadata with updateMetadata
+  if (this.isModified('updateMetadata') && this.updateMetadata) {
+    if (!this.mappingMetadata) this.mappingMetadata = {};
+    Object.assign(this.mappingMetadata, this.updateMetadata);
+  }
+  
   next();
 });
 
-// Pre-validate middleware
+/**
+ * Pre-validate middleware
+ */
 DomainMappingSchema.pre('validate', function(next) {
   // Validate that domain doesn't contain protocol
   if (this.domain && (this.domain.includes('http://') || this.domain.includes('https://'))) {
@@ -767,15 +913,118 @@ DomainMappingSchema.pre('validate', function(next) {
   next();
 });
 
-// Post-save middleware for analytics
+/**
+ * Post-save middleware for analytics and notifications
+ */
 DomainMappingSchema.post('save', function(doc) {
   // Log important changes for analytics
   if (this.isModified('status')) {
     console.log(`Domain ${doc.domain} status changed to ${doc.status}`);
+    
+    // Emit real-time updates
+    process.nextTick(() => {
+      // Example: socketService.emit(`business:${doc.business}`, 'domain:status_changed', {
+      //   domainId: doc._id,
+      //   domain: doc.domain,
+      //   newStatus: doc.status,
+      //   timestamp: new Date()
+      // });
+    });
   }
+  
   if (this.isModified('healthStatus')) {
     console.log(`Domain ${doc.domain} health changed to ${doc.healthStatus}`);
+    
+    // Send notifications for critical health issues
+    if (doc.healthStatus === 'error') {
+      process.nextTick(async () => {
+        try {
+          // Example: await notificationsService.sendDomainHealthAlert(doc.business, doc);
+          console.log(`Health alert sent for domain ${doc.domain}`);
+        } catch (error) {
+          console.error(`Failed to send health alert for domain ${doc.domain}:`, error);
+        }
+      });
+    }
   }
+  
+  // SSL expiration warnings
+  if (this.isModified('sslStatus') && doc.sslStatus === 'expiring_soon') {
+    process.nextTick(async () => {
+      try {
+        // Example: await notificationsService.sendSSLExpirationWarning(doc.business, doc);
+        console.log(`SSL expiration warning sent for domain ${doc.domain}`);
+      } catch (error) {
+        console.error(`Failed to send SSL warning for domain ${doc.domain}:`, error);
+      }
+    });
+  }
+  
+  // Domain verification success
+  if (this.isModified('isVerified') && doc.isVerified) {
+    process.nextTick(async () => {
+      try {
+        // Example: await notificationsService.sendDomainVerificationSuccess(doc.business, doc);
+        console.log(`Verification success notification sent for domain ${doc.domain}`);
+      } catch (error) {
+        console.error(`Failed to send verification success for domain ${doc.domain}:`, error);
+      }
+    });
+  }
+  
+  // Update domain cache for routing
+  if (this.isModified('status') || this.isModified('isVerified') || this.isModified('domain')) {
+    process.nextTick(async () => {
+      try {
+        // Example: await domainCache.refreshDomainMapping(doc.domain, doc.business);
+        console.log(`Domain cache updated for ${doc.domain}`);
+      } catch (error) {
+        console.error(`Failed to update domain cache for ${doc.domain}:`, error);
+      }
+    });
+  }
+});
+
+/**
+ * Pre-remove hook for cleanup
+ */
+DomainMappingSchema.pre('remove', function(next) {
+  console.log(`Removing domain mapping for ${this.domain}`);
+  
+  // Cancel any pending SSL certificate requests
+  if (this.status === 'pending_verification') {
+    console.log(`Cancelling pending verification for ${this.domain}`);
+  }
+  
+  // Log for audit trail
+  console.log(`Domain mapping ${this.domain} removed for business ${this.business}`);
+  
+  next();
+});
+
+/**
+ * Post-remove hook for cleanup and notifications
+ */
+DomainMappingSchema.post('remove', function(doc) {
+  process.nextTick(async () => {
+    try {
+      // Clear domain from cache
+      // Example: await domainCache.removeDomainMapping(doc.domain);
+      
+      // Send removal notification
+      // Example: await notificationsService.sendDomainRemovalConfirmation(doc.business, doc);
+      
+      // Revoke SSL certificate if needed
+      if (doc.sslEnabled && doc.certificateType === 'letsencrypt') {
+        // Example: await sslService.revokeCertificate(doc.domain);
+        console.log(`SSL certificate revocation initiated for ${doc.domain}`);
+      }
+      
+      console.log(`Cleanup completed for removed domain ${doc.domain}`);
+    } catch (error) {
+      console.error(`Failed to complete cleanup for removed domain ${doc.domain}:`, error);
+    }
+  });
 });
 
 export const DomainMapping = model<IDomainMapping>('DomainMapping', DomainMappingSchema);

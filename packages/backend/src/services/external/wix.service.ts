@@ -1387,7 +1387,14 @@ export class WixService {
     }
   }
 
+  // ===== LEGACY COMPATIBILITY METHODS =====
+
+  /**
+   * Legacy method for backward compatibility
+   * @deprecated Use disconnectWix instead
+   */
   async disconnect(businessId: string): Promise<void> {
     await this.disconnectWix(businessId);
   }
+
 }

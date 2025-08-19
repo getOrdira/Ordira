@@ -1,8 +1,5 @@
 // src/models/certificate.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
-import { BlockchainNftService } from '../services/blockchain/nft.service';
-import { BusinessSettingsService } from '../services/business/businessSettings.service';
-import { NotificationsService } from '../services/external/notifications.service';
 
 export interface ICertificate extends Document {
   business: Types.ObjectId;
@@ -12,7 +9,7 @@ export interface ICertificate extends Document {
   txHash: string;
   contractAddress?: string;
   
-  // ✨ Enhanced transfer tracking fields
+  // Enhanced transfer tracking fields (from controller and service)
   status: 'minted' | 'pending_transfer' | 'transferred_to_brand' | 'transfer_failed' | 'revoked';
   mintedToRelayer: boolean;
   transferredToBrand?: boolean;
@@ -25,12 +22,15 @@ export interface ICertificate extends Document {
   maxTransferAttempts: number;
   nextTransferAttempt?: Date;
   
-  // Transfer automation settings
+  // Transfer automation settings (referenced in service)
   autoTransferEnabled: boolean;
   transferDelayMinutes: number;
   transferTimeout: number;
+  transferScheduled?: boolean; // Referenced in controller
+  transferDelay?: number; // Referenced in controller
+  gasUsed?: string; // Referenced in controller
   
-  // Certificate metadata
+  // Certificate metadata (aligned with controller structure)
   metadata?: {
     customMessage?: string;
     attributes?: Array<{
@@ -42,6 +42,36 @@ export interface ICertificate extends Document {
     certificateLevel?: 'bronze' | 'silver' | 'gold' | 'platinum';
   };
   
+  // Delivery options (from controller)
+  deliveryOptions?: {
+    scheduleDate?: Date;
+    priority?: 'standard' | 'priority' | 'urgent';
+    notifyRecipient?: boolean;
+  };
+  
+  // Web3 options (from controller)
+  web3Options?: {
+    autoTransfer?: boolean;
+    transferDelay?: number;
+    brandWallet?: string;
+    requireCustomerConfirmation?: boolean;
+    gasOptimization?: boolean;
+  };
+  
+  // Batch processing fields (from service)
+  batchId?: string;
+  batchRequest?: boolean;
+  templateId?: string;
+  
+  // Delivery tracking (from service)
+  delivered?: boolean;
+  deliveredAt?: Date;
+  deliveryMethod?: string;
+  deliveryId?: string;
+  deliveryScheduled?: boolean;
+  scheduledDeliveryDate?: Date;
+  scheduledDeliveryId?: string;
+  
   // Analytics and tracking
   viewCount: number;
   lastViewedAt?: Date;
@@ -52,7 +82,7 @@ export interface ICertificate extends Document {
   revokedAt?: Date;
   revokedReason?: string;
   
-  // Instance methods
+  // Instance methods (from both files)
   incrementViewCount(): Promise<ICertificate>;
   isTransferredToBrand(): boolean;
   canBeTransferred(): boolean;
@@ -107,7 +137,7 @@ const CertificateSchema = new Schema<ICertificate>(
       index: true
     },
     
-    // ✨ Enhanced transfer tracking fields
+    // Enhanced transfer tracking fields
     status: {
       type: String,
       enum: ['minted', 'pending_transfer', 'transferred_to_brand', 'transfer_failed', 'revoked'],
@@ -184,6 +214,20 @@ const CertificateSchema = new Schema<ICertificate>(
       min: [30000, 'Transfer timeout must be at least 30 seconds'],
       max: [1800000, 'Transfer timeout cannot exceed 30 minutes']
     },
+    transferScheduled: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    transferDelay: {
+      type: Number,
+      min: [0, 'Transfer delay cannot be negative'],
+      max: [1440, 'Transfer delay cannot exceed 24 hours']
+    },
+    gasUsed: {
+      type: String, // Store as string to handle big numbers
+      default: '0'
+    },
     
     // Certificate metadata
     metadata: {
@@ -206,8 +250,7 @@ const CertificateSchema = new Schema<ICertificate>(
         display_type: {
           type: String,
           trim: true,
-          enum: ['number', 'date', 'boost_percentage', 'boost_number'],
-          default: undefined
+          enum: ['number', 'date', 'boost_percentage', 'boost_number']
         }
       }],
       expirationDate: {
@@ -223,6 +266,94 @@ const CertificateSchema = new Schema<ICertificate>(
         type: String,
         enum: ['bronze', 'silver', 'gold', 'platinum']
       }
+    },
+    
+    // Delivery options
+    deliveryOptions: {
+      scheduleDate: {
+        type: Date
+      },
+      priority: {
+        type: String,
+        enum: ['standard', 'priority', 'urgent'],
+        default: 'standard'
+      },
+      notifyRecipient: {
+        type: Boolean,
+        default: true
+      }
+    },
+    
+    // Web3 options
+    web3Options: {
+      autoTransfer: {
+        type: Boolean,
+        default: true
+      },
+      transferDelay: {
+        type: Number,
+        min: [0, 'Transfer delay cannot be negative']
+      },
+      brandWallet: {
+        type: String,
+        trim: true,
+        match: [/^0x[a-fA-F0-9]{40}$/, 'Invalid brand wallet address format']
+      },
+      requireCustomerConfirmation: {
+        type: Boolean,
+        default: false
+      },
+      gasOptimization: {
+        type: Boolean,
+        default: true
+      }
+    },
+    
+    // Batch processing fields
+    batchId: {
+      type: String,
+      trim: true,
+      index: true
+    },
+    batchRequest: {
+      type: Boolean,
+      default: false
+    },
+    templateId: {
+      type: String,
+      trim: true,
+      index: true
+    },
+    
+    // Delivery tracking
+    delivered: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    deliveredAt: {
+      type: Date,
+      index: true
+    },
+    deliveryMethod: {
+      type: String,
+      enum: ['email', 'sms', 'wallet', 'manual'],
+      default: 'email'
+    },
+    deliveryId: {
+      type: String,
+      trim: true
+    },
+    deliveryScheduled: {
+      type: Boolean,
+      default: false
+    },
+    scheduledDeliveryDate: {
+      type: Date
+    },
+    scheduledDeliveryId: {
+      type: String,
+      trim: true
     },
     
     // Analytics
@@ -264,7 +395,16 @@ const CertificateSchema = new Schema<ICertificate>(
   },
   { 
     timestamps: true,
-    toJSON: { virtuals: true },
+    toJSON: { 
+      virtuals: true,
+      transform: function(doc, ret) {
+        // Add computed fields for API responses
+        ret.id = ret._id.toString();
+        ret.ownershipStatus = doc.getOwnershipStatus();
+        ret.canBeTransferred = doc.canBeTransferred();
+        return ret;
+      }
+    },
     toObject: { virtuals: true }
   }
 );
@@ -279,6 +419,10 @@ CertificateSchema.index({ createdAt: -1 });
 CertificateSchema.index({ status: 1, nextTransferAttempt: 1 }); // For automated transfers
 CertificateSchema.index({ autoTransferEnabled: 1, status: 1 }); // For transfer eligibility
 CertificateSchema.index({ transferAttempts: 1, maxTransferAttempts: 1 }); // For retry logic
+CertificateSchema.index({ batchId: 1 }); // For batch processing
+CertificateSchema.index({ recipient: 1, product: 1 }); // For duplicate checking
+CertificateSchema.index({ delivered: 1, deliveryScheduled: 1 }); // For delivery tracking
+CertificateSchema.index({ 'metadata.expirationDate': 1 }, { sparse: true }); // For expiration tracking
 
 // ===== VIRTUALS =====
 CertificateSchema.virtual('isExpired').get(function() {
@@ -300,6 +444,17 @@ CertificateSchema.virtual('blockchainUrl').get(function() {
   return `${baseUrl}/tx/${this.txHash}`;
 });
 
+CertificateSchema.virtual('transferBlockchainUrl').get(function() {
+  if (!this.transferTxHash) return null;
+  const chainId = process.env.CHAIN_ID || '8453';
+  const baseUrl = chainId === '8453' 
+    ? 'https://basescan.org' 
+    : chainId === '84532'
+    ? 'https://sepolia.basescan.org'
+    : 'https://basescan.org';
+  return `${baseUrl}/tx/${this.transferTxHash}`;
+});
+
 CertificateSchema.virtual('canRetryTransfer').get(function() {
   return this.transferAttempts < this.maxTransferAttempts && 
          this.status === 'transfer_failed' && 
@@ -315,6 +470,32 @@ CertificateSchema.virtual('nextRetryDate').get(function() {
   nextRetry.setMinutes(nextRetry.getMinutes() + backoffMinutes);
   
   return nextRetry;
+});
+
+CertificateSchema.virtual('transferHealth').get(function() {
+  const issues: string[] = [];
+  let score = 100;
+
+  if (this.transferFailed) {
+    issues.push('Transfer failed');
+    score -= 50;
+  }
+
+  if (this.transferAttempts > 1) {
+    issues.push('Multiple transfer attempts');
+    score -= 20;
+  }
+
+  if (this.status === 'pending_transfer' && this.nextTransferAttempt && new Date(this.nextTransferAttempt) < new Date()) {
+    issues.push('Transfer overdue');
+    score -= 30;
+  }
+
+  return {
+    status: score >= 80 ? 'healthy' : score >= 50 ? 'warning' : 'critical',
+    score: Math.max(0, score),
+    issues
+  };
 });
 
 // ===== INSTANCE METHODS =====
@@ -364,31 +545,27 @@ CertificateSchema.methods.scheduleTransfer = async function(): Promise<void> {
   }
 
   try {
-    // Get brand wallet from business settings
-    const businessSettingsService = new BusinessSettingsService();
-    const brandSettings = await businessSettingsService.getSettings(this.business.toString());
+    // Import here to avoid circular dependencies
+    const { BrandSettings } = await import('../models/brandSettings.model');
     
-    if (!brandSettings.certificateWallet) {
+    // Get brand wallet from business settings
+    const brandSettings = await BrandSettings.findOne({ business: this.business });
+    
+    if (!brandSettings?.certificateWallet && !brandSettings?.web3Settings?.certificateWallet) {
       console.warn(`No brand wallet configured for business ${this.business}. Skipping auto-transfer.`);
       return;
     }
 
-    this.brandWallet = brandSettings.certificateWallet;
+    this.brandWallet = brandSettings.certificateWallet || brandSettings.web3Settings?.certificateWallet;
     this.status = 'pending_transfer';
+    this.transferScheduled = true;
     this.nextTransferAttempt = new Date(Date.now() + (this.transferDelayMinutes * 60 * 1000));
     
     await this.save();
     
-    // Schedule the actual transfer
-    setTimeout(async () => {
-      try {
-        await this.executeTransfer();
-      } catch (error) {
-        console.error(`Failed to execute scheduled transfer for certificate ${this._id}:`, error);
-      }
-    }, this.transferDelayMinutes * 60 * 1000);
+    console.log(`Scheduled transfer for certificate ${this._id} to wallet ${this.brandWallet}`);
     
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Failed to schedule transfer for certificate ${this._id}:`, error);
     this.transferError = `Scheduling failed: ${error.message}`;
     this.status = 'transfer_failed';
@@ -411,12 +588,14 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
     this.status = 'pending_transfer';
     await this.save();
 
-    const blockchainService = new BlockchainNftService();
+    // Import here to avoid circular dependencies
+    const { NftService } = await import('../services/blockchain/nft.service');
+    const nftService = new NftService();
     
     // Execute the transfer from relayer wallet to brand wallet
-    const transferResult = await blockchainService.transferNft({
-      contractAddress: this.contractAddress!,
+    const transferResult = await nftService.transferNft(this.business.toString(), {
       tokenId: this.tokenId,
+      contractAddress: this.contractAddress!,
       fromAddress: process.env.RELAYER_WALLET_ADDRESS!, // Your relayer wallet
       toAddress: this.brandWallet,
       timeout: this.transferTimeout
@@ -425,21 +604,23 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
     // Update certificate with successful transfer
     this.status = 'transferred_to_brand';
     this.transferredToBrand = true;
-    this.transferTxHash = transferResult.txHash;
+    this.transferTxHash = transferResult.transactionHash;
     this.transferredAt = new Date();
     this.transferFailed = false;
     this.transferError = undefined;
     this.nextTransferAttempt = undefined;
+    this.gasUsed = transferResult.gasUsed || '0';
     
     await this.save();
 
     // Send success notification
+    const { NotificationsService } = await import('../services/external/notifications.service');
     const notificationsService = new NotificationsService();
     await notificationsService.sendTransferSuccessNotification(this.business.toString(), {
       certificateId: this._id.toString(),
       tokenId: this.tokenId,
       brandWallet: this.brandWallet,
-      txHash: transferResult.txHash
+      txHash: transferResult.transactionHash
     });
 
     console.log(`Successfully transferred certificate ${this._id} to brand wallet ${this.brandWallet}`);
@@ -455,20 +636,12 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
     if (this.transferAttempts < this.maxTransferAttempts) {
       const backoffMinutes = Math.pow(2, this.transferAttempts) * 5; // Exponential backoff
       this.nextTransferAttempt = new Date(Date.now() + (backoffMinutes * 60 * 1000));
-      
-      // Schedule retry
-      setTimeout(async () => {
-        try {
-          await this.retryTransfer();
-        } catch (retryError) {
-          console.error(`Retry failed for certificate ${this._id}:`, retryError);
-        }
-      }, backoffMinutes * 60 * 1000);
     }
     
     await this.save();
 
     // Send failure notification
+    const { NotificationsService } = await import('../services/external/notifications.service');
     const notificationsService = new NotificationsService();
     await notificationsService.sendTransferFailureNotification(this.business.toString(), {
       certificateId: this._id.toString(),
@@ -515,7 +688,7 @@ CertificateSchema.statics.findFailedTransfers = function(businessId?: string) {
   const query: any = {
     transferFailed: true,
     status: 'transfer_failed',
-    transferAttempts: { $lt: this.schema.paths.maxTransferAttempts.default },
+    transferAttempts: { $lt: 3 }, // Max attempts
     nextTransferAttempt: { $lte: new Date() }
   };
   
@@ -549,7 +722,7 @@ CertificateSchema.statics.findPendingTransfers = function(businessId?: string) {
  */
 CertificateSchema.statics.getStatistics = async function(businessId: string) {
   const stats = await this.aggregate([
-    { $match: { business: businessId } },
+    { $match: { business: Types.ObjectId(businessId) } },
     {
       $group: {
         _id: null,
@@ -580,7 +753,16 @@ CertificateSchema.statics.getStatistics = async function(businessId: string) {
             ]
           }
         },
-        totalTransferAttempts: { $sum: '$transferAttempts' }
+        totalTransferAttempts: { $sum: '$transferAttempts' },
+        totalGasUsed: {
+          $sum: {
+            $cond: [
+              { $ne: ['$gasUsed', null] },
+              { $toLong: '$gasUsed' },
+              0
+            ]
+          }
+        }
       }
     }
   ]);
@@ -595,7 +777,8 @@ CertificateSchema.statics.getStatistics = async function(businessId: string) {
     avgViewCount: 0,
     totalViews: 0,
     avgTransferTime: 0,
-    totalTransferAttempts: 0
+    totalTransferAttempts: 0,
+    totalGasUsed: 0
   };
 
   // Calculate success rate
@@ -606,6 +789,45 @@ CertificateSchema.statics.getStatistics = async function(businessId: string) {
   return result;
 };
 
+/**
+ * Find certificates by batch ID
+ */
+CertificateSchema.statics.findByBatchId = function(batchId: string) {
+  return this.find({ batchId }).sort({ createdAt: 1 });
+};
+
+/**
+ * Get monthly certificate creation stats
+ */
+CertificateSchema.statics.getMonthlyStats = async function(businessId: string, months: number = 12) {
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+  
+  return this.aggregate([
+    { 
+      $match: { 
+        business: Types.ObjectId(businessId),
+        createdAt: { $gte: startDate }
+      } 
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' }
+        },
+        count: { $sum: 1 },
+        transferred: { 
+          $sum: { $cond: [{ $eq: ['$status', 'transferred_to_brand'] }, 1, 0] }
+        },
+        failed: { 
+          $sum: { $cond: [{ $eq: ['$status', 'transfer_failed'] }, 1, 0] }
+        }
+      }
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1 } }
+  ]);
+};
 
 // ===== PRE/POST HOOKS =====
 
@@ -615,7 +837,7 @@ CertificateSchema.statics.getStatistics = async function(businessId: string) {
 CertificateSchema.pre('save', function(next) {
   // Set verification URL if not provided
   if (!this.verificationUrl && this._id) {
-    this.verificationUrl = `${process.env.FRONTEND_URL}/certificates/verify/${this._id}`;
+    this.verificationUrl = `${process.env.FRONTEND_URL || 'https://app.example.com'}/certificates/verify/${this._id}`;
   }
   
   // Validate transfer status consistency
@@ -633,6 +855,19 @@ CertificateSchema.pre('save', function(next) {
     this.transferError = undefined;
     this.transferAttempts = 0;
     this.nextTransferAttempt = undefined;
+  }
+  
+  // Sync web3Options with top-level transfer settings
+  if (this.web3Options?.autoTransfer !== undefined) {
+    this.autoTransferEnabled = this.web3Options.autoTransfer;
+  }
+  
+  if (this.web3Options?.transferDelay !== undefined) {
+    this.transferDelayMinutes = this.web3Options.transferDelay;
+  }
+  
+  if (this.web3Options?.brandWallet) {
+    this.brandWallet = this.web3Options.brandWallet;
   }
   
   next();
@@ -658,6 +893,51 @@ CertificateSchema.post('save', function(doc) {
     process.nextTick(() => {
       console.log(`Certificate ${doc._id} status changed to: ${doc.status}`);
       // You can emit WebSocket events here for real-time dashboard updates
+      // Example: socketService.emit(`business:${doc.business}`, 'certificate:status_changed', {
+      //   certificateId: doc._id,
+      //   newStatus: doc.status,
+      //   timestamp: new Date()
+      // });
+    });
+  }
+
+  // Update brand analytics when transfers complete
+  if (doc.isModified('transferredToBrand') && doc.transferredToBrand) {
+    process.nextTick(async () => {
+      try {
+        const { BrandSettings } = await import('../models/brandSettings.model');
+        const brandSettings = await BrandSettings.findOne({ business: doc.business });
+        
+        if (brandSettings) {
+          await brandSettings.updateTransferAnalytics({
+            success: true,
+            gasUsed: doc.gasUsed,
+            transferTime: doc.transferredAt && doc.createdAt ? 
+              doc.transferredAt.getTime() - doc.createdAt.getTime() : undefined
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to update transfer analytics for certificate ${doc._id}:`, error);
+      }
+    });
+  }
+
+  // Update analytics on transfer failure
+  if (doc.isModified('transferFailed') && doc.transferFailed) {
+    process.nextTick(async () => {
+      try {
+        const { BrandSettings } = await import('../models/brandSettings.model');
+        const brandSettings = await BrandSettings.findOne({ business: doc.business });
+        
+        if (brandSettings) {
+          await brandSettings.updateTransferAnalytics({
+            success: false,
+            transferTime: Date.now() - doc.createdAt.getTime()
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to update failure analytics for certificate ${doc._id}:`, error);
+      }
     });
   }
 });
@@ -668,10 +948,40 @@ CertificateSchema.post('save', function(doc) {
 CertificateSchema.pre('remove', function(next) {
   // Cancel any pending transfers
   if (this.nextTransferAttempt && this.status === 'pending_transfer') {
-    // Clear the scheduled transfer (implementation depends on your job queue)
     console.log(`Cancelling pending transfer for certificate ${this._id}`);
+    // Clear the scheduled transfer (implementation depends on your job queue)
+    // Example: jobQueue.cancel(`transfer_${this._id}`);
   }
+  
+  // Log certificate removal for audit trail
+  console.log(`Removing certificate ${this._id} for business ${this.business}`);
+  
   next();
+});
+
+/**
+ * Post-remove hook for cleanup notifications
+ */
+CertificateSchema.post('remove', function(doc) {
+  process.nextTick(async () => {
+    try {
+      // Notify about certificate removal
+      const { NotificationsService } = await import('../services/external/notifications.service');
+      const notificationsService = new NotificationsService();
+      
+      await notificationsService.notifyBrandOfCertificateRemoval(
+        doc.business.toString(),
+        {
+          certificateId: doc._id.toString(),
+          tokenId: doc.tokenId,
+          recipient: doc.recipient,
+          removedAt: new Date()
+        }
+      );
+    } catch (error) {
+      console.error(`Failed to send removal notification for certificate ${doc._id}:`, error);
+    }
+  });
 });
 
 // Export the model
