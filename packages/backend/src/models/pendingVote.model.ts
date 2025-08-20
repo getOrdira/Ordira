@@ -3,22 +3,23 @@ import { Schema, model, Document } from 'mongoose';
 
 export interface IPendingVote extends Document {
   businessId: string;
-  proposalId: string;
+  proposalId: string; // This could be "product-selection-round-1" or similar
   userId: string;
   voteId: string;
   
-  // Enhanced fields
-  voteChoice?: 'for' | 'against' | 'abstain';
+  
+  selectedProductId: string; // The product they selected/liked
+  productName?: string; // Optional: store product name for reference
+  productImageUrl?: string; // Optional: store image URL for reference
+  selectionReason?: string; // Optional: why they like this product
+  
   userSignature?: string;
   ipAddress?: string;
   userAgent?: string;
   isProcessed: boolean;
   processedAt?: Date;
-  
-  // Validation and security
   verificationHash?: string;
   isVerified: boolean;
-  
   createdAt: Date;
 }
 
@@ -54,12 +55,33 @@ const PendingVoteSchema = new Schema<IPendingVote>({
   },
   
   // Enhanced fields
-  voteChoice: {
+  selectedProductId: {
     type: String,
-    enum: ['for', 'against', 'abstain'],
-    required: [true, 'Vote choice is required'],
+    required: [true, 'Selected product ID is required'],
+    trim: true,
     index: true
   },
+  productName: {
+    type: String,
+    trim: true,
+    maxlength: [200, 'Product name cannot exceed 200 characters']
+  },
+  productImageUrl: {
+    type: String,
+    trim: true,
+    validate: {
+      validator: function(v: string) {
+        return !v || /^https?:\/\/.+/.test(v);
+      },
+      message: 'Product image URL must be a valid HTTP/HTTPS URL'
+    }
+  },
+  selectionReason: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Selection reason cannot exceed 500 characters']
+  },
+
   userSignature: {
     type: String,
     trim: true,
@@ -119,7 +141,7 @@ const PendingVoteSchema = new Schema<IPendingVote>({
 });
 
 // Indexes for performance and constraints
-PendingVoteSchema.index({ businessId: 1, proposalId: 1, userId: 1 }, { unique: true });
+PendingVoteSchema.index({ businessId: 1, proposalId: 1, userId: 1, selectedProductId: 1 }, { unique: true });
 PendingVoteSchema.index({ businessId: 1, isProcessed: 1 });
 PendingVoteSchema.index({ isProcessed: 1, createdAt: 1 });
 PendingVoteSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 }); // 24 hours TTL

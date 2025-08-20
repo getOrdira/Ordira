@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { authenticate } from '../middleware/auth.middleware';
 import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
-import { validateQuery, validateParams } from '../middleware/validation.middleware';
+import { validateQuery, validateParams, validateBody } from '../middleware/validation.middleware';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
 import { requireTenantPlan } from '../middleware/tenant.middleware';
 import * as analyticsCtrl from '../controllers/analytics.controller';
@@ -15,292 +15,409 @@ const router = Router();
 /**
  * Validation schemas for analytics endpoints
  */
-const analyticsQuerySchema = Joi.object({
+const baseAnalyticsQuerySchema = Joi.object({
   startDate: Joi.date().iso().optional(),
   endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
-  granularity: Joi.string()
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+    .optional(),
+  groupBy: Joi.string()
     .valid('hour', 'day', 'week', 'month')
     .default('day')
+    .optional(),
+  format: Joi.string()
+    .valid('json', 'csv', 'xlsx')
+    .default('json')
     .optional(),
   metrics: Joi.array()
     .items(Joi.string().valid('votes', 'certificates', 'connections', 'revenue', 'transactions', 'engagement'))
     .min(1)
     .max(10)
-    .optional(),
-  format: Joi.string()
-    .valid('json', 'csv', 'xlsx')
-    .default('json')
     .optional()
 });
 
+// UPDATED: Product selection voting analytics schema
 const votesAnalyticsQuerySchema = Joi.object({
   startDate: Joi.date().iso().optional(),
   endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
-  proposalId: Joi.string().hex().length(24).optional(),
-  granularity: Joi.string()
+  proposalId: Joi.string().trim().max(100).optional(), // Updated for flexible proposal IDs
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+    .optional(),
+  groupBy: Joi.string()
     .valid('hour', 'day', 'week', 'month')
     .default('day')
     .optional(),
-  groupBy: Joi.array()
-    .items(Joi.string().valid('proposal', 'voter', 'date', 'status'))
-    .max(3)
-    .optional()
+  metrics: Joi.array()
+    .items(Joi.string().valid(
+      'total_votes', 'participation_rate', 'proposal_success_rate',
+      'total_selections', 'product_popularity', 'unique_voters'
+    ))
+    .min(1)
+    .max(10)
+    .optional(),
+  // NEW: Product-specific filters for product selection voting
+  productId: Joi.string().trim().max(100).optional(),
+  includeProductDetails: Joi.boolean().default(true).optional()
 });
 
 const transactionsAnalyticsQuerySchema = Joi.object({
   startDate: Joi.date().iso().optional(),
   endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+    .optional(),
   type: Joi.string()
-    .valid('all', 'nft_mint', 'vote_batch', 'certificate_issue')
+    .valid('all', 'nft_mint', 'vote_batch', 'certificate_issue', 'product_selection')
     .default('all')
     .optional(),
   status: Joi.string()
     .valid('pending', 'confirmed', 'failed')
     .optional(),
   minAmount: Joi.number().min(0).optional(),
-  maxAmount: Joi.number().min(0).optional()
+  maxAmount: Joi.number().min(0).optional(),
+  groupBy: Joi.string()
+    .valid('hour', 'day', 'week', 'month')
+    .default('day')
+    .optional()
+});
+
+// UPDATED: Certificate/NFT analytics schema
+const certificateAnalyticsQuerySchema = Joi.object({
+  startDate: Joi.date().iso().optional(),
+  endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+    .optional(),
+  groupBy: Joi.string()
+    .valid('hour', 'day', 'week', 'month')
+    .default('day')
+    .optional(),
+  includeMarketData: Joi.boolean().default(false).optional(),
+  includeHolderAnalysis: Joi.boolean().default(false).optional()
 });
 
 const manufacturerAnalyticsQuerySchema = Joi.object({
   startDate: Joi.date().iso().optional(),
   endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+    .optional(),
   brandId: Joi.string().hex().length(24).optional(),
   metrics: Joi.array()
-    .items(Joi.string().valid('connections', 'orders', 'certificates', 'revenue'))
+    .items(Joi.string().valid('connections', 'orders', 'certificates', 'revenue', 'product_selections'))
     .optional()
 });
 
+// Export analytics schema
+const exportAnalyticsSchema = Joi.object({
+  type: Joi.string()
+    .valid('votes', 'transactions', 'certificates', 'products', 'engagement')
+    .required(),
+  format: Joi.string()
+    .valid('csv', 'xlsx', 'json', 'pdf')
+    .default('csv'),
+  startDate: Joi.date().iso().required(),
+  endDate: Joi.date().iso().min(Joi.ref('startDate')).required(),
+  includeRawData: Joi.boolean().default(false),
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+});
+
+// Custom report schema
+const customReportSchema = Joi.object({
+  reportType: Joi.string()
+    .valid('comprehensive', 'voting', 'products', 'certificates', 'engagement', 'financial')
+    .default('comprehensive'),
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d'),
+  metrics: Joi.array()
+    .items(Joi.string().valid(
+      'product_selections', 'voting_trends', 'certificate_analytics', 
+      'user_engagement', 'revenue_analysis', 'blockchain_activity'
+    ))
+    .min(1)
+    .required(),
+  format: Joi.string()
+    .valid('json', 'pdf', 'excel')
+    .default('json'),
+  includeCharts: Joi.boolean().default(true),
+  includeRecommendations: Joi.boolean().default(true)
+});
+
+// Comparative analytics schema
+const comparativeAnalyticsSchema = Joi.object({
+  currentPeriod: Joi.object({
+    startDate: Joi.date().iso().required(),
+    endDate: Joi.date().iso().min(Joi.ref('startDate')).required()
+  }).required(),
+  previousPeriod: Joi.object({
+    startDate: Joi.date().iso().required(),
+    endDate: Joi.date().iso().min(Joi.ref('startDate')).required()
+  }).required(),
+  metrics: Joi.array()
+    .items(Joi.string().valid('votes', 'certificates', 'connections', 'revenue'))
+    .min(1)
+    .required()
+});
+
 /**
- * Get comprehensive business analytics (Brand)
+ * CORE ANALYTICS ENDPOINTS - ONLY EXISTING CONTROLLER METHODS
+ */
+
+/**
+ * Get comprehensive business analytics overview
  * GET /api/analytics/overview
- * 
- * @requires authentication & tenant context
- * @requires premium plan or higher
- * @optional query: date range, granularity, metrics
+ * Maps to: analyticsCtrl.getDashboardAnalytics
  */
 router.get(
   '/overview',
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // 60 requests per minute
-  validateQuery(analyticsQuerySchema),
-  analyticsCtrl.getOverviewAnalytics
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateQuery(baseAnalyticsQuerySchema),
+  analyticsCtrl.getDashboardAnalytics
 );
 
 /**
- * Get voting analytics
+ * Get product selection voting analytics
  * GET /api/analytics/votes
- * 
- * @requires authentication & tenant context
- * @requires growth plan or higher
- * @optional query: date range, proposal filters, grouping
+ * Maps to: analyticsCtrl.getVotesAnalytics
  */
 router.get(
   '/votes',
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // 100 requests per minute
+  dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(votesAnalyticsQuerySchema),
   analyticsCtrl.getVotesAnalytics
 );
 
 /**
+ * Get product analytics
+ * GET /api/analytics/products
+ * Maps to: analyticsCtrl.getProductAnalytics
+ */
+router.get(
+  '/products',
+  resolveTenant,
+  authenticate,
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateQuery(baseAnalyticsQuerySchema),
+  analyticsCtrl.getProductAnalytics
+);
+
+/**
  * Get blockchain transaction analytics
  * GET /api/analytics/transactions
- * 
- * @requires authentication & tenant context
- * @requires premium plan or higher
- * @optional query: date range, transaction type, status filters
+ * Maps to: analyticsCtrl.getTransactionsAnalytics
  */
 router.get(
   '/transactions',
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // 60 requests per minute
+  dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(transactionsAnalyticsQuerySchema),
   analyticsCtrl.getTransactionsAnalytics
 );
 
 /**
- * Get manufacturer analytics (Manufacturer only)
- * GET /api/analytics/manufacturer
- * 
- * @requires manufacturer authentication
- * @optional query: date range, brand filters, metrics
- */
-router.get(
-  '/manufacturer',
-  authenticateManufacturer,
-  dynamicRateLimiter(), // 100 requests per minute
-  validateQuery(manufacturerAnalyticsQuerySchema),
-  analyticsCtrl.getManufacturerAnalytics
-);
-
-/**
- * Get certificate analytics
+ * Get NFT/certificate analytics
  * GET /api/analytics/certificates
- * 
- * @requires authentication & tenant context
- * @requires growth plan or higher
- * @optional query: date range, product filters
+ * Maps to: analyticsCtrl.getNftAnalytics
  */
 router.get(
   '/certificates',
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(),
-  validateQuery(analyticsQuerySchema),
-  analyticsCtrl.getCertificateAnalytics
-);
-
-/**
- * Get product analytics
- * GET /api/analytics/products
- * 
- * @requires authentication & tenant context
- * @optional query: date range, product filters
- */
-router.get(
-  '/products',
-  resolveTenant,
-  authenticate,
-  dynamicRateLimiter(),
-  validateQuery(analyticsQuerySchema),
-  analyticsCtrl.getProductAnalytics
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateQuery(certificateAnalyticsQuerySchema),
+  analyticsCtrl.getNftAnalytics
 );
 
 /**
  * Get engagement analytics
  * GET /api/analytics/engagement
- * 
- * @requires authentication & tenant context
- * @requires premium plan or higher
- * @optional query: date range, engagement type
+ * Maps to: analyticsCtrl.getEngagementAnalytics
  */
 router.get(
   '/engagement',
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(),
-  validateQuery(analyticsQuerySchema),
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateQuery(baseAnalyticsQuerySchema),
   analyticsCtrl.getEngagementAnalytics
 );
 
 /**
  * Get real-time analytics dashboard data
  * GET /api/analytics/dashboard
- * 
- * @requires authentication & tenant context
- * @requires premium plan or higher
+ * Maps to: analyticsCtrl.getDashboardAnalytics
  */
 router.get(
   '/dashboard',
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // 30 requests per minute
+  dynamicRateLimiter(), // FIXED: No parameters
   analyticsCtrl.getDashboardAnalytics
 );
 
 /**
- * Export analytics data
- * POST /api/analytics/export
- * 
- * @requires authentication & tenant context
- * @requires enterprise plan
- * @requires validation: export configuration
+ * MANUFACTURER ANALYTICS - EXISTING CONTROLLER METHODS ONLY
  */
-router.post(
-  '/export',
-  resolveTenant,
-  authenticate,
-  requireTenantPlan(['enterprise']),
-  dynamicRateLimiter(), // 5 exports per minute
-  validateQuery(Joi.object({
-    type: Joi.string()
-      .valid('votes', 'transactions', 'certificates', 'products', 'engagement')
-      .required(),
-    format: Joi.string()
-      .valid('csv', 'xlsx', 'json')
-      .default('csv'),
-    startDate: Joi.date().iso().required(),
-    endDate: Joi.date().iso().min(Joi.ref('startDate')).required(),
-    includeRawData: Joi.boolean().default(false)
-  })),
-  analyticsCtrl.exportAnalytics
+
+/**
+ * Get manufacturer analytics (Manufacturer only)
+ * GET /api/analytics/manufacturer
+ * Maps to: analyticsCtrl.getManufacturerAnalytics
+ */
+router.get(
+  '/manufacturer',
+  authenticateManufacturer,
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateQuery(manufacturerAnalyticsQuerySchema),
+  analyticsCtrl.getManufacturerAnalytics
 );
 
 /**
- * Get analytics for specific proposal
+ * Get manufacturer analytics for specific brand
+ * GET /api/analytics/manufacturer/brands/:brandId
+ * Maps to: analyticsCtrl.getManufacturerBrandAnalytics
+ */
+router.get(
+  '/manufacturer/brands/:brandId',
+  authenticateManufacturer,
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateParams(Joi.object({
+    brandId: Joi.string().hex().length(24).required()
+  })),
+  validateQuery(manufacturerAnalyticsQuerySchema),
+  analyticsCtrl.getManufacturerBrandAnalytics
+);
+
+/**
+ * SPECIFIC ANALYTICS ENDPOINTS - EXISTING CONTROLLER METHODS ONLY
+ */
+
+/**
+ * Get analytics for specific proposal/selection round
  * GET /api/analytics/proposals/:proposalId
- * 
- * @requires authentication & tenant context
- * @requires params: { proposalId: string }
+ * Maps to: analyticsCtrl.getProposalAnalytics
  */
 router.get(
   '/proposals/:proposalId',
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(),
+  dynamicRateLimiter(), // FIXED: No parameters
   validateParams(Joi.object({
-    proposalId: Joi.string().hex().length(24).required()
+    proposalId: Joi.string().trim().max(100).required() // Updated for flexible proposal IDs
   })),
+  validateQuery(votesAnalyticsQuerySchema),
   analyticsCtrl.getProposalAnalytics
 );
 
 /**
  * Get analytics for specific product
  * GET /api/analytics/products/:productId
- * 
- * @requires authentication & tenant context
- * @requires params: { productId: string }
+ * Maps to: analyticsCtrl.getProductAnalyticsById
  */
 router.get(
   '/products/:productId',
   resolveTenant,
   authenticate,
-  dynamicRateLimiter(),
+  dynamicRateLimiter(), // FIXED: No parameters
   validateParams(Joi.object({
-    productId: Joi.string().hex().length(24).required()
+    productId: Joi.string().trim().max(100).required()
   })),
+  validateQuery(baseAnalyticsQuerySchema),
   analyticsCtrl.getProductAnalyticsById
+);
+
+/**
+ * EXPORT AND REPORTING - EXISTING CONTROLLER METHODS ONLY
+ */
+
+/**
+ * Export analytics data
+ * POST /api/analytics/export
+ * Maps to: analyticsCtrl.exportAnalytics
+ */
+router.post(
+  '/export',
+  resolveTenant,
+  authenticate,
+  requireTenantPlan(['enterprise']),
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateBody(exportAnalyticsSchema),
+  analyticsCtrl.exportAnalytics
+);
+
+/**
+ * Generate custom analytics reports
+ * POST /api/analytics/custom-report
+ * Maps to: analyticsCtrl.generateCustomReport
+ */
+router.post(
+  '/custom-report',
+  resolveTenant,
+  authenticate,
+  requireTenantPlan(['premium', 'enterprise']),
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateBody(customReportSchema),
+  analyticsCtrl.generateCustomReport
 );
 
 /**
  * Get comparative analytics between date ranges
  * POST /api/analytics/compare
- * 
- * @requires authentication & tenant context
- * @requires premium plan or higher
- * @requires validation: comparison configuration
+ * Maps to: analyticsCtrl.getComparativeAnalytics
  */
 router.post(
   '/compare',
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // 20 comparisons per minute
-  validateQuery(Joi.object({
-    currentPeriod: Joi.object({
-      startDate: Joi.date().iso().required(),
-      endDate: Joi.date().iso().min(Joi.ref('startDate')).required()
-    }).required(),
-    previousPeriod: Joi.object({
-      startDate: Joi.date().iso().required(),
-      endDate: Joi.date().iso().min(Joi.ref('startDate')).required()
-    }).required(),
-    metrics: Joi.array()
-      .items(Joi.string().valid('votes', 'certificates', 'connections', 'revenue'))
-      .min(1)
-      .required()
-  })),
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateBody(comparativeAnalyticsSchema),
   analyticsCtrl.getComparativeAnalytics
+);
+
+/**
+ * LEGACY COMPATIBILITY
+ */
+
+/**
+ * Legacy NFT analytics endpoint (maps to certificates)
+ * GET /api/analytics/nfts
+ * Maps to: analyticsCtrl.getNftAnalytics
+ */
+router.get(
+  '/nfts',
+  resolveTenant,
+  authenticate,
+  requireTenantPlan(['growth', 'premium', 'enterprise']),
+  dynamicRateLimiter(), // FIXED: No parameters
+  validateQuery(certificateAnalyticsQuerySchema),
+  (req, res, next) => {
+    // Add deprecation warning header
+    res.setHeader('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /api/analytics/certificates instead.');
+    next();
+  },
+  analyticsCtrl.getNftAnalytics
 );
 
 export default router;

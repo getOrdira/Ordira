@@ -3,21 +3,19 @@ import Joi from 'joi';
 import { commonSchemas } from '../middleware/validation.middleware';
 
 /**
- * Enhanced brand account validation with comprehensive business logic and security
+ * Enhanced brand account validation aligned with controller and service methods
  */
 
-// Main brand account update schema
+// Main brand account update schema (aligns with updateBrandProfile controller method)
 export const updateBrandAccountSchema = Joi.object({
-  // Profile customization
+  // Basic profile fields
   profilePictureUrl: commonSchemas.url
     .custom((value, helpers) => {
-      // Validate image URL format
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
       const hasImageExtension = imageExtensions.some(ext => 
         value.toLowerCase().includes(ext)
       );
       
-      // Allow common image hosting domains
       const allowedDomains = [
         'amazonaws.com', 'cloudinary.com', 'imgix.com', 
         'cloudflare.com', 'googleapis.com', 'firebase.com'
@@ -38,20 +36,17 @@ export const updateBrandAccountSchema = Joi.object({
     })
     .optional(),
 
-  // Business description with rich validation
   description: commonSchemas.longText
     .min(10)
     .max(2000)
     .custom((value, helpers) => {
-      // Check for minimum meaningful content
       const wordCount = value.trim().split(/\s+/).length;
       if (wordCount < 5) {
         return helpers.error('string.minWords');
       }
       
-      // Check for spam patterns
       const spamPatterns = [
-        /(.)\1{4,}/g, // Repeated characters (5+ times)
+        /(.)\1{4,}/g,
         /\b(free|sale|discount|offer|deal)\b.*\b(now|today|urgent)\b/i,
         /(click here|visit now|limited time)/i
       ];
@@ -68,7 +63,6 @@ export const updateBrandAccountSchema = Joi.object({
     })
     .optional(),
 
-  // Industry validation with comprehensive list
   industry: Joi.string()
     .trim()
     .min(2)
@@ -100,15 +94,10 @@ export const updateBrandAccountSchema = Joi.object({
       // Other
       'Other'
     )
-    .messages({
-      'any.only': 'Please select a valid industry from the provided options'
-    })
     .optional(),
 
-  // Contact email with business validation
   contactEmail: commonSchemas.email
     .custom((value, helpers) => {
-      // Should ideally match the business domain
       const context = helpers.state.ancestors[0];
       const mainEmail = context?.email;
       
@@ -116,7 +105,6 @@ export const updateBrandAccountSchema = Joi.object({
         const mainDomain = mainEmail.split('@')[1];
         const contactDomain = value.split('@')[1];
         
-        // Warn if domains don't match (but don't fail)
         if (mainDomain !== contactDomain) {
           helpers.state.path.push('domainMismatch');
         }
@@ -126,7 +114,6 @@ export const updateBrandAccountSchema = Joi.object({
     })
     .optional(),
 
-  // Social media URLs with platform validation
   socialUrls: Joi.array()
     .items(
       Joi.string()
@@ -155,24 +142,16 @@ export const updateBrandAccountSchema = Joi.object({
     )
     .max(10)
     .unique()
-    .optional()
-    .messages({
-      'array.max': 'Maximum 10 social media URLs allowed',
-      'array.unique': 'Duplicate social media URLs are not allowed'
-    }),
+    .optional(),
 
-  // Ethereum wallet address validation
   walletAddress: Joi.string()
     .pattern(/^0x[a-fA-F0-9]{40}$/)
     .custom((value, helpers) => {
-      // Additional Ethereum address validation
       const address = value.toLowerCase();
-      
-      // Check for common invalid addresses
       const invalidAddresses = [
-        '0x0000000000000000000000000000000000000000', // Zero address
-        '0x000000000000000000000000000000000000dead', // Dead address
-        '0xffffffffffffffffffffffffffffffffffffffff'  // Max address
+        '0x0000000000000000000000000000000000000000',
+        '0x000000000000000000000000000000000000dead',
+        '0xffffffffffffffffffffffffffffffffffffffff'
       ];
       
       if (invalidAddresses.includes(address)) {
@@ -187,43 +166,25 @@ export const updateBrandAccountSchema = Joi.object({
     })
     .optional(),
 
-  // Business location information
+  // Enhanced fields matching controller expectations
   headquarters: Joi.object({
     country: Joi.string()
       .trim()
       .min(2)
       .max(100)
       .pattern(/^[a-zA-Z\s\-']+$/)
-      .optional()
-      .messages({
-        'string.pattern.base': 'Country name can only contain letters, spaces, hyphens, and apostrophes'
-      }),
-    
+      .optional(),
     city: Joi.string()
       .trim()
       .min(2)
       .max(100)
       .pattern(/^[a-zA-Z\s\-'\.]+$/)
       .optional(),
-    
-    state: Joi.string()
+    address: Joi.string()
       .trim()
-      .min(2)
-      .max(100)
-      .optional(),
-    
-    postalCode: Joi.string()
-      .trim()
-      .min(3)
-      .max(20)
-      .pattern(/^[a-zA-Z0-9\s\-]+$/)
-      .optional(),
-    
-    address: commonSchemas.mediumText
       .min(5)
       .max(300)
       .optional(),
-    
     timezone: Joi.string()
       .valid(
         'UTC', 'America/New_York', 'America/Chicago', 'America/Denver',
@@ -233,94 +194,264 @@ export const updateBrandAccountSchema = Joi.object({
       .optional()
   }).optional(),
 
-  // Business metrics and information
-  companySize: Joi.string()
-    .valid(
-      '1', '2-10', '11-50', '51-200', '201-500', 
-      '501-1000', '1001-5000', '5000+'
-    )
+  businessInformation: Joi.object({
+    establishedYear: Joi.number()
+      .integer()
+      .min(1800)
+      .max(new Date().getFullYear())
+      .optional(),
+    employeeCount: Joi.string()
+      .valid('1-10', '11-50', '51-200', '201-1000', '1000+')
+      .optional(),
+    annualRevenue: Joi.string()
+      .valid('0-100k', '100k-1M', '1M-10M', '10M-100M', '100M+')
+      .optional(),
+    businessLicense: Joi.string()
+      .max(50)
+      .optional(),
+    certifications: Joi.array()
+      .items(Joi.string().max(100))
+      .max(20)
+      .optional()
+  }).optional(),
+
+  communicationPreferences: Joi.object({
+    preferredMethod: Joi.string()
+      .valid('email', 'phone', 'slack', 'teams')
+      .optional(),
+    responseTime: Joi.string()
+      .valid('immediate', '1-hour', '4-hours', '24-hours', 'next-business-day')
+      .optional(),
+    languages: Joi.array()
+      .items(Joi.string().max(20))
+      .max(10)
+      .optional()
+  }).optional(),
+
+  marketingPreferences: Joi.object({
+    allowEmails: Joi.boolean().optional(),
+    allowSms: Joi.boolean().optional(),
+    allowPushNotifications: Joi.boolean().optional()
+  }).optional(),
+
+  // Premium/Enterprise features (plan validation handled in controller)
+  customDomain: Joi.string().domain().optional(),
+  advancedAnalytics: Joi.boolean().optional(),
+  prioritySupport: Joi.boolean().optional(),
+  whiteLabel: Joi.boolean().optional(),
+  customBranding: Joi.boolean().optional(),
+  dedicatedSupport: Joi.boolean().optional(),
+
+  // Internal fields for tracking
+  lastUpdatedBy: Joi.string().optional(),
+  lastUpdateSource: Joi.string().valid('profile_page', 'api', 'admin').optional(),
+  updateMetadata: Joi.object({
+    fieldsChanged: Joi.array().items(Joi.string()).optional(),
+    updateReason: Joi.string().optional(),
+    ipAddress: Joi.string().optional(),
+    userAgent: Joi.string().optional()
+  }).optional()
+});
+
+// Schema for verification submission (aligns with submitVerification controller method)
+export const submitVerificationSchema = Joi.object({
+  businessLicense: Joi.string()
+    .required()
+    .messages({
+      'any.required': 'Business license is required'
+    }),
+  
+  taxDocument: Joi.string().optional(),
+  
+  proofOfAddress: Joi.string().optional(),
+  
+  additionalDocuments: Joi.array()
+    .items(Joi.string())
+    .max(10)
+    .optional(),
+  
+  verificationNotes: Joi.string()
+    .max(1000)
+    .trim()
     .optional(),
 
-  foundedYear: Joi.number()
-    .integer()
-    .min(1800)
-    .max(new Date().getFullYear())
-    .optional()
-    .messages({
-      'number.min': 'Founded year cannot be before 1800',
-      'number.max': 'Founded year cannot be in the future'
-    }),
+  // Enhanced verification fields
+  type: Joi.string()
+    .valid('business', 'identity', 'address')
+    .default('business')
+    .optional(),
 
-  // Business verification documents
-  businessLicense: Joi.string()
+  submittedAt: Joi.date().optional(),
+  submissionSource: Joi.string()
+    .valid('brand_account', 'api', 'mobile')
+    .default('brand_account')
+    .optional(),
+  planLevel: Joi.string()
+    .valid('foundation', 'growth', 'premium', 'enterprise')
+    .optional(),
+  submissionMetadata: Joi.object({
+    ipAddress: Joi.string().optional(),
+    userAgent: Joi.string().optional(),
+    documentCount: Joi.number().optional()
+  }).optional()
+});
+
+// Schema for account deactivation (aligns with deactivateAccount controller method)
+export const deactivateAccountSchema = Joi.object({
+  reason: Joi.string()
+    .valid(
+      'business_closure',
+      'switching_platforms', 
+      'too_expensive',
+      'not_meeting_needs',
+      'poor_support',
+      'technical_issues',
+      'security_concerns',
+      'other'
+    )
+    .required(),
+  
+  feedback: Joi.string()
+    .max(2000)
     .trim()
-    .min(3)
+    .optional(),
+  
+  deleteData: Joi.boolean()
+    .default(false)
+    .optional(),
+  
+  confirmPassword: Joi.string()
+    .required(),
+
+  // Additional feedback fields matching controller
+  whatWouldMakeYouStay: Joi.string()
+    .max(500)
+    .optional(),
+  
+  alternativePlatform: Joi.string()
     .max(100)
     .optional(),
-
-  certifications: Joi.array()
-    .items(
-      Joi.string()
-        .trim()
-        .min(2)
-        .max(200)
-    )
-    .max(20)
+  
+  overallSatisfaction: Joi.number()
+    .integer()
+    .min(1)
+    .max(5)
     .optional(),
 
-  // Contact preferences
-  preferredContactMethod: Joi.string()
-    .valid('email', 'phone', 'message', 'video_call')
-    .default('email')
+  // Internal tracking fields
+  deactivatedBy: Joi.string().optional(),
+  deactivationSource: Joi.string()
+    .valid('self_service', 'admin', 'automated')
+    .default('self_service')
     .optional(),
 
-  businessHours: Joi.object({
-    timezone: Joi.string().optional(),
-    monday: Joi.object({
-      open: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-      close: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-      closed: Joi.boolean().default(false)
-    }).optional(),
-    tuesday: Joi.object({
-      open: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-      close: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-      closed: Joi.boolean().default(false)
-    }).optional(),
-    // ... similar for other days
-  }).optional(),
+  // Confirmation flags
+  confirmDataDeletion: Joi.boolean()
+    .when('deleteData', {
+      is: true,
+      then: Joi.boolean().valid(true).required(),
+      otherwise: Joi.boolean().optional()
+    }),
+  
+  confirmDeactivation: Joi.boolean()
+    .valid(true)
+    .required()
+});
 
-  // Marketing preferences
-  marketingPreferences: Joi.object({
-    allowEmails: Joi.boolean().default(true),
-    allowSms: Joi.boolean().default(false),
-    allowPushNotifications: Joi.boolean().default(true),
-    interestedInPartnership: Joi.boolean().default(false),
-    interestedInEvents: Joi.boolean().default(true)
-  }).optional(),
+// Schema for data export (aligns with exportAccountData controller method)
+export const exportAccountDataSchema = Joi.object({
+  format: Joi.string()
+    .valid('json', 'csv', 'pdf', 'xlsx', 'xml')
+    .default('json')
+    .optional(),
+  
+  includeAnalytics: Joi.boolean()
+    .default(false)
+    .optional(),
+  
+  includeHistory: Joi.boolean()
+    .default(false)
+    .optional(),
+  
+  anonymize: Joi.boolean()
+    .default(false)
+    .optional(),
 
-  // Custom fields for specific industries
-  customFields: Joi.object()
-    .pattern(
-      Joi.string().min(1).max(50),
-      Joi.alternatives().try(
-        Joi.string().max(500),
-        Joi.number(),
-        Joi.boolean(),
-        Joi.array().items(Joi.string().max(100)).max(10)
-      )
-    )
-    .max(20)
+  // Additional export options matching controller
+  dateRange: Joi.object({
+    startDate: Joi.date().iso().optional(),
+    endDate: Joi.date().iso().min(Joi.ref('startDate')).optional()
+  }).optional(),
+  
+  sections: Joi.array()
+    .items(Joi.string().valid(
+      'profile',
+      'settings', 
+      'verification',
+      'analytics',
+      'billing',
+      'integrations',
+      'certificates',
+      'votes'
+    ))
+    .default(['profile', 'settings'])
+    .optional(),
+  
+  compression: Joi.string()
+    .valid('none', 'zip', 'gzip')
+    .default('none')
+    .optional()
+});
+
+// Query schema for analytics endpoint (aligns with getAccountAnalytics controller method)
+export const analyticsQuerySchema = Joi.object({
+  timeframe: Joi.string()
+    .valid('7d', '30d', '90d', '1y')
+    .default('30d')
+    .optional(),
+  
+  includeEngagement: Joi.boolean()
+    .default(true)
+    .optional(),
+  
+  includeConversions: Joi.boolean()
+    .default(false)
+    .optional(),
+  
+  includeAdvancedMetrics: Joi.boolean()
+    .default(false)
+    .optional(),
+
+  // Additional analytics options
+  metrics: Joi.array()
+    .items(Joi.string().valid(
+      'engagement',
+      'conversions', 
+      'usage',
+      'performance',
+      'growth'
+    ))
+    .default(['engagement', 'usage'])
+    .optional(),
+  
+  granularity: Joi.string()
+    .valid('hour', 'day', 'week', 'month')
+    .default('day')
+    .optional(),
+  
+  detailedBreakdown: Joi.boolean()
+    .default(false)
     .optional()
 });
 
 // Simplified schema for quick profile updates
 export const quickUpdateSchema = Joi.object({
-  profilePictureUrl: commonSchemas.optionalUrl,
-  description: commonSchemas.optionalLongText.max(1000),
-  contactEmail: commonSchemas.optionalEmail
+  profilePictureUrl: commonSchemas.url.optional(),
+  description: Joi.string().max(1000).optional(),
+  contactEmail: commonSchemas.email.optional()
 });
 
-// Schema for business verification submission
+// Legacy schema maintained for backward compatibility
 export const businessVerificationSchema = Joi.object({
   businessLicense: Joi.string().required(),
   taxDocument: Joi.string().optional(),
@@ -334,29 +465,13 @@ export const businessVerificationSchema = Joi.object({
     .optional()
 });
 
-// Schema for account deactivation
-export const deactivateAccountSchema = Joi.object({
-  reason: Joi.string()
-    .valid(
-      'temporary_break', 'switching_platforms', 'cost_concerns',
-      'feature_limitations', 'poor_experience', 'business_closure', 'other'
-    )
-    .required(),
-  
-  feedback: Joi.string()
-    .max(2000)
-    .optional(),
-  
-  deleteData: Joi.boolean()
-    .default(false),
-  
-  confirmPassword: Joi.string().required()
-});
-
 // Export all schemas
 export const brandAccountValidationSchemas = {
   updateBrandAccount: updateBrandAccountSchema,
+  submitVerification: submitVerificationSchema,
+  deactivateAccount: deactivateAccountSchema,
+  exportAccountData: exportAccountDataSchema,
+  analyticsQuery: analyticsQuerySchema,
   quickUpdate: quickUpdateSchema,
-  businessVerification: businessVerificationSchema,
-  deactivateAccount: deactivateAccountSchema
+  businessVerification: businessVerificationSchema // Legacy support
 };

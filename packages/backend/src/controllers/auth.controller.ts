@@ -341,6 +341,399 @@ export async function verifyUserHandler(
 }
 
 /**
+ * POST /api/auth/change-password
+ * Change password for authenticated users
+ */
+export async function changePasswordHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const { currentPassword, newPassword } = req.validatedBody || req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        error: 'Current password and new password are required',
+        code: 'MISSING_PASSWORDS'
+      });
+      return;
+    }
+
+    // Get security context
+    const securityContext = {
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      timestamp: new Date()
+    };
+
+    // Change password through service
+    await authService.changePassword(userId, {
+      currentPassword,
+      newPassword,
+      securityContext
+    });
+
+    // Log successful password change
+    console.log(`Password changed for user ${userId} from IP: ${securityContext.ipAddress}`);
+
+    res.json({
+      message: 'Password changed successfully',
+      changedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/resend-verification
+ * Resend verification code
+ */
+export async function resendVerificationHandler(
+  req: AuthControllerRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { email, businessId, type } = req.validatedBody || req.body;
+
+    if (!email && !businessId) {
+      res.status(400).json({
+        error: 'Email or business ID is required',
+        code: 'MISSING_IDENTIFIER'
+      });
+      return;
+    }
+
+    const securityContext = {
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      timestamp: new Date()
+    };
+
+    if (businessId || type === 'business') {
+      await authService.resendBusinessVerification(businessId);
+    } else {
+      await authService.resendUserVerification(email);
+    }
+
+    // Log resend attempt
+    console.log(`Verification resent from IP: ${securityContext.ipAddress}`, {
+      identifier: email || businessId,
+      type: type || 'user'
+    });
+
+    res.json({
+      message: 'Verification code sent successfully',
+      nextStep: 'check_email',
+      estimatedDelivery: '2-5 minutes'
+    });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/check-email
+ * Check if email is available for registration
+ */
+export async function checkEmailAvailabilityHandler(
+  req: AuthControllerRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { email } = req.validatedBody || req.body;
+
+    if (!email) {
+      res.status(400).json({
+        error: 'Email is required',
+        code: 'MISSING_EMAIL'
+      });
+      return;
+    }
+
+    const availability = await authService.checkEmailAvailability(email);
+
+    res.json({
+      email,
+      available: availability.available,
+      reason: availability.reason,
+      suggestions: availability.suggestions || []
+    });
+  } catch (error) {
+    console.error('Check email availability error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/validate-password
+ * Validate password strength
+ */
+export async function validatePasswordStrengthHandler(
+  req: AuthControllerRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { password } = req.validatedBody || req.body;
+
+    if (!password) {
+      res.status(400).json({
+        error: 'Password is required',
+        code: 'MISSING_PASSWORD'
+      });
+      return;
+    }
+
+    const validation = authService.validatePasswordStrength(password);
+
+    res.json({
+      password: '***', // Never return the actual password
+      strength: validation.strength,
+      score: validation.score,
+      feedback: validation.feedback,
+      requirements: validation.requirements,
+      isValid: validation.isValid
+    });
+  } catch (error) {
+    console.error('Validate password error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/auth/sessions
+ * Get active sessions for authenticated user
+ */
+export async function getActiveSessionsHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    
+    // Get active sessions from service
+    const sessions = await authService.getActiveSessions(userId);
+
+    // Add current session indicator
+    const currentToken = req.headers.authorization?.split(' ')[1];
+    const enhancedSessions = sessions.map((session: any) => ({
+      ...session,
+      isCurrent: session.token === currentToken,
+      location: {
+        ip: session.ipAddress,
+        // You could add geolocation here
+        country: 'Unknown',
+        city: 'Unknown'
+      }
+    }));
+
+    res.json({
+      sessions: enhancedSessions,
+      totalSessions: enhancedSessions.length,
+      currentSession: enhancedSessions.find((s: any) => s.isCurrent)
+    });
+  } catch (error) {
+    console.error('Get active sessions error:', error);
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/auth/sessions/:sessionId
+ * Revoke specific session
+ */
+export async function revokeSessionHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      res.status(400).json({
+        error: 'Session ID is required',
+        code: 'MISSING_SESSION_ID'
+      });
+      return;
+    }
+
+    await authService.revokeSession(userId, sessionId);
+
+    // Log session revocation
+    console.log(`Session revoked: ${sessionId} by user ${userId} from IP: ${getClientIp(req)}`);
+
+    res.json({
+      message: 'Session revoked successfully',
+      sessionId,
+      revokedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Revoke session error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/auth/sessions/revoke-all
+ * Revoke all sessions except current
+ */
+export async function revokeAllSessionsHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const { currentPassword, reason } = req.validatedBody || req.body;
+    const currentToken = req.headers.authorization?.split(' ')[1];
+
+    if (!currentPassword) {
+      res.status(400).json({
+        error: 'Current password is required for security',
+        code: 'MISSING_PASSWORD'
+      });
+      return;
+    }
+
+    // Verify password before revoking sessions
+    const isValidPassword = await authService.verifyUserPassword(userId, currentPassword);
+    if (!isValidPassword) {
+      res.status(401).json({
+        error: 'Invalid password',
+        code: 'INVALID_PASSWORD'
+      });
+      return;
+    }
+
+    const revokedCount = await authService.revokeAllSessions(userId, currentToken);
+
+    // Log mass session revocation
+    console.log(`All sessions revoked for user ${userId} from IP: ${getClientIp(req)}`, {
+      revokedCount,
+      reason: reason || 'user_request'
+    });
+
+    res.json({
+      message: 'All other sessions revoked successfully',
+      revokedCount,
+      reason: reason || 'user_request',
+      revokedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Revoke all sessions error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/auth/login-history
+ * Get login history for authenticated user
+ */
+export async function getLoginHistoryHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const { page = 1, limit = 20, startDate, endDate } = req.query;
+
+    const history = await authService.getLoginHistory(userId, {
+      page: parseInt(page as string),
+      limit: parseInt(limit as string),
+      startDate: startDate ? new Date(startDate as string) : undefined,
+      endDate: endDate ? new Date(endDate as string) : undefined
+    });
+
+    res.json({
+      loginHistory: history.entries,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total: history.total,
+        pages: Math.ceil(history.total / parseInt(limit as string))
+      }
+    });
+  } catch (error) {
+    console.error('Get login history error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/auth/security-events
+ * Get security events for authenticated user
+ */
+export async function getSecurityEventsHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const { page = 1, limit = 20, eventType } = req.query;
+
+    const events = await authService.getSecurityEvents(userId, {
+      page: parseInt(page as string),
+      limit: parseInt(limit as string),
+      eventType: eventType as string
+    });
+
+    res.json({
+      securityEvents: events.entries,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total: events.total,
+        pages: Math.ceil(events.total / parseInt(limit as string))
+      }
+    });
+  } catch (error) {
+    console.error('Get security events error:', error);
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/auth/security-preferences
+ * Update security preferences
+ */
+export async function updateSecurityPreferencesHandler(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId!;
+    const preferences = req.validatedBody || req.body;
+
+    const updatedPreferences = await authService.updateSecurityPreferences(userId, preferences);
+
+    // Log security preference update
+    console.log(`Security preferences updated for user ${userId} from IP: ${getClientIp(req)}`);
+
+    res.json({
+      message: 'Security preferences updated successfully',
+      preferences: updatedPreferences,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Update security preferences error:', error);
+    next(error);
+  }
+}
+
+/**
  * POST /api/auth/login/user
  * Enhanced user login with security features
  */

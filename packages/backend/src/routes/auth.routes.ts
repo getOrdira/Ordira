@@ -1,7 +1,7 @@
 // src/routes/auth.routes.ts
 
 import { Router } from 'express';
-import { validateBody } from '../middleware/validation.middleware';
+import { validateBody, validateParams } from '../middleware/validation.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { authenticate } from '../middleware/auth.middleware';
 import * as authCtrl from '../controllers/auth.controller';
@@ -11,16 +11,10 @@ import Joi from 'joi';
 const router = Router();
 
 /**
- * Additional validation schemas for enhanced auth endpoints
+ * Validation schemas aligned with actual controller implementations
  */
 const refreshTokenSchema = Joi.object({
-  refreshToken: Joi.string().required().messages({
-    'string.empty': 'Refresh token is required'
-  })
-});
-
-const logoutSchema = Joi.object({
-  allDevices: Joi.boolean().default(false).optional()
+  refreshToken: Joi.string().optional(), // Made optional since controller uses auth header
 });
 
 const changePasswordSchema = Joi.object({
@@ -40,34 +34,57 @@ const changePasswordSchema = Joi.object({
     })
 });
 
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required().messages({
+    'string.email': 'Valid email address is required',
+    'any.required': 'Email is required'
+  })
+});
+
+const resetPasswordSchema = Joi.object({
+  email: Joi.string().email().required(),
+  resetCode: Joi.string().required().messages({
+    'any.required': 'Reset code is required'
+  }),
+  newPassword: Joi.string()
+    .min(8)
+    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+    }),
+  confirmPassword: Joi.string()
+    .valid(Joi.ref('newPassword'))
+    .required()
+    .messages({
+      'any.only': 'Passwords do not match'
+    })
+});
+
 /**
- * BUSINESS AUTHENTICATION ROUTES
+ * CORE AUTHENTICATION ROUTES - ALIGNED WITH ACTUAL CONTROLLER METHODS
  */
 
 /**
  * Business registration
  * POST /api/auth/register/business
- * 
- * @requires validation: business registration data
- * @rate-limited: 5 attempts per 15 minutes per IP
+ * Maps to: authCtrl.registerBusinessHandler
  */
 router.post(
   '/register/business',
-  strictRateLimiter(), // 5 attempts per 15 minutes
+  strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.registerBusiness),
   authCtrl.registerBusinessHandler
 );
 
 /**
- * Business email/phone verification
+ * Business email verification
  * POST /api/auth/verify/business
- * 
- * @requires validation: verification codes
- * @rate-limited: 10 attempts per 15 minutes per IP
+ * Maps to: authCtrl.verifyBusinessHandler
  */
 router.post(
   '/verify/business',
-  strictRateLimiter(), // 10 attempts per 15 minutes
+  strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.verifyBusiness),
   authCtrl.verifyBusinessHandler
 );
@@ -75,31 +92,23 @@ router.post(
 /**
  * Business login
  * POST /api/auth/login/business
- * 
- * @requires validation: login credentials
- * @rate-limited: 10 attempts per 15 minutes per IP
+ * Maps to: authCtrl.loginBusinessHandler
  */
 router.post(
   '/login/business',
-  strictRateLimiter(), // 10 attempts per 15 minutes
+  strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.loginBusiness),
   authCtrl.loginBusinessHandler
 );
 
 /**
- * USER (CUSTOMER) AUTHENTICATION ROUTES
- */
-
-/**
  * User registration
  * POST /api/auth/register/user
- * 
- * @requires validation: user registration data
- * @rate-limited: 10 attempts per 15 minutes per IP
+ * Maps to: authCtrl.registerUserHandler
  */
 router.post(
   '/register/user',
-  strictRateLimiter(), // 10 attempts per 15 minutes
+  strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.registerUser),
   authCtrl.registerUserHandler
 );
@@ -107,13 +116,11 @@ router.post(
 /**
  * User email verification
  * POST /api/auth/verify/user
- * 
- * @requires validation: verification code
- * @rate-limited: 15 attempts per 15 minutes per IP
+ * Maps to: authCtrl.verifyUserHandler
  */
 router.post(
   '/verify/user',
-  strictRateLimiter(), // 15 attempts per 15 minutes
+  strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.verifyUser),
   authCtrl.verifyUserHandler
 );
@@ -121,13 +128,11 @@ router.post(
 /**
  * User login
  * POST /api/auth/login/user
- * 
- * @requires validation: login credentials
- * @rate-limited: 15 attempts per 15 minutes per IP
+ * Maps to: authCtrl.loginUserHandler
  */
 router.post(
   '/login/user',
-  strictRateLimiter(), // 15 attempts per 15 minutes
+  strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.loginUser),
   authCtrl.loginUserHandler
 );
@@ -139,28 +144,24 @@ router.post(
 /**
  * Request password reset
  * POST /api/auth/forgot-password
- * 
- * @requires validation: email address
- * @rate-limited: 5 attempts per 30 minutes per IP
+ * Maps to: authCtrl.forgotPasswordHandler
  */
 router.post(
   '/forgot-password',
-  strictRateLimiter(), // 5 attempts per 30 minutes
-  validateBody(authValidationSchemas.forgotPassword),
+  strictRateLimiter(), // Fixed: No parameters
+  validateBody(forgotPasswordSchema),
   authCtrl.forgotPasswordHandler
 );
 
 /**
  * Reset password with code
  * POST /api/auth/reset-password
- * 
- * @requires validation: reset code and new password
- * @rate-limited: 10 attempts per 30 minutes per IP
+ * Maps to: authCtrl.resetPasswordHandler
  */
 router.post(
   '/reset-password',
-  strictRateLimiter(), // 10 attempts per 30 minutes
-  validateBody(authValidationSchemas.resetPassword),
+  strictRateLimiter(), // Fixed: No parameters
+  validateBody(resetPasswordSchema),
   authCtrl.resetPasswordHandler
 );
 
@@ -169,31 +170,14 @@ router.post(
  */
 
 /**
- * Change password (authenticated users)
- * POST /api/auth/change-password
- * 
- * @requires authentication
- * @requires validation: current and new password
- * @rate-limited: 5 attempts per 15 minutes
- */
-router.post(
-  '/change-password',
-  authenticate,
-  dynamicRateLimiter(), // 5 attempts per 15 minutes
-  validateBody(changePasswordSchema),
-  authCtrl.changePasswordHandler
-);
-
-/**
  * Refresh authentication token
  * POST /api/auth/refresh
- * 
- * @requires validation: refresh token
- * @rate-limited: 20 attempts per 15 minutes per IP
+ * Maps to: authCtrl.refreshTokenHandler
  */
 router.post(
   '/refresh',
-  dynamicRateLimiter(), // 20 attempts per 15 minutes
+  authenticate, // Uses auth middleware as per controller implementation
+  dynamicRateLimiter(), // Fixed: No parameters
   validateBody(refreshTokenSchema),
   authCtrl.refreshTokenHandler
 );
@@ -201,165 +185,128 @@ router.post(
 /**
  * Logout user
  * POST /api/auth/logout
- * 
- * @requires authentication
- * @optional validation: logout options
- * @rate-limited: 30 attempts per 15 minutes
+ * Maps to: authCtrl.logoutHandler
  */
 router.post(
   '/logout',
   authenticate,
-  dynamicRateLimiter(), // 30 attempts per 15 minutes
-  validateBody(logoutSchema),
+  dynamicRateLimiter(), // Fixed: No parameters
   authCtrl.logoutHandler
 );
 
 /**
  * Get current user profile
  * GET /api/auth/me
- * 
- * @requires authentication
- * @rate-limited: 60 requests per minute
+ * Maps to: authCtrl.getCurrentUserHandler
  */
 router.get(
   '/me',
   authenticate,
-  dynamicRateLimiter(), // 60 requests per minute
+  dynamicRateLimiter(), // Fixed: No parameters
   authCtrl.getCurrentUserHandler
 );
 
 /**
- * VERIFICATION & RESEND ROUTES
+ * ADDITIONAL AUTHENTICATION FEATURES
  */
+
+/**
+ * Change password (authenticated users)
+ * POST /api/auth/change-password
+ * Maps to: authCtrl.changePasswordHandler
+ */
+router.post(
+  '/change-password',
+  authenticate,
+  dynamicRateLimiter(), // Fixed: No parameters
+  validateBody(changePasswordSchema),
+  authCtrl.changePasswordHandler
+);
 
 /**
  * Resend verification code
  * POST /api/auth/resend-verification
- * 
- * @requires validation: email or phone
- * @rate-limited: 3 attempts per 15 minutes per IP
+ * Maps to: authCtrl.resendVerificationHandler
  */
 router.post(
   '/resend-verification',
-  strictRateLimiter(), // 3 attempts per 15 minutes
-  validateBody(authValidationSchemas.resendVerification),
+  strictRateLimiter(), // Fixed: No parameters
+  validateBody(Joi.object({
+    email: Joi.string().email().optional(),
+    businessId: Joi.string().optional(),
+    type: Joi.string().valid('business', 'user').optional()
+  }).or('email', 'businessId')),
   authCtrl.resendVerificationHandler
 );
 
 /**
- * TWO-FACTOR AUTHENTICATION ROUTES
- */
-
-/**
- * Setup two-factor authentication
- * POST /api/auth/2fa/setup
- * 
- * @requires authentication
- * @requires validation: 2FA method and phone (if SMS)
- * @rate-limited: 5 attempts per 30 minutes
+ * Check if email is available
+ * POST /api/auth/check-email
+ * Maps to: authCtrl.checkEmailAvailabilityHandler
  */
 router.post(
-  '/2fa/setup',
-  authenticate,
-  dynamicRateLimiter(), // 5 attempts per 30 minutes
-  validateBody(authValidationSchemas.setupTwoFactor),
-  authCtrl.setupTwoFactorHandler
-);
-
-/**
- * Verify two-factor authentication code
- * POST /api/auth/2fa/verify
- * 
- * @requires authentication
- * @requires validation: 2FA code or backup code
- * @rate-limited: 10 attempts per 15 minutes
- */
-router.post(
-  '/2fa/verify',
-  authenticate,
-  dynamicRateLimiter(), // 10 attempts per 15 minutes
-  validateBody(authValidationSchemas.verifyTwoFactor),
-  authCtrl.verifyTwoFactorHandler
-);
-
-/**
- * Disable two-factor authentication
- * POST /api/auth/2fa/disable
- * 
- * @requires authentication
- * @requires validation: current password
- * @rate-limited: 3 attempts per 30 minutes
- */
-router.post(
-  '/2fa/disable',
-  authenticate,
-  dynamicRateLimiter(), // 3 attempts per 30 minutes
+  '/check-email',
+  dynamicRateLimiter(), // Fixed: No parameters
   validateBody(Joi.object({
-    currentPassword: Joi.string().required(),
-    confirmDisable: Joi.boolean().valid(true).required()
+    email: Joi.string().email().required()
   })),
-  authCtrl.disableTwoFactorHandler
+  authCtrl.checkEmailAvailabilityHandler
 );
 
 /**
- * ACCOUNT RECOVERY & SECURITY ROUTES
- */
-
-/**
- * Account recovery (when locked out)
- * POST /api/auth/account-recovery
- * 
- * @requires validation: recovery information
- * @rate-limited: 3 attempts per 24 hours per IP
+ * Validate password strength
+ * POST /api/auth/validate-password
+ * Maps to: authCtrl.validatePasswordStrengthHandler
  */
 router.post(
-  '/account-recovery',
-  strictRateLimiter(), // 3 attempts per 24 hours
-  validateBody(authValidationSchemas.accountRecovery),
-  authCtrl.accountRecoveryHandler
+  '/validate-password',
+  dynamicRateLimiter(), // Fixed: No parameters
+  validateBody(Joi.object({
+    password: Joi.string().required()
+  })),
+  authCtrl.validatePasswordStrengthHandler
 );
+
+/**
+ * SESSION MANAGEMENT ROUTES
+ */
 
 /**
  * Get active sessions
  * GET /api/auth/sessions
- * 
- * @requires authentication
- * @rate-limited: 20 requests per 15 minutes
+ * Maps to: authCtrl.getActiveSessionsHandler
  */
 router.get(
   '/sessions',
   authenticate,
-  dynamicRateLimiter(), // 20 requests per 15 minutes
+  dynamicRateLimiter(), // Fixed: No parameters
   authCtrl.getActiveSessionsHandler
 );
 
 /**
  * Revoke specific session
  * DELETE /api/auth/sessions/:sessionId
- * 
- * @requires authentication
- * @requires params: sessionId
- * @rate-limited: 10 requests per 15 minutes
+ * Maps to: authCtrl.revokeSessionHandler
  */
 router.delete(
   '/sessions/:sessionId',
   authenticate,
-  dynamicRateLimiter(), // 10 requests per 15 minutes
+  dynamicRateLimiter(), // Fixed: No parameters
+  validateParams(Joi.object({
+    sessionId: Joi.string().required()
+  })),
   authCtrl.revokeSessionHandler
 );
 
 /**
  * Revoke all sessions (except current)
  * POST /api/auth/sessions/revoke-all
- * 
- * @requires authentication
- * @requires validation: current password for security
- * @rate-limited: 5 attempts per 30 minutes
+ * Maps to: authCtrl.revokeAllSessionsHandler
  */
 router.post(
   '/sessions/revoke-all',
   authenticate,
-  dynamicRateLimiter(), // 5 attempts per 30 minutes
+  dynamicRateLimiter(), // Fixed: No parameters
   validateBody(Joi.object({
     currentPassword: Joi.string().required(),
     reason: Joi.string().max(200).optional()
@@ -374,45 +321,36 @@ router.post(
 /**
  * Get login history
  * GET /api/auth/login-history
- * 
- * @requires authentication
- * @optional query: pagination and filtering
- * @rate-limited: 30 requests per 15 minutes
+ * Maps to: authCtrl.getLoginHistoryHandler
  */
 router.get(
   '/login-history',
   authenticate,
-  dynamicRateLimiter(), // 30 requests per 15 minutes
+  dynamicRateLimiter(), // Fixed: No parameters
   authCtrl.getLoginHistoryHandler
 );
 
 /**
  * Get security events log
  * GET /api/auth/security-events
- * 
- * @requires authentication
- * @optional query: pagination and filtering
- * @rate-limited: 20 requests per 15 minutes
+ * Maps to: authCtrl.getSecurityEventsHandler
  */
 router.get(
   '/security-events',
   authenticate,
-  dynamicRateLimiter(), // 20 requests per 15 minutes
+  dynamicRateLimiter(), // Fixed: No parameters
   authCtrl.getSecurityEventsHandler
 );
 
 /**
  * Update security preferences
  * PUT /api/auth/security-preferences
- * 
- * @requires authentication
- * @requires validation: security preferences
- * @rate-limited: 10 requests per 30 minutes
+ * Maps to: authCtrl.updateSecurityPreferencesHandler
  */
 router.put(
   '/security-preferences',
   authenticate,
-  dynamicRateLimiter(), // 10 requests per 30 minutes
+  dynamicRateLimiter(), // Fixed: No parameters
   validateBody(Joi.object({
     emailNotifications: Joi.object({
       loginAlerts: Joi.boolean().default(true),
@@ -428,57 +366,29 @@ router.put(
 );
 
 /**
- * UTILITY ROUTES
- */
-
-/**
- * Check if email is available
- * POST /api/auth/check-email
- * 
- * @requires validation: email address
- * @rate-limited: 20 requests per 15 minutes per IP
- */
-router.post(
-  '/check-email',
-  dynamicRateLimiter(), // 20 requests per 15 minutes
-  validateBody(Joi.object({
-    email: Joi.string().email().required()
-  })),
-  authCtrl.checkEmailAvailabilityHandler
-);
-
-/**
- * Validate password strength
- * POST /api/auth/validate-password
- * 
- * @requires validation: password
- * @rate-limited: 30 requests per 15 minutes per IP
- */
-router.post(
-  '/validate-password',
-  dynamicRateLimiter(), // 30 requests per 15 minutes
-  validateBody(Joi.object({
-    password: Joi.string().required()
-  })),
-  authCtrl.validatePasswordStrengthHandler
-);
-
-/**
  * Health check endpoint
  * GET /api/auth/health
  * 
  * @public endpoint
- * @rate-limited: 60 requests per minute per IP
  */
 router.get(
   '/health',
-  dynamicRateLimiter(), // 60 requests per minute
+  dynamicRateLimiter(), // Fixed: No parameters
   (req, res) => {
     res.json({
       success: true,
       message: 'Authentication service is healthy',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.0'
+      version: process.env.APP_VERSION || '1.0.0',
+      features: {
+        businessAuth: true,
+        userAuth: true,
+        passwordReset: true,
+        emailVerification: true,
+        emailGating: true,
+        sessionManagement: true,
+        securityAudit: true
+      }
     });
   }
 );

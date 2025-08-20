@@ -145,6 +145,352 @@ export async function getTransactionsAnalytics(
 }
 
 /**
+ * GET /api/analytics/proposals/:proposalId
+ * Get analytics for specific proposal/selection round
+ */
+export async function getProposalAnalytics(
+  req: AnalyticsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.tenant?.business) {
+      res.status(400).json({ 
+        error: 'Business context required',
+        code: 'MISSING_BUSINESS_CONTEXT'
+      });
+      return;
+    }
+
+    const businessId = req.tenant.business.toString();
+    const { proposalId } = req.params;
+    const { timeframe = '30d', groupBy = 'day' } = req.query;
+
+    if (!proposalId) {
+      res.status(400).json({ 
+        error: 'Proposal ID is required',
+        code: 'MISSING_PROPOSAL_ID'
+      });
+      return;
+    }
+
+    // Get comprehensive proposal analytics including product selections
+    const analytics = await analyticsService.getProposalAnalytics(businessId, proposalId, {
+      timeframe,
+      groupBy,
+      includeProductBreakdown: true,
+      includeVoterInsights: true
+    });
+
+    const response = {
+      ...analytics,
+      metadata: {
+        businessId,
+        proposalId,
+        timeframe,
+        groupBy,
+        generatedAt: new Date().toISOString()
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Proposal analytics error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/analytics/products
+ * Get general product analytics for product selection voting
+ */
+export async function getProductAnalytics(
+  req: AnalyticsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.tenant?.business) {
+      res.status(400).json({ 
+        error: 'Business context required',
+        code: 'MISSING_BUSINESS_CONTEXT'
+      });
+      return;
+    }
+
+    const businessId = req.tenant.business.toString();
+    const { 
+      timeframe = '30d', 
+      groupBy = 'day',
+      sortBy = 'selections',
+      limit = 20 
+    } = req.query;
+
+    // Get comprehensive product analytics
+    const analytics = await analyticsService.getProductAnalytics(businessId, {
+      timeframe,
+      groupBy,
+      sortBy,
+      limit: parseInt(limit as string),
+      includeSelectionTrends: true,
+      includePopularityMetrics: true
+    });
+
+    // Add insights for manufacturers
+    const enhancedAnalytics = {
+      ...analytics,
+      manufacturerInsights: {
+        topProducts: analytics.topProducts?.slice(0, 5) || [],
+        trendingProducts: analytics.trendingProducts || [],
+        demandIndicators: analytics.demandMetrics || {},
+        recommendedForProduction: analytics.productionRecommendations || []
+      },
+      metadata: {
+        businessId,
+        timeframe,
+        groupBy,
+        generatedAt: new Date().toISOString(),
+        totalProducts: analytics.totalProducts || 0
+      }
+    };
+
+    res.json(enhancedAnalytics);
+  } catch (error) {
+    console.error('Product analytics error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/analytics/products/:productId
+ * Get analytics for specific product
+ */
+export async function getProductAnalyticsById(
+  req: AnalyticsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.tenant?.business) {
+      res.status(400).json({ 
+        error: 'Business context required',
+        code: 'MISSING_BUSINESS_CONTEXT'
+      });
+      return;
+    }
+
+    const businessId = req.tenant.business.toString();
+    const { productId } = req.params;
+    const { timeframe = '30d', groupBy = 'day' } = req.query;
+
+    if (!productId) {
+      res.status(400).json({ 
+        error: 'Product ID is required',
+        code: 'MISSING_PRODUCT_ID'
+      });
+      return;
+    }
+
+    // Get detailed analytics for specific product
+    const analytics = await analyticsService.getProductAnalyticsById(businessId, productId, {
+      timeframe,
+      groupBy,
+      includeCompetitorComparison: true,
+      includeVoterDemographics: true,
+      includeSelectionReasons: true
+    });
+
+    // Add manufacturer-specific insights
+    const enhancedAnalytics = {
+      ...analytics,
+      manufacturerInsights: {
+        productionDemand: analytics.selectionTrends?.currentDemand || 'unknown',
+        popularityRank: analytics.rankingMetrics?.overallRank || null,
+        selectionReasons: analytics.voterFeedback?.reasons || [],
+        competitorComparison: analytics.competitorData || {},
+        productionRecommendation: analytics.productionAdvice || null
+      },
+      metadata: {
+        businessId,
+        productId,
+        timeframe,
+        generatedAt: new Date().toISOString()
+      }
+    };
+
+    res.json(enhancedAnalytics);
+  } catch (error) {
+    console.error('Product analytics by ID error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/analytics/manufacturer
+ * Get manufacturer analytics (Manufacturer only)
+ */
+export async function getManufacturerAnalytics(
+  req: ManufacturerAnalyticsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const manufacturerId = req.userId!;
+    const { 
+      timeframe = '30d', 
+      brandId,
+      metrics = ['connections', 'orders', 'certificates', 'product_selections']
+    } = req.query;
+
+    // Get comprehensive manufacturer analytics
+    const analytics = await manufacturerService.getManufacturerAnalytics(manufacturerId, {
+      timeframe,
+      brandId,
+      metrics,
+      includeProductDemand: true,
+      includeMarketInsights: true
+    });
+
+    // Add manufacturer-specific context
+    const response = {
+      ...analytics,
+      businessInsights: {
+        connectedBrands: analytics.brandMetrics?.totalConnected || 0,
+        activeCollaborations: analytics.collaborationMetrics?.active || 0,
+        productionOpportunities: analytics.productDemand?.opportunities || [],
+        marketTrends: analytics.marketData?.trends || {}
+      },
+      metadata: {
+        manufacturerId,
+        timeframe,
+        generatedAt: new Date().toISOString(),
+        accessLevel: req.manufacturer?.isVerified ? 'verified' : 'unverified'
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Manufacturer analytics error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/analytics/engagement
+ * Get engagement analytics
+ */
+export async function getEngagementAnalytics(
+  req: AnalyticsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.tenant?.business) {
+      res.status(400).json({ 
+        error: 'Business context required',
+        code: 'MISSING_BUSINESS_CONTEXT'
+      });
+      return;
+    }
+
+    const businessId = req.tenant.business.toString();
+    const { timeframe = '30d', groupBy = 'day' } = req.query;
+
+    // Get engagement analytics
+    const analytics = await analyticsService.getEngagementAnalytics(businessId, {
+      timeframe,
+      groupBy,
+      includeVotingEngagement: true,
+      includeProductInteractions: true,
+      includeUserRetention: true
+    });
+
+    const response = {
+      ...analytics,
+      insights: {
+        engagementTrend: analytics.trends?.overall || 'stable',
+        topEngagementDrivers: analytics.drivers || [],
+        userRetentionRate: analytics.retention?.rate || 0,
+        recommendedActions: analytics.recommendations || []
+      },
+      metadata: {
+        businessId,
+        timeframe,
+        groupBy,
+        generatedAt: new Date().toISOString()
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Engagement analytics error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/analytics/compare
+ * Get comparative analytics between date ranges
+ */
+export async function getComparativeAnalytics(
+  req: AnalyticsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.tenant?.business) {
+      res.status(400).json({ 
+        error: 'Business context required',
+        code: 'MISSING_BUSINESS_CONTEXT'
+      });
+      return;
+    }
+
+    const businessId = req.tenant.business.toString();
+    const { currentPeriod, previousPeriod, metrics } = req.validatedBody || req.body;
+
+    if (!currentPeriod || !previousPeriod || !metrics) {
+      res.status(400).json({ 
+        error: 'Current period, previous period, and metrics are required',
+        code: 'MISSING_COMPARISON_DATA'
+      });
+      return;
+    }
+
+    // Get comparative analytics
+    const comparison = await analyticsService.getComparativeAnalytics(businessId, {
+      currentPeriod,
+      previousPeriod,
+      metrics,
+      includePercentageChanges: true,
+      includeStatisticalSignificance: true
+    });
+
+    const response = {
+      ...comparison,
+      insights: {
+        overallTrend: comparison.summary?.trend || 'stable',
+        significantChanges: comparison.significantMetrics || [],
+        recommendations: comparison.actionableInsights || [],
+        keyFindings: comparison.highlights || []
+      },
+      metadata: {
+        businessId,
+        currentPeriod,
+        previousPeriod,
+        metrics,
+        generatedAt: new Date().toISOString()
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Comparative analytics error:', error);
+    next(error);
+  }
+}
+
+/**
  * GET /api/analytics/nfts
  * Get NFT analytics with Web3 insights
  */

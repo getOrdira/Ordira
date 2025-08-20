@@ -87,6 +87,25 @@ interface WalletUpdateRequest extends AuthRequest, TenantRequest, ValidatedReque
   };
 }
 
+interface SubdomainRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+  body: {
+    subdomain: string;
+  };
+}
+
+interface DomainRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+  body: {
+    customDomain: string;
+  };
+}
+
+interface QuickBrandingRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+  body: {
+    themeColor?: string;
+    logoUrl?: string;
+  };
+}
+
 // Initialize services
 const brandSettingsService = new BrandSettingsService();
 const billingService = new BillingService();
@@ -158,6 +177,266 @@ export async function getBrandSettings(
   } catch (error) {
     console.error('Get brand settings error:', error);
     next(error);
+// Helper functions
+function getPlanFeatures(plan: string): string[] {
+  const features = {
+    foundation: ['Basic Branding', 'Subdomain'],
+    growth: ['Enhanced Branding', 'Basic Integrations', 'Analytics'],
+    premium: ['Custom Domain', 'Advanced Integrations', 'Web3 Features', 'Custom CSS'],
+    enterprise: ['White-label', 'Advanced API', 'Custom Contracts', 'Priority Support']
+  };
+  return features[plan as keyof typeof features] || [];
+}
+
+function getPlanLimitations(plan: string): string[] {
+  const limitations = {
+    foundation: ['No custom domain', 'No integrations', 'Basic analytics only'],
+    growth: ['Limited custom CSS', 'Basic Web3 features'],
+    premium: ['Advanced features available'],
+    enterprise: ['No limitations']
+  };
+  return limitations[plan as keyof typeof limitations] || [];
+}
+
+function validatePlanFeatures(updateData: any, plan: string): string[] {
+  const restricted: string[] = [];
+  
+  // Custom domain requires premium+
+  if (updateData.customDomain && !['premium', 'enterprise'].includes(plan)) {
+    restricted.push('customDomain');
+  }
+  
+  // Web3 features require premium+
+  if (updateData.certificateWallet && !['premium', 'enterprise'].includes(plan)) {
+    restricted.push('certificateWallet');
+  }
+  
+  // Advanced integrations require growth+
+  if ((updateData.shopifyIntegration || updateData.wooCommerceIntegration || updateData.wixIntegration) && 
+      !['growth', 'premium', 'enterprise'].includes(plan)) {
+    restricted.push('ecommerceIntegrations');
+  }
+  
+  return restricted;
+}
+
+function getRequiredPlans(features: string[]): string[] {
+  const planRequirements: Record<string, string> = {
+    customDomain: 'premium',
+    certificateWallet: 'premium',
+    ecommerceIntegrations: 'growth'
+  };
+  
+  return [...new Set(features.map(feature => planRequirements[feature]).filter(Boolean))];
+}
+
+async function validateDomainChanges(businessId: string, updateData: any, currentSettings: any): Promise<void> {
+  if (updateData.subdomain && updateData.subdomain !== currentSettings.subdomain) {
+    const available = await brandSettingsService.isSubdomainAvailable(updateData.subdomain);
+    if (!available) {
+      throw new Error('Subdomain is not available');
+    }
+  }
+  
+  if (updateData.customDomain && updateData.customDomain !== currentSettings.customDomain) {
+    const validation = await brandSettingsService.validateCustomDomain(updateData.customDomain);
+    if (!validation.valid) {
+      throw new Error(`Custom domain validation failed: ${validation.error}`);
+    }
+  }
+}
+
+async function processWalletChange(businessId: string, newWallet: string, currentWallet?: string): Promise<void> {
+  if (newWallet !== currentWallet) {
+    // Verify wallet ownership
+    const isValid = await brandSettingsService.verifyWalletOwnership(businessId, newWallet);
+    if (!isValid) {
+      throw new Error('Wallet ownership verification failed');
+    }
+  }
+}
+
+function getChangedFields(current: any, update: any): string[] {
+  return Object.keys(update).filter(key => {
+    const currentValue = current[key];
+    const updateValue = update[key];
+    
+    if (typeof updateValue === 'object' && updateValue !== null) {
+      return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
+    }
+    
+    return currentValue !== updateValue;
+  });
+}
+
+async function processIntegrationUpdates(businessId: string, updateData: any, currentSettings: any): Promise<void> {
+  // Process Shopify integration changes
+  if (updateData.shopifyIntegration) {
+    await brandSettingsService.updateShopifyIntegration(businessId, updateData.shopifyIntegration);
+  }
+  
+  // Process WooCommerce integration changes
+  if (updateData.wooCommerceIntegration) {
+    await brandSettingsService.updateWooCommerceIntegration(businessId, updateData.wooCommerceIntegration);
+  }
+
+  // Process Wix integration changes
+  if (updateData.wixIntegration) {
+    await brandSettingsService.updateEnhancedSettings(businessId, {
+      wixDomain: updateData.wixIntegration.wixDomain,
+      wixApiKey: updateData.wixIntegration.wixApiKey,
+      wixRefreshToken: updateData.wixIntegration.wixRefreshToken
+    });
+  }
+}
+
+async function handleSettingsChangeNotifications(businessId: string, current: any, update: any): Promise<void> {
+  const significantChanges = ['certificateWallet', 'customDomain', 'subdomain'];
+  const hasSignificantChanges = significantChanges.some(field => 
+    update[field] && current[field] !== update[field]
+  );
+  
+  if (hasSignificantChanges) {
+    await notificationsService.sendSettingsChangeNotification(businessId, {
+      changes: getChangedFields(current, update),
+      timestamp: new Date()
+    });
+  }
+}
+
+function calculateSetupCompleteness(settings: any, plan: string): number {
+  const requiredFields = ['themeColor', 'logoUrl'];
+  const optionalFields = ['bannerImages', 'customCss', 'subdomain'];
+  const premiumFields = ['customDomain', 'certificateWallet'];
+  
+  let total = requiredFields.length + optionalFields.length;
+  let completed = 0;
+  
+  // Add premium fields for higher plans
+  if (['premium', 'enterprise'].includes(plan)) {
+    total += premiumFields.length;
+  }
+  
+  // Count completed fields
+  [...requiredFields, ...optionalFields, ...premiumFields].forEach(field => {
+    if (settings[field]) completed++;
+  });
+  
+  return Math.round((completed / total) * 100);
+}
+
+function generateSetupRecommendations(settings: any, plan: string): string[] {
+  const recommendations: string[] = [];
+  
+  if (!settings.logoUrl) {
+    recommendations.push('Upload a brand logo for better recognition');
+  }
+  
+  if (!settings.themeColor) {
+    recommendations.push('Set a theme color to match your brand');
+  }
+  
+  if (plan === 'foundation') {
+    recommendations.push('Consider upgrading for custom domain and Web3 features');
+  }
+  
+  if (['premium', 'enterprise'].includes(plan) && !settings.certificateWallet) {
+    recommendations.push('Connect a Web3 wallet to access token discounts');
+  }
+  
+  return recommendations;
+}
+
+function getMissingFeatures(settings: any, plan: string): string[] {
+  const missing: string[] = [];
+  const planFeatures = getPlanFeatures(plan);
+  
+  if (planFeatures.includes('Custom Domain') && !settings.customDomain) {
+    missing.push('Custom Domain');
+  }
+  
+  if (planFeatures.includes('Web3 Features') && !settings.certificateWallet) {
+    missing.push('Web3 Wallet');
+  }
+  
+  return missing;
+}
+
+function getAvailableIntegrations(plan: string): string[] {
+  switch (plan) {
+    case 'growth':
+    case 'premium':
+    case 'enterprise':
+      return ['shopify', 'woocommerce', 'wix'];
+    default:
+      return [];
+  }
+}
+
+function getConfiguredIntegrations(settings: any): string[] {
+  const configured: string[] = [];
+  
+  if (settings.shopifyDomain) configured.push('shopify');
+  if (settings.wooDomain) configured.push('woocommerce');
+  if (settings.wixDomain) configured.push('wix');
+  
+  return configured;
+}
+
+async function getTokenDiscounts(walletAddress: string): Promise<any> {
+  try {
+    return await tokenDiscountService.getAvailableDiscounts(walletAddress);
+  } catch (error) {
+    return null;
+  }
+}
+
+function getWeb3Features(plan: string): string[] {
+  if (['premium', 'enterprise'].includes(plan)) {
+    return ['NFT Minting', 'Token Discounts', 'Smart Contracts', 'Wallet Integration'];
+  }
+  return [];
+}
+
+function getNftCapabilities(plan: string): string[] {
+  if (plan === 'enterprise') {
+    return ['Custom Contracts', 'Batch Minting', 'Advanced Metadata', 'Royalty Management'];
+  }
+  if (plan === 'premium') {
+    return ['Basic Minting', 'Standard Metadata', 'Collection Management'];
+  }
+  return [];
+}
+
+function getIntegrationChanges(current: any, update: any): string[] {
+  const changes: string[] = [];
+  
+  if (update.shopifyIntegration) changes.push('shopify');
+  if (update.wooCommerceIntegration) changes.push('woocommerce');
+  if (update.wixIntegration) changes.push('wix');
+  
+  return changes;
+}
+
+function getShopifyAutomationFeatures(plan: string): string[] {
+  switch (plan) {
+    case 'enterprise':
+      return ['Advanced Workflows', 'Custom Scripts', 'Real-time Sync', 'Bulk Operations'];
+    case 'premium':
+      return ['Product Sync', 'Order Sync', 'Webhook Automation'];
+    case 'growth':
+      return ['Basic Product Sync', 'Manual Order Import'];
+    default:
+      return [];
+  }
+}
+
+function getContentType(format: string): string {
+  switch (format) {
+    case 'yaml': return 'application/x-yaml';
+    case 'csv': return 'text/csv';
+    case 'json': return 'application/json';
+    default: return 'application/octet-stream';
   }
 }
 
@@ -374,6 +653,245 @@ export async function updateCertificateWallet(
 }
 
 /**
+ * PUT /api/brand-settings/quick-branding
+ * Quick branding updates (theme color, logo)
+ */
+export async function updateQuickBranding(
+  req: QuickBrandingRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const updateData = req.validatedBody || req.body;
+
+    // Update only branding fields
+    const updatedSettings = await brandSettingsService.updateSettings(businessId, {
+      themeColor: updateData.themeColor,
+      logoUrl: updateData.logoUrl
+    });
+
+    // Track quick branding update
+    trackManufacturerAction('update_quick_branding');
+
+    res.json({
+      success: true,
+      settings: {
+        themeColor: updatedSettings.themeColor,
+        logoUrl: updatedSettings.logoUrl
+      },
+      message: 'Branding updated successfully'
+    });
+  } catch (error) {
+    console.error('Update quick branding error:', error);
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/brand-settings/subdomain
+ * Update subdomain configuration
+ */
+export async function updateSubdomain(
+  req: SubdomainRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { subdomain } = req.validatedBody || req.body;
+
+    // Update subdomain using service method
+    const updatedSettings = await brandSettingsService.updateSubdomain(businessId, subdomain);
+
+    // Clear tenant cache
+    clearTenantCache(businessId);
+
+    // Track subdomain update
+    trackManufacturerAction('update_subdomain');
+
+    res.json({
+      success: true,
+      subdomain: updatedSettings.subdomain,
+      url: `https://${subdomain}.yourdomain.com`,
+      message: 'Subdomain updated successfully'
+    });
+  } catch (error) {
+    console.error('Update subdomain error:', error);
+    if (error.statusCode === 409) {
+      res.status(409).json({
+        error: 'Subdomain already taken',
+        code: 'SUBDOMAIN_TAKEN'
+      });
+      return;
+    }
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand-settings/subdomain/validate
+ * Validate subdomain availability
+ */
+export async function validateSubdomain(
+  req: SubdomainRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { subdomain } = req.validatedBody || req.body;
+
+    // Validate using service method
+    const isValid = await brandSettingsService.validateSubdomain(subdomain);
+
+    res.json({
+      subdomain,
+      valid: isValid,
+      available: isValid,
+      message: isValid ? 
+        'Subdomain is available' : 
+        'Subdomain is invalid or already taken'
+    });
+  } catch (error) {
+    console.error('Validate subdomain error:', error);
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/brand-settings/custom-domain
+ * Set custom domain
+ */
+export async function setCustomDomain(
+  req: DomainRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { customDomain } = req.validatedBody || req.body;
+    const userPlan = req.tenant?.plan || 'foundation';
+
+    // Validate plan access
+    if (!['premium', 'enterprise'].includes(userPlan)) {
+      res.status(403).json({
+        error: 'Custom domains require Premium plan or higher',
+        currentPlan: userPlan,
+        code: 'PLAN_UPGRADE_REQUIRED'
+      });
+      return;
+    }
+
+    // Validate custom domain
+    const validation = await brandSettingsService.validateCustomDomain(customDomain);
+    if (!validation.valid) {
+      res.status(400).json({
+        error: 'Custom domain validation failed',
+        details: validation.error,
+        code: 'INVALID_CUSTOM_DOMAIN'
+      });
+      return;
+    }
+
+    // Update custom domain
+    const updatedSettings = await brandSettingsService.updateSettings(businessId, {
+      customDomain
+    });
+
+    // Clear tenant cache
+    clearTenantCache(businessId);
+
+    // Track custom domain update
+    trackManufacturerAction('set_custom_domain');
+
+    res.json({
+      success: true,
+      customDomain: updatedSettings.customDomain,
+      url: `https://${customDomain}`,
+      verification: {
+        required: true,
+        status: 'pending',
+        instructions: 'Please add the required DNS records to complete setup'
+      },
+      message: 'Custom domain configured successfully'
+    });
+  } catch (error) {
+    console.error('Set custom domain error:', error);
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/brand-settings/custom-domain
+ * Remove custom domain
+ */
+export async function removeCustomDomain(
+  req: AuthRequest & TenantRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+
+    // Remove custom domain using service method
+    const updatedSettings = await brandSettingsService.removeCustomDomain(businessId);
+
+    // Clear tenant cache
+    clearTenantCache(businessId);
+
+    // Track custom domain removal
+    trackManufacturerAction('remove_custom_domain');
+
+    res.json({
+      success: true,
+      customDomain: null,
+      settings: updatedSettings,
+      message: 'Custom domain removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove custom domain error:', error);
+    if (error.statusCode === 404) {
+      res.status(404).json({
+        error: 'Brand settings not found',
+        code: 'SETTINGS_NOT_FOUND'
+      });
+      return;
+    }
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand-settings/custom-domain/verify
+ * Verify custom domain DNS configuration
+ */
+export async function verifyCustomDomain(
+  req: DomainRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { customDomain } = req.validatedBody || req.body;
+
+    // Validate custom domain
+    const validation = await brandSettingsService.validateCustomDomain(customDomain);
+
+    res.json({
+      domain: customDomain,
+      verification: {
+        valid: validation.valid,
+        status: validation.valid ? 'verified' : 'failed',
+        error: validation.error || null,
+        checkedAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Verify custom domain error:', error);
+    next(error);
+  }
+}
+
+/**
  * POST /api/brand-settings/integrations/shopify
  * Configure Shopify integration with comprehensive setup
  */
@@ -442,6 +960,191 @@ export async function configureShopifyIntegration(
 }
 
 /**
+ * PUT /api/brand-settings/integrations/shopify
+ * Update existing Shopify integration
+ */
+export async function updateShopifyIntegration(
+  req: BrandSettingsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const integrationData = req.validatedBody || req.body;
+
+    // Update Shopify integration
+    await brandSettingsService.updateShopifyIntegration(businessId, integrationData);
+
+    // Track integration update
+    trackManufacturerAction('update_shopify_integration');
+
+    res.json({
+      success: true,
+      message: 'Shopify integration updated successfully'
+    });
+  } catch (error) {
+    console.error('Update Shopify integration error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand-settings/integrations/woocommerce
+ * Configure WooCommerce integration
+ */
+export async function configureWooCommerceIntegration(
+  req: BrandSettingsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const integrationData = req.validatedBody || req.body;
+    const userPlan = req.tenant?.plan || 'foundation';
+
+    // Validate integration permissions
+    if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
+      res.status(403).json({
+        error: 'E-commerce integrations require Growth plan or higher',
+        currentPlan: userPlan,
+        code: 'PLAN_UPGRADE_REQUIRED'
+      });
+      return;
+    }
+
+    // Update WooCommerce integration (using existing service method)
+    await brandSettingsService.updateWooCommerceIntegration(businessId, integrationData);
+
+    // Track integration setup
+    trackManufacturerAction('configure_woocommerce_integration');
+
+    res.status(201).json({
+      success: true,
+      integration: {
+        type: 'woocommerce',
+        domain: integrationData.wooDomain,
+        configured: true
+      },
+      message: 'WooCommerce integration configured successfully'
+    });
+  } catch (error) {
+    console.error('Configure WooCommerce integration error:', error);
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/brand-settings/integrations/woocommerce
+ * Update existing WooCommerce integration
+ */
+export async function updateWooCommerceIntegration(
+  req: BrandSettingsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const integrationData = req.validatedBody || req.body;
+
+    // Update WooCommerce integration
+    await brandSettingsService.updateWooCommerceIntegration(businessId, integrationData);
+
+    // Track integration update
+    trackManufacturerAction('update_woocommerce_integration');
+
+    res.json({
+      success: true,
+      message: 'WooCommerce integration updated successfully'
+    });
+  } catch (error) {
+    console.error('Update WooCommerce integration error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand-settings/integrations/wix
+ * Configure Wix integration
+ */
+export async function configureWixIntegration(
+  req: BrandSettingsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const integrationData = req.validatedBody || req.body;
+    const userPlan = req.tenant?.plan || 'foundation';
+
+    // Validate integration permissions
+    if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
+      res.status(403).json({
+        error: 'E-commerce integrations require Growth plan or higher',
+        currentPlan: userPlan,
+        code: 'PLAN_UPGRADE_REQUIRED'
+      });
+      return;
+    }
+
+    // Configure Wix integration (store directly in settings)
+    const updatedSettings = await brandSettingsService.updateEnhancedSettings(businessId, {
+      wixDomain: integrationData.wixDomain,
+      wixApiKey: integrationData.wixApiKey,
+      wixRefreshToken: integrationData.wixRefreshToken
+    });
+
+    // Track integration setup
+    trackManufacturerAction('configure_wix_integration');
+
+    res.status(201).json({
+      success: true,
+      integration: {
+        type: 'wix',
+        domain: integrationData.wixDomain,
+        configured: true
+      },
+      message: 'Wix integration configured successfully'
+    });
+  } catch (error) {
+    console.error('Configure Wix integration error:', error);
+    next(error);
+  }
+}
+
+/**
+ * PUT /api/brand-settings/integrations/wix
+ * Update existing Wix integration
+ */
+export async function updateWixIntegration(
+  req: BrandSettingsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const integrationData = req.validatedBody || req.body;
+
+    // Update Wix integration
+    await brandSettingsService.updateEnhancedSettings(businessId, {
+      wixDomain: integrationData.wixDomain,
+      wixApiKey: integrationData.wixApiKey,
+      wixRefreshToken: integrationData.wixRefreshToken
+    });
+
+    // Track integration update
+    trackManufacturerAction('update_wix_integration');
+
+    res.json({
+      success: true,
+      message: 'Wix integration updated successfully'
+    });
+  } catch (error) {
+    console.error('Update Wix integration error:', error);
+    next(error);
+  }
+}
+
+/**
  * DELETE /api/brand-settings/integrations/:type
  * Remove integration configuration
  */
@@ -491,6 +1194,58 @@ export async function removeIntegration(
 }
 
 /**
+ * POST /api/brand-settings/integrations/:type/test
+ * Test integration connection
+ */
+export async function testIntegration(
+  req: AuthRequest & TenantRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { type } = req.params;
+
+    if (!['shopify', 'woocommerce', 'wix'].includes(type)) {
+      res.status(400).json({
+        error: 'Invalid integration type',
+        supportedTypes: ['shopify', 'woocommerce', 'wix'],
+        code: 'INVALID_INTEGRATION_TYPE'
+      });
+      return;
+    }
+
+    // Get current settings to test
+    const settings = await brandSettingsService.getSettings(businessId);
+
+    let testResult: any = { success: false };
+
+    if (type === 'shopify' && settings.shopifyDomain) {
+      testResult = await brandSettingsService.testShopifyConnection({
+        shopifyDomain: settings.shopifyDomain,
+        shopifyAccessToken: (settings as any).shopifyAccessToken
+      });
+    }
+
+    // Track test action
+    trackManufacturerAction(`test_${type}_integration`);
+
+    res.json({
+      integration: type,
+      test: {
+        success: testResult.success,
+        testedAt: new Date(),
+        details: testResult.data || null,
+        errors: testResult.errors || null
+      }
+    });
+  } catch (error) {
+    console.error('Test integration error:', error);
+    next(error);
+  }
+}
+
+/**
  * GET /api/brand-settings/export
  * Export brand settings configuration
  */
@@ -509,7 +1264,7 @@ export async function exportBrandSettings(
         error: 'Invalid export format',
         supportedFormats: ['json', 'yaml', 'csv'],
         code: 'INVALID_FORMAT'
-      })
+      });
       return;
     }
 
@@ -541,256 +1296,43 @@ export async function exportBrandSettings(
   }
 }
 
-// Helper functions
-function getPlanFeatures(plan: string): string[] {
-  const features = {
-    foundation: ['Basic Branding', 'Subdomain'],
-    growth: ['Enhanced Branding', 'Basic Integrations', 'Analytics'],
-    premium: ['Custom Domain', 'Advanced Integrations', 'Web3 Features', 'Custom CSS'],
-    enterprise: ['White-label', 'Advanced API', 'Custom Contracts', 'Priority Support']
-  };
-  return features[plan as keyof typeof features] || [];
-}
-
-function getPlanLimitations(plan: string): string[] {
-  const limitations = {
-    foundation: ['No custom domain', 'No integrations', 'Basic analytics only'],
-    growth: ['Limited custom CSS', 'Basic Web3 features'],
-    premium: ['Advanced features available'],
-    enterprise: ['No limitations']
-  };
-  return limitations[plan as keyof typeof limitations] || [];
-}
-
-function validatePlanFeatures(updateData: any, plan: string): string[] {
-  const restricted: string[] = [];
-  
-  // Custom domain requires premium+
-  if (updateData.customDomain && !['premium', 'enterprise'].includes(plan)) {
-    restricted.push('customDomain');
-  }
-  
-  // Web3 features require premium+
-  if (updateData.certificateWallet && !['premium', 'enterprise'].includes(plan)) {
-    restricted.push('certificateWallet');
-  }
-  
-  // Advanced integrations require growth+
-  if ((updateData.shopifyIntegration || updateData.wooCommerceIntegration) && 
-      !['growth', 'premium', 'enterprise'].includes(plan)) {
-    restricted.push('ecommerceIntegrations');
-  }
-  
-  return restricted;
-}
-
-function getRequiredPlans(features: string[]): string[] {
-  const planRequirements: Record<string, string> = {
-    customDomain: 'premium',
-    certificateWallet: 'premium',
-    ecommerceIntegrations: 'growth'
-  };
-  
-  return [...new Set(features.map(feature => planRequirements[feature]).filter(Boolean))];
-}
-
-async function validateDomainChanges(businessId: string, updateData: any, currentSettings: any): Promise<void> {
-  if (updateData.subdomain && updateData.subdomain !== currentSettings.subdomain) {
-    const available = await brandSettingsService.isSubdomainAvailable(updateData.subdomain);
-    if (!available) {
-      throw new Error('Subdomain is not available');
-    }
-  }
-  
-  if (updateData.customDomain && updateData.customDomain !== currentSettings.customDomain) {
-    const validation = await brandSettingsService.validateCustomDomain(updateData.customDomain);
-    if (!validation.valid) {
-      throw new Error(`Custom domain validation failed: ${validation.error}`);
-    }
-  }
-}
-
-async function processWalletChange(businessId: string, newWallet: string, currentWallet?: string): Promise<void> {
-  if (newWallet !== currentWallet) {
-    // Verify wallet ownership
-    const isValid = await brandSettingsService.verifyWalletOwnership(businessId, newWallet);
-    if (!isValid) {
-      throw new Error('Wallet ownership verification failed');
-    }
-  }
-}
-
-function getChangedFields(current: any, update: any): string[] {
-  return Object.keys(update).filter(key => {
-    const currentValue = current[key];
-    const updateValue = update[key];
-    
-    if (typeof updateValue === 'object' && updateValue !== null) {
-      return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
-    }
-    
-    return currentValue !== updateValue;
-  });
-}
-
-async function processIntegrationUpdates(businessId: string, updateData: any, currentSettings: any): Promise<void> {
-  // Process Shopify integration changes
-  if (updateData.shopifyIntegration) {
-    await brandSettingsService.updateShopifyIntegration(businessId, updateData.shopifyIntegration);
-  }
-  
-  // Process WooCommerce integration changes
-  if (updateData.wooCommerceIntegration) {
-    await brandSettingsService.updateWooCommerceIntegration(businessId, updateData.wooCommerceIntegration);
-  }
-}
-
-async function handleSettingsChangeNotifications(businessId: string, current: any, update: any): Promise<void> {
-  const significantChanges = ['certificateWallet', 'customDomain', 'subdomain'];
-  const hasSignificantChanges = significantChanges.some(field => 
-    update[field] && current[field] !== update[field]
-  );
-  
-  if (hasSignificantChanges) {
-    await notificationsService.sendSettingsChangeNotification(businessId, {
-      changes: getChangedFields(current, update),
-      timestamp: new Date()
-    });
-  }
-}
-
-function calculateSetupCompleteness(settings: any, plan: string): number {
-  const requiredFields = ['themeColor', 'logoUrl'];
-  const optionalFields = ['bannerImages', 'customCss', 'subdomain'];
-  const premiumFields = ['customDomain', 'certificateWallet'];
-  
-  let total = requiredFields.length + optionalFields.length;
-  let completed = 0;
-  
-  // Add premium fields for higher plans
-  if (['premium', 'enterprise'].includes(plan)) {
-    total += premiumFields.length;
-  }
-  
-  // Count completed fields
-  [...requiredFields, ...optionalFields, ...premiumFields].forEach(field => {
-    if (settings[field]) completed++;
-  });
-  
-  return Math.round((completed / total) * 100);
-}
-
-function generateSetupRecommendations(settings: any, plan: string): string[] {
-  const recommendations: string[] = [];
-  
-  if (!settings.logoUrl) {
-    recommendations.push('Upload a brand logo for better recognition');
-  }
-  
-  if (!settings.themeColor) {
-    recommendations.push('Set a theme color to match your brand');
-  }
-  
-  if (plan === 'foundation') {
-    recommendations.push('Consider upgrading for custom domain and Web3 features');
-  }
-  
-  if (['premium', 'enterprise'].includes(plan) && !settings.certificateWallet) {
-    recommendations.push('Connect a Web3 wallet to access token discounts');
-  }
-  
-  return recommendations;
-}
-
-function getMissingFeatures(settings: any, plan: string): string[] {
-  const missing: string[] = [];
-  const planFeatures = getPlanFeatures(plan);
-  
-  if (planFeatures.includes('Custom Domain') && !settings.customDomain) {
-    missing.push('Custom Domain');
-  }
-  
-  if (planFeatures.includes('Web3 Features') && !settings.certificateWallet) {
-    missing.push('Web3 Wallet');
-  }
-  
-  return missing;
-}
-
-function getAvailableIntegrations(plan: string): string[] {
-  switch (plan) {
-    case 'growth':
-    case 'premium':
-    case 'enterprise':
-      return ['shopify', 'woocommerce', 'wix'];
-    default:
-      return [];
-  }
-}
-
-function getConfiguredIntegrations(settings: any): string[] {
-  const configured: string[] = [];
-  
-  if (settings.shopifyDomain) configured.push('shopify');
-  if (settings.wooDomain) configured.push('woocommerce');
-  if (settings.wixDomain) configured.push('wix');
-  
-  return configured;
-}
-
-async function getTokenDiscounts(walletAddress: string): Promise<any> {
+/**
+ * GET /api/brand-settings/public/:businessId
+ * Get public brand settings (for display on public pages)
+ */
+export async function getPublicBrandSettings(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    return await tokenDiscountService.getAvailableDiscounts(walletAddress);
+    const { businessId } = req.params;
+
+    if (!businessId) {
+      res.status(400).json({
+        error: 'Business ID is required',
+        code: 'MISSING_BUSINESS_ID'
+      });
+      return;
+    }
+
+    // Get public settings using service method
+    const publicSettings = await brandSettingsService.getPublicSettings(businessId);
+
+    res.json({
+      success: true,
+      settings: publicSettings
+    });
   } catch (error) {
-    return null;
+    console.error('Get public brand settings error:', error);
+    if (error.statusCode === 404) {
+      res.status(404).json({
+        error: 'Brand settings not found',
+        code: 'SETTINGS_NOT_FOUND'
+      });
+      return;
+    }
+    next(error);
   }
 }
 
-function getWeb3Features(plan: string): string[] {
-  if (['premium', 'enterprise'].includes(plan)) {
-    return ['NFT Minting', 'Token Discounts', 'Smart Contracts', 'Wallet Integration'];
-  }
-  return [];
-}
-
-function getNftCapabilities(plan: string): string[] {
-  if (plan === 'enterprise') {
-    return ['Custom Contracts', 'Batch Minting', 'Advanced Metadata', 'Royalty Management'];
-  }
-  if (plan === 'premium') {
-    return ['Basic Minting', 'Standard Metadata', 'Collection Management'];
-  }
-  return [];
-}
-
-function getIntegrationChanges(current: any, update: any): string[] {
-  const changes: string[] = [];
-  
-  if (update.shopifyIntegration) changes.push('shopify');
-  if (update.wooCommerceIntegration) changes.push('woocommerce');
-  if (update.wixIntegration) changes.push('wix');
-  
-  return changes;
-}
-
-function getShopifyAutomationFeatures(plan: string): string[] {
-  switch (plan) {
-    case 'enterprise':
-      return ['Advanced Workflows', 'Custom Scripts', 'Real-time Sync', 'Bulk Operations'];
-    case 'premium':
-      return ['Product Sync', 'Order Sync', 'Webhook Automation'];
-    case 'growth':
-      return ['Basic Product Sync', 'Manual Order Import'];
-    default:
-      return [];
-  }
-}
-
-function getContentType(format: string): string {
-  switch (format) {
-    case 'yaml': return 'application/x-yaml';
-    case 'csv': return 'text/csv';
-    case 'json': return 'application/json';
-    default: return 'application/octet-stream';
-  }
-}

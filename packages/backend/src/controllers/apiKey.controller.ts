@@ -26,6 +26,8 @@ interface ApiKeyRequest extends AuthRequest, TenantRequest, ValidatedRequest {
 }
 
 
+
+
 // Initialize services
 const apiKeyService = new ApiKeyService();
 const billingService = new BillingService();
@@ -119,6 +121,415 @@ export async function createKey(
     });
   } catch (error) {
     console.error('API key creation error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/brand/api-keys/:keyId
+ * Get detailed information about a specific API key
+ */
+export async function getKeyDetails(
+  req: ApiKeyRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { keyId } = req.params;
+
+    if (!keyId) {
+      res.status(400).json({
+        error: 'Key ID is required',
+        code: 'MISSING_KEY_ID'
+      });
+      return;
+    }
+
+    // Get API key details
+    const apiKey = await apiKeyService.getApiKey(keyId, businessId);
+    if (!apiKey) {
+      res.status(404).json({
+        error: 'API key not found',
+        code: 'API_KEY_NOT_FOUND'
+      });
+      return;
+    }
+
+    // Get usage statistics
+    const usage = await apiKeyService.getKeyUsageStats(keyId, '30d');
+
+    // Prepare response with security information
+    const response = {
+      keyId: apiKey.keyId,
+      name: apiKey.name,
+      description: apiKey.description,
+      permissions: apiKey.permissions,
+      isActive: apiKey.isActive,
+      createdAt: apiKey.createdAt,
+      expiresAt: apiKey.expiresAt,
+      rateLimits: apiKey.rateLimits,
+      allowedOrigins: apiKey.allowedOrigins,
+      planLevel: apiKey.planLevel,
+      usage: {
+        totalRequests: usage.totalRequests,
+        last30Days: usage.totalRequests,
+        lastUsed: usage.lastUsed,
+        topEndpoints: usage.topEndpoints?.slice(0, 5) || []
+      },
+      security: {
+        isExpired: apiKey.expiresAt ? apiKey.expiresAt < new Date() : false,
+        daysUntilExpiry: apiKey.expiresAt ? 
+          Math.ceil((apiKey.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null,
+        rateLimitHits: usage.rateLimitHits || 0,
+        lastRotated: apiKey.rotatedAt
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Get API key details error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand/api-keys/:keyId/test
+ * Test API key functionality
+ */
+export async function testKey(
+  req: ApiKeyRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { keyId } = req.params;
+
+    if (!keyId) {
+      res.status(400).json({
+        error: 'Key ID is required',
+        code: 'MISSING_KEY_ID'
+      });
+      return;
+    }
+
+    // Verify key exists and belongs to business
+    const apiKey = await apiKeyService.getApiKey(keyId, businessId);
+    if (!apiKey) {
+      res.status(404).json({
+        error: 'API key not found',
+        code: 'API_KEY_NOT_FOUND'
+      });
+      return;
+    }
+
+    // Perform basic tests
+    const testResults = {
+      keyId: apiKey.keyId,
+      testTimestamp: new Date().toISOString(),
+      tests: {
+        keyExists: {
+          status: 'passed',
+          message: 'API key found and accessible'
+        },
+        isActive: {
+          status: apiKey.isActive ? 'passed' : 'failed',
+          message: apiKey.isActive ? 'API key is active' : 'API key is inactive'
+        },
+        notExpired: {
+          status: !apiKey.expiresAt || apiKey.expiresAt > new Date() ? 'passed' : 'failed',
+          message: !apiKey.expiresAt ? 'API key does not expire' : 
+                   apiKey.expiresAt > new Date() ? 'API key is not expired' : 'API key has expired'
+        },
+        notRevoked: {
+          status: !apiKey.revoked ? 'passed' : 'failed',
+          message: !apiKey.revoked ? 'API key is not revoked' : 'API key has been revoked'
+        },
+        hasPermissions: {
+          status: apiKey.permissions && apiKey.permissions.length > 0 ? 'passed' : 'warning',
+          message: apiKey.permissions && apiKey.permissions.length > 0 ? 
+                   `API key has ${apiKey.permissions.length} permission(s)` : 'API key has no permissions'
+        }
+      }
+    };
+
+    // Calculate overall test result
+    const failedTests = Object.values(testResults.tests).filter(test => test.status === 'failed').length;
+    const warningTests = Object.values(testResults.tests).filter(test => test.status === 'warning').length;
+
+    const overallStatus = failedTests > 0 ? 'failed' : warningTests > 0 ? 'warning' : 'passed';
+
+    res.json({
+      ...testResults,
+      overall: {
+        status: overallStatus,
+        message: failedTests > 0 ? 
+                 `${failedTests} test(s) failed` : 
+                 warningTests > 0 ? 
+                 `${warningTests} warning(s) found` : 
+                 'All tests passed'
+      }
+    });
+  } catch (error) {
+    console.error('API key test error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand/api-keys/bulk
+ * Perform bulk operations on multiple API keys
+ */
+export async function bulkUpdateKeys(
+  req: ApiKeyRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { action, keyIds, reason } = req.validatedBody || req.body;
+
+    if (!action || !keyIds || !Array.isArray(keyIds) || keyIds.length === 0) {
+      res.status(400).json({
+        error: 'Action and keyIds array are required',
+        code: 'MISSING_BULK_DATA'
+      });
+      return;
+    }
+
+    const results = {
+      action,
+      processed: 0,
+      successful: 0,
+      failed: 0,
+      errors: [] as any[],
+      results: [] as any[]
+    };
+
+    // Process each key
+    for (const keyId of keyIds) {
+      results.processed++;
+      
+      try {
+        let result;
+        
+        switch (action) {
+          case 'revoke':
+            result = await apiKeyService.revokeApiKey(keyId, businessId, {
+              revokedBy: businessId,
+              reason: reason || 'Bulk revocation'
+            });
+            break;
+          
+          case 'activate':
+            result = await apiKeyService.updateApiKey(keyId, businessId, {
+              isActive: true,
+              updatedBy: businessId
+            });
+            break;
+          
+          case 'deactivate':
+            result = await apiKeyService.updateApiKey(keyId, businessId, {
+              isActive: false,
+              updatedBy: businessId
+            });
+            break;
+          
+          default:
+            throw new Error(`Unknown action: ${action}`);
+        }
+
+        results.successful++;
+        results.results.push({
+          keyId,
+          status: 'success',
+          result: {
+            keyId: result.keyId,
+            name: result.name,
+            action: action
+          }
+        });
+
+      } catch (error: any) {
+        results.failed++;
+        results.errors.push({
+          keyId,
+          error: error.message || 'Unknown error'
+        });
+        results.results.push({
+          keyId,
+          status: 'failed',
+          error: error.message || 'Unknown error'
+        });
+      }
+    }
+
+    // Track bulk operation
+    trackManufacturerAction('bulk_api_key_operation');
+
+    res.json({
+      ...results,
+      summary: {
+        total: results.processed,
+        successful: results.successful,
+        failed: results.failed,
+        successRate: results.processed > 0 ? 
+                     Math.round((results.successful / results.processed) * 100) : 0
+      }
+    });
+  } catch (error) {
+    console.error('Bulk API key operation error:', error);
+    next(error);
+  }
+}
+
+/**
+ * GET /api/brand/api-keys/audit
+ * Get API key security audit log
+ */
+export async function getAuditLog(
+  req: ApiKeyRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { 
+      keyId, 
+      action, 
+      startDate, 
+      endDate, 
+      page = 1, 
+      limit = 20 
+    } = req.query;
+
+    // Build audit log query
+    const auditQuery: any = { business: businessId };
+    
+    if (keyId) auditQuery.keyId = keyId;
+    if (action) auditQuery.action = action;
+    if (startDate || endDate) {
+      auditQuery.timestamp = {};
+      if (startDate) auditQuery.timestamp.$gte = new Date(startDate as string);
+      if (endDate) auditQuery.timestamp.$lte = new Date(endDate as string);
+    }
+
+    // Get audit log entries (you'd need to implement audit logging in your service)
+    const auditEntries = await this.getAuditEntries(auditQuery, {
+      page: parseInt(page as string),
+      limit: parseInt(limit as string)
+    });
+
+    res.json({
+      auditLog: auditEntries.entries,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total: auditEntries.total,
+        pages: Math.ceil(auditEntries.total / parseInt(limit as string))
+      },
+      filters: {
+        keyId: keyId || null,
+        action: action || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      }
+    });
+  } catch (error) {
+    console.error('API key audit log error:', error);
+    next(error);
+  }
+}
+
+/**
+ * POST /api/brand/api-keys/export
+ * Export API key data and configurations
+ */
+export async function exportKeys(
+  req: ApiKeyRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    const { 
+      format = 'json', 
+      includeUsageStats = false, 
+      includeAuditLog = false,
+      keyIds 
+    } = req.validatedBody || req.body;
+
+    // Get API keys to export
+    const keysToExport = keyIds && keyIds.length > 0 ? 
+                        keyIds : 
+                        (await apiKeyService.listApiKeys(businessId)).map((k: any) => k.keyId);
+
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      businessId,
+      totalKeys: keysToExport.length,
+      format,
+      keys: [] as any[]
+    };
+
+    // Collect data for each key
+    for (const keyId of keysToExport) {
+      try {
+        const apiKey = await apiKeyService.getApiKey(keyId, businessId);
+        if (!apiKey) continue;
+
+        const keyData: any = {
+          keyId: apiKey.keyId,
+          name: apiKey.name,
+          description: apiKey.description,
+          permissions: apiKey.permissions,
+          isActive: apiKey.isActive,
+          createdAt: apiKey.createdAt,
+          expiresAt: apiKey.expiresAt,
+          rateLimits: apiKey.rateLimits,
+          allowedOrigins: apiKey.allowedOrigins,
+          planLevel: apiKey.planLevel,
+          revoked: apiKey.revoked
+        };
+
+        // Include usage stats if requested
+        if (includeUsageStats) {
+          const usage = await apiKeyService.getKeyUsageStats(keyId, 'all');
+          keyData.usageStats = usage;
+        }
+
+        // Include audit log if requested
+        if (includeAuditLog) {
+          const auditEntries = await this.getAuditEntries({ 
+            business: businessId, 
+            keyId 
+          }, { limit: 100 });
+          keyData.auditLog = auditEntries.entries;
+        }
+
+        exportData.keys.push(keyData);
+      } catch (error) {
+        console.error(`Error exporting key ${keyId}:`, error);
+      }
+    }
+
+    // Format response based on requested format
+    if (format === 'csv') {
+      const csvContent = this.formatAsCSV(exportData.keys);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="api-keys-${Date.now()}.csv"`);
+      res.send(csvContent);
+    } else {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="api-keys-${Date.now()}.json"`);
+      res.json(exportData);
+    }
+
+    // Track export operation
+    trackManufacturerAction('export_api_keys');
+  } catch (error) {
+    console.error('API key export error:', error);
     next(error);
   }
 }

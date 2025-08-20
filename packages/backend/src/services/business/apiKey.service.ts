@@ -230,4 +230,363 @@ export class ApiKeyService {
     if (!doc || !doc.scopes) return false;
     return doc.scopes.includes(scope);
   }
+
+  /**
+ * Get detailed API key information including security status
+ */
+async getApiKeyDetails(keyId: string, businessId: string) {
+  const apiKey = await ApiKey.findOne({ 
+    business: businessId, 
+    keyId, 
+    revoked: false 
+  }).lean();
+  
+  if (!apiKey) {
+    throw { statusCode: 404, message: 'API key not found' };
+  }
+
+  // Add computed security information
+  return {
+    ...apiKey,
+    isExpired: apiKey.expiresAt ? apiKey.expiresAt < new Date() : false,
+    isActiveAndValid: !apiKey.revoked && 
+                     (apiKey.isActive !== false) && 
+                     (!apiKey.expiresAt || apiKey.expiresAt > new Date()),
+    daysUntilExpiry: apiKey.expiresAt ? 
+      Math.ceil((apiKey.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
+  };
+}
+
+/**
+ * Test API key functionality and security
+ */
+async testApiKey(keyId: string, businessId: string) {
+  const apiKey = await this.getApiKey(keyId, businessId);
+  if (!apiKey) {
+    throw { statusCode: 404, message: 'API key not found' };
+  }
+
+  const tests = {
+    existence: { passed: true, message: 'API key exists' },
+    active: { 
+      passed: apiKey.isActive !== false, 
+      message: apiKey.isActive !== false ? 'API key is active' : 'API key is inactive' 
+    },
+    notRevoked: { 
+      passed: !apiKey.revoked, 
+      message: !apiKey.revoked ? 'API key is not revoked' : 'API key has been revoked' 
+    },
+    notExpired: {
+      passed: !apiKey.expiresAt || apiKey.expiresAt > new Date(),
+      message: !apiKey.expiresAt ? 'API key does not expire' : 
+               apiKey.expiresAt > new Date() ? 'API key is not expired' : 'API key has expired'
+    },
+    hasPermissions: {
+      passed: apiKey.permissions && apiKey.permissions.length > 0,
+      message: `API key has ${apiKey.permissions?.length || 0} permission(s)`
+    }
+  };
+
+  const allPassed = Object.values(tests).every(test => test.passed);
+  
+  return {
+    overall: allPassed ? 'passed' : 'failed',
+    tests,
+    recommendations: this.generateTestRecommendations(tests)
+  };
+}
+
+/**
+ * Perform bulk operations on multiple API keys
+ */
+async bulkUpdateApiKeys(
+  businessId: string, 
+  action: 'revoke' | 'activate' | 'deactivate', 
+  keyIds: string[], 
+  options: { reason?: string; updatedBy?: string } = {}
+) {
+  const results = {
+    successful: [] as any[],
+    failed: [] as any[],
+    summary: { total: keyIds.length, success: 0, failed: 0 }
+  };
+
+  for (const keyId of keyIds) {
+    try {
+      let result;
+      
+      switch (action) {
+        case 'revoke':
+          result = await this.revokeApiKey(keyId, businessId, {
+            revokedBy: options.updatedBy,
+            reason: options.reason || 'Bulk revocation'
+          });
+          break;
+        
+        case 'activate':
+          result = await this.updateApiKey(keyId, businessId, {
+            isActive: true,
+            updatedBy: options.updatedBy
+          });
+          break;
+        
+        case 'deactivate':
+          result = await this.updateApiKey(keyId, businessId, {
+            isActive: false,
+            updatedBy: options.updatedBy
+          });
+          break;
+      }
+
+      results.successful.push({ keyId, result });
+      results.summary.success++;
+      
+    } catch (error: any) {
+      results.failed.push({ 
+        keyId, 
+        error: error.message || 'Unknown error' 
+      });
+      results.summary.failed++;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Get API key audit log (placeholder - implement based on your audit system)
+ */
+async getApiKeyAuditLog(
+  businessId: string, 
+  filters: {
+    keyId?: string;
+    action?: string;
+    startDate?: Date;
+    endDate?: Date;
+  } = {},
+  pagination: { page?: number; limit?: number } = {}
+) {
+  // This is a placeholder implementation
+  // You would implement this based on your actual audit logging system
+  
+  const { page = 1, limit = 20 } = pagination;
+  
+  // Example query structure - adapt to your audit log model
+  const query: any = { business: businessId };
+  if (filters.keyId) query.keyId = filters.keyId;
+  if (filters.action) query.action = filters.action;
+  if (filters.startDate || filters.endDate) {
+    query.timestamp = {};
+    if (filters.startDate) query.timestamp.$gte = filters.startDate;
+    if (filters.endDate) query.timestamp.$lte = filters.endDate;
+  }
+
+  // Return placeholder data structure
+  return {
+    entries: [], // Would contain actual audit log entries
+    total: 0,
+    page,
+    limit,
+    hasMore: false
+  };
+}
+
+/**
+ * Export API key data in various formats
+ */
+async exportApiKeys(
+  businessId: string, 
+  options: {
+    keyIds?: string[];
+    includeUsageStats?: boolean;
+    includeAuditLog?: boolean;
+    format?: 'json' | 'csv';
+  } = {}
+) {
+  const { 
+    keyIds, 
+    includeUsageStats = false, 
+    includeAuditLog = false,
+    format = 'json' 
+  } = options;
+
+  // Get API keys to export
+  const query: any = { business: businessId, revoked: false };
+  if (keyIds && keyIds.length > 0) {
+    query.keyId = { $in: keyIds };
+  }
+
+  const apiKeys = await ApiKey.find(query).lean();
+  
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    businessId,
+    totalKeys: apiKeys.length,
+    keys: [] as any[]
+  };
+
+  for (const apiKey of apiKeys) {
+    const keyData: any = {
+      keyId: apiKey.keyId,
+      name: apiKey.name,
+      description: apiKey.description,
+      permissions: apiKey.permissions,
+      isActive: apiKey.isActive,
+      createdAt: apiKey.createdAt,
+      expiresAt: apiKey.expiresAt,
+      rateLimits: apiKey.rateLimits,
+      allowedOrigins: apiKey.allowedOrigins,
+      planLevel: apiKey.planLevel
+    };
+
+    // Include usage stats if requested
+    if (includeUsageStats) {
+      keyData.usageStats = await this.getKeyUsageStats(apiKey.keyId, 'all');
+    }
+
+    // Include audit log if requested
+    if (includeAuditLog) {
+      keyData.auditLog = await this.getApiKeyAuditLog(businessId, { 
+        keyId: apiKey.keyId 
+      }, { limit: 100 });
+    }
+
+    exportData.keys.push(keyData);
+  }
+
+  if (format === 'csv') {
+    return this.convertToCSV(exportData.keys);
+  }
+
+  return exportData;
+}
+
+/**
+ * Enhanced usage statistics with more detailed metrics
+ */
+async getEnhancedUsageStats(keyId: string, timeframe: string = '30d') {
+  // This extends the existing getKeyUsageStats method
+  const basicStats = await this.getKeyUsageStats(keyId, timeframe);
+  
+  // Add enhanced metrics
+  return {
+    ...basicStats,
+    timeframe,
+    metrics: {
+      requestsPerDay: this.calculateDailyAverage(basicStats.totalRequests, timeframe),
+      peakUsage: 'Not implemented', // Would calculate peak usage times
+      errorRate: 'Not implemented', // Would calculate error percentage
+      popularEndpoints: basicStats.topEndpoints || [],
+      geolocation: 'Not implemented' // Would show usage by location
+    },
+    trends: {
+      growing: false, // Would compare with previous period
+      stable: true,
+      declining: false
+    }
+  };
+}
+
+/**
+ * Check if API key has specific permission
+ */
+async checkKeyPermission(keyId: string, permission: string): Promise<boolean> {
+  const apiKey = await ApiKey.findOne({ keyId, revoked: false }).select('permissions');
+  if (!apiKey || !apiKey.permissions) return false;
+  
+  // Check exact permission or wildcard permissions
+  return apiKey.permissions.includes(permission) || 
+         apiKey.permissions.includes('admin') || 
+         apiKey.permissions.includes('*');
+}
+
+/**
+ * Get API key security recommendations
+ */
+async getSecurityRecommendations(keyId: string, businessId: string) {
+  const apiKey = await this.getApiKey(keyId, businessId);
+  if (!apiKey) return [];
+
+  const recommendations = [];
+
+  // Check for security issues
+  if (!apiKey.expiresAt) {
+    recommendations.push({
+      type: 'security',
+      priority: 'medium',
+      message: 'Consider setting an expiration date for this API key'
+    });
+  }
+
+  if (apiKey.permissions?.includes('admin')) {
+    recommendations.push({
+      type: 'security', 
+      priority: 'high',
+      message: 'Admin permissions detected - ensure this level of access is necessary'
+    });
+  }
+
+  if (!apiKey.allowedOrigins || apiKey.allowedOrigins.length === 0) {
+    recommendations.push({
+      type: 'security',
+      priority: 'medium', 
+      message: 'Consider restricting API key usage to specific origins'
+    });
+  }
+
+  if (apiKey.rateLimits?.requestsPerMinute > 1000) {
+    recommendations.push({
+      type: 'performance',
+      priority: 'low',
+      message: 'High rate limits detected - monitor for potential abuse'
+    });
+  }
+
+  return recommendations;
+}
+
+private generateTestRecommendations(tests: any): string[] {
+  const recommendations = [];
+  
+  if (!tests.active.passed) {
+    recommendations.push('Activate the API key to enable functionality');
+  }
+  
+  if (!tests.notExpired.passed) {
+    recommendations.push('Update the expiration date or remove expiration');
+  }
+  
+  if (!tests.hasPermissions.passed) {
+    recommendations.push('Add appropriate permissions to the API key');
+  }
+  
+  return recommendations;
+}
+
+private calculateDailyAverage(totalRequests: number, timeframe: string): number {
+  const days = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : timeframe === '90d' ? 90 : 30;
+  return Math.round(totalRequests / days);
+}
+
+private convertToCSV(keys: any[]): string {
+  if (keys.length === 0) return 'No data to export';
+
+  const headers = ['Key ID', 'Name', 'Description', 'Permissions', 'Is Active', 'Created At', 'Expires At'];
+  const csvRows = [headers.join(',')];
+
+  keys.forEach(key => {
+    const row = [
+      key.keyId,
+      `"${key.name || ''}"`,
+      `"${key.description || ''}"`,
+      `"${key.permissions?.join(';') || ''}"`,
+      key.isActive,
+      key.createdAt,
+      key.expiresAt || ''
+    ];
+    csvRows.push(row.join(','));
+  });
+
+  return csvRows.join('\n');
+}
 }

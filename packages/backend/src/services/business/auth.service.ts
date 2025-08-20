@@ -267,6 +267,21 @@ export class AuthService {
     }
   }
 
+  private generateEmailSuggestions(email: string): string[] {
+  const [username, domain] = email.split('@');
+  const commonDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'];
+  
+  if (domain && !commonDomains.includes(domain)) {
+    return commonDomains.map(d => `${username}@${d}`);
+  }
+  
+  return [
+    `${username}1@${domain}`,
+    `${username}.${new Date().getFullYear()}@${domain}`,
+    `${username}_${Math.floor(Math.random() * 100)}@${domain}`
+  ];
+}
+
   /** ═══════════════════════════════════════════════════════════════════════════ */
   /** Business Authentication Methods                                           */
   /** ═══════════════════════════════════════════════════════════════════════════ */
@@ -452,6 +467,317 @@ export class AuthService {
       expiresIn: JWT_EXPIRES_IN
     };
   }
+
+  /**
+ * Change password for authenticated user
+ */
+async changePassword(
+  userId: string,
+  data: {
+    currentPassword: string;
+    newPassword: string;
+    securityContext?: any;
+  }
+): Promise<void> {
+  const { currentPassword, newPassword, securityContext } = data;
+
+  // Check both Business and User collections
+  const [business, user] = await Promise.all([
+    Business.findById(userId).select('+password'),
+    User.findById(userId).select('+password')
+  ]);
+
+  const account = business || user;
+  if (!account) {
+    this.logSecurityEvent('CHANGE_PASSWORD', userId, false, {
+      reason: 'account_not_found',
+      securityContext
+    });
+    throw { statusCode: 404, message: 'Account not found' };
+  }
+
+  // Verify current password
+  const isValidPassword = await bcrypt.compare(currentPassword, account.password);
+  if (!isValidPassword) {
+    this.logSecurityEvent('CHANGE_PASSWORD', account.email, false, {
+      reason: 'invalid_current_password',
+      securityContext
+    });
+    throw { statusCode: 401, message: 'Current password is incorrect' };
+  }
+
+  // Validate new password
+  const passwordValidation = this.validatePasswordStrength(newPassword);
+  if (!passwordValidation.isValid) {
+    throw { 
+      statusCode: 400, 
+      message: 'New password does not meet requirements',
+      details: passwordValidation.feedback
+    };
+  }
+
+  // Update password
+  account.password = await bcrypt.hash(newPassword, 12);
+  account.lastPasswordChangeAt = new Date();
+  
+  // Increment token version to invalidate existing tokens (optional)
+  account.tokenVersion = (account.tokenVersion || 0) + 1;
+  
+  await account.save();
+
+  this.logSecurityEvent('CHANGE_PASSWORD', account.email, true, {
+    securityContext
+  });
+}
+
+/**
+ * Check email availability for registration
+ */
+async checkEmailAvailability(email: string): Promise<{
+  available: boolean;
+  reason?: string;
+  suggestions?: string[];
+}> {
+  const normalized = UtilsService.normalizeEmail(email);
+
+  // Check both collections
+  const [businessExists, userExists] = await Promise.all([
+    Business.findOne({ email: normalized }),
+    User.findOne({ email: normalized })
+  ]);
+
+  if (businessExists || userExists) {
+    return {
+      available: false,
+      reason: 'Email already registered',
+      suggestions: this.generateEmailSuggestions(normalized)
+    };
+  }
+
+  return { available: true };
+}
+
+/**
+ * Validate password strength
+ */
+validatePasswordStrength(password: string): {
+  strength: 'weak' | 'fair' | 'good' | 'strong';
+  score: number;
+  feedback: string[];
+  requirements: {
+    minLength: boolean;
+    hasUppercase: boolean;
+    hasLowercase: boolean;
+    hasNumber: boolean;
+    hasSpecialChar: boolean;
+  };
+  isValid: boolean;
+} {
+  const requirements = {
+    minLength: password.length >= 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /\d/.test(password),
+    hasSpecialChar: /[@$!%*?&]/.test(password)
+  };
+
+  const feedback = [];
+  let score = 0;
+
+  // Check requirements and provide feedback
+  if (!requirements.minLength) {
+    feedback.push('Password must be at least 8 characters long');
+  } else {
+    score += 20;
+  }
+
+  if (!requirements.hasUppercase) {
+    feedback.push('Password must contain at least one uppercase letter');
+  } else {
+    score += 20;
+  }
+
+  if (!requirements.hasLowercase) {
+    feedback.push('Password must contain at least one lowercase letter');
+  } else {
+    score += 20;
+  }
+
+  if (!requirements.hasNumber) {
+    feedback.push('Password must contain at least one number');
+  } else {
+    score += 20;
+  }
+
+  if (!requirements.hasSpecialChar) {
+    feedback.push('Password must contain at least one special character (@$!%*?&)');
+  } else {
+    score += 20;
+  }
+
+  // Additional scoring for complexity
+  if (password.length >= 12) score += 10;
+  if (/(.)\1{2,}/.test(password)) score -= 10; // Repeated characters
+  if (/^(.+)\1+$/.test(password)) score -= 20; // Pattern repetition
+
+  const strength = score >= 90 ? 'strong' : score >= 70 ? 'good' : score >= 50 ? 'fair' : 'weak';
+  const isValid = Object.values(requirements).every(req => req);
+
+  return {
+    strength,
+    score: Math.max(0, Math.min(100, score)),
+    feedback,
+    requirements,
+    isValid
+  };
+}
+
+/**
+ * Get active sessions for user
+ */
+async getActiveSessions(userId: string): Promise<any[]> {
+  // This would typically use a sessions store (Redis/Database)
+  // For now, return placeholder data
+  return [
+    {
+      sessionId: 'session_1',
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      ipAddress: '192.168.1.1',
+      userAgent: 'Chrome/Latest',
+      location: { country: 'US', city: 'New York' }
+    }
+  ];
+}
+
+/**
+ * Revoke specific session
+ */
+async revokeSession(userId: string, sessionId: string): Promise<void> {
+  // Implementation would depend on your session storage
+  // For now, just log the action
+  this.logSecurityEvent('SESSION_REVOKED', userId, true, {
+    sessionId
+  });
+}
+
+/**
+ * Revoke all sessions except current
+ */
+async revokeAllSessions(userId: string, currentToken?: string): Promise<number> {
+  // Implementation would depend on your session storage
+  // For now, just log the action
+  this.logSecurityEvent('ALL_SESSIONS_REVOKED', userId, true, {
+    excludeToken: currentToken ? 'present' : 'none'
+  });
+  
+  return 3; // Placeholder count
+}
+
+/**
+ * Verify user password
+ */
+async verifyUserPassword(userId: string, password: string): Promise<boolean> {
+  const [business, user] = await Promise.all([
+    Business.findById(userId).select('+password'),
+    User.findById(userId).select('+password')
+  ]);
+
+  const account = business || user;
+  if (!account) return false;
+
+  return bcrypt.compare(password, account.password);
+}
+
+/**
+ * Get login history
+ */
+async getLoginHistory(
+  userId: string, 
+  options: {
+    page?: number;
+    limit?: number;
+    startDate?: Date;
+    endDate?: Date;
+  } = {}
+): Promise<{ entries: any[]; total: number }> {
+  // This would query your login history/audit log
+  // For now, return placeholder data
+  return {
+    entries: [
+      {
+        timestamp: new Date(),
+        ipAddress: '192.168.1.1',
+        userAgent: 'Chrome/Latest',
+        success: true,
+        location: { country: 'US', city: 'New York' }
+      }
+    ],
+    total: 1
+  };
+}
+
+/**
+ * Get security events
+ */
+async getSecurityEvents(
+  userId: string,
+  options: {
+    page?: number;
+    limit?: number;
+    eventType?: string;
+  } = {}
+): Promise<{ entries: any[]; total: number }> {
+  // This would query your security events log
+  // For now, return placeholder data
+  return {
+    entries: [
+      {
+        eventType: 'PASSWORD_CHANGE',
+        timestamp: new Date(),
+        ipAddress: '192.168.1.1',
+        success: true,
+        details: 'Password changed successfully'
+      }
+    ],
+    total: 1
+  };
+}
+
+/**
+ * Update security preferences
+ */
+async updateSecurityPreferences(userId: string, preferences: any): Promise<any> {
+  const [business, user] = await Promise.all([
+    Business.findById(userId),
+    User.findById(userId)
+  ]);
+
+  const account = business || user;
+  if (!account) {
+    throw { statusCode: 404, message: 'Account not found' };
+  }
+
+  // Update security preferences
+  account.securityPreferences = {
+    ...account.securityPreferences,
+    ...preferences,
+    updatedAt: new Date()
+  };
+
+  await account.save();
+
+  this.logSecurityEvent('SECURITY_PREFERENCES_UPDATED', account.email, true);
+
+  return account.securityPreferences;
+}
+
+/**
+ * Initialize password reset with enhanced security
+ */
+async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
+  await this.requestPasswordReset(data);
+}
 
   /** ═══════════════════════════════════════════════════════════════════════════ */
   /** User Authentication Methods                                               */

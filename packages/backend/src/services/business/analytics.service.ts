@@ -129,8 +129,8 @@ export class AnalyticsBusinessService {
     let totalOnChainVotes = 0;
     let byProposal: Record<string, number> = {};
 
-    if (settings?.voteContract) {
-      const events = await BlockchainContractsService.getVoteEventsFromContract(settings.voteContract);
+    if (settings.web3Settings?.voteContract) {
+      const events = await BlockchainContractsService.getVoteEventsFromContract(settings.web3Settings?.voteContract);
       totalOnChainVotes = events.length;
       
       for (const event of events) {
@@ -162,6 +162,373 @@ export class AnalyticsBusinessService {
   }> 
     };
   }
+
+  /**
+ * Get analytics for a specific proposal/selection round
+ */
+async getProposalAnalytics(
+  businessId: string, 
+  proposalId: string, 
+  options?: {
+    timeframe?: string;
+    groupBy?: string;
+    includeProductBreakdown?: boolean;
+    includeVoterInsights?: boolean;
+  }
+): Promise<any> {
+  try {
+    const { 
+      timeframe = '30d',
+      groupBy = 'day',
+      includeProductBreakdown = true,
+      includeVoterInsights = true 
+    } = options || {};
+
+    // Get product selections for this proposal
+    const productSelections = await VotingRecord.getProductSelectionStats(businessId, proposalId);
+    
+    // Get basic proposal metrics
+    const totalSelections = await VotingRecord.countDocuments({
+      business: businessId,
+      proposalId: proposalId
+    });
+
+    const uniqueVoters = await VotingRecord.distinct('voterAddress', {
+      business: businessId,
+      proposalId: proposalId
+    }).countDocuments();
+
+    // Get time series data for the proposal
+    const timeSeriesData = await this.getProposalTimeSeries(businessId, proposalId, groupBy);
+
+    let productBreakdown = {};
+    if (includeProductBreakdown && productSelections.length > 0) {
+      productBreakdown = productSelections[0]?.productSelections || {};
+    }
+
+    let voterInsights = {};
+    if (includeVoterInsights) {
+      voterInsights = await this.getProposalVoterInsights(businessId, proposalId);
+    }
+
+    return {
+      proposalId,
+      summary: {
+        totalSelections,
+        uniqueVoters,
+        participationRate: uniqueVoters > 0 ? ((totalSelections / uniqueVoters) * 100).toFixed(2) + '%' : '0%',
+        status: 'active' // You might determine this differently
+      },
+      productBreakdown,
+      timeSeries: timeSeriesData,
+      voterInsights,
+      topProducts: productBreakdown ? Object.entries(productBreakdown)
+        .sort(([,a], [,b]) => (b as any).selectionCount - (a as any).selectionCount)
+        .slice(0, 5) : []
+    };
+  } catch (error) {
+    console.error('Get proposal analytics error:', error);
+    throw new Error(`Failed to get proposal analytics: ${error.message}`);
+  }
+}
+
+/**
+ * Get general product analytics
+ */
+async getProductAnalytics(
+  businessId: string, 
+  options?: {
+    timeframe?: string;
+    groupBy?: string;
+    sortBy?: string;
+    limit?: number;
+    includeSelectionTrends?: boolean;
+    includePopularityMetrics?: boolean;
+  }
+): Promise<any> {
+  try {
+    const { 
+      timeframe = '30d',
+      sortBy = 'selections',
+      limit = 20,
+      includeSelectionTrends = true,
+      includePopularityMetrics = true 
+    } = options || {};
+
+    // Get top products across all proposals
+    const topProducts = await VotingRecord.getTopProducts(businessId, limit);
+
+    // Get product selection trends
+    let selectionTrends = {};
+    if (includeSelectionTrends) {
+      const days = this.getTimeframeDays(timeframe);
+      selectionTrends = await VotingRecord.getSelectionTrends(businessId, days);
+    }
+
+    // Get total products count
+    const totalProducts = await VotingRecord.distinct('selectedProductId', {
+      business: businessId
+    }).countDocuments();
+
+    // Calculate popularity metrics
+    let popularityMetrics = {};
+    if (includePopularityMetrics && topProducts.length > 0) {
+      const totalSelections = topProducts.reduce((sum, product) => sum + product.totalSelections, 0);
+      popularityMetrics = {
+        totalSelections,
+        averageSelectionsPerProduct: totalSelections / topProducts.length,
+        topProductMarketShare: topProducts[0] ? (topProducts[0].totalSelections / totalSelections * 100).toFixed(2) + '%' : '0%'
+      };
+    }
+
+    return {
+      topProducts,
+      totalProducts,
+      selectionTrends,
+      popularityMetrics,
+      trendingProducts: topProducts.slice(0, 3), // Top 3 as trending
+      productionRecommendations: this.generateProductionRecommendations(topProducts),
+      demandMetrics: this.calculateDemandMetrics(topProducts)
+    };
+  } catch (error) {
+    console.error('Get product analytics error:', error);
+    throw new Error(`Failed to get product analytics: ${error.message}`);
+  }
+}
+
+/**
+ * Get analytics for a specific product
+ */
+async getProductAnalyticsById(
+  businessId: string, 
+  productId: string, 
+  options?: {
+    timeframe?: string;
+    groupBy?: string;
+    includeCompetitorComparison?: boolean;
+    includeVoterDemographics?: boolean;
+    includeSelectionReasons?: boolean;
+  }
+): Promise<any> {
+  try {
+    const { 
+      timeframe = '30d',
+      groupBy = 'day',
+      includeCompetitorComparison = true,
+      includeSelectionReasons = true 
+    } = options || {};
+
+    // Get product selection data
+    const productSelections = await VotingRecord.find({
+      business: businessId,
+      selectedProductId: productId
+    }).sort({ timestamp: -1 });
+
+    const totalSelections = productSelections.length;
+    const uniqueVoters = new Set(productSelections.map(s => s.voterAddress)).size;
+
+    // Get product ranking
+    const allProducts = await VotingRecord.getTopProducts(businessId, 100);
+    const productRank = allProducts.findIndex(p => p.productId === productId) + 1;
+
+    // Get time series for this product
+    const timeSeries = await this.getProductTimeSeries(businessId, productId, groupBy);
+
+    // Get selection reasons if available
+    let selectionReasons = [];
+    if (includeSelectionReasons) {
+      selectionReasons = productSelections
+        .filter(s => s.selectionReason)
+        .map(s => s.selectionReason)
+        .slice(0, 10); // Top 10 reasons
+    }
+
+    // Get competitor comparison
+    let competitorData = {};
+    if (includeCompetitorComparison && allProducts.length > 1) {
+      const competitorProducts = allProducts
+        .filter(p => p.productId !== productId)
+        .slice(0, 5); // Top 5 competitors
+      
+      competitorData = {
+        competitors: competitorProducts,
+        relativePerformance: productRank ? `#${productRank} of ${allProducts.length}` : 'Unknown'
+      };
+    }
+
+    return {
+      productId,
+      productName: productSelections[0]?.productName || 'Unknown Product',
+      summary: {
+        totalSelections,
+        uniqueVoters,
+        averageSelectionsPerVoter: uniqueVoters > 0 ? (totalSelections / uniqueVoters).toFixed(2) : '0'
+      },
+      rankingMetrics: {
+        overallRank: productRank || null,
+        totalProducts: allProducts.length
+      },
+      selectionTrends: {
+        timeSeries,
+        currentDemand: this.calculateDemandLevel(totalSelections, allProducts)
+      },
+      voterFeedback: {
+        reasons: selectionReasons,
+        sentimentScore: this.calculateSentimentScore(selectionReasons) // Placeholder
+      },
+      competitorData,
+      productionAdvice: this.generateProductionAdvice(totalSelections, productRank, allProducts.length)
+    };
+  } catch (error) {
+    console.error('Get product analytics by ID error:', error);
+    throw new Error(`Failed to get product analytics: ${error.message}`);
+  }
+}
+
+/**
+ * Get engagement analytics
+ */
+async getEngagementAnalytics(
+  businessId: string, 
+  options?: {
+    timeframe?: string;
+    groupBy?: string;
+    includeVotingEngagement?: boolean;
+    includeProductInteractions?: boolean;
+    includeUserRetention?: boolean;
+  }
+): Promise<any> {
+  try {
+    const { 
+      timeframe = '30d',
+      groupBy = 'day',
+      includeVotingEngagement = true,
+      includeUserRetention = true 
+    } = options || {};
+
+    const days = this.getTimeframeDays(timeframe);
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Get voting engagement metrics
+    let votingEngagement = {};
+    if (includeVotingEngagement) {
+      const totalVotes = await VotingRecord.countDocuments({
+        business: businessId,
+        timestamp: { $gte: startDate }
+      });
+
+      const uniqueVoters = await VotingRecord.distinct('voterAddress', {
+        business: businessId,
+        timestamp: { $gte: startDate }
+      }).countDocuments();
+
+      const activeProposals = await VotingRecord.distinct('proposalId', {
+        business: businessId,
+        timestamp: { $gte: startDate }
+      }).countDocuments();
+
+      votingEngagement = {
+        totalVotes,
+        uniqueVoters,
+        activeProposals,
+        averageVotesPerUser: uniqueVoters > 0 ? (totalVotes / uniqueVoters).toFixed(2) : '0',
+        participationRate: activeProposals > 0 ? ((uniqueVoters / activeProposals) * 100).toFixed(2) + '%' : '0%'
+      };
+    }
+
+    // Get user retention metrics
+    let retention = {};
+    if (includeUserRetention) {
+      retention = await this.calculateUserRetention(businessId, days);
+    }
+
+    return {
+      summary: {
+        overallEngagement: votingEngagement.participationRate || '0%',
+        activeUsers: votingEngagement.uniqueVoters || 0,
+        totalInteractions: votingEngagement.totalVotes || 0
+      },
+      votingEngagement,
+      retention,
+      trends: {
+        overall: 'stable' // You might calculate this from time series data
+      },
+      drivers: [
+        'Product selection voting',
+        'Certificate rewards',
+        'Community participation'
+      ],
+      recommendations: this.generateEngagementRecommendations(votingEngagement, retention)
+    };
+  } catch (error) {
+    console.error('Get engagement analytics error:', error);
+    throw new Error(`Failed to get engagement analytics: ${error.message}`);
+  }
+}
+
+/**
+ * Get comparative analytics between periods
+ */
+async getComparativeAnalytics(
+  businessId: string, 
+  options: {
+    currentPeriod: { startDate: Date; endDate: Date };
+    previousPeriod: { startDate: Date; endDate: Date };
+    metrics: string[];
+    includePercentageChanges?: boolean;
+    includeStatisticalSignificance?: boolean;
+  }
+): Promise<any> {
+  try {
+    const { currentPeriod, previousPeriod, metrics, includePercentageChanges = true } = options;
+
+    const comparison: any = {
+      currentPeriod: {},
+      previousPeriod: {},
+      changes: {},
+      summary: {}
+    };
+
+    // Get data for both periods
+    for (const metric of metrics) {
+      const currentData = await this.getMetricForPeriod(businessId, metric, currentPeriod);
+      const previousData = await this.getMetricForPeriod(businessId, metric, previousPeriod);
+
+      comparison.currentPeriod[metric] = currentData;
+      comparison.previousPeriod[metric] = previousData;
+
+      if (includePercentageChanges) {
+        const change = this.calculatePercentageChange(previousData, currentData);
+        comparison.changes[metric] = {
+          absolute: currentData - previousData,
+          percentage: change,
+          trend: change > 0 ? 'increase' : change < 0 ? 'decrease' : 'stable'
+        };
+      }
+    }
+
+    // Generate summary insights
+    const positiveChanges = Object.values(comparison.changes).filter((c: any) => c.percentage > 0).length;
+    const negativeChanges = Object.values(comparison.changes).filter((c: any) => c.percentage < 0).length;
+
+    comparison.summary = {
+      trend: positiveChanges > negativeChanges ? 'growth' : negativeChanges > positiveChanges ? 'decline' : 'stable',
+      significantChanges: Object.entries(comparison.changes)
+        .filter(([, change]: [string, any]) => Math.abs(change.percentage) > 10)
+        .map(([metric, change]) => ({ metric, change })),
+      overallHealth: positiveChanges >= negativeChanges ? 'good' : 'needs_attention'
+    };
+
+    comparison.actionableInsights = this.generateComparisonInsights(comparison);
+    comparison.highlights = this.generateComparisonHighlights(comparison);
+
+    return comparison;
+  } catch (error) {
+    console.error('Get comparative analytics error:', error);
+    throw new Error(`Failed to get comparative analytics: ${error.message}`);
+  }
+}
+
 
  async getNftAnalytics(
   businessId: string, 

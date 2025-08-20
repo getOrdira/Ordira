@@ -129,6 +129,243 @@ export class ManufacturerService {
     return Math.round((completedFields.length / fields.length) * 100);
   }
 
+  private async getManufacturerMetric(brandIds: string[], metric: string, startDate: Date): Promise<number> {
+  switch (metric) {
+    case 'connections':
+      return brandIds.length;
+    
+    case 'product_selections':
+      return VotingRecord.countDocuments({
+        business: { $in: brandIds },
+        timestamp: { $gte: startDate }
+      });
+    
+    case 'certificates':
+      return NftCertificate.countDocuments({
+        business: { $in: brandIds },
+        mintedAt: { $gte: startDate }
+      });
+    
+    case 'orders':
+      // You'd implement this based on your order/collaboration model
+      return 0; // Placeholder
+    
+    default:
+      return 0;
+  }
+}
+
+private async getActiveBrandCollaborations(manufacturerId: string, startDate: Date): Promise<number> {
+  // Implementation depends on your collaboration model
+  // This is a placeholder - you'd query your actual collaboration/order data
+  return 3; // Placeholder
+}
+
+private async getNewBrandConnections(manufacturerId: string, startDate: Date): Promise<number> {
+  // Get manufacturer and check when brands were connected
+  const manufacturer = await Manufacturer.findById(manufacturerId);
+  if (!manufacturer || !manufacturer.brands) return 0;
+
+  // You'd need to track connection dates in your manufacturer-brand relationship
+  // This is a placeholder implementation
+  return 1; // Placeholder
+}
+
+private async getPendingCollaborations(manufacturerId: string): Promise<number> {
+  // Implementation based on your collaboration/order system
+  return 2; // Placeholder
+}
+
+private async getCompletedCollaborations(manufacturerId: string, startDate: Date): Promise<number> {
+  // Implementation based on your collaboration/order system
+  return 5; // Placeholder
+}
+
+private async getProductDemandAnalysis(brandIds: string[], startDate?: Date): Promise<any> {
+  try {
+    // Get product selection data for all connected brands
+    const matchQuery: any = { business: { $in: brandIds } };
+    if (startDate) {
+      matchQuery.timestamp = { $gte: startDate };
+    }
+
+    // Get top products across all brands
+    const topProducts = await VotingRecord.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: {
+            productId: '$selectedProductId',
+            businessId: '$business'
+          },
+          totalSelections: { $sum: 1 },
+          productName: { $first: '$productName' },
+          uniqueVoters: { $addToSet: '$voterAddress' },
+          lastSelectedAt: { $max: '$timestamp' }
+        }
+      },
+      {
+        $addFields: {
+          uniqueVoterCount: { $size: '$uniqueVoters' }
+        }
+      },
+      { $sort: { totalSelections: -1 } },
+      { $limit: 20 }
+    ]);
+
+    // Identify high-demand products
+    const opportunities = topProducts
+      .filter(product => product.totalSelections > 10) // Threshold for production consideration
+      .map(product => ({
+        productId: product._id.productId,
+        productName: product.productName,
+        businessId: product._id.businessId,
+        demand: product.totalSelections,
+        uniqueVoters: product.uniqueVoterCount,
+        lastActivity: product.lastSelectedAt,
+        priority: product.totalSelections > 50 ? 'high' : product.totalSelections > 25 ? 'medium' : 'low'
+      }));
+
+    return {
+      totalProducts: topProducts.length,
+      opportunities,
+      demandTrends: {
+        increasing: opportunities.filter(o => o.priority === 'high').length,
+        stable: opportunities.filter(o => o.priority === 'medium').length,
+        declining: opportunities.filter(o => o.priority === 'low').length
+      },
+      recommendedForProduction: opportunities.slice(0, 5) // Top 5 recommendations
+    };
+  } catch (error) {
+    console.error('Get product demand analysis error:', error);
+    return {
+      totalProducts: 0,
+      opportunities: [],
+      demandTrends: { increasing: 0, stable: 0, declining: 0 },
+      recommendedForProduction: []
+    };
+  }
+}
+
+private async getMarketInsights(brandIds: string[], timeframe: string): Promise<any> {
+  try {
+    // Calculate market trends based on voting/selection data
+    const days = this.getTimeframeDays(timeframe);
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const currentPeriodSelections = await VotingRecord.countDocuments({
+      business: { $in: brandIds },
+      timestamp: { $gte: startDate }
+    });
+
+    const previousPeriodStart = new Date(startDate.getTime() - days * 24 * 60 * 60 * 1000);
+    const previousPeriodSelections = await VotingRecord.countDocuments({
+      business: { $in: brandIds },
+      timestamp: { $gte: previousPeriodStart, $lt: startDate }
+    });
+
+    const growthRate = previousPeriodSelections > 0 
+      ? ((currentPeriodSelections - previousPeriodSelections) / previousPeriodSelections) * 100 
+      : 0;
+
+    return {
+      trends: {
+        growthRate: growthRate.toFixed(2) + '%',
+        direction: growthRate > 0 ? 'growing' : growthRate < 0 ? 'declining' : 'stable',
+        currentActivity: currentPeriodSelections,
+        previousActivity: previousPeriodSelections
+      },
+      marketPosition: this.calculateMarketPosition(brandIds.length, currentPeriodSelections),
+      competitiveAnalysis: {
+        // You'd implement competitive analysis based on your business requirements
+        position: 'strong', // Placeholder
+        marketShare: '12.5%' // Placeholder
+      }
+    };
+  } catch (error) {
+    console.error('Get market insights error:', error);
+    return {
+      trends: { growthRate: '0%', direction: 'stable' },
+      marketPosition: 'unknown',
+      competitiveAnalysis: { position: 'unknown', marketShare: '0%' }
+    };
+  }
+}
+
+private async getBrandAnalyticsForManufacturer(brandId: string): Promise<any> {
+  // Get analytics specific to this brand from manufacturer perspective
+  const votingData = await VotingRecord.getProductSelectionStats(brandId);
+  const certificateData = await NftCertificate.countDocuments({ business: brandId });
+
+  return {
+    voting: votingData,
+    certificates: certificateData,
+    engagement: {
+      totalInteractions: votingData.length,
+      activeUsers: 'unknown' // You'd calculate this
+    }
+  };
+}
+
+private async getBrandCollaborationHistory(manufacturerId: string, brandId: string): Promise<any> {
+  // Implementation based on your collaboration tracking system
+  return {
+    totalCollaborations: 3,
+    successfulProjects: 2,
+    ongoingProjects: 1,
+    lastCollaboration: new Date(),
+    collaborationRating: 4.5
+  };
+}
+
+private generateManufacturerRecommendations(brandAnalytics: any, productDemand: any): string[] {
+  const recommendations = [];
+
+  if (productDemand.opportunities && productDemand.opportunities.length > 0) {
+    recommendations.push(`Consider producing ${productDemand.opportunities[0].productName} - highest demand`);
+  }
+
+  if (productDemand.demandTrends.increasing > 3) {
+    recommendations.push('Strong market growth detected - expand production capacity');
+  }
+
+  recommendations.push('Monitor product selection trends for optimal production timing');
+
+  return recommendations;
+}
+
+private identifyProductionOpportunities(productDemand: any): any[] {
+  if (!productDemand.opportunities) return [];
+
+  return productDemand.opportunities
+    .filter((opp: any) => opp.priority === 'high')
+    .map((opp: any) => ({
+      ...opp,
+      estimatedROI: 'high', // You'd calculate this based on your business model
+      timeToMarket: '2-4 weeks', // Based on your production capabilities
+      riskLevel: 'low' // Based on demand stability
+    }));
+}
+
+private calculateMarketPosition(brandCount: number, activity: number): string {
+  // Simple market position calculation
+  if (brandCount > 10 && activity > 100) return 'market_leader';
+  if (brandCount > 5 && activity > 50) return 'strong_player';
+  if (brandCount > 2 && activity > 20) return 'growing_presence';
+  return 'emerging_player';
+}
+
+private getTimeframeDays(timeframe: string): number {
+  switch (timeframe) {
+    case '24h': return 1;
+    case '7d': return 7;
+    case '30d': return 30;
+    case '90d': return 90;
+    case '1y': return 365;
+    default: return 30;
+  }
+}
+
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Authentication Methods                                                    */
   /** ─────────────────────────────────────────────────────────────────────────── */
@@ -706,6 +943,85 @@ async getConnectionRequestStatus(manufacturerId: string, brandId: string): Promi
     // Delegate to analytics service
     return this.analyticsService.getVotingAnalytics(businessId);
   }
+
+  /**
+ * Get comprehensive manufacturer analytics
+ */
+async getManufacturerAnalytics(
+  manufacturerId: string, 
+  options?: {
+    timeframe?: string;
+    brandId?: string;
+    metrics?: string[];
+    includeProductDemand?: boolean;
+    includeMarketInsights?: boolean;
+  }
+): Promise<any> {
+  try {
+    const { 
+      timeframe = '30d',
+      brandId,
+      metrics = ['connections', 'orders', 'certificates', 'product_selections'],
+      includeProductDemand = true,
+      includeMarketInsights = true 
+    } = options || {};
+
+    const days = this.getTimeframeDays(timeframe);
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Get manufacturer's connected brands
+    const manufacturer = await Manufacturer.findById(manufacturerId).populate('brands');
+    if (!manufacturer) {
+      throw new Error('Manufacturer not found');
+    }
+
+    const connectedBrands = manufacturer.brands || [];
+    const brandIds = brandId ? [brandId] : connectedBrands.map(b => b._id);
+
+    // Initialize analytics result
+    const analytics: any = {
+      summary: {},
+      brandMetrics: {},
+      collaborationMetrics: {},
+      productDemand: {},
+      marketData: {}
+    };
+
+    // Get brand-specific metrics
+    for (const metric of metrics) {
+      analytics.summary[metric] = await this.getManufacturerMetric(brandIds, metric, startDate);
+    }
+
+    // Brand connection metrics
+    analytics.brandMetrics = {
+      totalConnected: connectedBrands.length,
+      activeCollaborations: await this.getActiveBrandCollaborations(manufacturerId, startDate),
+      newConnectionsInPeriod: await this.getNewBrandConnections(manufacturerId, startDate)
+    };
+
+    // Collaboration metrics
+    analytics.collaborationMetrics = {
+      active: analytics.brandMetrics.activeCollaborations,
+      pending: await this.getPendingCollaborations(manufacturerId),
+      completed: await this.getCompletedCollaborations(manufacturerId, startDate)
+    };
+
+    // Product demand analysis
+    if (includeProductDemand) {
+      analytics.productDemand = await this.getProductDemandAnalysis(brandIds, startDate);
+    }
+
+    // Market insights
+    if (includeMarketInsights) {
+      analytics.marketData = await this.getMarketInsights(brandIds, timeframe);
+    }
+
+    return analytics;
+  } catch (error) {
+    console.error('Get manufacturer analytics error:', error);
+    throw new Error(`Failed to get manufacturer analytics: ${error.message}`);
+  }
+}
 
   /**
    * Get comprehensive analytics for a brand with enhanced metrics

@@ -42,6 +42,10 @@ export interface VoteRecord {
   txHash: string;
   createdAt?: Date;
   blockNumber?: number;
+  selectedProductId: string; 
+  productName?: string;
+  voterAddress?: string; 
+  gasUsed?: string; 
 }
 
 export interface VotingStats {
@@ -62,12 +66,14 @@ export interface ProcessPendingResult {
 }
 
 export interface PendingVoteRecord {
-  businessId: string;
-  proposalId: string;
+   businessId: string;
+  proposalId: string; 
   userId: string;
   voteId: string;
-  voteType?: 'for' | 'against' | 'abstain';
-  reason?: string;
+  selectedProductId: string;
+  productName?: string;
+  productImageUrl?: string;
+  selectionReason?: string;
   createdAt: Date;
 }
 
@@ -105,6 +111,7 @@ export class VotingBusinessService {
   private subscriptionService = new SubscriptionService();
 
   // ===== CONTRACT DEPLOYMENT =====
+  
 
   async deployVotingContractForBusiness(businessId: string): Promise<DeployContractResult> {
     try {
@@ -115,7 +122,7 @@ export class VotingBusinessService {
 
       // Check if business already has a contract
       const existingSettings = await BrandSettings.findOne({ business: businessId });
-      if (existingSettings?.voteContract) {
+      if (existingSettings.web3Settings?.voteContract) {
         throw createAppError('Business already has a voting contract deployed', 409, 'CONTRACT_ALREADY_EXISTS');
       }
 
@@ -127,7 +134,7 @@ export class VotingBusinessService {
         { business: businessId },
         { 
           $set: { 
-            voteContract: deploymentResult.address,
+            'web3Settings.voteContract': deploymentResult.address,
             'votingSettings.contractDeployedAt': new Date(),
             'votingSettings.networkId': process.env.CHAIN_ID || '8453'
           }
@@ -202,7 +209,7 @@ export class VotingBusinessService {
       }
 
       const settings = await BrandSettings.findOne({ business: businessId });
-      if (!settings?.voteContract) {
+      if (!settings.web3Settings?.voteContract) {
         throw createAppError('No voting contract deployed for this business', 404, 'NO_VOTING_CONTRACT');
       }
 
@@ -210,7 +217,7 @@ export class VotingBusinessService {
       const metadataUri = `${process.env.METADATA_BASE_URL || 'https://api.example.com/metadata'}/proposals/${businessId}/${Date.now()}`;
 
       // Create proposal using static method
-      const proposalResult = await VotingService.createProposal(settings.voteContract, metadataUri);
+      const proposalResult = await VotingService.createProposal(settings.web3Settings?.voteContract, metadataUri);
 
       // Store proposal metadata in database (optional)
       try {
@@ -276,12 +283,12 @@ export class VotingBusinessService {
       }
 
       const settings = await BrandSettings.findOne({ business: businessId });
-      if (!settings?.voteContract) {
+      if (!settings.web3Settings?.voteContract) {
         return [];
       }
 
       // Get proposals using static method
-      const proposalEvents = await VotingService.getProposalEvents(settings.voteContract);
+      const proposalEvents = await VotingService.getProposalEvents(settings.web3Settings?.voteContract);
 
       // Transform the data to match expected format
       return proposalEvents.map(event => ({
@@ -329,66 +336,120 @@ export class VotingBusinessService {
 
   // ===== VOTING MANAGEMENT =====
 
-  async recordPendingVote(businessId: string, proposalId: string, userId: string, options: {
-    voteType?: 'for' | 'against' | 'abstain';
-    reason?: string;
-    voteId?: string;
-  } = {}): Promise<PendingVoteRecord> {
-    try {
-      // Validate inputs
-      if (!businessId?.trim()) {
-        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
-      }
-      if (!proposalId?.trim()) {
-        throw createAppError('Proposal ID is required', 400, 'MISSING_PROPOSAL_ID');
-      }
-      if (!userId?.trim()) {
-        throw createAppError('User ID is required', 400, 'MISSING_USER_ID');
-      }
-
-      const voteId = options.voteId || new Date().getTime().toString();
-      
-      const pendingVoteData = {
-        businessId,
-        proposalId,
-        userId,
-        voteId,
-        voteType: options.voteType || 'for',
-        reason: options.reason?.trim()
-      };
-
-      const pendingVote = await PendingVote.create(pendingVoteData);
-
-      return {
-        businessId,
-        proposalId,
-        userId,
-        voteId,
-        voteType: options.voteType,
-        reason: options.reason,
-        createdAt: pendingVote.createdAt
-      };
-    } catch (error: any) {
-      console.error('Record pending vote error:', error);
-      
-      if (error.statusCode) {
-        throw error;
-      }
-
-      // Handle duplicate vote error
-      if (error.code === 11000) {
-        throw createAppError(`User has already voted for proposal ${proposalId}`, 409, 'DUPLICATE_VOTE');
-      }
-
-      // Handle validation errors
-      if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-        throw createAppError(`Validation failed: ${validationErrors.join(', ')}`, 400, 'VALIDATION_ERROR');
-      }
-
-      throw createAppError(`Failed to record pending vote: ${error.message}`, 500, 'RECORD_VOTE_FAILED');
-    }
+  async checkBusinessVotingEligibility(businessId: string): Promise<{
+  canVote: boolean;
+  remainingVotes: number;
+  reason?: string;
+}> {
+  try {
+    const limits = await this.subscriptionService.getVotingLimits(businessId);
+    
+    const canVote = limits.remainingVotes > 0 || limits.voteLimit === -1; // -1 = unlimited
+    
+    return {
+      canVote,
+      remainingVotes: limits.remainingVotes,
+      reason: canVote ? undefined : 'Monthly voting limit exceeded'
+    };
+  } catch (error: any) {
+    return {
+      canVote: false,
+      remainingVotes: 0,
+      reason: `Unable to check voting eligibility: ${error.message}`
+    };
   }
+}
+
+  async recordPendingVote(
+  businessId: string, 
+  proposalId: string, 
+  userId: string, 
+  selectedProductId: string, // This is a separate parameter
+  options: {
+    productName?: string;
+    productImageUrl?: string;
+    selectionReason?: string;
+    voteId?: string;
+  } = {} // This object does NOT contain selectedProductId
+): Promise<PendingVoteRecord> {
+  try {
+    // Validate inputs
+    if (!businessId?.trim()) {
+      throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
+    }
+    if (!proposalId?.trim()) {
+      throw createAppError('Selection round ID is required', 400, 'MISSING_PROPOSAL_ID');
+    }
+    if (!userId?.trim()) {
+      throw createAppError('User ID is required', 400, 'MISSING_USER_ID');
+    }
+    if (!selectedProductId?.trim()) { // ✅ Use the parameter directly
+      throw createAppError('Selected product ID is required', 400, 'MISSING_PRODUCT_ID');
+    }
+
+    // Check subscription limits
+    try {
+      await this.subscriptionService.checkVotingLimits(businessId, 1);
+    } catch (limitError) {
+      throw createAppError(`Selection limit exceeded: ${limitError.message}`, 403, 'VOTING_LIMIT_EXCEEDED');
+    }
+
+    const voteId = options.voteId || new Date().getTime().toString();
+    
+    // Validate the product selection data
+    this.validateProductSelection({
+      businessId,
+      proposalId,
+      voteId,
+      selectedProductId, 
+      userId
+    });
+
+    const pendingVoteData = {
+      businessId,
+      proposalId,
+      userId,
+      voteId,
+      selectedProductId, 
+      productName: options.productName?.trim(),
+      productImageUrl: options.productImageUrl?.trim(),
+      selectionReason: options.selectionReason?.trim()
+    };
+
+    const pendingVote = await PendingVote.create(pendingVoteData);
+
+    return {
+      businessId,
+      proposalId,
+      userId,
+      voteId,
+      selectedProductId, 
+      productName: options.productName,
+      productImageUrl: options.productImageUrl,
+      selectionReason: options.selectionReason,
+      createdAt: pendingVote.createdAt
+    };
+  } catch (error: any) {
+    console.error('Record product selection error:', error);
+    
+    if (error.statusCode) {
+      throw error;
+    }
+
+    // Handle duplicate selection error
+    if (error.code === 11000) {
+      throw createAppError(`User has already selected this product in this round`, 409, 'DUPLICATE_SELECTION');
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+      throw createAppError(`Validation failed: ${validationErrors.join(', ')}`, 400, 'VALIDATION_ERROR');
+    }
+
+    throw createAppError(`Failed to record product selection: ${error.message}`, 500, 'RECORD_SELECTION_FAILED');
+  }
+}
 
   async processPendingVotes(businessId: string, forceSubmit: boolean = false): Promise<ProcessPendingResult | null> {
     try {
@@ -415,7 +476,7 @@ export class VotingBusinessService {
       }
 
       const settings = await BrandSettings.findOne({ business: businessId });
-      if (!settings?.voteContract) {
+      if (!settings.web3Settings?.voteContract) {
         throw createAppError('No voting contract deployed for this business', 404, 'NO_VOTING_CONTRACT');
       }
 
@@ -430,7 +491,7 @@ export class VotingBusinessService {
 
       // Submit votes on blockchain using static method
       const batchResult = await VotingService.batchSubmitVotes(
-        settings.voteContract,
+        settings.web3Settings?.voteContract,
         proposalIds,
         voteIds,
         signatures
@@ -440,16 +501,33 @@ export class VotingBusinessService {
       const voteRecords = [];
       for (const vote of pending) {
         try {
-          const votingRecord = await VotingRecord.create({
-            business: businessId,
-            proposalId: vote.proposalId,
-            voteId: vote.voteId,
-            timestamp: new Date(),
-            voteChoice: vote.voteType || 'for',
-            voterAddress: vote.userId // You might map this to actual wallet address
+
+          this.validateVoteData({
+          businessId: vote.businessId,
+          proposalId: vote.proposalId,
+          voteId: vote.voteId,
+          voteChoice: vote.selectedProductId ,
+          voterAddress: vote.userId // You might want to map this to actual wallet address
+         });
+
+         const votingRecord = await VotingRecord.create({
+          business: businessId,
+          proposalId: vote.proposalId,
+          voteId: vote.voteId,
+          timestamp: new Date(),
+          voteChoice: vote.selectedProductId || 'for', // ✓ Correctly mapped
+          voterAddress: vote.userId, // Consider mapping to actual wallet address
+          blockNumber: batchResult.blockNumber, // ADD THIS from blockchain result
+          gasUsed: batchResult.gasUsed // ADD THIS from blockchain result
           });
 
           voteRecords.push(votingRecord);
+
+           try {
+          await this.billingService.trackVoteUsage(businessId, vote.voteId);
+        } catch (billingError: any) {
+          console.warn(`Failed to track billing for vote ${vote.voteId}:`, billingError.message);
+        }
 
           // Mark pending vote as processed
           await vote.markAsProcessed();
@@ -500,43 +578,65 @@ export class VotingBusinessService {
   }
 
   async getBusinessVotes(businessId: string): Promise<VoteRecord[]> {
-    try {
-      if (!businessId?.trim()) {
-        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
-      }
-
-      const settings = await BrandSettings.findOne({ business: businessId });
-      if (!settings?.voteContract) {
-        return [];
-      }
-
-      // Get votes using static method
-      const voteEvents = await VotingService.getVoteEvents(settings.voteContract);
-      
-      // Transform the data to match expected format
-      return voteEvents.map(event => ({
-        voter: event.voter,
-        proposalId: event.proposalId,
-        txHash: event.txHash,
-        createdAt: new Date(event.timestamp || Date.now()),
-        voteChoice: 'for' as const, // You might determine this from blockchain data
-        blockNumber: event.blockNumber
-      }));
-    } catch (error: any) {
-      console.error('Get business votes error:', error);
-      
-      if (error.statusCode) {
-        throw error;
-      }
-
-      // Handle blockchain errors
-      if (error.code === 'NETWORK_ERROR') {
-        throw createAppError('Blockchain network error while fetching votes', 503, 'NETWORK_ERROR');
-      }
-
-      throw createAppError(`Failed to get business votes: ${error.message}`, 500, 'GET_VOTES_FAILED');
+  try {
+    if (!businessId?.trim()) {
+      throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
     }
+
+    // Get from database first (more reliable than blockchain events)
+    const dbVotes = await VotingRecord.find({ business: businessId })
+      .sort({ timestamp: -1 })
+      .lean();
+
+    if (dbVotes.length > 0) {
+      return dbVotes.map(vote => ({
+        voter: vote.voterAddress || vote.voteId, // Map appropriately
+        proposalId: vote.proposalId,
+        txHash: '', // Would need to store this in the model
+        createdAt: vote.timestamp,
+        blockNumber: vote.blockNumber,
+        selectedProductId: vote.selectedProductId, // ✅ ADD THIS - required for product selection
+        productName: vote.productName, // ✅ ADD THIS - from updated model
+        voterAddress: vote.voterAddress,
+        gasUsed: vote.gasUsed
+      }));
+    }
+
+    const settings = await BrandSettings.findOne({ business: businessId });
+    if (!settings?.web3Settings?.voteContract) { // ✅ FIX: Check if contract doesn't exist
+      return [];
+    }
+
+    // Get votes using static method
+    const voteEvents = await VotingService.getVoteEvents(settings.web3Settings.voteContract); // ✅ FIX: Use non-optional access
+
+    // Transform the data to match expected format
+    return voteEvents.map(event => ({
+      voter: event.voter,
+      proposalId: event.proposalId,
+      txHash: event.txHash,
+      createdAt: new Date(event.timestamp || Date.now()),
+      blockNumber: event.blockNumber,
+      selectedProductId: event.selectedProductId || 'unknown-product', // ✅ ADD THIS - handle missing data
+      productName: event.productName || undefined, // ✅ ADD THIS - optional from blockchain
+      voterAddress: event.voter,
+      gasUsed: undefined
+    }));
+  } catch (error: any) {
+    console.error('Get business votes error:', error);
+    
+    if (error.statusCode) {
+      throw error;
+    }
+
+    // Handle blockchain errors
+    if (error.code === 'NETWORK_ERROR') {
+      throw createAppError('Blockchain network error while fetching votes', 503, 'NETWORK_ERROR');
+    }
+
+    throw createAppError(`Failed to get business votes: ${error.message}`, 500, 'GET_VOTES_FAILED');
   }
+}
 
   async getPendingVotes(businessId: string, filters: {
     proposalId?: string;
@@ -590,9 +690,9 @@ export class VotingBusinessService {
       let totalVotes = 0;
       let activeProposals = 0;
 
-      if (settings?.voteContract) {
+      if (settings.web3Settings?.voteContract) {
         try {
-          const contractInfo = await VotingService.getContractInfo(settings.voteContract);
+          const contractInfo = await VotingService.getContractInfo(settings.web3Settings?.voteContract);
           totalProposals = contractInfo.totalProposals;
           totalVotes = contractInfo.totalVotes;
           activeProposals = contractInfo.activeProposals || 0;
@@ -611,7 +711,7 @@ export class VotingBusinessService {
         totalProposals,
         totalVotes: Math.max(totalVotes, votingRecords),
         pendingVotes,
-        contractAddress: settings?.voteContract,
+        contractAddress: settings.web3Settings?.voteContract,
         activeProposals,
         participationRate
       };
@@ -713,7 +813,7 @@ export class VotingBusinessService {
       }
 
       const settings = await BrandSettings.findOne({ business: businessId });
-      return !!(settings?.voteContract);
+      return !!(settings.web3Settings?.voteContract);
     } catch (error) {
       console.error('Check voting contract error:', error);
       return false;
@@ -727,7 +827,7 @@ export class VotingBusinessService {
       }
 
       const settings = await BrandSettings.findOne({ business: businessId });
-      return settings?.voteContract || null;
+      return settings.web3Settings?.voteContract || null;
     } catch (error) {
       console.error('Get contract address error:', error);
       return null;
@@ -911,7 +1011,18 @@ export class VotingBusinessService {
 
       for (const [index, vote] of votes.entries()) {
         try {
-          const result = await this.recordPendingVote(businessId, vote.proposalId, vote.userId, {
+
+            const voteId = new Date().getTime().toString() + '-' + index;
+            const voteChoice = vote.voteType || 'for';
+
+              this.validateVoteData({
+              businessId,
+              proposalId: vote.proposalId,
+              voteId,
+              voteChoice,
+              voterAddress: vote.userId
+              });
+            const result = await this.recordPendingVote(businessId, vote.proposalId, vote.userId, {
             voteType: vote.voteType,
             reason: vote.reason
           });
@@ -1068,34 +1179,86 @@ export class VotingBusinessService {
     }
   }
 
-  // ===== LEGACY COMPATIBILITY METHODS =====
-
-  /**
-   * Legacy method for backward compatibility
-   * @deprecated Use createProposalForBusiness instead
-   */
-  async createProposal(businessId: string, description: string): Promise<{ proposalId: string; txHash: string }> {
-    const result = await this.createProposalForBusiness(businessId, description);
-    return {
-      proposalId: result.proposalId,
-      txHash: result.txHash
-    };
+  private validateVoteData(voteData: {
+  businessId: string;
+  proposalId: string;
+  voteId: string;
+  voteChoice: string;
+  voterAddress?: string;
+}): void {
+  // Validate voteChoice enum
+  const validChoices = ['for', 'against', 'abstain'];
+  if (!validChoices.includes(voteData.voteChoice)) {
+    throw createAppError(`Invalid vote choice. Must be one of: ${validChoices.join(', ')}`, 400, 'INVALID_VOTE_CHOICE');
   }
 
-  /**
-   * Legacy method for backward compatibility
-   * @deprecated Use recordPendingVote instead
-   */
-  async recordVote(businessId: string, proposalId: string, userId: string): Promise<void> {
-    await this.recordPendingVote(businessId, proposalId, userId);
+  // Validate voterAddress format if provided
+  if (voteData.voterAddress && !/^0x[a-fA-F0-9]{40}$/.test(voteData.voterAddress)) {
+    throw createAppError('Invalid voter address format', 400, 'INVALID_VOTER_ADDRESS');
   }
 
-  /**
-   * Legacy method for backward compatibility
-   * @deprecated Use processPendingVotes instead
-   */
-  async submitPendingVotes(businessId: string): Promise<{ txHash: string } | null> {
-    const result = await this.processPendingVotes(businessId);
-    return result ? { txHash: result.txHash } : null;
+  // Validate required fields
+  if (!voteData.businessId?.trim()) {
+    throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
   }
+  if (!voteData.proposalId?.trim()) {
+    throw createAppError('Proposal ID is required', 400, 'MISSING_PROPOSAL_ID');
+  }
+  if (!voteData.voteId?.trim()) {
+    throw createAppError('Vote ID is required', 400, 'MISSING_VOTE_ID');
+  }
+}
+
+/**
+ * Validate product selection data against model constraints
+ */
+private validateProductSelection(selectionData: {
+  businessId: string;
+  proposalId: string;
+  voteId: string;
+  selectedProductId: string;
+  userId: string;
+}): void {
+  // Validate required fields
+  if (!selectionData.businessId?.trim()) {
+    throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
+  }
+  if (!selectionData.proposalId?.trim()) {
+    throw createAppError('Selection round ID is required', 400, 'MISSING_PROPOSAL_ID');
+  }
+  if (!selectionData.voteId?.trim()) {
+    throw createAppError('Selection ID is required', 400, 'MISSING_VOTE_ID');
+  }
+  if (!selectionData.selectedProductId?.trim()) {
+    throw createAppError('Product ID is required', 400, 'MISSING_PRODUCT_ID');
+  }
+  if (!selectionData.userId?.trim()) {
+    throw createAppError('User ID is required', 400, 'MISSING_USER_ID');
+  }
+
+  // Validate field lengths
+  if (selectionData.businessId.length > 100) {
+    throw createAppError('Business ID cannot exceed 100 characters', 400, 'BUSINESS_ID_TOO_LONG');
+  }
+  if (selectionData.proposalId.length > 100) {
+    throw createAppError('Proposal ID cannot exceed 100 characters', 400, 'PROPOSAL_ID_TOO_LONG');
+  }
+  if (selectionData.voteId.length > 100) {
+    throw createAppError('Vote ID cannot exceed 100 characters', 400, 'VOTE_ID_TOO_LONG');
+  }
+  if (selectionData.userId.length > 100) {
+    throw createAppError('User ID cannot exceed 100 characters', 400, 'USER_ID_TOO_LONG');
+  }
+
+  // Validate product ID format (adjust regex based on your product ID format)
+  // This assumes alphanumeric with hyphens and underscores - adjust as needed
+  if (!/^[a-zA-Z0-9_-]+$/.test(selectionData.selectedProductId)) {
+    throw createAppError('Invalid product ID format. Only letters, numbers, hyphens and underscores allowed.', 400, 'INVALID_PRODUCT_ID');
+  }
+
+  // Validate product ID length
+  if (selectionData.selectedProductId.length > 50) {
+    throw createAppError('Product ID cannot exceed 50 characters', 400, 'PRODUCT_ID_TOO_LONG');
+  }
+}
 }

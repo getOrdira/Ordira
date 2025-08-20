@@ -1,10 +1,17 @@
 // src/routes/brandAccount.routes.ts
 import { Router } from 'express';
-import { validateBody } from '../middleware/validation.middleware';
+import { validateBody, validateQuery } from '../middleware/validation.middleware';
 import { authenticate } from '../middleware/auth.middleware';
-import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
+import { resolveTenant, requireTenantSetup } from '../middleware/tenant.middleware';
+import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as ctrl from '../controllers/brandAccount.controller';
-import { updateBrandAccountSchema } from '../validation/brandAccount.validation';
+import { 
+  updateBrandAccountSchema,
+  submitVerificationSchema,
+  deactivateAccountSchema,
+  exportAccountDataSchema,
+  analyticsQuerySchema
+} from '../validation/brandAccount.validation';
 
 const router = Router();
 
@@ -14,17 +21,89 @@ router.use(dynamicRateLimiter());
 // Apply authentication to all routes
 router.use(authenticate);
 
-// Get brand profile
+// Apply tenant resolution (needed for plan-based features)
+router.use(resolveTenant);
+router.use(requireTenantSetup);
+
+// ===== PROFILE MANAGEMENT =====
+
+/**
+ * GET /api/brand/account/profile
+ * Get comprehensive brand profile with metadata
+ */
 router.get(
   '/profile',
   ctrl.getBrandProfile
 );
 
-// Update brand profile (with validation)
+/**
+ * PUT /api/brand/account/profile
+ * Update brand profile with validation and plan restrictions
+ */
 router.put(
   '/profile',
   validateBody(updateBrandAccountSchema),
   ctrl.updateBrandProfile
+);
+
+// ===== VERIFICATION MANAGEMENT =====
+
+/**
+ * POST /api/brand/account/verification
+ * Submit brand verification documents
+ */
+router.post(
+  '/verification',
+  strictRateLimiter(), // Prevent verification spam
+  validateBody(submitVerificationSchema),
+  ctrl.submitVerification
+);
+
+/**
+ * GET /api/brand/account/verification/status
+ * Get current verification status with detailed information
+ */
+router.get(
+  '/verification/status',
+  ctrl.getVerificationStatus
+);
+
+// ===== ACCOUNT MANAGEMENT =====
+
+/**
+ * POST /api/brand/account/deactivate
+ * Deactivate brand account with feedback collection
+ */
+router.post(
+  '/deactivate',
+  strictRateLimiter(), // Prevent accidental deactivation spam
+  validateBody(deactivateAccountSchema),
+  ctrl.deactivateAccount
+);
+
+// ===== ANALYTICS & INSIGHTS =====
+
+/**
+ * GET /api/brand/account/analytics
+ * Get brand account analytics and insights (Growth+ plans)
+ */
+router.get(
+  '/analytics',
+  validateQuery(analyticsQuerySchema),
+  ctrl.getAccountAnalytics
+);
+
+// ===== DATA EXPORT =====
+
+/**
+ * POST /api/brand/account/export
+ * Export brand account data in various formats
+ */
+router.post(
+  '/export',
+  strictRateLimiter(), // Prevent export abuse
+  validateBody(exportAccountDataSchema),
+  ctrl.exportAccountData
 );
 
 export default router;
