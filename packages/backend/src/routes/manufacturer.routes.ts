@@ -1,16 +1,18 @@
 // src/routes/manufacturer.routes.ts
 import { Router } from 'express';
+import Joi from 'joi';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
 import { authenticateManufacturer, requireVerifiedManufacturer } from '../middleware/manufacturerAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
+import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as mfgCtrl from '../controllers/manufacturer.controller';
 import {
   registerManufacturerSchema,
   loginManufacturerSchema,
+  updateManufacturerProfileSchema,
   listBrandsQuerySchema,
   brandParamsSchema,
-  manufacturerVerificationSchema,
-  updateManufacturerProfileSchema
+  manufacturerVerificationSchema
 } from '../validation/manufacturer.validation';
 
 const router = Router();
@@ -25,6 +27,7 @@ router.post(
   '/register',
   strictRateLimiter(), // Prevent registration spam
   validateBody(registerManufacturerSchema),
+  trackManufacturerAction('register'),
   mfgCtrl.register
 );
 
@@ -33,31 +36,24 @@ router.post(
   '/login',
   strictRateLimiter(), // Prevent brute force attacks
   validateBody(loginManufacturerSchema),
+  trackManufacturerAction('login'),
   mfgCtrl.login
 );
 
-// Verify manufacturer email (strict rate limiting)
+// Verify manufacturer token (utility endpoint)
 router.post(
-  '/verify',
+  '/verify-token',
   strictRateLimiter(),
-  validateBody(manufacturerVerificationSchema),
-  mfgCtrl.verifyEmail
+  mfgCtrl.verifyToken
 );
 
-// Request password reset (strict rate limiting)
-router.post(
-  '/forgot-password',
-  strictRateLimiter(),
-  validateBody(loginManufacturerSchema.extract(['email'])),
-  mfgCtrl.forgotPassword
-);
+// ===== PUBLIC MANUFACTURER DISCOVERY =====
 
-// Reset password (strict rate limiting)
-router.post(
-  '/reset-password',
-  strictRateLimiter(),
-  validateBody(manufacturerVerificationSchema),
-  mfgCtrl.resetPassword
+// Search for manufacturers (public endpoint for brands)
+router.get(
+  '/search',
+  validateQuery(listBrandsQuerySchema), // Reuse for search filters
+  mfgCtrl.searchManufacturers
 );
 
 // ===== PROTECTED MANUFACTURER ROUTES =====
@@ -68,6 +64,7 @@ router.use(authenticateManufacturer);
 // Get manufacturer profile
 router.get(
   '/profile',
+  trackManufacturerAction('view_profile'),
   mfgCtrl.getProfile
 );
 
@@ -75,20 +72,29 @@ router.get(
 router.put(
   '/profile',
   validateBody(updateManufacturerProfileSchema),
+  trackManufacturerAction('update_profile'),
   mfgCtrl.updateProfile
 );
 
-// Submit verification documents (verified manufacturers only eventually)
-router.post(
-  '/verification',
-  validateBody(manufacturerVerificationSchema),
-  mfgCtrl.submitVerification
+// Get manufacturer dashboard summary
+router.get(
+  '/dashboard',
+  trackManufacturerAction('view_dashboard'),
+  mfgCtrl.getDashboardSummary
 );
 
-// Get verification status
-router.get(
-  '/verification/status',
-  mfgCtrl.getVerificationStatus
+// Refresh manufacturer authentication token
+router.post(
+  '/refresh',
+  trackManufacturerAction('refresh_token'),
+  mfgCtrl.refreshToken
+);
+
+// Logout manufacturer (clear cookies and invalidate session)
+router.post(
+  '/logout',
+  trackManufacturerAction('logout'),
+  mfgCtrl.logout
 );
 
 // ===== BRAND RELATIONSHIP ROUTES =====
@@ -97,86 +103,63 @@ router.get(
 router.get(
   '/brands',
   validateQuery(listBrandsQuerySchema),
+  trackManufacturerAction('list_brands'),
   mfgCtrl.listBrandsForManufacturer
 );
 
-// Get specific brand details
+// Get specific brand connection status
 router.get(
-  '/brands/:brandId',
+  '/brands/:brandId/connection-status',
   validateParams(brandParamsSchema),
-  mfgCtrl.getBrandDetails
+  trackManufacturerAction('check_connection_status'),
+  mfgCtrl.getConnectionStatus
 );
 
-// Get results/analytics for specific brand (verified manufacturers only)
+// Check if manufacturer can connect to a brand
 router.get(
-  '/brands/:brandId/results',
-  requireVerifiedManufacturer, // Extra verification requirement
+  '/brands/:brandId/can-connect',
   validateParams(brandParamsSchema),
-  validateQuery(listBrandsQuerySchema), // Reuse for date filtering
+  trackManufacturerAction('check_can_connect'),
+  mfgCtrl.canConnectToBrand
+);
+
+// Create connection request to a brand
+router.post(
+  '/brands/:brandId/connect',
+  validateParams(brandParamsSchema),
+  validateBody(Joi.object({
+    message: Joi.string().trim().max(1000).optional(),
+    services: Joi.array().items(Joi.string().trim().max(100)).max(10).optional(),
+    proposedServices: Joi.array().items(Joi.string().trim().max(100)).max(10).optional(),
+    timeline: Joi.string().trim().max(200).optional(),
+    budget: Joi.string().trim().max(200).optional(),
+    portfolio: Joi.string().trim().max(500).optional()
+  })),
+  trackManufacturerAction('create_connection'),
+  mfgCtrl.createConnectionRequest
+);
+
+// ===== VERIFIED MANUFACTURER ROUTES =====
+
+// Routes below require verified manufacturer status
+router.use(requireVerifiedManufacturer);
+
+// Get results/analytics for specific brand
+router.get(
+  '/brands/:brandSettingsId/results',
+  validateParams(brandParamsSchema),
+  validateQuery(listBrandsQuerySchema), // For analytics filtering
+  trackManufacturerAction('view_brand_results'),
   mfgCtrl.getResultsForBrand
 );
 
-// Get orders from specific brand
+// Get comprehensive analytics for a brand
 router.get(
-  '/brands/:brandId/orders',
+  '/brands/:brandSettingsId/analytics',
   validateParams(brandParamsSchema),
-  validateQuery(listBrandsQuerySchema),
-  mfgCtrl.getOrdersFromBrand
-);
-
-// Update collaboration status with brand
-router.put(
-  '/brands/:brandId/status',
-  validateParams(brandParamsSchema),
-  validateBody(registerManufacturerSchema.extract(['status'])), // Reuse status validation
-  mfgCtrl.updateBrandCollaborationStatus
-);
-
-// ===== PRODUCT & ORDER MANAGEMENT =====
-
-// List manufacturer's products
-router.get(
-  '/products',
-  validateQuery(listBrandsQuerySchema), // Reuse for pagination
-  mfgCtrl.listManufacturerProducts
-);
-
-// Create new product
-router.post(
-  '/products',
-  validateBody(updateManufacturerProfileSchema), // Reuse for product data
-  mfgCtrl.createProduct
-);
-
-// Update product
-router.put(
-  '/products/:productId',
-  validateParams(brandParamsSchema), // Reuse for ObjectId validation
-  validateBody(updateManufacturerProfileSchema),
-  mfgCtrl.updateProduct
-);
-
-// Get manufacturing analytics
-router.get(
-  '/analytics',
-  validateQuery(listBrandsQuerySchema),
-  mfgCtrl.getManufacturingAnalytics
-);
-
-// ===== NOTIFICATION & COMMUNICATION ROUTES =====
-
-// Get notifications
-router.get(
-  '/notifications',
-  validateQuery(listBrandsQuerySchema),
-  mfgCtrl.getNotifications
-);
-
-// Mark notification as read
-router.put(
-  '/notifications/:notificationId/read',
-  validateParams(brandParamsSchema),
-  mfgCtrl.markNotificationRead
+  validateQuery(listBrandsQuerySchema), // For timeframe filtering
+  trackManufacturerAction('view_comprehensive_analytics'),
+  mfgCtrl.getComprehensiveAnalytics
 );
 
 export default router;

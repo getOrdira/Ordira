@@ -1,15 +1,16 @@
 // src/routes/manufacturerAccount.routes.ts
 import { Router } from 'express';
+import Joi from 'joi';
 import { validateBody, validateQuery } from '../middleware/validation.middleware';
-import { authenticateManufacturer, requireVerifiedManufacturer } from '../middleware/manufacturerAuth.middleware';
-import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
+import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
+import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { uploadMiddleware } from '../middleware/upload.middleware';
 import * as ctrl from '../controllers/manufacturerAccount.controller';
 import {
   updateManufacturerAccountSchema,
   quickUpdateManufacturerSchema,
-  manufacturerVerificationSchema,
-  capabilityAssessmentSchema,
-  listManufacturerQuerySchema
+  manufacturerVerificationSchema
 } from '../validation/manufacturerAccount.validation';
 
 const router = Router();
@@ -22,119 +23,111 @@ router.use(authenticateManufacturer);
 
 // ===== PROFILE MANAGEMENT =====
 
-// Get manufacturer profile
+// Get manufacturer profile/account details
 router.get(
-  '/profile',
+  '/',
+  trackManufacturerAction('view_account'),
   ctrl.getManufacturerProfile
 );
 
-// Update complete manufacturer profile
+// Update complete manufacturer profile/account
 router.put(
-  '/profile',
+  '/',
   validateBody(updateManufacturerAccountSchema),
+  trackManufacturerAction('update_account'),
   ctrl.updateManufacturerProfile
 );
 
-// Quick profile updates (basic info only)
-router.put(
-  '/profile/quick',
-  validateBody(quickUpdateManufacturerSchema),
-  ctrl.quickUpdateProfile
+// Delete manufacturer account (soft delete)
+router.delete(
+  '/',
+  strictRateLimiter(), // Strict rate limiting for account deletion
+  trackManufacturerAction('delete_account'),
+  ctrl.deleteManufacturerAccount
+);
+
+// ===== PROFILE PICTURE MANAGEMENT =====
+
+// Upload manufacturer profile picture
+router.post(
+  '/profile-picture',
+  ...uploadMiddleware.singleImage, // Use the predefined singleImage middleware
+  trackManufacturerAction('upload_profile_picture'),
+  ctrl.uploadProfilePicture
 );
 
 // ===== VERIFICATION & COMPLIANCE =====
 
-// Submit verification documents
-router.post(
-  '/verification',
-  validateBody(manufacturerVerificationSchema),
-  ctrl.submitVerification
-);
-
-// Get verification status
+// Get verification status and requirements
 router.get(
-  '/verification/status',
+  '/verification',
+  trackManufacturerAction('check_verification_status'),
   ctrl.getVerificationStatus
 );
 
-// Update verification documents
-router.put(
-  '/verification',
-  validateBody(manufacturerVerificationSchema),
-  ctrl.updateVerification
-);
-
-// ===== CAPABILITIES & SERVICES =====
-
-// Submit capability assessment
+// Submit verification documents
 router.post(
-  '/capabilities',
-  validateBody(capabilityAssessmentSchema),
-  ctrl.submitCapabilityAssessment
+  '/verification/submit',
+  strictRateLimiter(), // Prevent verification spam
+  ...uploadMiddleware.multipleImages, // Use predefined multipleImages middleware
+  trackManufacturerAction('submit_verification'),
+  ctrl.submitVerificationDocuments
 );
 
-// Get capability assessment
+// ===== ACCOUNT ACTIVITY & LOGS =====
+
+// Get account activity log
 router.get(
-  '/capabilities',
-  ctrl.getCapabilityAssessment
+  '/activity',
+  validateQuery(Joi.object({
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    type: Joi.string().valid(
+      'login', 'profile_update', 'verification_submitted', 
+      'document_uploaded', 'password_changed', 'notification_sent',
+      'account_activated', 'account_deactivated'
+    ).optional(),
+    startDate: Joi.date().optional(),
+    endDate: Joi.date().greater(Joi.ref('startDate')).optional()
+  })),
+  trackManufacturerAction('view_activity_log'),
+  ctrl.getAccountActivity
 );
 
-// Update capabilities
+// ===== NOTIFICATION PREFERENCES =====
+
+// Update notification preferences
 router.put(
-  '/capabilities',
-  validateBody(capabilityAssessmentSchema),
-  ctrl.updateCapabilities
+  '/notifications',
+  validateBody(Joi.object({
+    emailNotifications: Joi.object({
+      invitations: Joi.boolean().optional(),
+      orderUpdates: Joi.boolean().optional(),
+      systemUpdates: Joi.boolean().optional(),
+      marketing: Joi.boolean().optional()
+    }).optional(),
+    pushNotifications: Joi.object({
+      invitations: Joi.boolean().optional(),
+      orderUpdates: Joi.boolean().optional(),
+      systemUpdates: Joi.boolean().optional()
+    }).optional(),
+    smsNotifications: Joi.object({
+      criticalUpdates: Joi.boolean().optional(),
+      orderAlerts: Joi.boolean().optional()
+    }).optional()
+  })),
+  trackManufacturerAction('update_notification_preferences'),
+  ctrl.updateNotificationPreferences
 );
 
-// ===== ACCOUNT SETTINGS =====
+// ===== DATA EXPORT (GDPR COMPLIANCE) =====
 
-// Get account settings
+// Export account data
 router.get(
-  '/settings',
-  ctrl.getAccountSettings
-);
-
-// Update account settings
-router.put(
-  '/settings',
-  validateBody(updateManufacturerAccountSchema.extract([
-    'notifications', 'privacy', 'communication'
-  ])),
-  ctrl.updateAccountSettings
-);
-
-// ===== ANALYTICS & INSIGHTS =====
-
-// Get manufacturer analytics (verified manufacturers only)
-router.get(
-  '/analytics',
-  requireVerifiedManufacturer,
-  validateQuery(listManufacturerQuerySchema),
-  ctrl.getManufacturerAnalytics
-);
-
-// Get performance metrics
-router.get(
-  '/metrics',
-  validateQuery(listManufacturerQuerySchema),
-  ctrl.getPerformanceMetrics
-);
-
-// ===== SUBSCRIPTION & BILLING =====
-
-// Get subscription information
-router.get(
-  '/subscription',
-  ctrl.getSubscriptionInfo
-);
-
-// Update billing information
-router.put(
-  '/billing',
-  validateBody(updateManufacturerAccountSchema.extract([
-    'billingAddress', 'paymentMethod'
-  ])),
-  ctrl.updateBillingInfo
+  '/export',
+  strictRateLimiter(), // Limit data export requests
+  trackManufacturerAction('request_data_export'),
+  ctrl.exportAccountData
 );
 
 export default router;

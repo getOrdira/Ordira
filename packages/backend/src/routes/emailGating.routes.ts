@@ -16,34 +16,69 @@ import {
   emailCheckParamsSchema
 } from '../validation/emailGating.validation';
 
+// Additional validation schemas for missing controller endpoints
+import Joi from 'joi';
+
+// Customer access action schema (for revoke/restore body)
+const customerAccessActionSchema = Joi.object({
+  reason: Joi.string()
+    .trim()
+    .max(500)
+    .optional()
+    .messages({
+      'string.max': 'Reason cannot exceed 500 characters'
+    })
+});
+
+// Customer ID parameter schema (standalone)
+const customerIdParamsSchema = Joi.object({
+  customerId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Customer ID must be a valid MongoDB ObjectId',
+      'any.required': 'Customer ID is required'
+    })
+});
+
 const router = Router();
 
-// Apply middleware to all routes
+// Apply dynamic rate limiting to all email gating routes
 router.use(dynamicRateLimiter());
-router.use(authenticate); // Require brand authentication
+
+// Apply authentication to all routes (requires brand/business authentication)
+router.use(authenticate);
+
+// Apply tenant resolution for plan-based features
 router.use(resolveTenant);
 
 // ===== EMAIL GATING SETTINGS =====
 
 /**
  * GET /api/email-gating/settings
- * Get email gating configuration
+ * Get email gating configuration and analytics overview
+ * 
+ * @requires authentication: business/brand
+ * @rate-limited: dynamic based on plan
  */
 router.get(
   '/settings',
-  trackManufacturerAction('view_email_gating_settings'),
   emailGatingCtrl.getEmailGatingSettings
 );
 
 /**
  * PUT /api/email-gating/settings
  * Update email gating configuration
+ * 
+ * @requires authentication: business/brand
+ * @requires plan: Growth or higher for email gating features
+ * @requires validation: email gating settings data
+ * @rate-limited: dynamic based on plan
  */
 router.put(
   '/settings',
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Email gating is a premium feature
   validateBody(emailGatingSettingsSchema),
-  trackManufacturerAction('update_email_gating_settings'),
   emailGatingCtrl.updateEmailGatingSettings
 );
 
@@ -51,69 +86,94 @@ router.put(
 
 /**
  * GET /api/email-gating/customers
- * List allowed customers with filtering
+ * List allowed customers with advanced filtering and analytics
+ * 
+ * @requires authentication: business/brand
+ * @requires validation: query parameters for filtering and pagination
+ * @rate-limited: dynamic based on plan
  */
 router.get(
   '/customers',
   validateQuery(customerListQuerySchema),
-  trackManufacturerAction('view_allowed_customers'),
   emailGatingCtrl.getCustomers
 );
 
 /**
  * POST /api/email-gating/customers
- * Add customers manually or via API
+ * Add customers manually or via API import
+ * 
+ * @requires authentication: business/brand
+ * @requires plan: Growth or higher for customer management
+ * @requires validation: customer import data
+ * @rate-limited: strict to prevent import abuse
  */
 router.post(
   '/customers',
-  requireTenantPlan(['growth', 'premium', 'enterprise']),
-  strictRateLimiter(), // Prevent abuse
+  strictRateLimiter(), // Prevent abuse of customer imports
+  requireTenantPlan(['growth', 'premium', 'enterprise']), // Customer management requires Growth+
   validateBody(customersImportSchema),
-  trackManufacturerAction('add_customers_manual'),
   emailGatingCtrl.addCustomers
 );
 
 /**
+ * DELETE /api/email-gating/customers/:customerId
+ * Delete customer from allowed list permanently
+ * 
+ * @requires authentication: business/brand
+ * @requires validation: customer ID parameter
+ * @rate-limited: strict for security
+ */
+router.delete(
+  '/customers/:customerId',
+  strictRateLimiter(), // Security for customer deletion
+  validateParams(customerIdParamsSchema),
+  emailGatingCtrl.deleteCustomer
+);
+
+// ===== CUSTOMER IMPORT OPERATIONS =====
+
+/**
  * POST /api/email-gating/customers/import-csv
- * Import customers from CSV data
+ * Import customers from CSV data with validation and error handling
+ * 
+ * @requires authentication: business/brand
+ * @requires plan: Growth or higher for bulk imports
+ * @requires validation: CSV data
+ * @rate-limited: strict to prevent bulk import abuse
  */
 router.post(
   '/customers/import-csv',
-  requireTenantPlan(['growth', 'premium', 'enterprise']),
-  strictRateLimiter(), // Prevent abuse of bulk imports
+  strictRateLimiter(), // Prevent abuse of bulk CSV imports
+  requireTenantPlan(['growth', 'premium', 'enterprise']), // Bulk imports require Growth+
   validateBody(csvImportSchema),
-  trackManufacturerAction('import_customers_csv'),
   emailGatingCtrl.importFromCSV
 );
 
 /**
  * POST /api/email-gating/customers/sync-shopify
- * Sync customers from Shopify integration
+ * Sync customers from Shopify integration automatically
+ * 
+ * @requires authentication: business/brand
+ * @requires plan: Premium or higher for advanced integrations
+ * @rate-limited: strict to prevent sync abuse
  */
 router.post(
   '/customers/sync-shopify',
-  requireTenantPlan(['premium', 'enterprise']), // Advanced integration feature
-  strictRateLimiter(),
-  trackManufacturerAction('sync_customers_shopify'),
+  strictRateLimiter(), // Prevent sync abuse
+  requireTenantPlan(['premium', 'enterprise']), // Advanced integrations require Premium+
   emailGatingCtrl.syncFromShopify
-);
-
-/**
- * DELETE /api/email-gating/customers/:customerId
- * Delete customer from allowed list
- */
-router.delete(
-  '/customers/:customerId',
-  validateParams(customerAccessParamsSchema),
-  trackManufacturerAction('delete_customer'),
-  emailGatingCtrl.deleteCustomer
 );
 
 // ===== CUSTOMER ACCESS CONTROL =====
 
 /**
  * GET /api/email-gating/check/:email
- * Check if email is allowed access (public endpoint for voting platform)
+ * Check if email is allowed access to voting platform
+ * 
+ * @requires authentication: business/brand
+ * @requires validation: email parameter
+ * @rate-limited: dynamic based on plan
+ * @note: This endpoint is used by voting platform to validate access
  */
 router.get(
   '/check/:email',
@@ -123,49 +183,143 @@ router.get(
 
 /**
  * POST /api/email-gating/customers/:customerId/revoke
- * Revoke voting access for a customer
+ * Revoke voting access for a specific customer
+ * 
+ * @requires authentication: business/brand
+ * @requires validation: customer ID parameter and optional reason
+ * @rate-limited: strict for security
  */
 router.post(
   '/customers/:customerId/revoke',
-  validateParams(customerAccessParamsSchema),
-  validateBody(customerAccessParamsSchema.revoke),
-  trackManufacturerAction('revoke_customer_access'),
+  strictRateLimiter(), // Security for access revocation
+  validateParams(customerIdParamsSchema),
+  validateBody(customerAccessActionSchema),
   emailGatingCtrl.revokeCustomerAccess
 );
 
 /**
  * POST /api/email-gating/customers/:customerId/restore
- * Restore voting access for a customer
+ * Restore voting access for a previously revoked customer
+ * 
+ * @requires authentication: business/brand
+ * @requires validation: customer ID parameter
+ * @rate-limited: strict for security
  */
 router.post(
   '/customers/:customerId/restore',
-  validateParams(customerAccessParamsSchema),
-  trackManufacturerAction('restore_customer_access'),
+  strictRateLimiter(), // Security for access restoration
+  validateParams(customerIdParamsSchema),
   emailGatingCtrl.restoreCustomerAccess
 );
 
 /**
  * PUT /api/email-gating/customers/bulk-access
- * Bulk update customer access (grant or revoke)
+ * Bulk update customer access (grant or revoke for multiple customers)
+ * 
+ * @requires authentication: business/brand
+ * @requires validation: customer IDs and access settings
+ * @rate-limited: strict to prevent bulk operation abuse
  */
 router.put(
   '/customers/bulk-access',
-  strictRateLimiter(), // Prevent abuse of bulk operations
+  strictRateLimiter(), // Prevent abuse of bulk access operations
   validateBody(bulkAccessSchema),
-  trackManufacturerAction('bulk_update_customer_access'),
   emailGatingCtrl.bulkUpdateAccess
 );
 
-// ===== ANALYTICS =====
+// ===== ANALYTICS & INSIGHTS =====
 
 /**
  * GET /api/email-gating/analytics
- * Get customer analytics and insights
+ * Get comprehensive customer analytics and engagement insights
+ * 
+ * @requires authentication: business/brand
+ * @rate-limited: dynamic based on plan
  */
 router.get(
   '/analytics',
-  trackManufacturerAction('view_customer_analytics'),
   emailGatingCtrl.getCustomerAnalytics
+);
+
+/**
+ * GET /api/email-gating/customers/insights
+ * Get customer insights and engagement analysis
+ * 
+ * @requires authentication: business/brand
+ * @requires plan: Premium or higher for advanced analytics
+ * @rate-limited: dynamic based on plan
+ */
+router.get(
+  '/customers/insights',
+  requireTenantPlan(['premium', 'enterprise']), // Advanced insights require Premium+
+  (req, res, next) => {
+    // Use the analytics controller for insights
+    emailGatingCtrl.getCustomerAnalytics(req, res, next);
+  }
+);
+
+/**
+ * GET /api/email-gating/dashboard
+ * Get dashboard overview with key metrics and recommendations
+ * 
+ * @requires authentication: business/brand
+ * @rate-limited: dynamic based on plan
+ */
+router.get(
+  '/dashboard',
+  (req, res, next) => {
+    // Combine settings and analytics for dashboard view
+    Promise.all([
+      emailGatingCtrl.getEmailGatingSettings(req, res, () => {}),
+      emailGatingCtrl.getCustomerAnalytics(req, res, () => {})
+    ]).then(() => {
+      // This would be handled by a dedicated dashboard controller method
+      // For now, redirect to analytics
+      emailGatingCtrl.getCustomerAnalytics(req, res, next);
+    }).catch(next);
+  }
+);
+
+// ===== LEGACY COMPATIBILITY =====
+
+/**
+ * GET /api/allowed-customers (legacy route)
+ * Legacy compatibility for old customer listing endpoint
+ * 
+ * @deprecated Use /api/email-gating/customers instead
+ * @requires authentication: business/brand
+ * @rate-limited: dynamic based on plan
+ */
+router.get(
+  '/legacy/allowed-customers',
+  validateQuery(customerListQuerySchema),
+  (req, res, next) => {
+    // Add deprecation warning header
+    res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /api/email-gating/customers instead.');
+    // Type cast to match controller expectations
+    emailGatingCtrl.getCustomers(req as any, res, next);
+  }
+);
+
+/**
+ * POST /api/allowed-customers (legacy route)
+ * Legacy compatibility for old customer import endpoint
+ * 
+ * @deprecated Use /api/email-gating/customers instead
+ * @requires authentication: business/brand
+ * @rate-limited: strict to prevent import abuse
+ */
+router.post(
+  '/legacy/allowed-customers',
+  strictRateLimiter(),
+  requireTenantPlan(['growth', 'premium', 'enterprise']),
+  validateBody(customersImportSchema),
+  (req, res, next) => {
+    // Add deprecation warning header
+    res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /api/email-gating/customers instead.');
+    // Type cast to match controller expectations
+    emailGatingCtrl.addCustomers(req as any, res, next);
+  }
 );
 
 export default router;

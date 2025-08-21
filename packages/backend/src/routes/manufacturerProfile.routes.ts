@@ -1,9 +1,10 @@
 // src/routes/manufacturerProfile.routes.ts
 import { Router } from 'express';
-import { validateParams, validateQuery } from '../middleware/validation.middleware';
+import Joi from 'joi';
+import { validateParams, validateQuery, validateBody } from '../middleware/validation.middleware';
 import { authenticate } from '../middleware/auth.middleware';
-import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
+import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as ctrl from '../controllers/manufacturerProfile.controller';
 import {
   manufacturerProfileParamsSchema,
@@ -18,90 +19,115 @@ router.use(dynamicRateLimiter());
 
 // ===== PUBLIC MANUFACTURER DISCOVERY =====
 
+// All routes require brand authentication to access manufacturer profiles
+router.use(authenticate);
+
 // List all public manufacturer profiles (for brands to browse)
-// Requires brand authentication
 router.get(
   '/',
-  authenticate, // Brand authentication required
   validateQuery(listManufacturerProfilesQuerySchema),
+  trackManufacturerAction('browse_profiles'),
   ctrl.listManufacturerProfiles
 );
 
 // Search manufacturers with advanced filtering
 router.get(
   '/search',
-  authenticate, // Brand authentication required
   validateQuery(manufacturerSearchQuerySchema),
-  ctrl.searchManufacturers
+  trackManufacturerAction('search_profiles'),
+  ctrl.listManufacturerProfiles // Uses same controller method with search params
+);
+
+// Advanced search with POST for complex criteria
+router.post(
+  '/search',
+  validateBody(Joi.object({
+    query: Joi.string().trim().max(100).optional(),
+    industries: Joi.array().items(Joi.string().trim().max(100)).max(10).optional(),
+    services: Joi.array().items(Joi.string().trim().max(100)).max(20).optional(),
+    moqRange: Joi.object({
+      min: Joi.number().integer().min(1).optional(),
+      max: Joi.number().integer().min(1).optional()
+    }).optional(),
+    location: Joi.object({
+      country: Joi.string().trim().max(100).optional(),
+      city: Joi.string().trim().max(100).optional(),
+      radius: Joi.number().min(1).max(10000).optional()
+    }).optional(),
+    certifications: Joi.array().items(Joi.string().trim().max(100)).max(20).optional(),
+    rating: Joi.object({
+      min: Joi.number().min(1).max(5).optional()
+    }).optional(),
+    verified: Joi.boolean().optional(),
+    sortBy: Joi.string().valid('name', 'industry', 'profileScore', 'connections', 'rating').optional(),
+    sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
+    saveSearch: Joi.boolean().default(false),
+    searchName: Joi.string().trim().max(100).when('saveSearch', {
+      is: true,
+      then: Joi.required(),
+      otherwise: Joi.optional()
+    })
+  })),
+  trackManufacturerAction('advanced_search'),
+  ctrl.advancedManufacturerSearch
 );
 
 // Get featured/recommended manufacturers
 router.get(
   '/featured',
-  authenticate, // Brand authentication required
-  validateQuery(listManufacturerProfilesQuerySchema),
+  validateQuery(Joi.object({
+    limit: Joi.number().integer().min(1).max(50).default(10),
+    industry: Joi.string().trim().max(100).optional()
+  })),
+  trackManufacturerAction('view_featured'),
   ctrl.getFeaturedManufacturers
 );
 
-// Get manufacturers by industry
+// Get manufacturer statistics/analytics
 router.get(
-  '/industry/:industry',
-  authenticate, // Brand authentication required
-  validateParams(manufacturerProfileParamsSchema.extract(['industry'])),
-  validateQuery(listManufacturerProfilesQuerySchema),
-  ctrl.getManufacturersByIndustry
+  '/stats',
+  trackManufacturerAction('view_stats'),
+  ctrl.getManufacturerStats
+);
+
+// Compare multiple manufacturers
+router.post(
+  '/compare',
+  validateBody(Joi.object({
+    manufacturerIds: Joi.array()
+      .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
+      .min(2)
+      .max(5)
+      .required()
+      .messages({
+        'array.min': 'At least 2 manufacturers required for comparison',
+        'array.max': 'Maximum 5 manufacturers can be compared',
+        'string.pattern.base': 'Each manufacturer ID must be a valid MongoDB ObjectId'
+      })
+  })),
+  trackManufacturerAction('compare_manufacturers'),
+  ctrl.compareManufacturers
 );
 
 // ===== SPECIFIC MANUFACTURER PROFILE =====
 
+// Get manufacturers by industry
+router.get(
+  '/industry/:industry',
+  validateParams(Joi.object({
+    industry: Joi.string().trim().min(1).max(100).required()
+  })),
+  validateQuery(listManufacturerProfilesQuerySchema),
+  trackManufacturerAction('browse_by_industry'),
+  ctrl.getManufacturersByIndustry
+);
+
 // Get specific manufacturer's public profile
 router.get(
   '/:id',
-  authenticate, // Brand authentication required
   validateParams(manufacturerProfileParamsSchema),
+  trackManufacturerAction('view_profile_detail'),
   ctrl.getManufacturerProfile
-);
-
-// Get manufacturer's capabilities
-router.get(
-  '/:id/capabilities',
-  authenticate, // Brand authentication required
-  validateParams(manufacturerProfileParamsSchema),
-  ctrl.getManufacturerCapabilities
-);
-
-// Get manufacturer's portfolio/showcase
-router.get(
-  '/:id/portfolio',
-  authenticate, // Brand authentication required
-  validateParams(manufacturerProfileParamsSchema),
-  ctrl.getManufacturerPortfolio
-);
-
-// Get manufacturer's reviews and ratings
-router.get(
-  '/:id/reviews',
-  authenticate, // Brand authentication required
-  validateParams(manufacturerProfileParamsSchema),
-  validateQuery(listManufacturerProfilesQuerySchema),
-  ctrl.getManufacturerReviews
-);
-
-// ===== MANUFACTURER SELF-VIEW =====
-
-// Manufacturer viewing their own public profile
-router.get(
-  '/my/public-view',
-  authenticateManufacturer, // Manufacturer authentication required
-  ctrl.getMyPublicProfile
-);
-
-// Get profile visibility analytics
-router.get(
-  '/my/analytics',
-  authenticateManufacturer, // Manufacturer authentication required
-  validateQuery(listManufacturerProfilesQuerySchema),
-  ctrl.getProfileAnalytics
 );
 
 export default router;
