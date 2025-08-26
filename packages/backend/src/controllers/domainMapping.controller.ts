@@ -145,7 +145,7 @@ export async function addDomainMapping(
     });
 
     // Update brand settings with the new domain
-    await brandSettingsService.updateCustomDomain(businessId, domain);
+    await brandSettingsService.updateSettings(businessId, { customDomain: domain });
 
     // Clear tenant cache to reflect new domain
     clearTenantCache(businessId);
@@ -154,7 +154,11 @@ export async function addDomainMapping(
     trackManufacturerAction('create_domain_mapping');
 
     // Send setup instructions email
-    await notificationsService.sendDomainSetupInstructions(businessId, mapping);
+    await notificationsService.sendEmail(
+     businessId, 
+      'Domain Setup Instructions', 
+      `Your custom domain ${domain} has been configured. Please follow the setup instructions to complete the process.`
+    );
 
     res.status(201).json({
       success: true,
@@ -383,7 +387,11 @@ export async function verifyDomain(
     trackManufacturerAction('verify_domain');
 
     // Send verification success notification
-    await notificationsService.sendDomainVerificationSuccess(businessId, mapping);
+    await notificationsService.sendEmail(
+    businessId,
+    'Domain Verified Successfully',
+    `Great news! Your custom domain ${mapping.domain} has been verified and is now active. Your SSL certificate is being issued automatically and will be ready within 10 minutes.`
+    );
 
     res.json({
       success: true,
@@ -521,7 +529,7 @@ export async function removeDomainMapping(
     });
 
     // Update brand settings to remove custom domain
-    await brandSettingsService.removeCustomDomain(businessId, mapping.domain);
+    await brandSettingsService.removeCustomDomain(businessId);
 
     // Clear tenant cache
     clearTenantCache(businessId);
@@ -530,7 +538,11 @@ export async function removeDomainMapping(
     trackManufacturerAction('remove_domain_mapping');
 
     // Send removal confirmation
-    await notificationsService.sendDomainRemovalConfirmation(businessId, mapping);
+    await notificationsService.sendEmail(
+    businessId,
+    'Domain Mapping Removed',
+    `Your custom domain ${mapping.domain} has been successfully removed. All associated SSL certificates have been revoked and DNS records cleaned up.`
+    );
 
     res.json({
       success: true,
