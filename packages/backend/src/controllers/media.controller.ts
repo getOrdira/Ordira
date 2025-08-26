@@ -15,7 +15,6 @@ const mediaService = new MediaService();
 interface TenantMediaRequest extends AuthRequest {
   tenant?: { business: { toString: () => string } };
   file?: Express.Multer.File;
-  files?: Express.Multer.File[];
 }
 
 interface MediaUploadRequest extends TenantMediaRequest, ValidatedRequest {
@@ -30,7 +29,7 @@ interface MediaUploadRequest extends TenantMediaRequest, ValidatedRequest {
 
 interface MediaListRequest extends TenantMediaRequest, ValidatedRequest {
   validatedQuery: {
-    category?: string;
+    category?: 'profile' | 'product' | 'banner' | 'certificate' | 'document'; // Make it specific
     tags?: string;
     search?: string;
     page?: number;

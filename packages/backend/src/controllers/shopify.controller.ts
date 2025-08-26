@@ -35,14 +35,13 @@ interface ShopifyCallbackRequest extends Request, ValidatedRequest {
 }
 
 interface ShopifyWebhookRequest extends Request {
-  body: Buffer;
-  rawBody: Buffer;
+  rawBody?: Buffer | string;
   headers: {
     'x-shopify-topic'?: string;
     'x-shopify-hmac-sha256'?: string;
     'x-shopify-shop-domain'?: string;
+    [key: string]: any;
   };
-  get(header: string): string | undefined;
 }
 
 interface ShopifySyncRequest extends TenantShopifyRequest, ValidatedRequest {

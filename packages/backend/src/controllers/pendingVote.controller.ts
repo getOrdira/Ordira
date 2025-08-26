@@ -337,8 +337,6 @@ export const getPendingVoteDetails = asyncHandler(async (
         createdAt: vote.createdAt,
         isProcessed: vote.isProcessed,
         processedAt: vote.processedAt,
-        verificationHash: vote.verificationHash,
-        isVerified: vote.isVerified
       },
       validation: {
         isValid: vote.isValid,

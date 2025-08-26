@@ -838,16 +838,16 @@ function findMostEffectiveSource(sources: any): string {
   return mostEffective;
 }
 
-function calculateAutomationLevel(sources: any): number {
+function calculateAutomationLevel(sources: Record<string, { total: number }>): number {
   const automatedSources = ['shopify', 'woocommerce', 'api_import'];
-  const totalCustomers = Object.values(sources).reduce((sum: number, source: any) => sum + source.total, 0);
+  const totalCustomers = Object.values(sources).reduce((sum: number, source) => sum + source.total, 0);
   
   if (totalCustomers === 0) return 0;
   
   const automatedCustomers = Object.entries(sources)
     .filter(([source]) => automatedSources.includes(source))
-    .reduce((sum, [, data]: [string, any]) => sum + data.total, 0);
-
+    .reduce((sum, [, data]) => sum + data.total, 0);
+  
   return Math.round((automatedCustomers / totalCustomers) * 100);
 }
 

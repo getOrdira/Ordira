@@ -241,11 +241,18 @@ export const listBrandsForManufacturer = asyncHandler(async (
     throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
   }
 
-  // Get connected brands and stats through service
-  const [brands, connectionStats] = await Promise.all([
-    manufacturerService.listBrandsForManufacturer(manufacturerId),
-    manufacturerService.getConnectionStats(manufacturerId)
-  ]);
+  // Get connected brands through service
+  const brands = await manufacturerService.listBrandsForManufacturer(manufacturerId);
+
+  // Since getConnectionStats doesn't exist, create basic stats from brands data
+  const connectionStats = {
+    totalConnections: brands.length,
+    activeConnections: brands.filter(b => b.verified).length,
+    pendingConnections: brands.filter(b => !b.verified).length,
+    industries: [...new Set(brands.map(b => b.industry).filter(Boolean))],
+    lastConnectionDate: brands.length > 0 ? 
+      new Date(Math.max(...brands.map(b => new Date(b.connectionDate).getTime()))) : null
+  };
 
   res.json({
     success: true,

@@ -58,10 +58,28 @@ interface ProductCreateRequest extends TenantProductRequest, ValidatedRequest {
   };
 }
 
-interface ProductUpdateRequest extends TenantProductRequest, ValidatedRequest {
+interface BaseProductUpdate {
   validatedParams: { id: string };
-  validatedBody: Partial<ProductCreateRequest['validatedBody']>;
+  validatedBody: {
+    title?: string;
+    description?: string;
+    media?: string[];
+    category?: string;
+    status?: "draft" | "active" | "archived";
+    sku?: string;
+    price?: number;
+    tags?: string[];
+    specifications?: Record<string, string>;
+    manufacturingDetails?: {
+      materials?: string[];
+      dimensions?: string;
+      weight?: string;
+      origin?: string;
+    };
+  };
 }
+
+type ProductUpdateRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseProductUpdate;
 
 interface ProductDetailRequest extends TenantProductRequest, ValidatedRequest {
   validatedParams: { id: string };

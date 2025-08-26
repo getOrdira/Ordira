@@ -39,6 +39,28 @@ interface UpdateProfileRequest extends ManufacturerAuthRequest, ValidatedRequest
   };
 }
 
+interface UpdateNotificationPreferencesRequest extends ManufacturerAuthRequest, ValidatedRequest {
+  validatedBody: {
+    emailNotifications?: {
+      invitations?: boolean;
+      orderUpdates?: boolean;
+      systemUpdates?: boolean;
+      marketing?: boolean;
+    };
+    pushNotifications?: {
+      invitations?: boolean;
+      orderUpdates?: boolean;
+      systemUpdates?: boolean;
+    };
+    smsNotifications?: {
+      criticalUpdates?: boolean;
+      orderAlerts?: boolean;
+    };
+    frequency?: 'immediate' | 'daily' | 'weekly';
+    timezone?: string;
+  };
+}
+
 /**
  * Get manufacturer profile/account details
  * GET /api/manufacturer/account
@@ -362,44 +384,23 @@ export const getAccountActivity = asyncHandler(async (
  * @returns { preferences, updatedAt }
  */
 export const updateNotificationPreferences = asyncHandler(async (
-  req: ManufacturerAuthRequest & {
-    validatedBody: {
-      emailNotifications?: {
-        invitations?: boolean;
-        orderUpdates?: boolean;
-        systemUpdates?: boolean;
-        marketing?: boolean;
-      };
-      pushNotifications?: {
-        invitations?: boolean;
-        orderUpdates?: boolean;
-        systemUpdates?: boolean;
-      };
-      smsNotifications?: {
-        criticalUpdates?: boolean;
-        orderAlerts?: boolean;
-      };
-    };
-  },
+  req: UpdateNotificationPreferencesRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract manufacturer ID from auth context
   const manufacturerId = req.userId;
   if (!manufacturerId) {
     throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
   }
 
-  // Extract validated notification preferences
   const preferences = req.validatedBody;
 
   // Update preferences through service
   const updatedPreferences = await manufacturerAccountService.updateNotificationPreferences(
-    manufacturerId, 
+    manufacturerId,
     preferences
   );
 
-  // Return standardized response
   res.json({
     success: true,
     message: 'Notification preferences updated successfully',

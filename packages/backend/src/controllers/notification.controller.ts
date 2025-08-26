@@ -13,7 +13,7 @@ const notificationService = new NotificationService();
 /**
  * Extended request interfaces for type safety
  */
-interface NotificationListRequest extends (AuthRequest | ManufacturerAuthRequest), ValidatedRequest {
+interface BaseNotificationQuery {
   validatedQuery: {
     type?: string;
     category?: 'system' | 'billing' | 'certificate' | 'vote' | 'invite' | 'order' | 'security';
@@ -29,12 +29,16 @@ interface NotificationListRequest extends (AuthRequest | ManufacturerAuthRequest
   userType?: 'business' | 'manufacturer';
 }
 
-interface NotificationActionRequest extends (AuthRequest | ManufacturerAuthRequest), ValidatedRequest {
+type NotificationListRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseNotificationQuery;
+
+interface BaseNotificationAction {
   validatedParams: { id: string };
   userType?: 'business' | 'manufacturer';
 }
 
-interface BulkActionRequest extends (AuthRequest | ManufacturerAuthRequest), ValidatedRequest {
+type NotificationActionRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseNotificationAction;
+
+interface BaseBulkAction {
   validatedBody: {
     notificationIds: string[];
     action: 'read' | 'unread' | 'delete' | 'archive';
@@ -42,7 +46,9 @@ interface BulkActionRequest extends (AuthRequest | ManufacturerAuthRequest), Val
   userType?: 'business' | 'manufacturer';
 }
 
-interface CreateNotificationRequest extends (AuthRequest | ManufacturerAuthRequest), ValidatedRequest {
+type BulkActionRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseBulkAction;
+
+interface BaseCreateNotification {
   validatedBody: {
     recipientId?: string;
     recipientType?: 'business' | 'manufacturer';
@@ -57,7 +63,9 @@ interface CreateNotificationRequest extends (AuthRequest | ManufacturerAuthReque
   };
 }
 
-interface BulkNotificationRequest extends (AuthRequest | ManufacturerAuthRequest), ValidatedRequest {
+type CreateNotificationRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseCreateNotification;
+
+interface BaseBulkNotification {
   validatedBody: {
     recipients: Array<{
       id: string;
@@ -74,6 +82,8 @@ interface BulkNotificationRequest extends (AuthRequest | ManufacturerAuthRequest
     delayBetweenBatches?: number;
   };
 }
+
+type BulkNotificationRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseBulkNotification;
 
 /**
  * Helper to determine user context
@@ -758,74 +768,6 @@ export const createNotification = asyncHandler(async (
   });
 });
 
-/**
- * Send bulk notifications (admin/system use)
- * POST /api/notifications/bulk-send
- * 
- * @requires authentication 
- * @requires validation: bulk notification data
- * @returns { sent, failed, summary }
- */
-export const sendBulkNotifications = asyncHandler(async (
-  req: BulkNotificationRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const {
-    recipients,
-    subject,
-    message,
-    notificationType,
-    category,
-    priority,
-    batchSize,
-    delayBetweenBatches
-  } = req.validatedBody;
-
-  if (!recipients || recipients.length === 0) {
-    throw createAppError('At least one recipient is required', 400, 'MISSING_RECIPIENTS');
-  }
-
-  if (recipients.length > 1000) {
-    throw createAppError('Maximum 1000 recipients allowed per bulk send', 400, 'TOO_MANY_RECIPIENTS');
-  }
-
-  // Use service bulk notification method
-  const result = await notificationService.sendBulkNotification(
-    recipients.map(r => ({ 
-      email: r.email || '', 
-      type: r.type as 'brand' | 'manufacturer', 
-      id: r.id, 
-      name: r.name 
-    })),
-    subject,
-    message,
-    {
-      batchSize: batchSize || 50,
-      delayBetweenBatches: delayBetweenBatches || 1000,
-      priority: priority || 'medium',
-      notificationType,
-      category
-    }
-  );
-
-  // Return comprehensive response
-  res.status(201).json({
-    success: true,
-    message: `Bulk notification completed: ${result.sent} sent, ${result.failed} failed`,
-    data: {
-      summary: {
-        totalRequested: recipients.length,
-        sent: result.sent,
-        failed: result.failed,
-        successRate: Math.round((result.sent / recipients.length) * 100)
-      },
-      details: result.details,
-      errors: result.errors,
-      sentAt: new Date().toISOString()
-    }
-  });
-});
 
 /**
  * Clean up old notifications (maintenance endpoint)
