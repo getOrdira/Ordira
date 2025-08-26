@@ -5,6 +5,7 @@ export interface IAllowedCustomer extends Document {
   // Core customer information
   business: Types.ObjectId;
   email: string;
+  findByEmail: string;
   
   // Customer metadata
   firstName?: string;

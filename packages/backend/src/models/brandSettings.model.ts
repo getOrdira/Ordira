@@ -110,6 +110,7 @@ export interface IBrandSettings extends Document {
     walletVerifiedAt?: Date;
     walletSignature?: string;
     voteContract?: string;
+    transferHealth?: string;
     nftContract?: string;
     chainId?: number;
     networkName?: string;

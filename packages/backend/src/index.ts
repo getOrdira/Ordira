@@ -60,7 +60,7 @@ import { brandAccountValidationSchemas } from './validation/brandAccount.validat
 import { brandSettingsValidationSchemas } from './validation/brandSettings.validation';
 import { productValidationSchemas } from './validation/product.validation';
 import { nftValidationSchemas } from './validation/nfts.validation';
-import { votingValidationSchemas } from './validation/votes.validation';
+import { votesValidationSchemas } from './validation/votes.validation';
 
 // Self-invoking async function to bootstrap the application
 (async () => {

@@ -5,12 +5,13 @@ import { Manufacturer } from '../models/manufacturer.model';
 import { PlanKey, PLAN_DEFINITIONS } from '../constants/plans';
 import { AuthRequest } from './auth.middleware';
 import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
+import redis from 'ioredis';
 
 // Redis store for distributed rate limiting (optional)
 // import RedisStore from 'rate-limit-redis';
 // import Redis from 'ioredis';
 
-// const redisClient = new Redis(process.env.REDIS_URL);
+const redisClient= new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 /**
  * Rate limit configurations per plan
