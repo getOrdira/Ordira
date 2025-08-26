@@ -1342,7 +1342,7 @@ BrandSettingsSchema.virtual('web3Status').get(function() {
   };
 });
 
-BrandSettingsSchema.virtual('emailGatingStatus').get(function() {
+BrandSettingsSchema.virtual('emailGatingStatus').get(function(this: IBrandSettings) {
   const gating = this.emailGating;
   if (!gating) {
     return {
@@ -1361,7 +1361,7 @@ BrandSettingsSchema.virtual('emailGatingStatus').get(function() {
   return {
     enabled: gating.enabled || false,
     mode: gating.mode || 'disabled',
-    rulesCount: this.getEmailGatingRulesCount(),
+    rulesCount: (this as any).getEmailGatingRulesCount(),
     totalChecked,
     successRate: totalChecked > 0 ? Math.round((totalAllowed / totalChecked) * 100) : 0,
     lastActivity: analytics?.lastResetDate
@@ -2192,11 +2192,29 @@ BrandSettingsSchema.post('save', function(doc) {
 });
 
 /**
- * Pre-remove hook for cleanup
+ * Pre-remove hook for cleanup (document-level)
  */
-BrandSettingsSchema.pre('remove', function(next) {
+BrandSettingsSchema.pre('remove', function(this: IBrandSettings, next) {
   console.log(`Removing brand settings for business ${this.business}`);
   // Could trigger cleanup of related data, cancel pending transfers, clear email gating rules, etc.
+  next();
+});
+
+/**
+ * Pre-deleteOne hook for cleanup (query-level)
+ */
+BrandSettingsSchema.pre('deleteOne', function(next) {
+  console.log('Removing brand settings via deleteOne query');
+  // For query-level hooks, you'd need to find the document first if you need its data
+  next();
+});
+
+/**
+ * Pre-findOneAndDelete hook for cleanup (query-level)
+ */
+BrandSettingsSchema.pre('findOneAndDelete', function(next) {
+  console.log('Removing brand settings via findOneAndDelete query');
+  // For query-level hooks, you'd need to find the document first if you need its data
   next();
 });
 

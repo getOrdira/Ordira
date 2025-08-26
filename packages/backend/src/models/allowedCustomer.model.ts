@@ -360,7 +360,7 @@ AllowedCustomerSchema.statics.bulkImport = async function(
       }
 
       // Check if already exists
-      const existing = await this.findByEmail(customerData.email, businessId);
+      const existing = await (this as IAllowedCustomerModel).findByEmail(customerData.email, businessId);
       if (existing) {
         // Update existing customer
         await existing.updateFromExternalSource({

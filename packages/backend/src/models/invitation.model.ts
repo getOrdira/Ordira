@@ -214,7 +214,7 @@ InvitationSchema.virtual('responseTimeHours').get(function() {
 // Virtual for urgency level
 InvitationSchema.virtual('urgencyLevel').get(function() {
   if (this.status !== 'pending') return 'none';
-  const hoursRemaining = this.timeRemaining;
+  const hoursRemaining = (this as any).timeRemaining;
   if (hoursRemaining <= 24) return 'high';
   if (hoursRemaining <= 72) return 'medium';
   return 'low';
@@ -230,8 +230,8 @@ InvitationSchema.virtual('summary').get(function() {
     type: this.invitationType,
     createdAt: this.createdAt,
     expiresAt: this.expiresAt,
-    timeRemaining: this.timeRemaining,
-    urgency: this.urgencyLevel
+    timeRemaining: (this as any).timeRemaining,
+    urgency: (this as any).urgencyLevel
   };
 });
 
@@ -592,13 +592,15 @@ InvitationSchema.post('save', function(doc) {
     process.nextTick(async () => {
       try {
         const { NotificationsService } = await import('../services/external/notifications.service');
+        const { Business } = await import('./business.model');
+        const { Manufacturer } = await import('./manufacturer.model');
+        
         const notificationsService = new NotificationsService();
         
         switch (doc.status) {
           case 'accepted':
             // Update connections in both BrandSettings and Manufacturer models
             const { BrandSettings } = await import('./brandSettings.model');
-            const { Manufacturer } = await import('./manufacturer.model');
             
             await Promise.all([
               BrandSettings.findOneAndUpdate(
@@ -618,17 +620,31 @@ InvitationSchema.post('save', function(doc) {
             break;
             
           case 'declined':
-            await notificationsService.notifyBrandOfInviteDeclined(
-              doc.manufacturer.toString(), 
-              doc.brand.toString()
-            );
+            // Send email notification for decline
+            const business = await Business.findById(doc.brand).select('email businessName');
+            const manufacturer = await Manufacturer.findById(doc.manufacturer).select('name');
+            
+            if (business?.email && manufacturer) {
+              await notificationsService.sendEmail(
+                business.email,
+                'Invitation Declined',
+                `The manufacturer ${manufacturer.name} has declined your collaboration invitation.`
+              );
+            }
             break;
             
           case 'cancelled':
-            await notificationsService.notifyManufacturerOfInviteCancelled(
-              doc.brand.toString(), 
-              doc.manufacturer.toString()
-            );
+            // Send email notification for cancellation
+            const mfg = await Manufacturer.findById(doc.manufacturer).select('email');
+            const biz = await Business.findById(doc.brand).select('businessName');
+            
+            if (mfg?.email && biz) {
+              await notificationsService.sendEmail(
+                mfg.email,
+                'Invitation Cancelled',
+                `The brand ${biz.businessName} has cancelled their collaboration invitation.`
+              );
+            }
             break;
         }
       } catch (error) {
@@ -644,11 +660,26 @@ InvitationSchema.post('save', function(doc) {
 });
 
 /**
- * Pre-remove hook for cleanup
+ * Pre-remove hook for cleanup (document-level)
  */
-InvitationSchema.pre('remove', function(next) {
+InvitationSchema.pre('remove', function(this: IInvitation, next) {
   console.log(`Removing invitation ${this._id} between brand ${this.brand} and manufacturer ${this.manufacturer}`);
   next();
+});
+
+/**
+ * Pre-deleteOne hook for cleanup (query-level)
+ */
+InvitationSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
+  try {
+    // Get the document that will be deleted
+    const doc = await this.model.findOne(this.getQuery()) as IInvitation;
+    if (doc) {
+      console.log(`Removing invitation ${doc._id} between brand ${doc.brand} and manufacturer ${doc.manufacturer}`);
+    }
+  } catch (error) {
+    console.error('Error in pre-delete hook:', error);
+  }
 });
 
 /**
@@ -685,7 +716,7 @@ InvitationSchema.post('remove', function(doc) {
 InvitationSchema.statics.scheduleExpirationCheck = function() {
   setInterval(async () => {
     try {
-      const result = await this.markExpiredInvitations();
+      const result = await (this as any).markExpiredInvitations();
       if (result.modifiedCount > 0) {
         console.log(`Marked ${result.modifiedCount} invitations as expired`);
       }

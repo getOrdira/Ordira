@@ -21,6 +21,7 @@ export interface IPendingVote extends Document {
   verificationHash?: string;
   isVerified: boolean;
   createdAt: Date;
+  voteChoice?: string;
 }
 
 const PendingVoteSchema = new Schema<IPendingVote>({
@@ -246,7 +247,7 @@ PendingVoteSchema.statics.cleanupProcessed = function(olderThanHours: number = 2
 PendingVoteSchema.pre('save', function(next) {
   // Generate verification hash if not present
   if (this.isNew && !this.verificationHash) {
-    this.verificationHash = this.generateVoteHash();
+    this.verificationHash = (this as any).generateVoteHash();
   }
   
   // Set processedAt when marking as processed

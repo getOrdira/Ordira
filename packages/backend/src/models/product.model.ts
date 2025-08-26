@@ -102,14 +102,14 @@ const ProductSchema = new Schema<IProduct>({
   
   // Owner references - either business OR manufacturer (not both)
   business: { 
-    type: Types.ObjectId, 
+    type: Schema.Types.ObjectId, 
     ref: 'Business',
     sparse: true,
     index: true
   },
   
   manufacturer: { 
-    type: Types.ObjectId, 
+    type: Schema.Types.ObjectId, 
     ref: 'Manufacturer',
     sparse: true,
     index: true

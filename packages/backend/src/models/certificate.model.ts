@@ -598,7 +598,6 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
       contractAddress: this.contractAddress!,
       fromAddress: process.env.RELAYER_WALLET_ADDRESS!, // Your relayer wallet
       toAddress: this.brandWallet,
-      timeout: this.transferTimeout
     });
 
     // Update certificate with successful transfer
@@ -722,7 +721,7 @@ CertificateSchema.statics.findPendingTransfers = function(businessId?: string) {
  */
 CertificateSchema.statics.getStatistics = async function(businessId: string) {
   const stats = await this.aggregate([
-    { $match: { business: Types.ObjectId(businessId) } },
+    { $match: { business: new Types.ObjectId(businessId) } },
     {
       $group: {
         _id: null,
@@ -806,7 +805,7 @@ CertificateSchema.statics.getMonthlyStats = async function(businessId: string, m
   return this.aggregate([
     { 
       $match: { 
-        business: Types.ObjectId(businessId),
+        business: new Types.ObjectId(businessId),
         createdAt: { $gte: startDate }
       } 
     },
@@ -943,9 +942,9 @@ CertificateSchema.post('save', function(doc) {
 });
 
 /**
- * Pre-remove hook to handle cleanup
+ * Pre-remove hook for cleanup (document-level)
  */
-CertificateSchema.pre('remove', function(next) {
+CertificateSchema.pre('remove', function(this: ICertificate, next) {
   // Cancel any pending transfers
   if (this.nextTransferAttempt && this.status === 'pending_transfer') {
     console.log(`Cancelling pending transfer for certificate ${this._id}`);
@@ -960,24 +959,49 @@ CertificateSchema.pre('remove', function(next) {
 });
 
 /**
+ * Pre-deleteOne hook for cleanup (query-level)
+ */
+CertificateSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
+  try {
+    // Get the document that will be deleted
+    const doc = await this.model.findOne(this.getQuery()) as ICertificate;
+    if (doc) {
+      // Cancel any pending transfers
+      if (doc.nextTransferAttempt && doc.status === 'pending_transfer') {
+        console.log(`Cancelling pending transfer for certificate ${doc._id}`);
+        // Clear the scheduled transfer (implementation depends on your job queue)
+        // Example: jobQueue.cancel(`transfer_${doc._id}`);
+      }
+      
+      // Log certificate removal for audit trail
+      console.log(`Removing certificate ${doc._id} for business ${doc.business}`);
+    }
+  } catch (error) {
+    console.error('Error in pre-delete hook:', error);
+  }
+});
+
+/**
  * Post-remove hook for cleanup notifications
  */
 CertificateSchema.post('remove', function(doc) {
   process.nextTick(async () => {
     try {
-      // Notify about certificate removal
+      // Get business details for notification
       const { NotificationsService } = await import('../services/external/notifications.service');
-      const notificationsService = new NotificationsService();
+      const { Business } = await import('../models/business.model');
       
-      await notificationsService.notifyBrandOfCertificateRemoval(
-        doc.business.toString(),
-        {
-          certificateId: doc._id.toString(),
-          tokenId: doc.tokenId,
-          recipient: doc.recipient,
-          removedAt: new Date()
-        }
-      );
+      const notificationsService = new NotificationsService();
+      const business = await Business.findById(doc.business).select('businessName email');
+      
+      if (business?.email) {
+        // Send email notification
+        await notificationsService.sendEmail(
+          business.email,
+          'Certificate Removed',
+          `Certificate ${doc.tokenId} for recipient ${doc.recipient} has been removed from the system. Removal completed on ${new Date().toISOString()}.`
+        );
+      }
     } catch (error) {
       console.error(`Failed to send removal notification for certificate ${doc._id}:`, error);
     }

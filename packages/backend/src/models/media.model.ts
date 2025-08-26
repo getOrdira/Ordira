@@ -272,7 +272,7 @@ MediaSchema.virtual('ageInDays').get(function() {
 
 MediaSchema.virtual('isExpired').get(function() {
   // Files older than 1 year are considered old
-  return this.ageInDays > 365;
+  return (this as any).ageInDays > 365;
 });
 
 MediaSchema.virtual('popularityScore').get(function() {
@@ -561,10 +561,27 @@ MediaSchema.post('save', function(doc) {
   }
 });
 
-// Pre-remove middleware for cleanup
-MediaSchema.pre('remove', function(next) {
+/**
+ * Pre-remove hook for cleanup (document-level)
+ */
+MediaSchema.pre('remove', function(this: IMedia, next) {
   console.log(`Removing media: ${this.filename}`);
   next();
+});
+
+/**
+ * Pre-deleteOne hook for cleanup (query-level)
+ */
+MediaSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
+  try {
+    // Get the document that will be deleted
+    const doc = await this.model.findOne(this.getQuery()) as IMedia;
+    if (doc) {
+      console.log(`Removing media: ${doc.filename}`);
+    }
+  } catch (error) {
+    console.error('Error in pre-delete hook:', error);
+  }
 });
 
 export const Media = model<IMedia>('Media', MediaSchema);

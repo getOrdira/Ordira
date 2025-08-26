@@ -67,8 +67,8 @@ export interface INotification extends Document {
 const NotificationSchema = new Schema<INotification>(
   {
     // Core recipient fields (aligned with service dual support)
-    business: { 
-      type: Types.ObjectId, 
+    business: {
+      type: Schema.Types.ObjectId,
       ref: 'Business',
       sparse: true,
       index: true,
@@ -79,8 +79,8 @@ const NotificationSchema = new Schema<INotification>(
         message: 'Either business or manufacturer must be specified'
       }
     },
-    manufacturer: { 
-      type: Types.ObjectId, 
+    manufacturer: {
+      type: Schema.Types.ObjectId,
       ref: 'Manufacturer',
       sparse: true,
       index: true,
@@ -315,8 +315,8 @@ NotificationSchema.index({ deletedAt: 1 }, { sparse: true });
 NotificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Query helper for active notifications (not soft deleted)
-NotificationSchema.query.active = function() {
-  return this.where({ deletedAt: { $exists: false } });
+NotificationSchema.statics.findActive = function() {
+  return this.find({ deletedAt: { $exists: false } });
 };
 
 // Virtuals (aligned with service return types)
@@ -337,7 +337,8 @@ NotificationSchema.virtual('ageInDays').get(function() {
 });
 
 NotificationSchema.virtual('isRecent').get(function() {
-  return this.ageInHours <= 24;
+  const ageInHours = Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60));
+  return ageInHours <= 24;
 });
 
 NotificationSchema.virtual('needsAttention').get(function() {
@@ -779,9 +780,9 @@ NotificationSchema.pre('save', function(next) {
 
 // Post-save middleware for analytics and logging
 NotificationSchema.post('save', function(doc) {
-  // Log high priority notifications
-  if (doc.priority === 'urgent' && doc.isNew) {
-    console.log(`Urgent notification created: ${doc.type} for ${doc.recipientType} ${doc.recipientId}`);
+  // Log high priority notifications (remove doc.isNew as it's not available in post-save)
+  if (doc.priority === 'urgent') {
+    console.log(`Urgent notification created: ${doc.type} for ${(doc as any).recipientType} ${(doc as any).recipientId}`);
   }
   
   // Log delivery failures
@@ -796,8 +797,8 @@ NotificationSchema.post('save', function(doc) {
 });
 
 // Pre-remove middleware for cleanup logging
-NotificationSchema.pre('remove', function(next) {
-  console.log(`Removing notification: ${this.type} for ${this.recipientType}`);
+NotificationSchema.pre('remove', function(this: INotification, next) {
+  console.log(`Removing notification: ${this.type} for ${(this as any).recipientType}`);
   next();
 });
 

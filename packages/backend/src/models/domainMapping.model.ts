@@ -986,9 +986,9 @@ DomainMappingSchema.post('save', function(doc) {
 });
 
 /**
- * Pre-remove hook for cleanup
+ * Pre-remove hook for cleanup (document-level)
  */
-DomainMappingSchema.pre('remove', function(next) {
+DomainMappingSchema.pre('remove', function(this: IDomainMapping, next) {
   console.log(`Removing domain mapping for ${this.domain}`);
   
   // Cancel any pending SSL certificate requests
@@ -1000,6 +1000,29 @@ DomainMappingSchema.pre('remove', function(next) {
   console.log(`Domain mapping ${this.domain} removed for business ${this.business}`);
   
   next();
+});
+
+/**
+ * Pre-deleteOne hook for cleanup (query-level)
+ */
+DomainMappingSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
+  try {
+    // Get the document that will be deleted
+    const doc = await this.model.findOne(this.getQuery()) as IDomainMapping;
+    if (doc) {
+      console.log(`Removing domain mapping for ${doc.domain}`);
+      
+      // Cancel any pending SSL certificate requests
+      if (doc.status === 'pending_verification') {
+        console.log(`Cancelling pending verification for ${doc.domain}`);
+      }
+      
+      // Log for audit trail
+      console.log(`Domain mapping ${doc.domain} removed for business ${doc.business}`);
+    }
+  } catch (error) {
+    console.error('Error in pre-delete hook:', error);
+  }
 });
 
 /**

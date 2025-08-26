@@ -33,7 +33,13 @@ export interface IManufacturer extends Document {
   
   // Business Information
   businessLicense?: string;
-  certifications?: string[];
+  certifications?: Array<{
+  name: string;
+  issuer: string;
+  dateIssued?: Date;
+  expiryDate?: Date;
+  certificateUrl?: string;
+}>;
   establishedYear?: number;
   employeeCount?: number;
   headquarters?: {
@@ -826,9 +832,22 @@ ManufacturerSchema.pre('save', async function(next) {
     this.servicesOffered = this.servicesOffered.filter(service => service && service.trim());
   }
   
-  if (this.certifications) {
-    this.certifications = this.certifications.filter(cert => cert && cert.trim());
-  }
+ if (this.certifications) {
+  this.certifications = this.certifications
+    .filter(cert => 
+      cert && 
+      cert.name && 
+      cert.name.trim() && 
+      cert.issuer && 
+      cert.issuer.trim()
+    )
+    .map(cert => ({
+      ...cert,
+      name: cert.name.trim(),
+      issuer: cert.issuer.trim(),
+      certificateUrl: cert.certificateUrl ? cert.certificateUrl.trim() : cert.certificateUrl
+    }));
+}
   
   // Update profile metrics (aligned with service calculations)
   if (this.isModified() && !this.isNew) {
@@ -909,7 +928,9 @@ ManufacturerSchema.pre('findOneAndUpdate', function() {
   this.set({ lastProfileUpdate: new Date() });
 });
 
-export const Manufacturer = model<IManufacturer>('Manufacturer', ManufacturerSchema);.findByIndustry = function(industry: string) {
+// ===== STATIC METHODS =====
+
+ManufacturerSchema.statics.findByIndustry = function(industry: string) {
   return this.find({ 
     industry, 
     isActive: { $ne: false },
@@ -961,5 +982,7 @@ ManufacturerSchema.statics.searchManufacturers = function(searchTerm: string, op
   return this.find(query)
     .sort({ profileScore: -1, totalConnections: -1 })
     .limit(options.limit || 50);
-  
 };
+
+// Export the model LAST
+export const Manufacturer = model<IManufacturer>('Manufacturer', ManufacturerSchema);

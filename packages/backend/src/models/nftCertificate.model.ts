@@ -814,10 +814,27 @@ NftCertificateSchema.post('save', function(doc) {
   }
 });
 
-// Pre-remove middleware for cleanup
-NftCertificateSchema.pre('remove', function(next) {
+/**
+ * Pre-remove hook for cleanup (document-level)
+ */
+NftCertificateSchema.pre('remove', function(this: INftCertificate, next) {
   console.log(`Removing NFT certificate: Token ${this.tokenId}`);
   next();
+});
+
+/**
+ * Pre-deleteOne hook for cleanup (query-level)
+ */
+NftCertificateSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
+  try {
+    // Get the document that will be deleted
+    const doc = await this.model.findOne(this.getQuery()) as INftCertificate;
+    if (doc) {
+      console.log(`Removing NFT certificate: Token ${doc.tokenId}`);
+    }
+  } catch (error) {
+    console.error('Error in pre-delete hook:', error);
+  }
 });
 
 // Certificate model with proper typing
