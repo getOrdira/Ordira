@@ -10,6 +10,8 @@ interface BrandProfileRequest extends Request, ValidatedRequest {
   params: {
     id?: string;
     brandId?: string;
+    domain?: string;
+    subdomain?: string;
   };
   query: {
     page?: string;

@@ -19,12 +19,19 @@ interface AnalyticsRequest extends AuthRequest, TenantRequest, ValidatedRequest 
     // Add the missing properties
     format?: 'csv' | 'json' | 'pdf';
     type?: 'votes' | 'transactions' | 'certificates' | 'products' | 'engagement';
+    sortBy?: string;
+    limit?: string;
   };
 }
 
 interface ManufacturerAnalyticsRequest extends ManufacturerAuthRequest, ValidatedRequest {
   params: {
     brandId?: string;
+  };
+  query: {
+    timeframe?: '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
+    brandId?: string;
+    metrics?: string[];
   };
 }
 

@@ -30,6 +30,7 @@ interface LoginUserRequest extends AuthRequest, ValidatedRequest {
   validatedBody?: LoginUserInput;
 }
 
+
 interface BusinessAuthRequest extends AuthControllerRequest {
   body: RegisterBusinessInput | VerifyBusinessInput | LoginBusinessInput;
 }
@@ -45,6 +46,33 @@ interface PasswordResetRequest extends AuthControllerRequest {
     token?: string;
     newPassword?: string;
     confirmPassword?: string;
+  };
+}
+
+interface RevokeAllSessionsRequest extends AuthRequest, ValidatedRequest {
+  validatedBody: {
+    currentPassword: string;
+    reason?: string;
+  };
+}
+
+interface ChangePasswordRequest extends AuthRequest, ValidatedRequest {
+  validatedBody: {
+    currentPassword: string;
+    newPassword: string;
+  };
+}
+
+interface UpdateSecurityPreferencesRequest extends AuthRequest, ValidatedRequest {
+  validatedBody: {
+    twoFactorEnabled?: boolean;
+    emailNotifications?: boolean;
+    smsNotifications?: boolean;
+    loginNotifications?: boolean;
+    ipWhitelist?: string[];
+    sessionTimeout?: number;
+    passwordChangeRequired?: boolean;
+    allowedDevices?: string[];
   };
 }
 
@@ -172,7 +200,7 @@ export async function loginBusinessHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const loginData = req.validatedBody || req.body;
+    const loginData = req.validatedBody || req.body as LoginBusinessInput;
     
     // Enhanced security context
     const securityContext = {
@@ -180,7 +208,7 @@ export async function loginBusinessHandler(
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
-      deviceFingerprint: (req.body as any).deviceFingerprint // ← Use type assertion
+      deviceFingerprint: (req.body as any).deviceFingerprint
     };
 
     // Enhanced login with security checks
@@ -191,10 +219,10 @@ export async function loginBusinessHandler(
 
     // Log successful login
     console.log(`Business login successful from IP: ${securityContext.ipAddress}`, {
-  token: result.token ? 'present' : 'missing',
-  timestamp: new Date(),
-  userAgent: securityContext.userAgent
-});
+      token: result.token ? 'present' : 'missing',
+      timestamp: new Date(),
+      userAgent: securityContext.userAgent
+    });
 
     // Set secure cookie if remember me is enabled
     if (loginData.rememberMe) {
@@ -223,16 +251,16 @@ export async function loginBusinessHandler(
       }
     });
   } catch (error) {
-  // Enhanced error logging for security monitoring
-  console.warn('Business login failed:', {
-    identifier: req.body?.email,
-    ip: getClientIp(req),
-    error: error instanceof Error ? error.message : 'Unknown error',
-    timestamp: new Date()
-  });
-  
-  next(error);
-}
+    // Enhanced error logging for security monitoring
+    console.warn('Business login failed:', {
+      identifier: (req.body as LoginBusinessInput)?.emailOrPhone,
+      ip: getClientIp(req),
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date()
+    });
+    
+    next(error);
+  }
 }
 
 /**
@@ -345,7 +373,7 @@ export async function verifyUserHandler(
  * Change password for authenticated users
  */
 export async function changePasswordHandler(
-  req: AuthRequest,
+  req: ChangePasswordRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -588,7 +616,7 @@ export async function revokeSessionHandler(
  * Revoke all sessions except current
  */
 export async function revokeAllSessionsHandler(
-  req: AuthRequest,
+  req: RevokeAllSessionsRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -709,7 +737,7 @@ export async function getSecurityEventsHandler(
  * Update security preferences
  */
 export async function updateSecurityPreferencesHandler(
-  req: AuthRequest,
+  req: UpdateSecurityPreferencesRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
