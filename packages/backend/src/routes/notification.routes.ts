@@ -289,66 +289,6 @@ router.post(
   notificationCtrl.createNotification
 );
 
-/**
- * POST /api/notifications/bulk-send
- * Send bulk notifications (admin/system use)
- * 
- * @requires authentication
- * @requires validation: bulk notification data
- * @rate-limited: strict for bulk operations
- * @returns { sent, failed, summary }
- */
-router.post(
-  '/bulk-send',
-  strictRateLimiter(), // Very strict for bulk sending
-  validateBody(Joi.object({
-    recipients: Joi.array()
-      .items(Joi.object({
-        id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
-        type: Joi.string().valid('business', 'manufacturer').required(),
-        email: Joi.string().email().optional(),
-        name: Joi.string().max(200).optional()
-      }))
-      .min(1)
-      .max(1000)
-      .required(),
-    subject: Joi.string()
-      .trim()
-      .min(1)
-      .max(200)
-      .required(),
-    message: Joi.string()
-      .trim()
-      .min(1)
-      .max(2000)
-      .required(),
-    notificationType: Joi.string()
-      .trim()
-      .max(50)
-      .required(),
-    category: Joi.string()
-      .valid('system', 'billing', 'certificate', 'vote', 'invite', 'order', 'security')
-      .required(),
-    priority: Joi.string()
-      .valid('low', 'medium', 'high', 'urgent')
-      .default('medium')
-      .optional(),
-    batchSize: Joi.number()
-      .integer()
-      .min(1)
-      .max(100)
-      .default(50)
-      .optional(),
-    delayBetweenBatches: Joi.number()
-      .integer()
-      .min(0)
-      .max(10000)
-      .default(1000)
-      .optional()
-  })),
-  trackManufacturerAction('send_bulk_notifications'),
-  notificationCtrl.sendBulkNotifications
-);
 
 // ===== NOTIFICATION SETTINGS & PREFERENCES =====
 
