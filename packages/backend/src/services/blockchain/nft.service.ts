@@ -104,15 +104,6 @@ export interface MintResult {
   verificationUrl: string;
 }
 
-export interface TransferResult {
-  transferredAt: Date;
-  transactionHash: string;
-  blockNumber: number;
-  gasUsed: string;
-  gasPrice: string;
-  verificationUrl: string;
-  ownershipProof: string;
-}
 
 export interface BurnResult {
   burnedAt: Date;
@@ -635,60 +626,68 @@ export class NftService {
   }
 
   async transferNft(businessId: string, params: TransferParams): Promise<TransferResult> {
-    try {
-      const { tokenId, contractAddress, fromAddress, toAddress } = params;
-      
-      // Validate addresses
-      this.validateAddress(contractAddress, 'contract address');
-      this.validateAddress(fromAddress, 'from address');
-      this.validateAddress(toAddress, 'to address');
+  try {
+    const { tokenId, contractAddress, fromAddress, toAddress } = params;
+    
+    // Validate addresses
+    this.validateAddress(contractAddress, 'contract address');
+    this.validateAddress(fromAddress, 'from address');
+    this.validateAddress(toAddress, 'to address');
 
-      // Execute transfer
-      const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
-      const tx = await nftContract.transferFrom(fromAddress, toAddress, tokenId);
-      const receipt = await tx.wait();
+    // Execute transfer
+    const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
+    const tx = await nftContract.transferFrom(fromAddress, toAddress, tokenId);
+    const receipt = await tx.wait();
 
-      // Update certificate record
-      await Certificate.findOneAndUpdate(
-        { business: businessId, tokenId, contractAddress },
-        {
-          $set: {
-            status: 'transferred_to_brand',
-            transferredToBrand: true,
-            transferTxHash: receipt.transactionHash,
-            transferredAt: new Date()
-          }
+    // Update certificate record
+    await Certificate.findOneAndUpdate(
+      { business: businessId, tokenId, contractAddress },
+      {
+        $set: {
+          status: 'transferred_to_brand',
+          transferredToBrand: true,
+          transferTxHash: receipt.transactionHash,
+          transferredAt: new Date()
         }
-      );
-
-      const verificationUrl = this.generateVerificationUrl(tokenId, contractAddress);
-
-      return {
-        transferredAt: new Date(),
-        transactionHash: receipt.transactionHash,
-        blockNumber: receipt.blockNumber,
-        gasUsed: receipt.gasUsed.toString(),
-        gasPrice: receipt.effectiveGasPrice?.toString() || '0',
-        verificationUrl,
-        ownershipProof: `Token ${tokenId} successfully transferred to ${toAddress}`
-      };
-    } catch (error: any) {
-      console.error('Transfer NFT error:', error);
-      
-      if (error.statusCode) {
-        throw error;
       }
+    );
 
-      if (error.code === 'INSUFFICIENT_FUNDS') {
-        throw createAppError('Insufficient funds for transfer transaction', 400, 'INSUFFICIENT_FUNDS');
-      }
-      if (error.code === 'CALL_EXCEPTION') {
-        throw createAppError('Transfer failed - token may not exist or not authorized', 403, 'TRANSFER_UNAUTHORIZED');
-      }
-      
-      throw createAppError(`Failed to transfer NFT: ${error.message}`, 500, 'TRANSFER_FAILED');
+    const verificationUrl = this.generateVerificationUrl(tokenId, contractAddress);
+
+    return {
+      transferredAt: new Date(),
+      transactionHash: receipt.transactionHash,
+      txHash: receipt.transactionHash, // Add this
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
+      gasPrice: receipt.effectiveGasPrice?.toString() || '0',
+      verificationUrl,
+      ownershipProof: `Token ${tokenId} successfully transferred to ${toAddress}`,
+      from: fromAddress, // Add this
+      to: toAddress, // Add this
+      tokenId, // Add this
+      contractAddress, // Add this
+      businessId, // Add this
+      tokenType: 'ERC721' as const, // Add this
+      success: true // Add this
+    };
+  } catch (error: any) {
+    console.error('Transfer NFT error:', error);
+    
+    if (error.statusCode) {
+      throw error;
     }
+
+    if (error.code === 'INSUFFICIENT_FUNDS') {
+      throw createAppError('Insufficient funds for transfer transaction', 400, 'INSUFFICIENT_FUNDS');
+    }
+    if (error.code === 'CALL_EXCEPTION') {
+      throw createAppError('Transfer failed - token may not exist or not authorized', 403, 'TRANSFER_UNAUTHORIZED');
+    }
+    
+    throw createAppError(`Failed to transfer NFT: ${error.message}`, 500, 'TRANSFER_FAILED');
   }
+}
 
   // ===== ANALYTICS =====
 
@@ -1013,26 +1012,7 @@ export class NftService {
 
   // ===== LEGACY COMPATIBILITY METHODS =====
 
-  /**
-   * Legacy method for compatibility with existing certificate service
-   * This maintains backward compatibility while using the new structure
-   */
-  async mintNft(businessId: string, params: { productId: string; recipient: string }): Promise<{
-    tokenId: string;
-    txHash: string;
-    contractAddress?: string;
-  }> {
-    const result = await this.mintNft(businessId, {
-      productId: params.productId,
-      recipient: params.recipient
-    });
 
-    return {
-      tokenId: result.tokenId,
-      txHash: result.transactionHash,
-      contractAddress: result.contractAddress
-    };
-  }
 
   // ===== STATIC METHODS FOR BACKWARD COMPATIBILITY =====
 
@@ -1095,79 +1075,93 @@ export class NftService {
   }
 
   static async transferNft(params: {
-    contractAddress: string;
-    tokenId: string;
-    fromAddress: string;
-    toAddress: string;
-    timeout?: number;
-  }): Promise<TransferResult> {
-    const service = new NftService();
-    
-    // We need a businessId for the instance method, try to find it from certificate
-    const certificate = await Certificate.findOne({
-      tokenId: params.tokenId,
-      contractAddress: params.contractAddress
-    });
-    
-    if (!certificate) {
-      throw createAppError('Certificate not found for transfer', 404, 'CERTIFICATE_NOT_FOUND');
+  contractAddress: string;
+  tokenId: string;
+  fromAddress: string;
+  toAddress: string;
+  timeout?: number;
+}): Promise<TransferResult> {
+  const service = new NftService();
+  
+  // We need a businessId for the instance method, try to find it from certificate
+  const certificate = await Certificate.findOne({
+    tokenId: params.tokenId,
+    contractAddress: params.contractAddress
+  });
+  
+  if (!certificate) {
+    throw createAppError('Certificate not found for transfer', 404, 'CERTIFICATE_NOT_FOUND');
+  }
+  
+  const result = await service.transferNft(certificate.business.toString(), {
+    tokenId: params.tokenId,
+    fromAddress: params.fromAddress,
+    toAddress: params.toAddress,
+    contractAddress: params.contractAddress
+  });
+  
+  return {
+    transferredAt: new Date(),
+    transactionHash: result.transactionHash, // Use transactionHash instead of txHash
+    txHash: result.transactionHash,
+    blockNumber: result.blockNumber,
+    gasUsed: result.gasUsed,
+    gasPrice: result.gasPrice || '0',
+    verificationUrl: `${process.env.FRONTEND_URL}/verify/${params.contractAddress}/${params.tokenId}`,
+    ownershipProof: `${result.transactionHash}:${params.tokenId}`,
+    from: params.fromAddress,
+    to: params.toAddress,
+    tokenId: params.tokenId,
+    contractAddress: params.contractAddress,
+    businessId: certificate.business.toString(),
+    tokenType: 'ERC721' as const,
+    success: true
+  };
+}
+
+static async batchTransferNfts(transfers: Array<{
+  contractAddress: string;
+  tokenId: string;
+  fromAddress: string;
+  toAddress: string;
+  timeout?: number;
+}>): Promise<TransferResult[]> {
+  const results: TransferResult[] = [];
+  const errors: string[] = [];
+
+  for (const transferParams of transfers) {
+    try {
+      const result = await this.transferNft(transferParams);
+      results.push(result);
+    } catch (error: any) {
+      errors.push(`Token ${transferParams.tokenId}: ${error.message}`);
+      results.push({
+        transferredAt: new Date(),
+        transactionHash: '',
+        txHash: '',
+        blockNumber: 0,
+        gasUsed: '0',
+        gasPrice: '0',
+        verificationUrl: '',
+        ownershipProof: '',
+        from: transferParams.fromAddress,
+        to: transferParams.toAddress,
+        tokenId: transferParams.tokenId,
+        contractAddress: transferParams.contractAddress,
+        businessId: '', // You might want to fetch this properly
+        tokenType: 'ERC721' as const,
+        success: false,
+        error: error.message
+      });
     }
-    
-    const result = await service.transferNft(certificate.business.toString(), {
-      tokenId: params.tokenId,
-      fromAddress: params.fromAddress,
-      toAddress: params.toAddress,
-      contractAddress: params.contractAddress
-    });
-    
-    return {
-      txHash: result.transactionHash,
-      blockNumber: result.blockNumber,
-      gasUsed: result.gasUsed,
-      from: params.fromAddress,
-      to: params.toAddress,
-      tokenId: params.tokenId,
-      contractAddress: params.contractAddress,
-      success: true
-    };
   }
 
-  static async batchTransferNfts(transfers: Array<{
-    contractAddress: string;
-    tokenId: string;
-    fromAddress: string;
-    toAddress: string;
-    timeout?: number;
-  }>): Promise<TransferResult[]> {
-    const results: TransferResult[] = [];
-    const errors: string[] = [];
-
-    for (const transferParams of transfers) {
-      try {
-        const result = await this.transferNft(transferParams);
-        results.push(result);
-      } catch (error: any) {
-        errors.push(`Token ${transferParams.tokenId}: ${error.message}`);
-        results.push({
-          txHash: '',
-          blockNumber: 0,
-          gasUsed: '0',
-          from: transferParams.fromAddress,
-          to: transferParams.toAddress,
-          tokenId: transferParams.tokenId,
-          contractAddress: transferParams.contractAddress,
-          success: false,
-          error: error.message
-        });
-      }
-    }
-
-    if (errors.length > 0) {
-      console.warn(`Batch transfer completed with ${errors.length} errors:`, errors);
-    }
-
-    return results;
+  if (errors.length > 0) {
+    console.warn(`Batch transfer completed with ${errors.length} errors:`, errors);
   }
+
+  return results;
+}
 
   static async getCertificateAnalytics(businessId: string): Promise<{
     total: number;

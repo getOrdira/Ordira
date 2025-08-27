@@ -1,5 +1,5 @@
 // services/blockchain/voting.service.ts
-import { getBytes } from 'ethers';
+import { Contract, getBytes } from 'ethers';
 import { BlockchainProviderService } from './provider.service';
 import { VoteEvent, ContractDeployment, VotingContractInfo, ProposalInfo } from '../types/blockchain.types';
 import votingFactoryAbi from '../../abi/votingFactoryAbi.json';
@@ -52,46 +52,47 @@ export class VotingService {
   }
 
   /**
-   * Deploy a new voting contract for a brand
-   */
-  static async deployVotingContract(): Promise<ContractDeployment> {
-    try {
-      const votingFactory = this.getVotingFactoryContract();
-      const tx = await votingFactory.deployVoting();
-      const receipt = await tx.wait();
-      
-      const evt = receipt.events?.find((e: any) => e.event === 'VotingDeployed');
-      if (!evt) {
-        throw new BlockchainError('VotingDeployed event not found in transaction receipt', 500);
-      }
-
-      const contractAddress = evt.args.votingAddress as string;
-      
-      return {
-        address: contractAddress,
-        txHash: receipt.transactionHash,
-        blockNumber: receipt.blockNumber,
-        gasUsed: receipt.gasUsed.toString()
-      };
-    } catch (error: any) {
-      if (error instanceof BlockchainError) {
-        throw error;
-      }
-      
-      // Handle specific blockchain errors
-      if (error.code === 'INSUFFICIENT_FUNDS') {
-        throw new BlockchainError('Insufficient funds for voting contract deployment', 400);
-      }
-      if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-        throw new BlockchainError('Unable to estimate gas for voting contract deployment', 400);
-      }
-      if (error.code === 'NETWORK_ERROR') {
-        throw new BlockchainError('Blockchain network error during voting contract deployment', 503);
-      }
-      
-      throw new BlockchainError(`Failed to deploy voting contract: ${error.message}`, 500);
+ * Deploy a new voting contract for a brand
+ */
+static async deployVotingContract(businessId: string): Promise<ContractDeployment> {
+  try {
+    const votingFactory = this.getVotingFactoryContract();
+    const tx = await votingFactory.deployVoting();
+    const receipt = await tx.wait();
+    
+    const evt = receipt.events?.find((e: any) => e.event === 'VotingDeployed');
+    if (!evt) {
+      throw new BlockchainError('VotingDeployed event not found in transaction receipt', 500);
     }
+
+    const contractAddress = evt.args.votingAddress as string;
+    
+    return {
+      address: contractAddress,
+      txHash: receipt.transactionHash,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed.toString(),
+      businessId // This uses the businessId parameter passed to the method
+    };
+  } catch (error: any) {
+    if (error instanceof BlockchainError) {
+      throw error;
+    }
+    
+    // Handle specific blockchain errors
+    if (error.code === 'INSUFFICIENT_FUNDS') {
+      throw new BlockchainError('Insufficient funds for voting contract deployment', 400);
+    }
+    if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+      throw new BlockchainError('Unable to estimate gas for voting contract deployment', 400);
+    }
+    if (error.code === 'NETWORK_ERROR') {
+      throw new BlockchainError('Blockchain network error during voting contract deployment', 503);
+    }
+    
+    throw new BlockchainError(`Failed to deploy voting contract: ${error.message}`, 500);
   }
+}
 
   /**
    * Create a new proposal on a specific voting contract
