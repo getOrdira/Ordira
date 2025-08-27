@@ -323,7 +323,7 @@ export function generateToken(
     additionalClaims = {}
   } = options;
 
-  const payload: Partial<JWTPayload> = {
+  const payload = {
     sub: userId,
     userType,
     permissions,
@@ -333,10 +333,12 @@ export function generateToken(
     ...additionalClaims
   };
 
-  return jwt.sign(payload, JWT_SECRET!, {
-    expiresIn,
+  const signOptions: jwt.SignOptions = {
+    expiresIn: expiresIn as jwt.SignOptions['expiresIn'],
     algorithm: 'HS256'
-  });
+  };
+
+  return jwt.sign(payload, JWT_SECRET!, signOptions);
 }
 
 /**

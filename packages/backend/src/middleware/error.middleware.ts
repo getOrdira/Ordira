@@ -27,7 +27,7 @@ export interface ErrorResponse {
 /**
  * Safely extract error message from unknown error types
  */
-function getErrorMessage(error: unknown): string {
+export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
@@ -46,7 +46,7 @@ function getErrorMessage(error: unknown): string {
 /**
  * Safely extract error stack from unknown error types
  */
-function getErrorStack(error: unknown): string | undefined {
+export function getErrorStack(error: unknown): string | undefined {
   if (error instanceof Error) {
     return error.stack;
   }
@@ -56,7 +56,7 @@ function getErrorStack(error: unknown): string | undefined {
 /**
  * Determine if error is operational (expected) or programming error
  */
-function isOperationalError(error: unknown): boolean {
+export function isOperationalError(error: unknown): boolean {
   if (error && typeof error === 'object' && 'isOperational' in error) {
     return Boolean((error as any).isOperational);
   }
@@ -73,14 +73,14 @@ function isOperationalError(error: unknown): boolean {
 /**
  * Generate unique request ID for error tracking
  */
-function generateRequestId(): string {
+export function generateRequestId(): string {
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 }
 
 /**
  * Format date for logging
  */
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: '2-digit',
@@ -95,7 +95,7 @@ function formatDate(date: Date): string {
 /**
  * Log error with appropriate level and details
  */
-function logError(error: unknown, req: Request, requestId: string): void {
+export function logError(error: unknown, req: Request, requestId: string): void {
   const errorMessage = getErrorMessage(error);
   const errorStack = getErrorStack(error);
   const isOperational = isOperationalError(error);
@@ -123,7 +123,7 @@ function logError(error: unknown, req: Request, requestId: string): void {
 /**
  * Handle Mongoose validation errors
  */
-function handleMongooseValidationError(error: any): AppError {
+export function handleMongooseValidationError(error: any): AppError {
   const errors = Object.values(error.errors).map((err: any) => ({
     field: err.path,
     message: getErrorMessage(err),
@@ -142,7 +142,7 @@ function handleMongooseValidationError(error: any): AppError {
 /**
  * Handle MongoDB duplicate key errors
  */
-function handleMongoDuplicateKeyError(error: any): AppError {
+export function handleMongoDuplicateKeyError(error: any): AppError {
   const field = Object.keys(error.keyValue)[0];
   const value = error.keyValue[field];
   
@@ -158,7 +158,7 @@ function handleMongoDuplicateKeyError(error: any): AppError {
 /**
  * Handle MongoDB cast errors (invalid ObjectId, etc.)
  */
-function handleMongoCastError(error: any): AppError {
+export function handleMongoCastError(error: any): AppError {
   const newError = new Error(`Invalid ${error.path}: ${error.value}`) as AppError;
   newError.statusCode = 400;
   newError.code = 'INVALID_DATA';
@@ -171,7 +171,7 @@ function handleMongoCastError(error: any): AppError {
 /**
  * Handle JWT errors
  */
-function handleJWTError(error: any): AppError {
+export function handleJWTError(error: any): AppError {
   let message = 'Invalid token';
   let code = 'INVALID_TOKEN';
   
@@ -225,7 +225,7 @@ function handleBlockchainError(error: any): AppError {
 /**
  * Convert known error types to standardized AppError format
  */
-function normalizeError(error: unknown): AppError {
+export function normalizeError(error: unknown): AppError {
   // Already an AppError
   if (error instanceof Error && 'statusCode' in error) {
     return error as AppError;

@@ -1,15 +1,22 @@
 // src/middleware/emailGating.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { EmailGatingService } from '../services/business/emailGating.service';
+import { AuthRequest } from './auth.middleware';
 
 const emailGatingService = new EmailGatingService();
 
+export interface EmailGatingResult {
+  allowed: boolean;
+  reason?: string;
+  customer?: any;
+  settings?: any;
+}
+
 export interface EmailGatingRequest extends Request {
-  emailGating?: {
-    allowed: boolean;
-    reason?: string;
-    customer?: any;
-    settings?: any;
+  emailGating?: EmailGatingResult;
+  user?: {
+    email?: string;
+    id?: string;
   };
 }
 
@@ -53,7 +60,7 @@ export async function checkEmailGating(
 
     // Record access if customer exists
     if (result.customer) {
-      await emailGatingService.grantVotingAccess(email, businessId, req.user?.id);
+     await emailGatingService.grantVotingAccess(email, businessId, req.user?.id);
     }
 
     next();

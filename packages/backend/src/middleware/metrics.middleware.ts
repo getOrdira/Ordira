@@ -4,13 +4,16 @@ import client from 'prom-client';
 // Initialize default metrics collection
 client.collectDefaultMetrics({
   prefix: 'manufacturer_api_',
-  timeout: 10000,
   gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5]
 });
 
 // Create a Registry for custom metrics
 const register = new client.Registry();
-client.register.setDefaultRegistry(register);
+client.collectDefaultMetrics({ 
+  register,
+  prefix: 'manufacturer_api_',
+  gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5]
+})
 
 // HTTP request duration histogram
 export const httpRequestDuration = new client.Histogram({

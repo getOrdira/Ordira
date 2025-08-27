@@ -25,25 +25,25 @@ const FILE_TYPE_CONFIGS = {
     }
   },
   video: {
-    extensions: ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'],
-    mimeTypes: ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-ms-wmv', 'video/x-flv', 'video/webm'],
-    maxSize: 100 * 1024 * 1024, // 100MB
-    processOptions: {
-      codec: 'libx264',
-      bitrate: '1000k',
-      resolution: '1280x720'
-    }
-  },
-  document: {
-    extensions: ['.pdf', '.doc', '.docx', '.txt', '.rtf'],
-    mimeTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/rtf'],
-    maxSize: 25 * 1024 * 1024 // 25MB
-  },
-  certificate: {
-    extensions: ['.pdf', '.jpg', '.jpeg', '.png'],
-    mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
-    maxSize: 10 * 1024 * 1024 // 10MB
+  extensions: ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'],
+  mimeTypes: ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-ms-wmv', 'video/x-flv', 'video/webm'],
+  maxSize: 25 * 1024 * 1024, // 25MB (changed from 100MB)
+  processOptions: {
+    codec: 'libx264',
+    bitrate: '1000k',
+    resolution: '1280x720'
   }
+},
+document: {
+  extensions: ['.pdf', '.doc', '.docx', '.txt', '.rtf'],
+  mimeTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/rtf'],
+  maxSize: 10 * 1024 * 1024 // 10MB (changed from 25MB)
+},
+certificate: {
+  extensions: ['.pdf', '.jpg', '.jpeg', '.png'],
+  mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+  maxSize: 5 * 1024 * 1024 // 5MB (changed from 10MB)
+}
 };
 
 /**

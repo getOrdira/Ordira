@@ -149,9 +149,8 @@ function getUserType(req: Request): 'brand' | 'manufacturer' | 'anonymous' {
  */
 export function dynamicRateLimiter() {
   return rateLimit({
-    windowMs: DEFAULT_RATE_LIMIT.window * 60 * 1000, // Default window
-    max: DEFAULT_RATE_LIMIT.burst, // Default max requests
-
+    // Remove the static windowMs and max - we'll use dynamic ones
+    
     // Custom key generator
     keyGenerator: generateRateLimitKey,
 
@@ -164,7 +163,7 @@ export function dynamicRateLimiter() {
       return false;
     },
 
-    // Custom rate limit logic
+    // Custom rate limit logic (keep only this max property)
     max: async (req: Request) => {
       const userType = getUserType(req);
       
@@ -189,30 +188,8 @@ export function dynamicRateLimiter() {
       }
     },
 
-    // Custom window based on user
-    windowMs: async (req: Request) => {
-      const userType = getUserType(req);
-      
-      if (userType === 'anonymous') {
-        return DEFAULT_RATE_LIMIT.window * 60 * 1000;
-      }
-
-      const manufacturerReq = req as ManufacturerAuthRequest;
-      const authReq = req as AuthRequest;
-      const userId = manufacturerReq.userId || authReq.userId;
-
-      if (!userId) {
-        return DEFAULT_RATE_LIMIT.window * 60 * 1000;
-      }
-
-      try {
-        const limits = await getUserRateLimit(userId, userType);
-        return limits.windowMs;
-      } catch (error) {
-        console.error('Error in dynamic window calculation:', error);
-        return DEFAULT_RATE_LIMIT.window * 60 * 1000;
-      }
-    },
+    // Use static windowMs (rate limiting libraries typically don't support async windowMs)
+    windowMs: DEFAULT_RATE_LIMIT.window * 60 * 1000,
 
     // Custom handler for rate limit exceeded
     handler: (req: Request, res: Response) => {
@@ -230,14 +207,8 @@ export function dynamicRateLimiter() {
       });
     },
 
-    // Add headers with rate limit info
     standardHeaders: true,
     legacyHeaders: false,
-
-    // Use Redis store for distributed deployments
-    // store: new RedisStore({
-    //   sendCommand: (...args: string[]) => redisClient.call(...args),
-    // })
   });
 }
 

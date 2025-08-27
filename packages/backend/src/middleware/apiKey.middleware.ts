@@ -1,7 +1,9 @@
 // src/middleware/apiKey.middleware.ts
 import { Request, Response, NextFunction } from 'express';
-import * as apiKeySvc from '../services/business/apiKey.service';
+import { ApiKeyService } from '../services/business/apiKey.service';
 import { createAppError, createUnauthorizedError, createRateLimitError } from './error.middleware';
+
+const apiKeyService = new ApiKeyService();
 
 /**
  * Extended request interface for API key authentication
@@ -40,24 +42,24 @@ export async function authenticateApiKey(
     }
 
     // Verify API key and get associated business
-    const apiKeyInfo = await apiKeySvc.verifyApiKey(apiKey);
+    const apiKeyDoc = await apiKeyService.verifyApiKey(apiKey);
     
-    if (!apiKeyInfo || !apiKeyInfo.businessId) {
+    if (!apiKeyDoc || !apiKeyDoc.business) {
       throw createUnauthorizedError('Invalid or revoked API key');
     }
 
     // Check if API key is active
-    if (!apiKeyInfo.isActive) {
+    if (apiKeyDoc.isActive === false) {
       throw createUnauthorizedError('API key has been deactivated');
     }
 
     // Check expiration
-    if (apiKeyInfo.expiresAt && apiKeyInfo.expiresAt < new Date()) {
+    if (apiKeyDoc.expiresAt && apiKeyDoc.expiresAt < new Date()) {
       throw createUnauthorizedError('API key has expired');
     }
 
     // Check rate limits
-    const rateLimitResult = await checkRateLimit(apiKeyInfo.id, apiKeyInfo.rateLimit);
+    const rateLimitResult = await checkRateLimit(apiKeyDoc._id.toString(), apiKeyDoc.rateLimits?.requestsPerMinute * 60 || 1000);
     if (!rateLimitResult.allowed) {
       // Add rate limit headers
       res.set({
@@ -71,25 +73,20 @@ export async function authenticateApiKey(
       );
     }
 
-    // Check IP whitelist if configured
-    if (apiKeyInfo.ipWhitelist && apiKeyInfo.ipWhitelist.length > 0) {
-      const clientIP = getClientIP(req);
-      if (!isIPWhitelisted(clientIP, apiKeyInfo.ipWhitelist)) {
-        throw createUnauthorizedError('IP address not authorized for this API key');
-      }
-    }
-
+    // Check IP whitelist if configured - note: there's no ipWhitelist in the model
+    // Remove this section or implement if needed
+    
     // Check allowed origins for CORS
-    if (apiKeyInfo.allowedOrigins && apiKeyInfo.allowedOrigins.length > 0) {
+    if (apiKeyDoc.allowedOrigins && apiKeyDoc.allowedOrigins.length > 0) {
       const origin = req.headers.origin;
-      if (origin && !apiKeyInfo.allowedOrigins.includes(origin)) {
+      if (origin && !apiKeyDoc.allowedOrigins.includes(origin)) {
         throw createUnauthorizedError('Origin not authorized for this API key');
       }
     }
 
     // Attach business context to request
-    req.businessId = apiKeyInfo.businessId;
-    req.apiKeyId = apiKeyInfo.id;
+    req.businessId = apiKeyDoc.business.toString();
+    req.apiKeyId = apiKeyDoc._id.toString();
     req.rateLimit = {
       limit: rateLimitResult.limit,
       remaining: rateLimitResult.remaining,
@@ -104,7 +101,7 @@ export async function authenticateApiKey(
     });
 
     // Log API key usage (async, don't wait)
-    logApiKeyUsage(apiKeyInfo.id, req).catch(err => {
+    logApiKeyUsage(apiKeyDoc._id.toString(), req).catch(err => {
       console.error('Failed to log API key usage:', err);
     });
 
@@ -112,7 +109,7 @@ export async function authenticateApiKey(
   } catch (error) {
     next(error);
   }
-}
+};
 
 /**
  * Validate API key format (basic validation)
@@ -134,7 +131,7 @@ async function checkRateLimit(apiKeyId: string, hourlyLimit: number = 1000): Pro
   try {
     // This would typically use Redis or similar for distributed rate limiting
     // For now, implementing a simple in-memory approach
-    const result = await apiKeySvc.checkRateLimit(apiKeyId, hourlyLimit);
+    const result = await apiKeyService.checkRateLimit(apiKeyId, hourlyLimit);
     
     return {
       allowed: result.remaining > 0,
@@ -220,7 +217,7 @@ function isIPInCIDR(ip: string, cidr: string): boolean {
  */
 async function logApiKeyUsage(apiKeyId: string, req: Request): Promise<void> {
   try {
-    await apiKeySvc.logUsage(apiKeyId, {
+    await apiKeyService.logUsage(apiKeyId, {
       method: req.method,
       path: req.path,
       userAgent: req.headers['user-agent'] || 'unknown',
@@ -243,7 +240,7 @@ export function requireApiKeyPermission(permission: string) {
         throw createUnauthorizedError('API key authentication required');
       }
 
-      const hasPermission = await apiKeySvc.hasPermission(req.apiKeyId, permission);
+      const hasPermission = await apiKeyService.hasPermission(req.apiKeyId, permission);
       if (!hasPermission) {
         throw createUnauthorizedError(`API key does not have required permission: ${permission}`);
       }
@@ -265,7 +262,7 @@ export function requireApiKeyScope(scope: string) {
         throw createUnauthorizedError('API key authentication required');
       }
 
-      const hasScope = await apiKeySvc.hasScope(req.apiKeyId, scope);
+      const hasScope = await apiKeyService.hasScope(req.apiKeyId, scope);
       if (!hasScope) {
         throw createUnauthorizedError(`API key does not have required scope: ${scope}`);
       }
