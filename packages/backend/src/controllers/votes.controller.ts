@@ -728,14 +728,30 @@ export const getProposalResults = asyncHandler(async (
   const proposalVotes = allVotes.filter(vote => vote.proposalId === proposalId);
   const pendingVotes = await PendingVote.find({ businessId, proposalId }).lean();
 
-  // Calculate vote breakdown
-  const voteBreakdown = {
-    for: proposalVotes.filter(v => v.voteChoice === 'for').length + pendingVotes.filter(v => v.voteChoice === 'for').length,
-    against: proposalVotes.filter(v => v.voteChoice === 'against').length + pendingVotes.filter(v => v.voteChoice === 'against').length,
-    abstain: proposalVotes.filter(v => v.voteChoice === 'abstain').length + pendingVotes.filter(v => v.voteChoice === 'abstain').length
-  };
+  // Calculate product selection breakdown (since this is product selection voting)
+  const productSelections = new Map();
+  
+  // Count selections from submitted votes
+  proposalVotes.forEach(vote => {
+    const productId = vote.selectedProductId;
+    if (productId) {
+      productSelections.set(productId, (productSelections.get(productId) || 0) + 1);
+    }
+  });
+  
+  // Count selections from pending votes  
+  pendingVotes.forEach(vote => {
+    const productId = vote.selectedProductId;
+    if (productId) {
+      productSelections.set(productId, (productSelections.get(productId) || 0) + 1);
+    }
+  });
 
-  const totalVotes = voteBreakdown.for + voteBreakdown.against + voteBreakdown.abstain;
+  const totalVotes = proposalVotes.length + pendingVotes.length;
+  const topProducts = Array.from(productSelections.entries())
+    .map(([productId, count]) => ({ productId, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
 
   res.json({
     success: true,
@@ -749,15 +765,14 @@ export const getProposalResults = asyncHandler(async (
       },
       results: {
         totalVotes,
-        breakdown: voteBreakdown,
-        percentages: {
-          for: totalVotes > 0 ? Math.round((voteBreakdown.for / totalVotes) * 100) : 0,
-          against: totalVotes > 0 ? Math.round((voteBreakdown.against / totalVotes) * 100) : 0,
-          abstain: totalVotes > 0 ? Math.round((voteBreakdown.abstain / totalVotes) * 100) : 0
-        },
-        winner: voteBreakdown.for > voteBreakdown.against ? 'for' : 
-                voteBreakdown.against > voteBreakdown.for ? 'against' : 'tie',
-        margin: Math.abs(voteBreakdown.for - voteBreakdown.against)
+        topProducts,
+        totalUniqueProducts: productSelections.size,
+        mostPopularProduct: topProducts.length > 0 ? {
+          productId: topProducts[0].productId,
+          votes: topProducts[0].count,
+          percentage: Math.round((topProducts[0].count / totalVotes) * 100)
+        } : null,
+        competitionLevel: productSelections.size > 5 ? 'high' : productSelections.size > 2 ? 'medium' : 'low'
       },
       participation: {
         submittedVotes: proposalVotes.length,
@@ -869,6 +884,11 @@ export const getMyVotes = asyncHandler(async (
 ): Promise<void> => {
   const businessId = req.tenant?.business?.toString();
   const userId = req.userId;
+   // Helper function to get vote date
+const getVoteDate = (vote: any): string => {
+  return vote.submittedAt || vote.recordedAt;
+};
+
 
   if (!businessId) {
     throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
@@ -900,66 +920,65 @@ export const getMyVotes = asyncHandler(async (
 
   // Combine and format votes
   const allUserVotes = [
-    ...userVotes.map(vote => ({
-      id: vote.proposalId + '_submitted',
-      proposalId: vote.proposalId,
-      proposalDescription: proposalMap.get(vote.proposalId)?.description || 'Unknown proposal',
-      voteChoice: vote.voteChoice || 'for',
-      status: 'submitted',
-      submittedAt: vote.createdAt || new Date().toISOString(),
-      transactionHash: vote.txHash
-    })),
-    ...pendingVotes.map(vote => ({
-      id: vote._id.toString(),
-      proposalId: vote.proposalId,
-      proposalDescription: proposalMap.get(vote.proposalId)?.description || 'Unknown proposal',
-      voteChoice: vote.voteChoice || 'for',
-      status: 'pending',
-      recordedAt: vote.createdAt,
-      reason: vote.reason
-    }))
-  ].sort((a, b) => {
-    const aDate = new Date(a.submittedAt || a.recordedAt);
-    const bDate = new Date(b.submittedAt || b.recordedAt);
-    return bDate.getTime() - aDate.getTime();
-  });
-
+  ...userVotes.map(vote => ({
+    id: vote.proposalId + '_submitted',
+    proposalId: vote.proposalId,
+    proposalDescription: proposalMap.get(vote.proposalId)?.description || 'Unknown proposal',
+    selectedProductId: vote.selectedProductId,
+    productName: vote.productName,
+    status: 'submitted',
+    date: vote.createdAt || new Date().toISOString(), // Normalized field
+    transactionHash: vote.txHash
+  })),
+  ...pendingVotes.map(vote => ({
+    id: vote._id.toString(),
+    proposalId: vote.proposalId,
+    proposalDescription: proposalMap.get(vote.proposalId)?.description || 'Unknown proposal',
+    selectedProductId: vote.selectedProductId,
+    productName: vote.productName,
+    voteChoice: vote.voteChoice || 'for',
+    status: 'pending',
+    date: vote.createdAt, // Normalized field
+  }))
+].sort((a, b) => {
+  const aDate = new Date(a.date);
+  const bDate = new Date(b.date);
+  return bDate.getTime() - aDate.getTime();
+});
   // Apply status filter
-  const filteredVotes = status ? 
+     const filteredVotes = status ? 
     allUserVotes.filter(vote => vote.status === status) : 
     allUserVotes;
 
-  // Apply pagination
-  const total = filteredVotes.length;
-  const startIndex = (pageNum - 1) * limitNum;
-  const paginatedVotes = filteredVotes.slice(startIndex, startIndex + limitNum);
+// Apply pagination
+const total = filteredVotes.length;
+const startIndex = (pageNum - 1) * limitNum;
+const paginatedVotes = filteredVotes.slice(startIndex, startIndex + limitNum);
 
-  res.json({
-    success: true,
-    message: 'Personal voting history retrieved successfully',
-    data: {
-      votes: paginatedVotes,
-      stats: {
-        totalVotes: allUserVotes.length,
-        submittedVotes: userVotes.length,
-        pendingVotes: pendingVotes.length,
-        participatedProposals: new Set([...userVotes.map(v => v.proposalId), ...pendingVotes.map(v => v.proposalId)]).size
-      },
-      activity: {
-        firstVote: allUserVotes.length > 0 ? 
-          allUserVotes[allUserVotes.length - 1].submittedAt || allUserVotes[allUserVotes.length - 1].recordedAt : null,
-        lastVote: allUserVotes.length > 0 ? 
-          allUserVotes[0].submittedAt || allUserVotes[0].recordedAt : null,
-        votingFrequency: 'regular' // Would need analysis
-      },
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
-        hasNext: pageNum < Math.ceil(total / limitNum),
-        hasPrev: pageNum > 1
-      }
+res.json({
+  success: true,
+  message: 'Personal voting history retrieved successfully',
+  data: {
+    votes: paginatedVotes,
+    stats: {
+      totalVotes: allUserVotes.length,
+      submittedVotes: userVotes.length,
+      pendingVotes: pendingVotes.length,
+      participatedProposals: new Set([...userVotes.map(v => v.proposalId), ...pendingVotes.map(v => v.proposalId)]).size
+    },
+    activity: {
+      firstVote: allUserVotes.length > 0 ? getVoteDate(allUserVotes[allUserVotes.length - 1]) : null,
+      lastVote: allUserVotes.length > 0 ? getVoteDate(allUserVotes[0]) : null,
+      votingFrequency: 'regular' // Would need analysis
+    },
+    pagination: {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+      hasNext: pageNum < Math.ceil(total / limitNum),
+      hasPrev: pageNum > 1
     }
-  });
+  }
+});
 });
