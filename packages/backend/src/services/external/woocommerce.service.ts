@@ -311,6 +311,77 @@ export class WooCommerceService {
     }
   }
 
+  // In your WooCommerceService class, add:
+async testConnection(businessId: string): Promise<{
+  success: boolean;
+  responseTime: number;
+  apiVersion?: string;
+  storeInfo?: any;
+  capabilities?: string[];
+  errors?: string[];
+}> {
+  const startTime = Date.now();
+  
+  try {
+    // Get WooCommerce settings for this business
+    const settings = await BrandSettings.findOne({ business: businessId });
+    
+    if (!settings?.wooDomain || !settings?.wooConsumerKey || !settings?.wooConsumerSecret) {
+      return {
+        success: false,
+        responseTime: Date.now() - startTime,
+        errors: ['WooCommerce credentials not configured']
+      };
+    }
+
+    // Test basic API connection
+    const testUrl = `${settings.wooDomain}/wp-json/wc/v3/system_status`;
+    
+    const response = await fetch(testUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${settings.wooConsumerKey}:${settings.wooConsumerSecret}`).toString('base64')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const responseTime = Date.now() - startTime;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        responseTime,
+        errors: [`HTTP ${response.status}: ${response.statusText}`]
+      };
+    }
+
+    const systemStatus = await response.json();
+
+    return {
+      success: true,
+      responseTime,
+      apiVersion: systemStatus.environment?.version || 'unknown',
+      storeInfo: {
+        storeName: systemStatus.settings?.title || 'Unknown',
+        wooVersion: systemStatus.environment?.version,
+        currency: systemStatus.settings?.currency || 'USD'
+      },
+      capabilities: [
+        'product_sync',
+        'order_webhooks',
+        'customer_data'
+      ]
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      responseTime: Date.now() - startTime,
+      errors: [error.message || 'Connection test failed']
+    };
+  }
+}
+
   async getConnectionStatus(businessId: string): Promise<WooConnectionStatus> {
     try {
       if (!businessId?.trim()) {

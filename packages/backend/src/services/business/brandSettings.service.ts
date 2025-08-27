@@ -8,6 +8,8 @@ export interface EnhancedBrandSettings extends IBrandSettings {
   lastUpdatedBy?: string;
   updateSource?: string;
   updateMetadata?: any;
+  customDomain?: string | null;
+  domainStatus?: DomainStatus;
 }
 
 export interface IntegrationStatus {
@@ -16,6 +18,13 @@ export interface IntegrationStatus {
   wix: boolean;
   lastSync?: Date;
   errors?: string[];
+}
+
+export interface DnsRecord {
+  type: DnsRecord;
+  name: string;
+  value: string;
+  ttl?: number;
 }
 
 export interface DomainStatus {
@@ -29,7 +38,18 @@ export interface DomainStatus {
     verified: boolean;
     sslEnabled: boolean;
     url?: string;
+    host?: string;                   
+    cnameTarget?: string;           
+    verification?: DomainVerification;
   };
+}
+
+export interface DomainVerification {
+  verified: boolean;
+  requiredRecords?: DnsRecord[];
+  observedRecords?: DnsRecord[];
+  checkedAt?: Date | string;
+  reason?: string;
 }
 
 export interface WalletValidationResult {
@@ -47,6 +67,15 @@ export interface ShopifyIntegrationData {
   configuredBy?: string;
   planLevel?: string;
   connectionTest?: any;
+}
+
+export interface UpdateBrandSettingsInput {
+  customDomain?: string | null;
+  domainStatus?: DomainStatus;
+  version?: number;
+  lastUpdatedBy?: string;
+  updateSource?: string;
+  updateMetadata?: any;
 }
 
 export interface ConnectionTestResult {

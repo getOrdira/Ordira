@@ -1004,6 +1004,46 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
     };
   }
 
+  // In your AuthService class, add:
+async resetPassword(data: {
+  email: string;
+  resetCode: string;
+  newPassword: string;
+}): Promise<void> {
+  try {
+    const { email, resetCode, newPassword } = data;
+
+    // Find user by email and reset code
+    const user = await User.findOne({
+      email: UtilsService.normalizeEmail(email),
+      passwordResetToken: resetCode,
+      passwordResetExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      throw { statusCode: 400, message: 'Invalid or expired reset code' };
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update user password and clear reset fields
+    await User.findByIdAndUpdate(user._id, {
+      password: hashedPassword,
+      passwordResetToken: undefined,
+      passwordResetExpires: undefined,
+      updatedAt: new Date()
+    });
+
+    // Log security event
+    this.logSecurityEvent('PASSWORD_RESET', email, true);
+
+  } catch (error) {
+    this.logSecurityEvent('PASSWORD_RESET', data.email, false);
+    throw error;
+  }
+}
+
   /** ═══════════════════════════════════════════════════════════════════════════ */
   /** Password Reset Methods                                                    */
   /** ═══════════════════════════════════════════════════════════════════════════ */

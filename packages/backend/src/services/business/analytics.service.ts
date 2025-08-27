@@ -150,17 +150,17 @@ export class AnalyticsBusinessService {
     const limits = await this.subscriptionService.getVotingLimits(businessId);
 
     return {
-      totalOnChainVotes,
-      byProposal,
-      usedLast30d,
-      voteLimit: limits.voteLimit,
-      remainingVotes: limits.remainingVotes,
-      timeSeries: Array<{
-        date: string;
-        count: number;
+    totalOnChainVotes,
+    byProposal,
+    usedLast30d,
+    voteLimit: limits.voteLimit,
+    remainingVotes: limits.remainingVotes,
+    timeSeries: [] as Array<{
+    date: string;
+    count: number;
     // other time series properties
-  }> 
-    };
+  }>
+};
   }
 
   /**

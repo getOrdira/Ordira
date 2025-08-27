@@ -18,6 +18,26 @@ export interface NotificationStats {
   recent: number;
 }
 
+export interface NotificationPreferences {
+  emailNotifications?: {
+    invitations?: boolean;
+    orderUpdates?: boolean;
+    systemUpdates?: boolean;
+    marketing?: boolean;
+  };
+  pushNotifications?: {
+    invitations?: boolean;
+    orderUpdates?: boolean;
+    systemUpdates?: boolean;
+  };
+  smsNotifications?: {
+    criticalUpdates?: boolean;
+    orderAlerts?: boolean;
+  };
+  frequency?: 'immediate' | 'daily' | 'weekly';
+  timezone?: string;
+}
+
 export interface NotificationFilters {
   type?: string;
   read?: boolean;

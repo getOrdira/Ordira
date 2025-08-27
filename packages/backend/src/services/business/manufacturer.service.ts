@@ -513,6 +513,54 @@ private getTimeframeDays(timeframe: string): number {
     };
   }
 
+  /**
+ * Refresh manufacturer authentication token
+ */
+async refreshToken(manufacturerId: string): Promise<{ 
+  token: string; 
+  expiresAt: string;
+}> {
+  try {
+    // Verify manufacturer exists and is active
+    const manufacturer = await Manufacturer.findById(manufacturerId);
+    
+    if (!manufacturer) {
+      throw { statusCode: 404, message: 'Manufacturer not found' };
+    }
+
+    if (!manufacturer.isActive) {
+      throw { statusCode: 403, message: 'Account is not active' };
+    }
+
+    // Generate new JWT token
+    const token = jwt.sign(
+      { 
+        sub: manufacturer._id.toString(),
+        type: 'manufacturer',
+        email: manufacturer.email,
+        verified: manufacturer.isVerified
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+
+    // Calculate expiration date
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Update last login time
+    manufacturer.lastLoginAt = new Date();
+    await manufacturer.save();
+
+    this.logSecurityEvent('REFRESH_TOKEN', manufacturer.email, true);
+
+    return { token, expiresAt };
+
+  } catch (error: any) {
+    this.logSecurityEvent('REFRESH_TOKEN', manufacturerId, false);
+    throw error;
+  }
+}
+
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** Profile Management Methods                                                */
   /** ─────────────────────────────────────────────────────────────────────────── */

@@ -13,6 +13,30 @@ export interface TransactionReceipt {
   status: number;
 }
 
+export interface TransferResult {
+  transferredAt: Date;
+  transactionHash: string;
+  blockNumber: number;
+  gasUsed: string;
+  gasPrice: string;
+  verificationUrl: string;
+  ownershipProof: string;
+  txHash: string;
+  from: string;
+  to: string;
+  tokenId?: string;
+  amount?: string;
+  contractAddress: string;
+  businessId: string;
+  tokenType: 'ERC20' | 'ERC721' | 'ERC1155' | 'ETH';
+  value?: string;
+  valueFormatted?: string;
+  gasLimit?: string;
+  gasPriceGwei?: string;
+  success: boolean;
+  error?: string;
+}
+
 export interface NetworkInfo {
   chainId: number;
   blockNumber: number;
@@ -25,6 +49,7 @@ export interface ContractDeployment {
   txHash: string;
   blockNumber: number;
   gasUsed: string;
+  businessId: string;
 }
 
 export interface VoteEvent {
@@ -35,6 +60,7 @@ export interface VoteEvent {
   txHash: string;
   timestamp?: number;
 }
+
 
 export interface NftMintResult {
   tokenId: string;

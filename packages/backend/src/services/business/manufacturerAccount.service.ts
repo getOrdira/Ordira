@@ -44,7 +44,7 @@ export interface VerificationDocument {
 
 export interface AccountActivity {
   id: string;
-  type: 'login' | 'profile_update' | 'verification_submitted' | 'document_uploaded' | 'password_changed' | 'notification_sent' | 'account_activated' | 'account_deactivated';
+  type: 'login' | 'profile_update' | 'verification_submitted' | 'document_uploaded' | 'password_changed' | 'notification_sent' | 'account_activated' | 'account_deactivated' | 'notification_preferences_updated' | 'profile_viewed' | 'profile_picture_updated';
   description: string;
   timestamp: Date;
   ipAddress?: string;
@@ -54,23 +54,23 @@ export interface AccountActivity {
 }
 
 export interface NotificationPreferences {
-  emailNotifications: {
-    invitations: boolean;
-    orderUpdates: boolean;
-    systemUpdates: boolean;
-    marketing: boolean;
+  emailNotifications?: {
+    invitations?: boolean;
+    orderUpdates?: boolean;
+    systemUpdates?: boolean;
+    marketing?: boolean;
   };
-  pushNotifications: {
-    invitations: boolean;
-    orderUpdates: boolean;
-    systemUpdates: boolean;
+  pushNotifications?: {
+    invitations?: boolean;
+    orderUpdates?: boolean;
+    systemUpdates?: boolean;
   };
-  smsNotifications: {
-    criticalUpdates: boolean;
-    orderAlerts: boolean;
+  smsNotifications?: {
+    criticalUpdates?: boolean;
+    orderAlerts?: boolean;
   };
-  frequency: 'immediate' | 'daily' | 'weekly';
-  timezone: string;
+  frequency?: 'immediate' | 'daily' | 'weekly';
+  timezone?: string;
 }
 
 export interface DataExportResult {
@@ -552,57 +552,74 @@ export class ManufacturerAccountService {
    * Update notification preferences - NEW METHOD
    */
   async updateNotificationPreferences(
-    mfgId: string, 
-    preferences: Partial<NotificationPreferences>
-  ): Promise<NotificationPreferences> {
-    try {
-      if (!mfgId?.trim()) {
-        throw new ManufacturerAccountError('Manufacturer ID is required', 400, 'MISSING_MANUFACTURER_ID');
-      }
-
-      // Default preferences
-      const defaultPreferences: NotificationPreferences = {
-        emailNotifications: {
-          invitations: true,
-          orderUpdates: true,
-          systemUpdates: true,
-          marketing: false
-        },
-        pushNotifications: {
-          invitations: true,
-          orderUpdates: true,
-          systemUpdates: false
-        },
-        smsNotifications: {
-          criticalUpdates: false,
-          orderAlerts: false
-        },
-        frequency: 'immediate',
-        timezone: 'UTC'
-      };
-
-      // Merge with existing preferences
-      const updatedPreferences = { ...defaultPreferences, ...preferences };
-
-      // Update manufacturer document
-      await Manufacturer.findByIdAndUpdate(mfgId, {
-        notificationPreferences: updatedPreferences,
-        updatedAt: new Date()
-      });
-
-      // Log the update
-      await this.logActivity(mfgId, 'notification_preferences_updated', 'Notification preferences updated', {
-        preferences: updatedPreferences
-      });
-
-      return updatedPreferences;
-    } catch (error: any) {
-      if (error instanceof ManufacturerAccountError) {
-        throw error;
-      }
-      throw new ManufacturerAccountError(`Failed to update notification preferences: ${error.message}`, 500, 'PREFERENCES_ERROR');
+  mfgId: string, 
+  preferences: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> {
+  try {
+    if (!mfgId?.trim()) {
+      throw new ManufacturerAccountError('Manufacturer ID is required', 400, 'MISSING_MANUFACTURER_ID');
     }
+
+    // Get current preferences from the manufacturer model
+    const manufacturer = await Manufacturer.findById(mfgId);
+    
+    // Build default preferences without referencing the current structure
+    const defaultPreferences: NotificationPreferences = {
+      emailNotifications: {
+        invitations: preferences.emailNotifications?.invitations ?? true,
+        orderUpdates: preferences.emailNotifications?.orderUpdates ?? true,
+        systemUpdates: preferences.emailNotifications?.systemUpdates ?? true,
+        marketing: preferences.emailNotifications?.marketing ?? false
+      },
+      pushNotifications: {
+        invitations: preferences.pushNotifications?.invitations ?? true,
+        orderUpdates: preferences.pushNotifications?.orderUpdates ?? true,
+        systemUpdates: preferences.pushNotifications?.systemUpdates ?? false
+      },
+      smsNotifications: {
+        criticalUpdates: preferences.smsNotifications?.criticalUpdates ?? false,
+        orderAlerts: preferences.smsNotifications?.orderAlerts ?? false
+      },
+      frequency: preferences.frequency ?? 'immediate',
+      timezone: preferences.timezone ?? 'UTC'
+    };
+
+    // Update manufacturer document - store in a way that matches your model
+    await Manufacturer.findByIdAndUpdate(mfgId, {
+      // Map to the existing notificationSettings structure
+      notificationSettings: {
+        email: {
+          connectionRequests: defaultPreferences.emailNotifications?.invitations ?? true,
+          projectUpdates: defaultPreferences.emailNotifications?.orderUpdates ?? true,
+          marketing: defaultPreferences.emailNotifications?.marketing ?? false,
+          systemAlerts: defaultPreferences.emailNotifications?.systemUpdates ?? true
+        },
+        sms: {
+          urgentOnly: defaultPreferences.smsNotifications?.criticalUpdates ?? false,
+          projectDeadlines: defaultPreferences.smsNotifications?.orderAlerts ?? false
+        },
+        inApp: {
+          all: true,
+          mentions: true,
+          messages: true
+        }
+      },
+      updatedAt: new Date()
+    });
+
+    // Log the update
+    await this.logActivity(mfgId, 'notification_preferences_updated', 'Notification preferences updated', {
+      preferences: defaultPreferences
+    });
+
+    return defaultPreferences;
+  } catch (error: any) {
+    if (error instanceof ManufacturerAccountError) {
+      throw error;
+    }
+    throw new ManufacturerAccountError(`Failed to update notification preferences: ${error.message}`, 500, 'PREFERENCES_ERROR');
   }
+}
 
   /**
    * Initiate data export (GDPR compliance) - NEW METHOD

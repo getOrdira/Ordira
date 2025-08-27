@@ -82,6 +82,19 @@ export interface TransferFailureData {
   gasWasted?: string;
 }
 
+export interface DomainMapping {
+  domain: string;
+  targetUrl: string;
+  verified: boolean;
+  addedAt: Date;
+}
+
+export interface BusinessContact {  
+email: string;  
+name?: string;  
+phone?: string
+}
+
 export interface SlackNotification {
   text: string;
   channel?: string;

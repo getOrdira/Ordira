@@ -55,7 +55,7 @@ export interface CreateProductData {
   description?: string;
   media?: string[];
   category?: string;
-  status?: 'draft' | 'active';
+  status?: 'draft' | 'active' | 'archived';
   sku?: string;
   price?: number;
   tags?: string[];
