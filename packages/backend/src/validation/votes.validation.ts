@@ -863,6 +863,23 @@ export const listVotesQuerySchema = Joi.object({
     })
 });
 
+export const votingStatsQuerySchema = Joi.object({
+  startDate: Joi.date().iso().optional(),
+  endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
+  timeframe: Joi.string()
+    .valid('24h', '7d', '30d', '90d', '1y', 'all')
+    .default('30d')
+    .optional(),
+  groupBy: Joi.string()
+    .valid('hour', 'day', 'week', 'month')
+    .default('day')
+    .optional(),
+  proposalId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional(),
+  includeDetails: Joi.boolean().default(false).optional()
+});
+
 /**
  * Schema for vote delegation
  */
