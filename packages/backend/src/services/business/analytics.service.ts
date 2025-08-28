@@ -3,7 +3,9 @@ import { NftCertificate } from '../../models/nftCertificate.model';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { SubscriptionService } from './subscription.service';
 import { BlockchainContractsService } from '../blockchain/contracts.service';
+import { Types } from 'mongoose';
 
+// Type definitions
 type VoteAnalytics = {
   totalOnChainVotes: number;
   byProposal: Record<string, number>;
@@ -13,26 +15,33 @@ type VoteAnalytics = {
   timeSeries: Array<{
     date: string;
     count: number;
-    }>;
+  }>;
 };
 
 type NftAnalytics = {
   usedLast30d: number;
   nftLimit: number;
   remainingCertificates: number | 'unlimited';
-};
-type NftAnalyticsOptions = {
-  timeframe?: '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
-  groupBy?: 'hour' | 'day' | 'week' | 'month';
-  includeMarketData?: boolean;
-  includeHolderAnalysis?: boolean;
+  holderMetrics?: any;
+  mintingActivity?: any;
+  marketMetrics?: any;
 };
 
-type DashboardAnalyticsOptions = {
-  plan: string;
-  includePredictions?: boolean;
-  includeComparisons?: boolean;
-  includeAdvancedMetrics?: boolean;
+type TransactionAnalytics = {
+  summary?: {
+    totalVolume: number;
+    totalCount: number;
+    averageValue: number;
+  };
+  trends?: {
+    volumeGrowth: number;
+    countGrowth: number;
+  };
+  timeSeries?: Array<{
+    date: string;
+    count: number;
+    volume: number;
+  }>;
 };
 
 type DashboardAnalytics = {
@@ -66,29 +75,6 @@ type ExportData = {
   buffer?: Buffer;
 };
 
-type Analytics = {
-  votes: VoteAnalytics;
-  certificates: NftAnalytics;
-};
-
-type TransactionAnalytics = {
-  summary?: {
-    totalVolume: number;
-    totalCount: number;
-    averageValue: number;
-  };
-  trends?: {
-    volumeGrowth: number;
-    countGrowth: number;
-  };
-  timeSeries?: Array<{
-    date: string;
-    count: number;
-    volume: number;
-  }>;
-  transactions?: any[]; // Keep the array data if needed
-};
-
 type ReportConfig = {
   reportType?: string;
   timeframe?: string;
@@ -106,7 +92,7 @@ type CustomReport = {
   generatedAt: Date;
   requestedBy: string;
   planLevel: string;
-  status: 'generating' | 'completed' | 'failed';  // Add status
+  status: 'generating' | 'completed' | 'failed';
   estimatedCompletion?: Date;
   data: any;
   metadata: {
@@ -123,486 +109,506 @@ export class AnalyticsBusinessService {
   private subscriptionService = new SubscriptionService();
   private contractsService = new BlockchainContractsService();
 
+  /**
+   * Get voting analytics with time series data
+   */
   async getVotingAnalytics(businessId: string): Promise<VoteAnalytics> {
+    const businessObjectId = new Types.ObjectId(businessId);
+    
     // Get on-chain data
-    const settings = await BrandSettings.findOne({ business: businessId });
+    const settings = await BrandSettings.findOne({ business: businessObjectId });
     let totalOnChainVotes = 0;
     let byProposal: Record<string, number> = {};
 
-    if (settings.web3Settings?.voteContract) {
-      const events = await BlockchainContractsService.getVoteEventsFromContract(settings.web3Settings?.voteContract);
-      totalOnChainVotes = events.length;
-      
-      for (const event of events) {
-        const evt = event as any;
-        const pid = evt.args.proposalId.toString();
-        byProposal[pid] = (byProposal[pid] || 0) + 1;
+    if (settings?.web3Settings?.voteContract) {
+      try {
+        const events = await BlockchainContractsService.getVoteEventsFromContract(settings.web3Settings.voteContract);
+        totalOnChainVotes = events.length;
+        
+        for (const event of events) {
+          const evt = event as any;
+          const pid = evt.args?.proposalId?.toString() || 'unknown';
+          byProposal[pid] = (byProposal[pid] || 0) + 1;
+        }
+      } catch (error) {
+        console.error('Error fetching blockchain events:', error);
       }
     }
 
     // Get 30-day usage and limits
     const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const usedLast30d = await VotingRecord.countDocuments({
-      business: businessId,
+      business: businessObjectId,
       timestamp: { $gte: windowStart }
     });
 
     const limits = await this.subscriptionService.getVotingLimits(businessId);
 
+    // Get time series data for the last 30 days
+    const timeSeries = await this.getVotingTimeSeries(businessId, '30d');
+
     return {
-    totalOnChainVotes,
-    byProposal,
-    usedLast30d,
-    voteLimit: limits.voteLimit,
-    remainingVotes: limits.remainingVotes,
-    timeSeries: [] as Array<{
-    date: string;
-    count: number;
-    // other time series properties
-  }>
-};
+      totalOnChainVotes,
+      byProposal,
+      usedLast30d,
+      voteLimit: limits.voteLimit,
+      remainingVotes: limits.remainingVotes,
+      timeSeries
+    };
   }
 
   /**
- * Get analytics for a specific proposal/selection round
- */
-async getProposalAnalytics(
-  businessId: string, 
-  proposalId: string, 
-  options?: {
-    timeframe?: string;
-    groupBy?: string;
-    includeProductBreakdown?: boolean;
-    includeVoterInsights?: boolean;
-  }
-): Promise<any> {
-  try {
-    const { 
-      timeframe = '30d',
-      groupBy = 'day',
-      includeProductBreakdown = true,
-      includeVoterInsights = true 
-    } = options || {};
-
-    // Get product selections for this proposal
-    const productSelections = await VotingRecord.getProductSelectionStats(businessId, proposalId);
-    
-    // Get basic proposal metrics
-    const totalSelections = await VotingRecord.countDocuments({
-      business: businessId,
-      proposalId: proposalId
-    });
-
-    const uniqueVoters = await VotingRecord.distinct('voterAddress', {
-      business: businessId,
-      proposalId: proposalId
-    }).countDocuments();
-
-    // Get time series data for the proposal
-    const timeSeriesData = await this.getProposalTimeSeries(businessId, proposalId, groupBy);
-
-    let productBreakdown = {};
-    if (includeProductBreakdown && productSelections.length > 0) {
-      productBreakdown = productSelections[0]?.productSelections || {};
+   * Get analytics for a specific proposal/selection round
+   */
+  async getProposalAnalytics(
+    businessId: string, 
+    proposalId: string, 
+    options?: {
+      timeframe?: string;
+      groupBy?: string;
+      includeProductBreakdown?: boolean;
+      includeVoterInsights?: boolean;
     }
+  ): Promise<any> {
+    try {
+      const businessObjectId = new Types.ObjectId(businessId);
+      const { 
+        timeframe = '30d',
+        groupBy = 'day',
+        includeProductBreakdown = true,
+        includeVoterInsights = true 
+      } = options || {};
 
-    let voterInsights = {};
-    if (includeVoterInsights) {
-      voterInsights = await this.getProposalVoterInsights(businessId, proposalId);
-    }
-
-    return {
-      proposalId,
-      summary: {
-        totalSelections,
-        uniqueVoters,
-        participationRate: uniqueVoters > 0 ? ((totalSelections / uniqueVoters) * 100).toFixed(2) + '%' : '0%',
-        status: 'active' // You might determine this differently
-      },
-      productBreakdown,
-      timeSeries: timeSeriesData,
-      voterInsights,
-      topProducts: productBreakdown ? Object.entries(productBreakdown)
-        .sort(([,a], [,b]) => (b as any).selectionCount - (a as any).selectionCount)
-        .slice(0, 5) : []
-    };
-  } catch (error) {
-    console.error('Get proposal analytics error:', error);
-    throw new Error(`Failed to get proposal analytics: ${error.message}`);
-  }
-}
-
-/**
- * Get general product analytics
- */
-async getProductAnalytics(
-  businessId: string, 
-  options?: {
-    timeframe?: string;
-    groupBy?: string;
-    sortBy?: string;
-    limit?: number;
-    includeSelectionTrends?: boolean;
-    includePopularityMetrics?: boolean;
-  }
-): Promise<any> {
-  try {
-    const { 
-      timeframe = '30d',
-      sortBy = 'selections',
-      limit = 20,
-      includeSelectionTrends = true,
-      includePopularityMetrics = true 
-    } = options || {};
-
-    // Get top products across all proposals
-    const topProducts = await VotingRecord.getTopProducts(businessId, limit);
-
-    // Get product selection trends
-    let selectionTrends = {};
-    if (includeSelectionTrends) {
-      const days = this.getTimeframeDays(timeframe);
-      selectionTrends = await VotingRecord.getSelectionTrends(businessId, days);
-    }
-
-    // Get total products count
-    const totalProducts = await VotingRecord.distinct('selectedProductId', {
-      business: businessId
-    }).countDocuments();
-
-    // Calculate popularity metrics
-    let popularityMetrics = {};
-    if (includePopularityMetrics && topProducts.length > 0) {
-      const totalSelections = topProducts.reduce((sum, product) => sum + product.totalSelections, 0);
-      popularityMetrics = {
-        totalSelections,
-        averageSelectionsPerProduct: totalSelections / topProducts.length,
-        topProductMarketShare: topProducts[0] ? (topProducts[0].totalSelections / totalSelections * 100).toFixed(2) + '%' : '0%'
-      };
-    }
-
-    return {
-      topProducts,
-      totalProducts,
-      selectionTrends,
-      popularityMetrics,
-      trendingProducts: topProducts.slice(0, 3), // Top 3 as trending
-      productionRecommendations: this.generateProductionRecommendations(topProducts),
-      demandMetrics: this.calculateDemandMetrics(topProducts)
-    };
-  } catch (error) {
-    console.error('Get product analytics error:', error);
-    throw new Error(`Failed to get product analytics: ${error.message}`);
-  }
-}
-
-/**
- * Get analytics for a specific product
- */
-async getProductAnalyticsById(
-  businessId: string, 
-  productId: string, 
-  options?: {
-    timeframe?: string;
-    groupBy?: string;
-    includeCompetitorComparison?: boolean;
-    includeVoterDemographics?: boolean;
-    includeSelectionReasons?: boolean;
-  }
-): Promise<any> {
-  try {
-    const { 
-      timeframe = '30d',
-      groupBy = 'day',
-      includeCompetitorComparison = true,
-      includeSelectionReasons = true 
-    } = options || {};
-
-    // Get product selection data
-    const productSelections = await VotingRecord.find({
-      business: businessId,
-      selectedProductId: productId
-    }).sort({ timestamp: -1 });
-
-    const totalSelections = productSelections.length;
-    const uniqueVoters = new Set(productSelections.map(s => s.voterAddress)).size;
-
-    // Get product ranking
-    const allProducts = await VotingRecord.getTopProducts(businessId, 100);
-    const productRank = allProducts.findIndex(p => p.productId === productId) + 1;
-
-    // Get time series for this product
-    const timeSeries = await this.getProductTimeSeries(businessId, productId, groupBy);
-
-    // Get selection reasons if available
-    let selectionReasons = [];
-    if (includeSelectionReasons) {
-      selectionReasons = productSelections
-        .filter(s => s.selectionReason)
-        .map(s => s.selectionReason)
-        .slice(0, 10); // Top 10 reasons
-    }
-
-    // Get competitor comparison
-    let competitorData = {};
-    if (includeCompetitorComparison && allProducts.length > 1) {
-      const competitorProducts = allProducts
-        .filter(p => p.productId !== productId)
-        .slice(0, 5); // Top 5 competitors
+      // Get product selections for this proposal
+      const productSelections = await VotingRecord.getProductSelectionStats(businessId, proposalId);
       
-      competitorData = {
-        competitors: competitorProducts,
-        relativePerformance: productRank ? `#${productRank} of ${allProducts.length}` : 'Unknown'
-      };
-    }
-
-    return {
-      productId,
-      productName: productSelections[0]?.productName || 'Unknown Product',
-      summary: {
-        totalSelections,
-        uniqueVoters,
-        averageSelectionsPerVoter: uniqueVoters > 0 ? (totalSelections / uniqueVoters).toFixed(2) : '0'
-      },
-      rankingMetrics: {
-        overallRank: productRank || null,
-        totalProducts: allProducts.length
-      },
-      selectionTrends: {
-        timeSeries,
-        currentDemand: this.calculateDemandLevel(totalSelections, allProducts)
-      },
-      voterFeedback: {
-        reasons: selectionReasons,
-        sentimentScore: this.calculateSentimentScore(selectionReasons) // Placeholder
-      },
-      competitorData,
-      productionAdvice: this.generateProductionAdvice(totalSelections, productRank, allProducts.length)
-    };
-  } catch (error) {
-    console.error('Get product analytics by ID error:', error);
-    throw new Error(`Failed to get product analytics: ${error.message}`);
-  }
-}
-
-/**
- * Get engagement analytics
- */
-async getEngagementAnalytics(
-  businessId: string, 
-  options?: {
-    timeframe?: string;
-    groupBy?: string;
-    includeVotingEngagement?: boolean;
-    includeProductInteractions?: boolean;
-    includeUserRetention?: boolean;
-  }
-): Promise<any> {
-  try {
-    const { 
-      timeframe = '30d',
-      groupBy = 'day',
-      includeVotingEngagement = true,
-      includeUserRetention = true 
-    } = options || {};
-
-    const days = this.getTimeframeDays(timeframe);
-    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-    // Get voting engagement metrics
-    let votingEngagement = {};
-    if (includeVotingEngagement) {
-      const totalVotes = await VotingRecord.countDocuments({
-        business: businessId,
-        timestamp: { $gte: startDate }
+      // Get basic proposal metrics
+      const totalSelections = await VotingRecord.countDocuments({
+        business: businessObjectId,
+        proposalId: proposalId
       });
 
-      const uniqueVoters = await VotingRecord.distinct('voterAddress', {
-        business: businessId,
-        timestamp: { $gte: startDate }
-      }).countDocuments();
+      // Fix: Get unique voters count properly
+      const uniqueVotersArray = await VotingRecord.distinct('voterAddress', {
+        business: businessObjectId,
+        proposalId: proposalId
+      });
+      const uniqueVoters = uniqueVotersArray.length;
 
-      const activeProposals = await VotingRecord.distinct('proposalId', {
-        business: businessId,
-        timestamp: { $gte: startDate }
-      }).countDocuments();
+      // Get time series data for the proposal
+      const timeSeriesData = await this.getProposalTimeSeries(businessId, proposalId, groupBy);
 
-      votingEngagement = {
-        totalVotes,
-        uniqueVoters,
-        activeProposals,
-        averageVotesPerUser: uniqueVoters > 0 ? (totalVotes / uniqueVoters).toFixed(2) : '0',
-        participationRate: activeProposals > 0 ? ((uniqueVoters / activeProposals) * 100).toFixed(2) + '%' : '0%'
+      let productBreakdown = {};
+      if (includeProductBreakdown && productSelections.length > 0) {
+        productBreakdown = productSelections[0]?.productSelections || {};
+      }
+
+      let voterInsights = {};
+      if (includeVoterInsights) {
+        voterInsights = await this.getProposalVoterInsights(businessId, proposalId);
+      }
+
+      return {
+        proposalId,
+        summary: {
+          totalSelections,
+          uniqueVoters,
+          participationRate: uniqueVoters > 0 ? ((totalSelections / uniqueVoters) * 100).toFixed(2) + '%' : '0%',
+          status: 'active' // You might determine this differently
+        },
+        productBreakdown,
+        timeSeries: timeSeriesData,
+        voterInsights,
+        topProducts: productBreakdown ? Object.entries(productBreakdown)
+          .sort(([,a], [,b]) => (b as any).selectionCount - (a as any).selectionCount)
+          .slice(0, 5) : []
+      };
+    } catch (error) {
+      console.error('Get proposal analytics error:', error);
+      throw new Error(`Failed to get proposal analytics: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get general product analytics
+   */
+  async getProductAnalytics(
+    businessId: string, 
+    options?: {
+      timeframe?: string;
+      groupBy?: string;
+      sortBy?: string;
+      limit?: number;
+      includeSelectionTrends?: boolean;
+      includePopularityMetrics?: boolean;
+    }
+  ): Promise<any> {
+    try {
+      const { 
+        timeframe = '30d',
+        sortBy = 'selections',
+        limit = 20,
+        includeSelectionTrends = true,
+        includePopularityMetrics = true 
+      } = options || {};
+
+      // Get top products across all proposals
+      const topProducts = await VotingRecord.getTopProducts(businessId, limit);
+
+      // Get product selection trends
+      let selectionTrends = {};
+      if (includeSelectionTrends) {
+        const days = this.getTimeframeDays(timeframe);
+        selectionTrends = await VotingRecord.getSelectionTrends(businessId, days);
+      }
+
+      // Get total products count
+      const totalProductsArray = await VotingRecord.distinct('selectedProductId', {
+        business: new Types.ObjectId(businessId)
+      });
+      const totalProducts = totalProductsArray.length;
+
+      // Calculate popularity metrics
+      let popularityMetrics = {};
+      if (includePopularityMetrics && topProducts.length > 0) {
+        const totalSelections = topProducts.reduce((sum, product) => sum + product.totalSelections, 0);
+        popularityMetrics = {
+          totalSelections,
+          averageSelectionsPerProduct: totalSelections / topProducts.length,
+          topProductMarketShare: topProducts[0] ? (topProducts[0].totalSelections / totalSelections * 100).toFixed(2) + '%' : '0%'
+        };
+      }
+
+      return {
+        topProducts,
+        totalProducts,
+        selectionTrends,
+        popularityMetrics,
+        trendingProducts: topProducts.slice(0, 3), // Top 3 as trending
+        productionRecommendations: this.generateProductionRecommendations(topProducts),
+        demandMetrics: this.calculateDemandMetrics(topProducts)
+      };
+    } catch (error) {
+      console.error('Get product analytics error:', error);
+      throw new Error(`Failed to get product analytics: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get analytics for a specific product
+   */
+  async getProductAnalyticsById(
+    businessId: string, 
+    productId: string, 
+    options?: {
+      timeframe?: string;
+      groupBy?: string;
+      includeCompetitorComparison?: boolean;
+      includeVoterDemographics?: boolean;
+      includeSelectionReasons?: boolean;
+    }
+  ): Promise<any> {
+    try {
+      const businessObjectId = new Types.ObjectId(businessId);
+      const { 
+        timeframe = '30d',
+        groupBy = 'day',
+        includeCompetitorComparison = true,
+        includeSelectionReasons = true 
+      } = options || {};
+
+      // Get product selection data
+      const productSelections = await VotingRecord.find({
+        business: businessObjectId,
+        selectedProductId: productId
+      }).sort({ timestamp: -1 });
+
+      const totalSelections = productSelections.length;
+      const uniqueVoters = new Set(productSelections.map(s => s.voterAddress).filter(Boolean)).size;
+
+      // Get product ranking
+      const allProducts = await VotingRecord.getTopProducts(businessId, 100);
+      const productRank = allProducts.findIndex(p => p.productId === productId) + 1;
+
+      // Get time series for this product
+      const timeSeries = await this.getProductTimeSeries(businessId, productId, groupBy);
+
+      // Get selection reasons if available
+      let selectionReasons: string[] = [];
+      if (includeSelectionReasons) {
+        selectionReasons = productSelections
+          .filter(s => s.selectionReason)
+          .map(s => s.selectionReason!)
+          .slice(0, 10); // Top 10 reasons
+      }
+
+      // Get competitor comparison
+      let competitorData = {};
+      if (includeCompetitorComparison && allProducts.length > 1) {
+        const competitorProducts = allProducts
+          .filter(p => p.productId !== productId)
+          .slice(0, 5); // Top 5 competitors
+        
+        competitorData = {
+          competitors: competitorProducts,
+          relativePerformance: productRank ? `#${productRank} of ${allProducts.length}` : 'Unknown'
+        };
+      }
+
+      return {
+        productId,
+        productName: productSelections[0]?.productName || 'Unknown Product',
+        summary: {
+          totalSelections,
+          uniqueVoters,
+          averageSelectionsPerVoter: uniqueVoters > 0 ? (totalSelections / uniqueVoters).toFixed(2) : '0'
+        },
+        rankingMetrics: {
+          overallRank: productRank || null,
+          totalProducts: allProducts.length
+        },
+        selectionTrends: {
+          timeSeries,
+          currentDemand: this.calculateDemandLevel(totalSelections, allProducts)
+        },
+        voterFeedback: {
+          reasons: selectionReasons,
+          sentimentScore: this.calculateSentimentScore(selectionReasons) // Placeholder
+        },
+        competitorData,
+        productionAdvice: this.generateProductionAdvice(totalSelections, productRank, allProducts.length)
+      };
+    } catch (error) {
+      console.error('Get product analytics by ID error:', error);
+      throw new Error(`Failed to get product analytics: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get engagement analytics
+   */
+  async getEngagementAnalytics(
+    businessId: string, 
+    options?: {
+      timeframe?: string;
+      groupBy?: string;
+      includeVotingEngagement?: boolean;
+      includeProductInteractions?: boolean;
+      includeUserRetention?: boolean;
+    }
+  ): Promise<any> {
+    try {
+      const businessObjectId = new Types.ObjectId(businessId);
+      const { 
+        timeframe = '30d',
+        groupBy = 'day',
+        includeVotingEngagement = true,
+        includeUserRetention = true 
+      } = options || {};
+
+      const days = this.getTimeframeDays(timeframe);
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      // Get voting engagement metrics
+      let votingEngagement = {};
+      if (includeVotingEngagement) {
+        const totalVotes = await VotingRecord.countDocuments({
+          business: businessObjectId,
+          timestamp: { $gte: startDate }
+        });
+
+        const uniqueVotersArray = await VotingRecord.distinct('voterAddress', {
+          business: businessObjectId,
+          timestamp: { $gte: startDate }
+        });
+        const uniqueVoters = uniqueVotersArray.length;
+
+        const activeProposalsArray = await VotingRecord.distinct('proposalId', {
+          business: businessObjectId,
+          timestamp: { $gte: startDate }
+        });
+        const activeProposals = activeProposalsArray.length;
+
+        votingEngagement = {
+          totalVotes,
+          uniqueVoters,
+          activeProposals,
+          averageVotesPerUser: uniqueVoters > 0 ? (totalVotes / uniqueVoters).toFixed(2) : '0',
+          participationRate: activeProposals > 0 ? ((uniqueVoters / activeProposals) * 100).toFixed(2) + '%' : '0%'
+        };
+      }
+
+      // Get user retention metrics
+      let retention = {};
+      if (includeUserRetention) {
+        retention = await this.calculateUserRetention(businessId, days);
+      }
+
+      return {
+        summary: {
+          overallEngagement: (votingEngagement as any).participationRate || '0%',
+          activeUsers: (votingEngagement as any).uniqueVoters || 0,
+          totalInteractions: (votingEngagement as any).totalVotes || 0
+        },
+        votingEngagement,
+        retention,
+        trends: {
+          overall: 'stable' // You might calculate this from time series data
+        },
+        drivers: [
+          'Product selection voting',
+          'Certificate rewards',
+          'Community participation'
+        ],
+        recommendations: this.generateEngagementRecommendations(votingEngagement, retention)
+      };
+    } catch (error) {
+      console.error('Get engagement analytics error:', error);
+      throw new Error(`Failed to get engagement analytics: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get comparative analytics between periods
+   */
+  async getComparativeAnalytics(
+    businessId: string, 
+    options: {
+      currentPeriod: { startDate: Date; endDate: Date };
+      previousPeriod: { startDate: Date; endDate: Date };
+      metrics: string[];
+      includePercentageChanges?: boolean;
+      includeStatisticalSignificance?: boolean;
+    }
+  ): Promise<any> {
+    try {
+      const { currentPeriod, previousPeriod, metrics, includePercentageChanges = true } = options;
+
+      const comparison: any = {
+        currentPeriod: {},
+        previousPeriod: {},
+        changes: {},
+        summary: {}
+      };
+
+      // Get data for both periods
+      for (const metric of metrics) {
+        const currentData = await this.getMetricForPeriod(businessId, metric, currentPeriod);
+        const previousData = await this.getMetricForPeriod(businessId, metric, previousPeriod);
+
+        comparison.currentPeriod[metric] = currentData;
+        comparison.previousPeriod[metric] = previousData;
+
+        if (includePercentageChanges) {
+          const change = this.calculatePercentageChange(previousData, currentData);
+          comparison.changes[metric] = {
+            absolute: currentData - previousData,
+            percentage: change,
+            trend: change > 0 ? 'increase' : change < 0 ? 'decrease' : 'stable'
+          };
+        }
+      }
+
+      // Generate summary insights
+      const positiveChanges = Object.values(comparison.changes).filter((c: any) => c.percentage > 0).length;
+      const negativeChanges = Object.values(comparison.changes).filter((c: any) => c.percentage < 0).length;
+
+      comparison.summary = {
+        trend: positiveChanges > negativeChanges ? 'growth' : negativeChanges > positiveChanges ? 'decline' : 'stable',
+        significantChanges: Object.entries(comparison.changes)
+          .filter(([, change]: [string, any]) => Math.abs(change.percentage) > 10)
+          .map(([metric, change]) => ({ metric, change })),
+        overallHealth: positiveChanges >= negativeChanges ? 'good' : 'needs_attention'
+      };
+
+      comparison.actionableInsights = this.generateComparisonInsights(comparison);
+      comparison.highlights = this.generateComparisonHighlights(comparison);
+
+      return comparison;
+    } catch (error) {
+      console.error('Get comparative analytics error:', error);
+      throw new Error(`Failed to get comparative analytics: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get NFT analytics
+   */
+  async getNftAnalytics(
+    businessId: string, 
+    options?: {
+      timeframe?: string;
+      groupBy?: string;
+      includeMarketData?: boolean;
+      includeHolderAnalysis?: boolean;
+    }
+  ): Promise<NftAnalytics> {
+    const businessObjectId = new Types.ObjectId(businessId);
+    const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    const usedLast30d = await NftCertificate.countDocuments({
+      business: businessObjectId,
+      mintedAt: { $gte: windowStart }
+    });
+
+    const limits = await this.subscriptionService.getNftLimits(businessId);
+
+    let holderMetrics, mintingActivity, marketMetrics;
+
+    // Include additional data based on options
+    if (options?.includeHolderAnalysis) {
+      holderMetrics = {
+        uniqueHolders: 0, // Implement holder analysis
+        distribution: {}
       };
     }
 
-    // Get user retention metrics
-    let retention = {};
-    if (includeUserRetention) {
-      retention = await this.calculateUserRetention(businessId, days);
+    if (options?.includeMarketData) {
+      marketMetrics = {
+        // Implement market data analysis
+      };
     }
 
     return {
-      summary: {
-        overallEngagement: votingEngagement.participationRate || '0%',
-        activeUsers: votingEngagement.uniqueVoters || 0,
-        totalInteractions: votingEngagement.totalVotes || 0
-      },
-      votingEngagement,
-      retention,
-      trends: {
-        overall: 'stable' // You might calculate this from time series data
-      },
-      drivers: [
-        'Product selection voting',
-        'Certificate rewards',
-        'Community participation'
-      ],
-      recommendations: this.generateEngagementRecommendations(votingEngagement, retention)
-    };
-  } catch (error) {
-    console.error('Get engagement analytics error:', error);
-    throw new Error(`Failed to get engagement analytics: ${error.message}`);
-  }
-}
-
-/**
- * Get comparative analytics between periods
- */
-async getComparativeAnalytics(
-  businessId: string, 
-  options: {
-    currentPeriod: { startDate: Date; endDate: Date };
-    previousPeriod: { startDate: Date; endDate: Date };
-    metrics: string[];
-    includePercentageChanges?: boolean;
-    includeStatisticalSignificance?: boolean;
-  }
-): Promise<any> {
-  try {
-    const { currentPeriod, previousPeriod, metrics, includePercentageChanges = true } = options;
-
-    const comparison: any = {
-      currentPeriod: {},
-      previousPeriod: {},
-      changes: {},
-      summary: {}
-    };
-
-    // Get data for both periods
-    for (const metric of metrics) {
-      const currentData = await this.getMetricForPeriod(businessId, metric, currentPeriod);
-      const previousData = await this.getMetricForPeriod(businessId, metric, previousPeriod);
-
-      comparison.currentPeriod[metric] = currentData;
-      comparison.previousPeriod[metric] = previousData;
-
-      if (includePercentageChanges) {
-        const change = this.calculatePercentageChange(previousData, currentData);
-        comparison.changes[metric] = {
-          absolute: currentData - previousData,
-          percentage: change,
-          trend: change > 0 ? 'increase' : change < 0 ? 'decrease' : 'stable'
-        };
-      }
-    }
-
-    // Generate summary insights
-    const positiveChanges = Object.values(comparison.changes).filter((c: any) => c.percentage > 0).length;
-    const negativeChanges = Object.values(comparison.changes).filter((c: any) => c.percentage < 0).length;
-
-    comparison.summary = {
-      trend: positiveChanges > negativeChanges ? 'growth' : negativeChanges > positiveChanges ? 'decline' : 'stable',
-      significantChanges: Object.entries(comparison.changes)
-        .filter(([, change]: [string, any]) => Math.abs(change.percentage) > 10)
-        .map(([metric, change]) => ({ metric, change })),
-      overallHealth: positiveChanges >= negativeChanges ? 'good' : 'needs_attention'
-    };
-
-    comparison.actionableInsights = this.generateComparisonInsights(comparison);
-    comparison.highlights = this.generateComparisonHighlights(comparison);
-
-    return comparison;
-  } catch (error) {
-    console.error('Get comparative analytics error:', error);
-    throw new Error(`Failed to get comparative analytics: ${error.message}`);
-  }
-}
-
-
- async getNftAnalytics(
-  businessId: string, 
-  options?: NftAnalyticsOptions
-): Promise<NftAnalytics & {
-  holderMetrics?: any;
-  mintingActivity?: any;
-  marketMetrics?: any;
-}> {
-  const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const usedLast30d = await NftCertificate.countDocuments({
-    business: businessId,
-    mintedAt: { $gte: windowStart }
-  });
-
-  const limits = await this.subscriptionService.getNftLimits(businessId);
-
-  let holderMetrics, mintingActivity, marketMetrics;
-
-  // Include additional data based on options
-  if (options?.includeHolderAnalysis) {
-    holderMetrics = {
-      uniqueHolders: 0, // Implement holder analysis
-      distribution: {}
+      usedLast30d,
+      nftLimit: limits.nftLimit,
+      remainingCertificates: limits.remainingCertificates,
+      holderMetrics,
+      mintingActivity,
+      marketMetrics
     };
   }
-
-  if (options?.includeMarketData) {
-    marketMetrics = {
-      // Implement market data analysis
-    };
-  }
-
-  return {
-    usedLast30d,
-    nftLimit: limits.nftLimit,
-    remainingCertificates: limits.remainingCertificates,
-    holderMetrics,
-    mintingActivity,
-    marketMetrics
-  };
-}
-
-  async getTransactionAnalytics(businessId: string, options?: AnalyticsOptions): Promise<TransactionAnalytics> {
-  // TODO: Implement proper analytics
-  return {
-    summary: {
-      totalVolume: 0,
-      totalCount: 0,
-      averageValue: 0
-    },
-    trends: {
-      volumeGrowth: 0,
-      countGrowth: 0
-    },
-    timeSeries: [],
-    transactions: []
-  };
-}
 
   /**
-   * Combined analytics for both votes and NFT certificates.
+   * Get transaction analytics
    */
-  async getAnalytics(businessId: string): Promise<Analytics> {
-    const [votes, certificates] = await Promise.all([
-      this.getVotingAnalytics(businessId),
-      this.getNftAnalytics(businessId)
-    ]);
-    return { votes, certificates };
+  async getTransactionAnalytics(businessId: string): Promise<TransactionAnalytics> {
+    // TODO: Implement proper transaction analytics
+    return {
+      summary: {
+        totalVolume: 0,
+        totalCount: 0,
+        averageValue: 0
+      },
+      trends: {
+        volumeGrowth: 0,
+        countGrowth: 0
+      },
+      timeSeries: []
+    };
   }
 
+  /**
+   * Get dashboard analytics with plan-based features
+   */
   async getDashboardAnalytics(
     businessId: string, 
-    options?: DashboardAnalyticsOptions
+    options?: {
+      plan: string;
+      includePredictions?: boolean;
+      includeComparisons?: boolean;
+      includeAdvancedMetrics?: boolean;
+    }
   ): Promise<DashboardAnalytics> {
     // Get basic analytics
     const [votingData, nftData] = await Promise.all([
@@ -653,6 +659,9 @@ async getComparativeAnalytics(
     };
   }
 
+  /**
+   * Export analytics in various formats
+   */
   async exportAnalytics(
     businessId: string, 
     options: ExportOptions
@@ -676,8 +685,12 @@ async getComparativeAnalytics(
         filename = `transaction-analytics-${businessId}-${options.timeframe}`;
         break;
       default:
-        // Get all analytics
-        data = await this.getAnalytics(businessId);
+        // Get combined analytics
+        const [votes, certificates] = await Promise.all([
+          this.getVotingAnalytics(businessId),
+          this.getNftAnalytics(businessId)
+        ]);
+        data = { votes, certificates };
         filename = `combined-analytics-${businessId}-${options.timeframe}`;
     }
 
@@ -694,55 +707,9 @@ async getComparativeAnalytics(
     }
   }
 
-  private formatAsCSV(data: any, filename: string): ExportData {
-    // Convert data to CSV format
-    let csvContent = '';
-    
-    if (data.votes || data.totalOnChainVotes !== undefined) {
-      // Handle voting data
-      const votingData = data.votes || data;
-      csvContent += 'Metric,Value\n';
-      csvContent += `Total Votes,${votingData.totalOnChainVotes || 0}\n`;
-      csvContent += `Used Last 30d,${votingData.usedLast30d || 0}\n`;
-      csvContent += `Vote Limit,${votingData.voteLimit || 0}\n`;
-      csvContent += `Remaining Votes,${votingData.remainingVotes || 0}\n`;
-      
-      // Add proposal breakdown
-      if (votingData.byProposal) {
-        csvContent += '\nProposal ID,Vote Count\n';
-        Object.entries(votingData.byProposal).forEach(([proposalId, count]) => {
-          csvContent += `${proposalId},${count}\n`;
-        });
-      }
-    }
-
-    return {
-      data: csvContent,
-      filename: `${filename}.csv`,
-      contentType: 'text/csv'
-    };
-  }
-
-  private formatAsJSON(data: any, filename: string): ExportData {
-    return {
-      data: JSON.stringify(data, null, 2),
-      filename: `${filename}.json`,
-      contentType: 'application/json'
-    };
-  }
-
-  private formatAsPDF(data: any, filename: string, includeCharts?: boolean): ExportData {
-    // For now, return a simple text representation
-    // You could use a library like puppeteer or jsPDF for actual PDF generation
-    const textContent = `Analytics Report\n\nGenerated: ${new Date().toISOString()}\n\nData:\n${JSON.stringify(data, null, 2)}`;
-    
-    return {
-      data: textContent,
-      filename: `${filename}.pdf`,
-      contentType: 'application/pdf'
-    };
-  }
-
+  /**
+   * Generate custom reports
+   */
   async generateCustomReport(
     businessId: string, 
     config: ReportConfig
@@ -803,10 +770,12 @@ async getComparativeAnalytics(
 
     return {
       reportId,
+      id: reportId,
       title: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Analytics Report`,
       generatedAt: new Date(),
       requestedBy: requestedBy || 'system',
       planLevel,
+      status: 'completed',
       data: reportData,
       metadata: {
         businessId,
@@ -817,6 +786,493 @@ async getComparativeAnalytics(
       insights,
       recommendations
     };
+  }
+
+  // Private helper methods
+
+  /**
+   * Get time series data for a specific proposal
+   */
+  private async getProposalTimeSeries(
+    businessId: string, 
+    proposalId: string, 
+    groupBy: string = 'day'
+  ): Promise<any[]> {
+    try {
+      const businessObjectId = new Types.ObjectId(businessId);
+      const days = groupBy === 'hour' ? 1 : groupBy === 'week' ? 7 * 12 : 30; // Default 30 days
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const pipeline = [
+        {
+          $match: {
+            business: businessObjectId,
+            proposalId: proposalId,
+            timestamp: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              date: groupBy === 'hour' 
+                ? { $dateToString: { format: "%Y-%m-%d %H:00", date: "$timestamp" } }
+                : groupBy === 'week'
+                ? { $dateToString: { format: "%Y-W%U", date: "$timestamp" } }
+                : { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } }
+            },
+            count: { $sum: 1 },
+            uniqueVoters: { $addToSet: '$voterAddress' }
+          }
+        },
+        {
+          $addFields: {
+            uniqueVoterCount: { $size: '$uniqueVoters' }
+          }
+        },
+        {
+          $project: {
+            date: '$_id.date',
+            selections: '$count',
+            uniqueVoters: '$uniqueVoterCount',
+            _id: 0
+          }
+        },
+        { $sort: { date: 1 } as any }
+      ];
+
+      return await VotingRecord.aggregate(pipeline);
+    } catch (error) {
+      console.error('Get proposal time series error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get voter insights for a specific proposal
+   */
+  private async getProposalVoterInsights(
+    businessId: string, 
+    proposalId: string
+  ): Promise<any> {
+    try {
+      const businessObjectId = new Types.ObjectId(businessId);
+      
+      // Get voter participation patterns
+      const voterStats = await VotingRecord.aggregate([
+        {
+          $match: {
+            business: businessObjectId,
+            proposalId: proposalId
+          }
+        },
+        {
+          $group: {
+            _id: '$voterAddress',
+            selectionCount: { $sum: 1 },
+            products: { $addToSet: '$selectedProductId' },
+            firstVote: { $min: '$timestamp' },
+            lastVote: { $max: '$timestamp' },
+            sources: { $addToSet: '$votingSource' },
+            isVerified: { $first: '$isVerified' }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalVoters: { $sum: 1 },
+            averageSelectionsPerVoter: { $avg: '$selectionCount' },
+            verifiedVoters: { $sum: { $cond: ['$isVerified', 1, 0] } },
+            sources: { $push: '$sources' }
+          }
+        }
+      ]);
+
+      // Get voting source breakdown
+      const sourceBreakdown = await VotingRecord.aggregate([
+        {
+          $match: {
+            business: businessObjectId,
+            proposalId: proposalId
+          }
+        },
+        {
+          $group: {
+            _id: '$votingSource',
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } }
+      ]);
+
+      const stats = voterStats[0] || {
+        totalVoters: 0,
+        averageSelectionsPerVoter: 0,
+        verifiedVoters: 0
+      };
+
+      return {
+        totalVoters: stats.totalVoters,
+        averageSelectionsPerVoter: Number(stats.averageSelectionsPerVoter?.toFixed(2)) || 0,
+        verifiedVoters: stats.verifiedVoters,
+        verificationRate: stats.totalVoters > 0 
+          ? `${((stats.verifiedVoters / stats.totalVoters) * 100).toFixed(1)}%`
+          : '0%',
+        sourceBreakdown: sourceBreakdown.reduce((acc: any, item: any) => {
+          acc[item._id || 'unknown'] = item.count;
+          return acc;
+        }, {}),
+        engagement: {
+          level: stats.averageSelectionsPerVoter > 2 ? 'high' : 
+                 stats.averageSelectionsPerVoter > 1 ? 'medium' : 'low'
+        }
+      };
+    } catch (error) {
+      console.error('Get proposal voter insights error:', error);
+      return {
+        totalVoters: 0,
+        averageSelectionsPerVoter: 0,
+        verifiedVoters: 0,
+        verificationRate: '0%',
+        sourceBreakdown: {},
+        engagement: { level: 'low' }
+      };
+    }
+  }
+
+  /**
+   * Get voting time series data
+   */
+  private async getVotingTimeSeries(businessId: string, timeframe: string): Promise<Array<{ date: string; count: number }>> {
+    const businessObjectId = new Types.ObjectId(businessId);
+    const days = this.getTimeframeDays(timeframe);
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const pipeline = [
+      {
+        $match: {
+          business: businessObjectId,
+          timestamp: { $gte: startDate }
+        }
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          date: '$_id',
+          count: 1,
+          _id: 0
+        }
+      },
+      { $sort: { date: 1 } as any }
+    ];
+
+    return await VotingRecord.aggregate(pipeline);
+  }
+
+  /**
+   * Get product time series data
+   */
+  private async getProductTimeSeries(
+    businessId: string, 
+    productId: string, 
+    groupBy: string = 'day'
+  ): Promise<any[]> {
+    try {
+      const businessObjectId = new Types.ObjectId(businessId);
+      const days = groupBy === 'hour' ? 1 : groupBy === 'week' ? 7 * 12 : 30;
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const pipeline = [
+        {
+          $match: {
+            business: businessObjectId,
+            selectedProductId: productId,
+            timestamp: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              date: groupBy === 'hour' 
+                ? { $dateToString: { format: "%Y-%m-%d %H:00", date: "$timestamp" } }
+                : groupBy === 'week'
+                ? { $dateToString: { format: "%Y-W%U", date: "$timestamp" } }
+                : { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            date: '$_id.date',
+            selections: '$count',
+            _id: 0
+          }
+        },
+        { $sort: { date: 1 } as any }
+      ];
+
+      return await VotingRecord.aggregate(pipeline);
+    } catch (error) {
+      console.error('Get product time series error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Convert timeframe string to number of days
+   */
+  private getTimeframeDays(timeframe: string): number {
+    switch (timeframe) {
+      case '1d': return 1;
+      case '7d': return 7;
+      case '14d': return 14;
+      case '30d': return 30;
+      case '60d': return 60;
+      case '90d': return 90;
+      case '6m': return 180;
+      case '1y': return 365;
+      default: return 30; // Default to 30 days
+    }
+  }
+
+  /**
+   * Get metric data for a specific period
+   */
+  private async getMetricForPeriod(
+    businessId: string, 
+    metric: string, 
+    period: { startDate: Date; endDate: Date }
+  ): Promise<number> {
+    const businessObjectId = new Types.ObjectId(businessId);
+    
+    switch (metric) {
+      case 'total_votes':
+        return await VotingRecord.countDocuments({
+          business: businessObjectId,
+          timestamp: { $gte: period.startDate, $lte: period.endDate }
+        });
+      
+      case 'unique_voters':
+        const voters = await VotingRecord.distinct('voterAddress', {
+          business: businessObjectId,
+          timestamp: { $gte: period.startDate, $lte: period.endDate }
+        });
+        return voters.length;
+      
+      case 'proposals':
+        const proposals = await VotingRecord.distinct('proposalId', {
+          business: businessObjectId,
+          timestamp: { $gte: period.startDate, $lte: period.endDate }
+        });
+        return proposals.length;
+      
+      default:
+        return 0;
+    }
+  }
+
+  /**
+   * Calculate percentage change between two values
+   */
+  private calculatePercentageChange(oldValue: number, newValue: number): number {
+    if (oldValue === 0) return newValue > 0 ? 100 : 0;
+    return ((newValue - oldValue) / oldValue) * 100;
+  }
+
+  /**
+   * Calculate user retention metrics
+   */
+  private async calculateUserRetention(businessId: string, days: number): Promise<any> {
+    const businessObjectId = new Types.ObjectId(businessId);
+    const endDate = new Date();
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const midDate = new Date(Date.now() - (days / 2) * 24 * 60 * 60 * 1000);
+
+    try {
+      // Get users who voted in first half of period
+      const firstHalfVoters = await VotingRecord.distinct('voterAddress', {
+        business: businessObjectId,
+        timestamp: { $gte: startDate, $lt: midDate }
+      });
+
+      // Get users who voted in second half of period
+      const secondHalfVoters = await VotingRecord.distinct('voterAddress', {
+        business: businessObjectId,
+        timestamp: { $gte: midDate, $lte: endDate }
+      });
+
+      // Calculate retention
+      const retainedUsers = firstHalfVoters.filter(voter => 
+        secondHalfVoters.includes(voter)
+      );
+
+      const retentionRate = firstHalfVoters.length > 0 
+        ? (retainedUsers.length / firstHalfVoters.length) * 100 
+        : 0;
+
+      return {
+        rate: retentionRate.toFixed(2) + '%',
+        firstPeriodUsers: firstHalfVoters.length,
+        secondPeriodUsers: secondHalfVoters.length,
+        retainedUsers: retainedUsers.length
+      };
+    } catch (error) {
+      console.error('Calculate user retention error:', error);
+      return {
+        rate: '0%',
+        firstPeriodUsers: 0,
+        secondPeriodUsers: 0,
+        retainedUsers: 0
+      };
+    }
+  }
+
+  // Helper methods for recommendations and calculations
+
+  private generateProductionRecommendations(topProducts: any[]): string[] {
+    const recommendations: string[] = [];
+    
+    if (topProducts.length === 0) {
+      recommendations.push('No product data available for recommendations');
+      return recommendations;
+    }
+
+    const topProduct = topProducts[0];
+    if (topProduct.totalSelections > 100) {
+      recommendations.push(`High demand for ${topProduct.productName || topProduct.productId} - consider prioritizing production`);
+    }
+
+    if (topProducts.length > 5) {
+      const diversityScore = topProducts.slice(0, 5).reduce((sum, p) => sum + p.totalSelections, 0) / topProduct.totalSelections;
+      if (diversityScore < 2) {
+        recommendations.push('Consider diversifying product offerings based on selection patterns');
+      }
+    }
+
+    return recommendations;
+  }
+
+  private calculateDemandMetrics(topProducts: any[]): any {
+    if (topProducts.length === 0) return {};
+
+    const totalSelections = topProducts.reduce((sum, p) => sum + p.totalSelections, 0);
+    const averageSelections = totalSelections / topProducts.length;
+
+    return {
+      totalSelections,
+      averageSelections,
+      topProductDominance: topProducts[0] ? (topProducts[0].totalSelections / totalSelections) * 100 : 0,
+      diversityIndex: this.calculateDiversityIndex(topProducts)
+    };
+  }
+
+  private calculateDiversityIndex(products: any[]): number {
+    if (products.length <= 1) return 0;
+    
+    const totalSelections = products.reduce((sum, p) => sum + p.totalSelections, 0);
+    const proportions = products.map(p => p.totalSelections / totalSelections);
+    
+    // Shannon diversity index
+    return -proportions.reduce((sum, p) => sum + (p * Math.log(p)), 0);
+  }
+
+  private calculateDemandLevel(totalSelections: number, allProducts: any[]): string {
+    if (allProducts.length === 0) return 'unknown';
+    
+    const averageSelections = allProducts.reduce((sum, p) => sum + p.totalSelections, 0) / allProducts.length;
+    
+    if (totalSelections > averageSelections * 2) return 'high';
+    if (totalSelections > averageSelections) return 'medium';
+    return 'low';
+  }
+
+  private calculateSentimentScore(reasons: string[]): number {
+    // Placeholder sentiment analysis - you could integrate with a real sentiment analysis service
+    if (reasons.length === 0) return 0;
+    
+    const positiveWords = ['love', 'great', 'excellent', 'amazing', 'perfect', 'best'];
+    const negativeWords = ['hate', 'bad', 'terrible', 'awful', 'worst'];
+    
+    let score = 0;
+    reasons.forEach(reason => {
+      const lowerReason = reason.toLowerCase();
+      positiveWords.forEach(word => {
+        if (lowerReason.includes(word)) score += 1;
+      });
+      negativeWords.forEach(word => {
+        if (lowerReason.includes(word)) score -= 1;
+      });
+    });
+    
+    return score / reasons.length;
+  }
+
+  private generateProductionAdvice(
+    totalSelections: number, 
+    productRank: number, 
+    totalProducts: number
+  ): string {
+    if (totalSelections === 0) return 'No selection data available for production advice';
+    
+    if (productRank <= Math.ceil(totalProducts * 0.1)) {
+      return 'High priority for production - top 10% product';
+    } else if (productRank <= Math.ceil(totalProducts * 0.3)) {
+      return 'Medium priority for production - top 30% product';
+    } else {
+      return 'Consider market research before production - lower demand indicated';
+    }
+  }
+
+  private generateEngagementRecommendations(votingEngagement: any, retention: any): string[] {
+    const recommendations: string[] = [];
+    
+    if (votingEngagement?.totalVotes === 0) {
+      recommendations.push('No voting activity detected - consider launching engagement campaigns');
+    }
+    
+    if (retention?.rate && parseFloat(retention.rate) < 50) {
+      recommendations.push('Low user retention - focus on user experience improvements');
+    }
+    
+    if (votingEngagement?.activeProposals === 0) {
+      recommendations.push('No active proposals - create engaging product selection rounds');
+    }
+    
+    return recommendations;
+  }
+
+  private generateComparisonInsights(comparison: any): string[] {
+    const insights: string[] = [];
+    
+    const significantChanges = comparison.summary?.significantChanges || [];
+    if (significantChanges.length > 0) {
+      insights.push(`${significantChanges.length} metrics showed significant changes (>10%)`);
+    }
+    
+    if (comparison.summary?.trend === 'growth') {
+      insights.push('Overall positive trend detected across key metrics');
+    } else if (comparison.summary?.trend === 'decline') {
+      insights.push('Declining trend requires attention and intervention');
+    }
+    
+    return insights;
+  }
+
+  private generateComparisonHighlights(comparison: any): string[] {
+    const highlights: string[] = [];
+    
+    Object.entries(comparison.changes || {}).forEach(([metric, change]: [string, any]) => {
+      if (Math.abs(change.percentage) > 20) {
+        highlights.push(`${metric}: ${change.percentage > 0 ? '+' : ''}${change.percentage.toFixed(1)}% change`);
+      }
+    });
+    
+    return highlights;
   }
 
   private generateReportInsights(data: any, planLevel: string): any {
@@ -852,7 +1308,7 @@ async getComparativeAnalytics(
   }
 
   private generateReportRecommendations(data: any, planLevel: string): any {
-    const recommendations: any = [];
+    const recommendations: any[] = [];
 
     // Voting recommendations
     if (data.voting?.usedLast30d === 0) {
@@ -922,4 +1378,53 @@ async getComparativeAnalytics(
     return count;
   }
 
+  // Export format methods
+
+  private formatAsCSV(data: any, filename: string): ExportData {
+    let csvContent = '';
+    
+    if (data.votes || data.totalOnChainVotes !== undefined) {
+      // Handle voting data
+      const votingData = data.votes || data;
+      csvContent += 'Metric,Value\n';
+      csvContent += `Total Votes,${votingData.totalOnChainVotes || 0}\n`;
+      csvContent += `Used Last 30d,${votingData.usedLast30d || 0}\n`;
+      csvContent += `Vote Limit,${votingData.voteLimit || 0}\n`;
+      csvContent += `Remaining Votes,${votingData.remainingVotes || 0}\n`;
+      
+      // Add proposal breakdown
+      if (votingData.byProposal) {
+        csvContent += '\nProposal ID,Vote Count\n';
+        Object.entries(votingData.byProposal).forEach(([proposalId, count]) => {
+          csvContent += `${proposalId},${count}\n`;
+        });
+      }
+    }
+
+    return {
+      data: csvContent,
+      filename: `${filename}.csv`,
+      contentType: 'text/csv'
+    };
+  }
+
+  private formatAsJSON(data: any, filename: string): ExportData {
+    return {
+      data: JSON.stringify(data, null, 2),
+      filename: `${filename}.json`,
+      contentType: 'application/json'
+    };
+  }
+
+  private formatAsPDF(data: any, filename: string, includeCharts?: boolean): ExportData {
+    // For now, return a simple text representation
+    // You could use a library like puppeteer or jsPDF for actual PDF generation
+    const textContent = `Analytics Report\n\nGenerated: ${new Date().toISOString()}\n\nData:\n${JSON.stringify(data, null, 2)}`;
+    
+    return {
+      data: textContent,
+      filename: `${filename}.pdf`,
+      contentType: 'application/pdf'
+    };
+  }
 }

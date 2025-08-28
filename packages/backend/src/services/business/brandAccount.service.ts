@@ -2,6 +2,7 @@
 import { Business, IBusiness } from '../../models/business.model';
 import { ethers } from 'ethers';
 import { TokenDiscountService } from '../external/tokenDiscount.service';
+import { BrandSettings } from '../../models/brandSettings.model';
 
 export class BrandAccountService {
   
@@ -281,7 +282,7 @@ async batchUpdateTokenDiscounts(businessIds: string[]): Promise<any[]> {
  */
 async getWalletVerificationStatus(businessId: string): Promise<any> {
   try {
-    const brandSettings = await brandSettings.findOne({ business: businessId });
+    const brandSettings = await BrandSettings.findOne({ business: businessId });
     
     if (!brandSettings?.web3Settings) {
       return {
@@ -535,8 +536,8 @@ async getAccountAnalytics(
 
     const startDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
     
-    // Get basic usage analytics
-    const analytics = {
+    // Use 'any' type for analytics object to allow dynamic properties
+    const analytics: any = {
       apiUsage: await this.getApiUsage(businessId, startDate),
       certificateUsage: await this.getCertificateUsage(businessId, startDate),
       votingActivity: await this.getVotingActivity(businessId, startDate),

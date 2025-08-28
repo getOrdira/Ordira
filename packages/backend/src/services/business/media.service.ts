@@ -294,7 +294,9 @@ export class MediaService {
       // Build sort
       const sortField = options.sortBy || 'createdAt';
       const sortOrder = options.sortOrder === 'asc' ? 1 : -1;
-      const sortQuery = { [sortField]: sortOrder };
+      const sortQuery: {
+        [x: string]: number;
+        } = { [sortField]: sortOrder };
 
       const [media, total] = await Promise.all([
         Media
