@@ -10,8 +10,10 @@ export interface IAllowedCustomer extends Document {
   // Customer metadata
   firstName?: string;
   lastName?: string;
+  fullName: string;
   customerSource: 'manual' | 'shopify' | 'woocommerce' | 'csv_import' | 'api_import';
   externalCustomerId?: string; // Shopify customer ID, WooCommerce ID, etc.
+  engagementLevel: 'none' | 'low' | 'medium' | 'high';
   
   // Import tracking
   importBatch?: string; // Batch ID for bulk imports
@@ -30,6 +32,7 @@ export interface IAllowedCustomer extends Document {
   totalVotingAccesses: number;
   totalVotes: number;
   registeredAt?: Date; // When they actually registered on the platform
+  daysSinceLastAccess: number | null;
   
   // Customer preferences
   tags: string[];

@@ -9,13 +9,43 @@ export interface IBrandSettings extends Document {
   bannerImages?: string[];
   customCss?: string;
   
+  
   // Domain configuration
   subdomain?: string;
   customDomain?: string;
   enableSsl?: boolean;
+
+  // Customization settings
+    customization?: {
+    theme?: string;
+    primaryColor?: string;
+    logoUrl?: string;
+    customDomain?: string;
+    customCss?: string;
+    fonts?: {
+      primary?: string;
+      secondary?: string;
+    };
+    layout?: {
+      headerStyle?: string;
+      footerStyle?: string;
+      sidebarEnabled?: boolean;
+    };
+   };
   
   // Certificate wallet (referenced in controller)
   certificateWallet?: string;
+
+  // Business Verification
+   businessVerified?: boolean;
+   businessVerifiedAt?: Date;
+   verificationDocuments?: Array<{
+      type: 'tax_document' | 'business_license' | 'certificate_of_incorporation' | 'other';
+      url: string;
+      uploadedAt: Date;
+      verified?: boolean;
+      verifiedAt?: Date;
+    }>;
   
   // Email Gating Configuration
   emailGating?: {
@@ -63,7 +93,7 @@ export interface IBrandSettings extends Document {
         topDenialReasons: string[];
       }[];
     };
-    
+
     // Integration settings
     integrationSettings?: {
       syncWithCRM?: boolean;
@@ -79,12 +109,22 @@ export interface IBrandSettings extends Document {
         notifyOnApproval?: boolean;
       };
     };
+
+  };
+
+  // Voting settings
+  votingSettings?: {
+    autoProcessEnabled?: boolean;
+    batchThreshold?: number;
+    maxBatchSize?: number;
   };
   
   // E-commerce integrations
   shopifyDomain?: string;
   shopifyAccessToken?: string;
   shopifyWebhookSecret?: string;
+  shopifyConnectedAt?: Date;
+  shopifyLastSync?: Date;
   shopifyConfig?: {
     syncProducts?: boolean;
     syncOrders?: boolean;
@@ -97,10 +137,33 @@ export interface IBrandSettings extends Document {
   wooConsumerKey?: string;
   wooConsumerSecret?: string;
   wooUpdatedAt?: Date;
+  wooConnectedAt?: Date;
+  wooLastSync?: Date;
+ wooSettings?: {
+    webhooksRegistered?: number;
+    version?: string;
+    verifySsl?: boolean;
+    lastConnectionTest?: Date;
+    lastProductSync?: Date;
+    lastOrderSync?: Date;
+    lastCustomerSync?: Date;
+  };
+
+
+
+  wixSettings?: {
+    webhooksRegistered?: boolean;
+    lastConnectionTest?: Date;
+    lastProductSync?: Date;
+    lastOrderSync?: Date;
+    lastTokenRefresh?: Date;
+  };
   
   wixDomain?: string;
   wixApiKey?: string;
   wixRefreshToken?: string;
+  wixConnectedAt?: Date;
+  wixLastSync?: Date;
   
   // Enhanced Web3 settings
   web3Settings?: {
@@ -109,6 +172,8 @@ export interface IBrandSettings extends Document {
     walletVerified?: boolean;
     walletVerifiedAt?: Date;
     walletSignature?: string;
+    tokenDiscounts?: string[];
+    lastDiscountCheck?: Date;
     voteContract?: string;
     transferHealth?: string;
     nftContract?: string;
@@ -407,6 +472,38 @@ const emailGatingSettingsSchema = new Schema({
       }
     }]
   },
+
+   // Business verification
+      businessVerified: {
+      type: Boolean,
+      default: false
+    },
+      businessVerifiedAt: {
+      type: Date
+    },
+      verificationDocuments: [{
+      type: {
+      type: String,
+      enum: ['tax_document', 'business_license', 'certificate_of_incorporation', 'other'],
+      required: true
+    },
+    url: {
+    type: String,
+    required: true,
+    trim: true
+    },
+    uploadedAt: {
+    type: Date,
+    default: Date.now
+    },
+    verified: {
+    type: Boolean,
+    default: false
+    },
+    verifiedAt: {
+    type: Date
+    }
+  }],
   
   // Analytics and monitoring
   gatingAnalytics: {
@@ -455,8 +552,113 @@ const emailGatingSettingsSchema = new Schema({
       }]
     }]
   },
+
+  customization: {
+
+  theme: {
+    type: String,
+    enum: ['default', 'modern', 'classic', 'minimal', 'bold'],
+    default: 'default'
+  },
+  primaryColor: {
+    type: String,
+    match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Primary color must be a valid hex color'],
+    default: '#007bff'
+  },
+  logoUrl: {
+    type: String,
+    trim: true,
+    validate: {
+      validator: function(v: string) {
+        return !v || /^https?:\/\/.+/.test(v);
+      },
+      message: 'Logo URL must be a valid HTTP/HTTPS URL'
+    }
+  },
+  customDomain: {
+    type: String,
+    trim: true,
+    lowercase: true
+  },
+  customCss: {
+    type: String,
+    trim: true,
+    maxlength: [50000, 'Custom CSS cannot exceed 50,000 characters']
+  },
+  fonts: {
+    primary: {
+      type: String,
+      trim: true
+    },
+    secondary: {
+      type: String,
+      trim: true
+    }
+  },
+  layout: {
+    headerStyle: {
+      type: String,
+      enum: ['default', 'minimal', 'centered', 'sidebar'],
+      default: 'default'
+    },
+    footerStyle: {
+      type: String,
+      enum: ['default', 'minimal', 'expanded'],
+      default: 'default'
+    },
+    sidebarEnabled: {
+      type: Boolean,
+      default: false
+    }
+  }
+},
+
+votingSettings: {
+  type: {
+    autoProcessEnabled: {
+      type: Boolean,
+      default: false,
+      description: 'Enable automatic batch processing of pending votes'
+    },
+    batchThreshold: {
+      type: Number,
+      default: 20,
+      min: [1, 'Batch threshold must be at least 1'],
+      max: [100, 'Batch threshold cannot exceed 100'],
+      description: 'Number of pending votes needed to trigger batch processing'
+    },
+    maxBatchSize: {
+      type: Number,
+      default: 50,
+      min: [1, 'Max batch size must be at least 1'],
+      max: [200, 'Max batch size cannot exceed 200'],
+      description: 'Maximum number of votes to process in a single batch'
+    },
+    processingDelay: {
+      type: Number,
+      default: 300, // 5 minutes
+      min: [0, 'Processing delay cannot be negative'],
+      max: [3600, 'Processing delay cannot exceed 1 hour'],
+      description: 'Delay in seconds before auto-processing triggers'
+    },
+    contractDeployedAt: {
+      type: Date,
+      description: 'When the voting contract was deployed'
+    },
+    networkId: {
+      type: String,
+      description: 'Blockchain network ID where voting contract is deployed'
+    }
+  },
+  default: () => ({
+    autoProcessEnabled: false,
+    batchThreshold: 20,
+    maxBatchSize: 50,
+    processingDelay: 300
+  })
+},
   
-  // Integration settings
+// Integration settings
   integrationSettings: {
     syncWithCRM: {
       type: Boolean,
@@ -565,7 +767,7 @@ const BrandSettingsSchema = new Schema<IBrandSettings>(
       maxlength: [50000, 'Custom CSS cannot exceed 50,000 characters']
     },
     
-    // Domain configuration
+// Domain configuration
     subdomain: {
       type: String,
       trim: true,

@@ -1,5 +1,5 @@
 // src/models/votingRecord.model.ts
-import { Schema, model, Document, Types } from 'mongoose';
+import { Schema, model, Document, Types, Model } from 'mongoose';
 
 export interface IVotingRecord extends Document {
   business: Types.ObjectId; // Changed from string to ObjectId for consistency
@@ -44,6 +44,15 @@ export interface IVotingRecord extends Document {
   
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface IVotingRecordModel extends Model<IVotingRecord> {
+  getProductSelectionStats(businessId: string, proposalId?: string): Promise<any[]>;
+  getTopProducts(businessId: string, limit?: number): Promise<any[]>;
+  getSelectionTrends(businessId: string, days?: number): Promise<any[]>;
+  getVoterSelectionHistory(businessId: string, voterAddress: string): Promise<any[]>;
+  getAnalytics(businessId: string, startDate: Date, endDate: Date): Promise<any[]>;
+  getEmailGatingAnalytics(businessId: string): Promise<any[]>;
 }
 
 const VotingRecordSchema = new Schema<IVotingRecord>(
@@ -669,54 +678,5 @@ VotingRecordSchema.post('save', function(doc) {
   }
 });
 
-export const VotingRecord = model<IVotingRecord>('VotingRecord', VotingRecordSchema);
+export const VotingRecord = model<IVotingRecord, IVotingRecordModel>('VotingRecord', VotingRecordSchema);
 
-// MIGRATION HELPER for existing data
-export class VotingRecordMigration {
-  /**
-   * Migrate legacy vote records to product selection format
-   */
-  static async migrateLegacyRecords() {
-    // Update existing records that have voteChoice but no selectedProductId
-    const result = await VotingRecord.updateMany(
-      { 
-        selectedProductId: { $exists: false },
-        voteChoice: { $exists: true }
-      },
-      {
-        $set: { 
-          selectedProductId: 'legacy-vote',
-          productName: 'Legacy Vote Record'
-        },
-        $unset: { voteChoice: 1 }
-      }
-    );
-    
-    console.log(`Migrated ${result.modifiedCount} legacy voting records to product selection format`);
-    return result;
-  }
-
-  /**
-   * Add missing product names from external data source
-   */
-  static async enrichProductNames(productMap: Record<string, string>) {
-    const updates = [];
-    
-    for (const [productId, productName] of Object.entries(productMap)) {
-      updates.push({
-        updateMany: {
-          filter: { selectedProductId: productId, productName: { $exists: false } },
-          update: { $set: { productName } }
-        }
-      });
-    }
-    
-    if (updates.length > 0) {
-      const result = await VotingRecord.bulkWrite(updates);
-      console.log(`Enriched ${result.modifiedCount} records with product names`);
-      return result;
-    }
-    
-    return null;
-  }
-}

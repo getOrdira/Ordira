@@ -9,6 +9,7 @@ export interface IUser extends Document {
   firstName?: string;
   lastName?: string;
   profilePictureUrl?: string;
+  fullName?: string;
   
   // Email verification
   emailCode?: string;
@@ -22,6 +23,14 @@ export interface IUser extends Document {
   twoFactorEnabled: boolean;
   twoFactorSecret?: string;
   backupCodes?: string[];
+  lastPasswordChangeAt?: Date;
+  tokenVersion?: number;
+  isActive?: boolean;
+
+  passwordResetCode?: string;
+  passwordResetExpires?: Date;
+  passwordResetAttempts?: number;
+  lastPasswordResetAttempt?: Date;
   
   // User preferences and settings
   preferences: {
@@ -31,6 +40,15 @@ export interface IUser extends Document {
     language: string;
     timezone: string;
   };
+
+   securityPreferences?: {
+    twoFactorEnabled?: boolean;
+    loginNotifications?: boolean;
+    sessionTimeout?: number;
+    allowedIpAddresses?: string[];
+    requirePasswordChange?: boolean;
+    updatedAt?: Date;
+  };
   
   // Voting-related fields
   votingHistory: Array<{
@@ -38,6 +56,8 @@ export interface IUser extends Document {
     businessId: Types.ObjectId;
     productId?: Types.ObjectId;
     vote: 'yes' | 'no' | 'abstain';
+    selectedProductId?: string;
+    productName?: string;
     votedAt: Date;
     ipAddress?: string;
     userAgent?: string;
@@ -61,6 +81,7 @@ export interface IUser extends Document {
     lastActiveAt: Date;
     deviceInfo?: string;
     referralSource?: string;
+    engagementScore?: number;
   };
   
   // Account status

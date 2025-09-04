@@ -24,11 +24,25 @@ export interface IBusiness extends Document {
   socialUrls?: string[];
   walletAddress?: string;
   certificateWallet: string;
+  plan?: string;
+  emailVerifiedAt?: Date;
+  phoneVerifiedAt?: Date;
+  isActive?: boolean;
   
+  securityPreferences?: {
+    twoFactorEnabled?: boolean;
+    loginNotifications?: boolean;
+    sessionTimeout?: number;
+    allowedIpAddresses?: string[];
+    requirePasswordChange?: boolean;
+    updatedAt?: Date;
+  };
+
   // Additional security and account management
   lastLoginAt?: Date;
   loginAttempts?: number;
   lockUntil?: Date;
+  tokenVersion?: number;
   
   // ADD THESE PASSWORD RESET FIELDS:
   passwordResetCode?: string;
@@ -42,6 +56,7 @@ export interface IBusiness extends Document {
   phoneNumber?: string;
   companySize?: 'startup' | 'small' | 'medium' | 'large' | 'enterprise';
   yearEstablished?: number;
+  profileViews?: number;
   
   // Instance methods
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -81,6 +96,12 @@ const BusinessSchema = new Schema<IBusiness>(
         message: 'Must be between 18 and 120 years old'
       }
     },
+
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+
     email: { 
       type: String, 
       required: [true, 'Email is required'],
@@ -110,6 +131,12 @@ const BusinessSchema = new Schema<IBusiness>(
       minlength: [8, 'Password must be at least 8 characters'],
       select: false // Don't include in queries by default
     },
+
+    plan: {
+    type: String,
+    enum: ['foundation', 'growth', 'premium', 'enterprise'],
+    default: 'foundation'
+    },
     
     // Optional business info
     regNumber: { 
@@ -134,6 +161,9 @@ const BusinessSchema = new Schema<IBusiness>(
       type: String,
       select: false // Don't include in queries
     },
+    
+    emailVerifiedAt: { type: Date },
+    phoneVerifiedAt: { type: Date },
     
     // Profile information
     profilePictureUrl: { 
