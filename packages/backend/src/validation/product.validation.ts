@@ -290,6 +290,7 @@ export const createProductSchema = Joi.object({
       .max(10)
       .optional()
   }).optional(),
+  
 
   // Manufacturing and sourcing information
   manufacturing: Joi.object({
@@ -418,6 +419,7 @@ export const quickCreateProductSchema = Joi.object({
 export const productSearchSchema = Joi.object({
   query: commonSchemas.searchQuery,
   category: createProductSchema.extract('category'),
+
   
   priceRange: Joi.object({
     min: Joi.number().min(0).precision(2).optional(),
@@ -443,7 +445,9 @@ export const productSearchSchema = Joi.object({
     .default('relevance')
     .optional(),
 
-  ...commonSchemas.pagination
+  page: Joi.number().integer().min(1).default(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).default(20).optional(),
+  sortOrder: Joi.string().valid('asc', 'desc').default('desc').optional()
 });
 
 // Product review validation
