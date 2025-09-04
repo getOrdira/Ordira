@@ -469,6 +469,24 @@ async getUserVotingHistory(
   }
 
   /**
+ * Record brand interaction
+ */
+async recordBrandInteraction(userId: string, businessId: string, type: string): Promise<void> {
+  try {
+    // Add your implementation here - could be analytics tracking
+    await this.analyticsService.trackEvent('brand_interaction', {
+      userId,
+      businessId,
+      interactionType: type,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.warn('Failed to record brand interaction:', error);
+    // Don't throw - analytics shouldn't break functionality
+  }
+}
+
+  /**
    * Get comprehensive user analytics
    */
   async getUserAnalytics(businessId?: string): Promise<UserAnalytics> {
