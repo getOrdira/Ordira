@@ -12,8 +12,13 @@ import {
   quickUpdateManufacturerSchema,
   manufacturerVerificationSchema
 } from '../validation/manufacturerAccount.validation';
+import { RequestHandler } from 'express';
 
 const router = Router();
+const safeUploadMiddleware = {
+  singleImage: uploadMiddleware.singleImage as RequestHandler[],
+  multipleImages: uploadMiddleware.multipleImages as RequestHandler[]
+};
 
 // Apply dynamic rate limiting to all manufacturer account routes
 router.use(dynamicRateLimiter());
@@ -51,7 +56,7 @@ router.delete(
 // Upload manufacturer profile picture
 router.post(
   '/profile-picture',
-  ...uploadMiddleware.singleImage, // Use the predefined singleImage middleware
+  ...safeUploadMiddleware.singleImage, // Use the predefined singleImage middleware
   trackManufacturerAction('upload_profile_picture'),
   ctrl.uploadProfilePicture
 );
@@ -69,7 +74,7 @@ router.get(
 router.post(
   '/verification/submit',
   strictRateLimiter(), // Prevent verification spam
-  ...uploadMiddleware.multipleImages, // Use predefined multipleImages middleware
+  ...safeUploadMiddleware.multipleImages, // Use predefined multipleImages middleware
   trackManufacturerAction('submit_verification'),
   ctrl.submitVerificationDocuments
 );

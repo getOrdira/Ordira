@@ -15,8 +15,13 @@ import {
   updateMediaMetadataSchema,
   bulkDeleteMediaSchema
 } from '../validation/media.validation';
+import { RequestHandler } from 'express';
 
 const router = Router();
+const safeUploadMiddleware = {
+  singleImage: uploadMiddleware.singleImage as RequestHandler[],
+  multipleImages: uploadMiddleware.multipleImages as RequestHandler[]
+};
 
 // Apply dynamic rate limiting to all media routes
 router.use(dynamicRateLimiter());
@@ -56,7 +61,7 @@ router.post(
   '/upload',
   strictRateLimiter(), // Prevent upload spam
   validateUploadOrigin,
-  ...uploadMiddleware.singleImage, // Use predefined single image middleware
+  ...safeUploadMiddleware.singleImage, // Use predefined single image middleware
   validateBody(uploadMediaSchema),
   trackManufacturerAction('upload_media'),
   mediaCtrl.uploadMedia,
@@ -68,7 +73,7 @@ router.post(
   '/upload/batch',
   strictRateLimiter(), // Very strict for batch uploads
   validateUploadOrigin,
-  ...uploadMiddleware.multipleImages, // Use predefined multiple images middleware
+  ...safeUploadMiddleware.multipleImages, // Use predefined multiple images middleware
   validateBody(uploadMediaSchema),
   trackManufacturerAction('batch_upload_media'),
   mediaCtrl.uploadMultipleMedia,
