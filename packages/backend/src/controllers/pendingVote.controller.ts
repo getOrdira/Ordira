@@ -332,7 +332,7 @@ export const getPendingVoteDetails = asyncHandler(async (
         id: vote.id,
         proposalId: vote.proposalId,
         userId: vote.userId,
-        voteChoice: vote.voteChoice,
+        selectedProductId: vote.selectedProductId,
         userSignature: vote.userSignature,
         createdAt: vote.createdAt,
         isProcessed: vote.isProcessed,

@@ -380,10 +380,13 @@ export const submitVote = asyncHandler(async (
 
   // Add request metadata to vote
   const enrichedVoteData = {
-    ...voteData,
-    ipAddress: req.ip,
-    userAgent: req.get('User-Agent')
-  };
+  ...req.body,
+  selectedProductId: req.body.productId || req.body.selectedProductId, // Add fallback
+  ipAddress: req.ip,
+  userAgent: req.get('User-Agent') || '',
+  businessId: req.params.businessId,
+  proposalId: req.params.proposalId
+};
 
   // Check vote eligibility first
   const voteStatus = await userService.checkVoteStatus(userId, voteData.proposalId);
@@ -468,7 +471,7 @@ export const checkVoteStatus = asyncHandler(async (
       proposalId,
       voteStatus: {
         hasVoted: voteStatus.hasVoted,
-        vote: voteStatus.vote,
+        selectedProductId: voteStatus.selectedProductId,
         votedAt: voteStatus.votedAt
       },
       eligibility,
