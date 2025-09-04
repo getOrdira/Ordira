@@ -286,7 +286,7 @@ export function createUploadMiddleware(
     : [uploadType];
 
   const storage = createStorage(uploadType, allowedTypes);
-  const fileFilter = createFileFilter(allowedTypes);
+  const fileFilter = createFileFilter(allowedTypes) as any;
 
   const multerConfig: multer.Options = {
     storage,
