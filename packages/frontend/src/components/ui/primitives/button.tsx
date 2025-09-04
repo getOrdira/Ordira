@@ -7,41 +7,66 @@ import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
   // Base styles
-  "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 relative overflow-hidden",
+  "inline-flex items-center justify-center gap-3 rounded-full font-satoshi-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 relative overflow-hidden cursor-pointer",
   {
     variants: {
       variant: {
-        // Primary blue button (main CTA)
+        // Primary orange button (main CTA) - matches the filled blue button in image
         primary: [
           "text-white shadow-lg hover:shadow-xl",
-          "bg-[var(--accent)] hover:bg-[var(--accent-dark)]",
-          "focus-visible:ring-[var(--accent)]",
-          "active:scale-95"
+          "bg-[var(--primary)] hover:bg-[var(--primary-dark)]",
+          "focus-visible:ring-[var(--primary)]",
+          "active:scale-[0.98] active:shadow-md",
+          "transform hover:scale-[1.02]"
         ].join(" "),
         
-        // Secondary dark button
+        // Secondary dark button - matches the dark button in image
         secondary: [
           "text-white shadow-md hover:shadow-lg",
-          "bg-[var(--dark)] hover:opacity-90",
-          "focus-visible:ring-[var(--dark)]",
-          "active:scale-95"
+          "bg-[var(--ordira-accent)] hover:bg-[var(--ordira-black)]",
+          "focus-visible:ring-[var(--ordira-accent)]",
+          "active:scale-[0.98]",
+          "transform hover:scale-[1.01]"
         ].join(" "),
         
-        // Outline button (light background with border)
+        // Outline button - matches the outline button in image
         outline: [
-          "border-2 shadow-sm hover:shadow-md",
-          "bg-white/80 backdrop-blur-sm",
-          "border-[var(--accent)] text-[var(--accent)]",
-          "hover:bg-[var(--accent)] hover:text-white",
-          "focus-visible:ring-[var(--accent)]",
-          "active:scale-95"
+          "border-2 shadow-sm hover:shadow-md backdrop-blur-sm",
+          "bg-white/80 border-[var(--primary)]",
+          "text-[var(--primary)] hover:text-white",
+          "hover:bg-[var(--primary)] hover:border-[var(--primary)]",
+          "focus-visible:ring-[var(--primary)]",
+          "active:scale-[0.98]",
+          "transform hover:scale-[1.01]"
         ].join(" "),
         
-        // Ghost/text button (no background)
+        // Ghost/text button - matches the text-only button in image
         ghost: [
-          "text-[var(--dark)] hover:text-[var(--accent)]",
-          "hover:bg-[var(--accent)]/10",
-          "focus-visible:ring-[var(--accent)]"
+          "text-[var(--ordira-accent)] hover:text-[var(--primary)]",
+          "hover:bg-[var(--primary)]/10",
+          "focus-visible:ring-[var(--primary)]",
+          "active:scale-[0.98]"
+        ].join(" "),
+        
+        // Gradient button - using your brand gradient
+        gradient: [
+          "text-white shadow-lg hover:shadow-xl",
+          "ordira-gradient hover:ordira-gradient-hover",
+          "focus-visible:ring-[var(--primary)]",
+          "active:scale-[0.98]",
+          "transform hover:scale-[1.02]",
+          "relative before:absolute before:inset-0 before:opacity-0 before:transition-opacity",
+          "before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent",
+          "hover:before:opacity-100 before:animate-shimmer"
+        ].join(" "),
+        
+        // Light background variant
+        light: [
+          "text-[var(--primary)] shadow-sm hover:shadow-md",
+          "bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20",
+          "focus-visible:ring-[var(--primary)]",
+          "active:scale-[0.98]",
+          "transform hover:scale-[1.01]"
         ].join(" "),
         
         // Destructive button (errors/danger)
@@ -49,7 +74,8 @@ const buttonVariants = cva(
           "text-white shadow-lg hover:shadow-xl",
           "bg-[var(--error)] hover:bg-[var(--error-dark)]",
           "focus-visible:ring-[var(--error)]",
-          "active:scale-95"
+          "active:scale-[0.98]",
+          "transform hover:scale-[1.01]"
         ].join(" "),
         
         // Success button
@@ -57,33 +83,33 @@ const buttonVariants = cva(
           "text-white shadow-lg hover:shadow-xl",
           "bg-[var(--success)] hover:bg-[var(--success-dark)]",
           "focus-visible:ring-[var(--success)]",
-          "active:scale-95"
-        ].join(" "),
-        
-        // Warning button
-        warning: [
-          "text-white shadow-lg hover:shadow-xl",
-          "bg-[var(--warning)] hover:bg-[var(--warning-dark)]",
-          "focus-visible:ring-[var(--warning)]",
-          "active:scale-95"
+          "active:scale-[0.98]",
+          "transform hover:scale-[1.01]"
         ].join(" ")
       },
       size: {
-        sm: "h-9 px-4 text-sm",
-        md: "h-11 px-6 text-base",
-        lg: "h-14 px-8 text-lg",
-        xl: "h-16 px-10 text-xl",
-        icon: "h-11 w-11"
+        sm: "h-10 px-4 text-sm gap-2",
+        md: "h-12 px-6 text-base gap-3",
+        lg: "h-14 px-8 text-lg gap-3",
+        xl: "h-16 px-10 text-xl gap-4",
+        icon: "h-12 w-12 p-0"
       },
       fullWidth: {
         true: "w-full",
         false: "w-auto"
+      },
+      rounded: {
+        default: "rounded-full",
+        md: "rounded-xl",
+        lg: "rounded-2xl",
+        none: "rounded-none"
       }
     },
     defaultVariants: {
       variant: "primary",
       size: "md",
-      fullWidth: false
+      fullWidth: false,
+      rounded: "default"
     }
   }
 );
@@ -95,6 +121,7 @@ export interface ButtonProps
   loading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  iconOnly?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -103,50 +130,119 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     variant, 
     size, 
     fullWidth,
+    rounded,
     asChild = false, 
     loading = false,
     leftIcon,
     rightIcon,
+    iconOnly = false,
     children,
     disabled,
     ...props 
   }, ref) => {
     const isDisabled = disabled || loading;
+    
+    // Default icons based on the design image
+    const getDefaultIcons = () => {
+      if (iconOnly) return {};
+      
+      return {
+        leftIcon: leftIcon || (
+          // Question mark icon as shown in the design
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 20 20" 
+            fill="none" 
+            className="flex-shrink-0"
+          >
+            <rect 
+              x="1" 
+              y="1" 
+              width="18" 
+              height="18" 
+              rx="4" 
+              stroke="currentColor" 
+              strokeWidth="2"
+              fill="none"
+            />
+            <path 
+              d="M8.5 8.5C8.5 7.39543 9.39543 6.5 10.5 6.5C11.6046 6.5 12.5 7.39543 12.5 8.5C12.5 9.60457 11.6046 10.5 10.5 10.5V11.5M10.5 14.5H10.51"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ),
+        rightIcon: rightIcon || (
+          // Plus/arrow icon as shown in the design
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 20 20" 
+            fill="currentColor"
+            className="flex-shrink-0"
+          >
+            <path 
+              fillRule="evenodd" 
+              d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" 
+              clipRule="evenodd" 
+            />
+          </svg>
+        )
+      };
+    };
+
+    const icons = getDefaultIcons();
 
     return (
       <button
-        className={cn(buttonVariants({ variant, size, fullWidth, className }))}
+        className={cn(buttonVariants({ variant, size, fullWidth, rounded, className }))}
         ref={ref}
         disabled={isDisabled}
         {...props}
       >
         {/* Loading spinner */}
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center bg-inherit rounded-full">
             <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
           </div>
         )}
         
         {/* Content wrapper - hidden when loading */}
-        <div className={cn("flex items-center gap-2", loading && "opacity-0")}>
-          {leftIcon && (
+        <div className={cn("flex items-center gap-3", loading && "opacity-0")}>
+          {!iconOnly && icons.leftIcon && (
             <span className="flex-shrink-0">
-              {leftIcon}
+              {icons.leftIcon}
             </span>
           )}
           
-          {children && (
-            <span className="truncate">
+          {iconOnly && (leftIcon || icons.leftIcon) && (
+            <span className="flex-shrink-0">
+              {leftIcon || icons.leftIcon}
+            </span>
+          )}
+          
+          {!iconOnly && children && (
+            <span className="truncate font-satoshi-medium">
               {children}
             </span>
           )}
           
-          {rightIcon && (
+          {!iconOnly && icons.rightIcon && (
             <span className="flex-shrink-0">
-              {rightIcon}
+              {icons.rightIcon}
             </span>
           )}
         </div>
+        
+        {/* Shimmer effect for gradient variant */}
+        {variant === 'gradient' && (
+          <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-300">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+          </div>
+        )}
       </button>
     );
   }
@@ -155,25 +251,66 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 // Icon button variant for cleaner API
-export interface IconButtonProps extends Omit<ButtonProps, 'leftIcon' | 'rightIcon' | 'children'> {
+export interface IconButtonProps extends Omit<ButtonProps, 'leftIcon' | 'rightIcon' | 'children' | 'iconOnly'> {
   icon: React.ReactNode;
   'aria-label': string;
 }
 
 const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
-  ({ icon, ...props }, ref) => {
+  ({ icon, className, ...props }, ref) => {
     return (
       <Button
         ref={ref}
         size="icon"
+        iconOnly
+        leftIcon={icon}
+        className={cn("!gap-0", className)}
         {...props}
-      >
-        {icon}
-      </Button>
+      />
     );
   }
 );
 
 IconButton.displayName = "IconButton";
 
-export { Button, IconButton, buttonVariants };
+// Button Group Component
+export interface ButtonGroupProps {
+  children: React.ReactNode;
+  className?: string;
+  orientation?: 'horizontal' | 'vertical';
+  spacing?: 'none' | 'sm' | 'md' | 'lg';
+}
+
+const ButtonGroup = React.forwardRef<HTMLDivElement, ButtonGroupProps>(
+  ({ children, className, orientation = 'horizontal', spacing = 'sm' }, ref) => {
+    const spacingClasses = {
+      none: 'gap-0',
+      sm: 'gap-2',
+      md: 'gap-4',
+      lg: 'gap-6'
+    };
+
+    const orientationClasses = {
+      horizontal: 'flex-row',
+      vertical: 'flex-col'
+    };
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'flex',
+          orientationClasses[orientation],
+          spacingClasses[spacing],
+          className
+        )}
+      >
+        {children}
+      </div>
+    );
+  }
+);
+
+ButtonGroup.displayName = "ButtonGroup";
+
+export { Button, IconButton, ButtonGroup, buttonVariants };

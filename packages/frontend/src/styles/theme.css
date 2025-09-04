@@ -1,0 +1,430 @@
+/* === ORDIRA THEME CONFIGURATION === */
+/* This file contains theme-specific component styles and variations */
+
+/* === COMPONENT THEMES === */
+
+/* Button Theme Variants */
+.btn-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: 1px solid var(--primary);
+    transition: all 0.2s ease;
+  }
+  
+  .btn-primary:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-ordira);
+  }
+  
+  .btn-primary:active {
+    background: var(--primary-darker);
+    border-color: var(--primary-darker);
+    transform: translateY(0);
+  }
+  
+  .btn-gradient {
+    background: var(--ordira-gradient);
+    color: white;
+    border: none;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  
+  .btn-gradient:hover {
+    background: var(--ordira-gradient-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-ordira-lg);
+  }
+  
+  .btn-gradient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+  }
+  
+  .btn-gradient:hover::before {
+    left: 100%;
+  }
+  
+  /* Card Theme Variants */
+  .card-ordira {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 1rem; /* 16px */
+    box-shadow: var(--card-shadow);
+    transition: all 0.3s ease;
+  }
+  
+  .card-ordira:hover {
+    box-shadow: var(--card-shadow-lg);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+  }
+  
+  .card-gradient {
+    background: var(--ordira-gradient);
+    color: white;
+    border: none;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .card-gradient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, 
+      rgba(255, 255, 255, 0.1) 0%, 
+      transparent 50%, 
+      rgba(255, 255, 255, 0.05) 100%);
+    pointer-events: none;
+  }
+  
+  .card-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 1rem;
+  }
+  
+  /* Navigation Theme */
+  .nav-ordira {
+    background: var(--nav-bg);
+    border-bottom: 1px solid var(--nav-border);
+    backdrop-filter: blur(8px);
+  }
+  
+  .nav-link {
+    color: var(--nav-link);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  
+  .nav-link:hover {
+    color: var(--nav-link-hover);
+    background: var(--hover-overlay);
+  }
+  
+  .nav-link.active {
+    color: var(--nav-link-active);
+    background: var(--active-overlay);
+  }
+  
+  .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 1rem;
+    right: 1rem;
+    height: 2px;
+    background: var(--primary);
+    border-radius: 1px;
+  }
+  
+  /* Form Theme */
+  .input-ordira {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    color: var(--foreground);
+    transition: all 0.2s ease;
+  }
+  
+  .input-ordira:focus {
+    outline: none;
+    border-color: var(--input-border-focus);
+    box-shadow: 0 0 0 3px rgba(255, 105, 0, 0.1);
+  }
+  
+  .input-ordira::placeholder {
+    color: var(--input-placeholder);
+  }
+  
+  .label-ordira {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--heading-color);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+  
+  /* Badge/Tag Theme */
+  .badge-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .badge-gradient {
+    background: var(--ordira-gradient);
+    color: white;
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .badge-outline {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  /* Table Theme */
+  .table-ordira {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Satoshi', sans-serif;
+  }
+  
+  .table-ordira th {
+    background: var(--background-secondary);
+    color: var(--heading-color);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .table-ordira td {
+    color: var(--body-color);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .table-ordira tr:hover {
+    background: var(--hover-overlay);
+  }
+  
+  /* Modal/Dialog Theme */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+  }
+  
+  .modal-content {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 1rem;
+    box-shadow: var(--card-shadow-lg);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+  }
+  
+  /* Loading States */
+  .loading-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+  }
+  
+  @keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  
+  .loading-spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* Status Indicators */
+  .status-success {
+    background: var(--success);
+    color: var(--success-foreground);
+  }
+  
+  .status-warning {
+    background: var(--warning);
+    color: var(--warning-foreground);
+  }
+  
+  .status-error {
+    background: var(--error);
+    color: var(--error-foreground);
+  }
+  
+  .status-info {
+    background: var(--info);
+    color: var(--info-foreground);
+  }
+  
+  /* Progress Bar */
+  .progress-bar {
+    width: 100%;
+    height: 0.5rem;
+    background: var(--background-tertiary);
+    border-radius: 0.25rem;
+    overflow: hidden;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background: var(--ordira-gradient);
+    transition: width 0.3s ease;
+    position: relative;
+  }
+  
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: progressShine 2s infinite;
+  }
+  
+  @keyframes progressShine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  
+  /* Tooltip */
+  .tooltip {
+    position: relative;
+    display: inline-block;
+  }
+  
+  .tooltip-content {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ordira-black);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+  }
+  
+  .tooltip-content::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--ordira-black);
+  }
+  
+  .tooltip:hover .tooltip-content {
+    opacity: 1;
+    visibility: visible;
+  }
+  
+  /* === THEME VARIANTS === */
+  /* Light theme is default */
+  
+  /* Dark theme variant */
+  [data-theme="dark"] {
+    --background: #0a0a0a;
+    --background-secondary: #141414;
+    --background-tertiary: #1a1a1a;
+    --foreground: #fafafa;
+    --foreground-secondary: #a3a3a3;
+    
+    --border: #262626;
+    --border-dark: #404040;
+    --muted: #737373;
+    --muted-foreground: #525252;
+    
+    --card-bg: var(--background-secondary);
+    --card-border: var(--border);
+    --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+    
+    --nav-bg: rgba(10, 10, 10, 0.95);
+    --hover-overlay: rgba(255, 105, 0, 0.1);
+    --active-overlay: rgba(255, 105, 0, 0.15);
+  }
+  
+  /* High contrast theme variant */
+  [data-theme="high-contrast"] {
+    --background: #ffffff;
+    --foreground: #000000;
+    --border: #000000;
+    --muted: #000000;
+    --primary: #ff6900;
+    --card-border: #000000;
+  }
+  
+  /* === RESPONSIVE THEME ADJUSTMENTS === */
+  @media (max-width: 640px) {
+    .card-ordira {
+      border-radius: 0.75rem;
+    }
+    
+    .modal-content {
+      border-radius: 0.75rem;
+      margin: 1rem;
+    }
+  }
+  
+  /* === PRINT STYLES === */
+  @media print {
+    .ordira-gradient,
+    .btn-gradient,
+    .card-gradient {
+      background: var(--primary) !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    
+    .glass,
+    .modal-overlay {
+      display: none !important;
+    }
+  }

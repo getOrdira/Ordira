@@ -1,0 +1,373 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@300;400;500;700;900&display=swap');
+
+:root {
+  /* === ORDIRA BRAND COLORS === */
+  /* Primary Brand Colors */
+  --ordira-primary: #FF6900;
+  --ordira-primary-dark: #B54A00;
+  --ordira-primary-darker: #732E00;
+  --ordira-accent: #2F1300;
+  --ordira-black: #000000;
+  
+  /* Brand Gradient */
+  --ordira-gradient: linear-gradient(135deg, #000000 0%, #2F1300 25%, #732E00 50%, #B54A00 75%, #FF6900 100%);
+  --ordira-gradient-hover: linear-gradient(135deg, #000000 0%, #2F1300 20%, #732E00 40%, #B54A00 60%, #FF6900 80%, #FF8533 100%);
+  
+  /* === SEMANTIC COLOR SYSTEM === */
+  /* Base Colors */
+  --background: #ffffff;
+  --background-secondary: #fafafa;
+  --background-tertiary: #f5f5f5;
+  --foreground: #171717;
+  --foreground-secondary: #404040;
+  
+  /* Primary System (using Ordira orange) */
+  --primary: var(--ordira-primary);
+  --primary-dark: var(--ordira-primary-dark);
+  --primary-darker: var(--ordira-primary-darker);
+  --primary-foreground: #ffffff;
+  
+  /* Accent System (using Ordira brand colors) */
+  --accent: var(--ordira-primary);
+  --accent-dark: var(--ordira-primary-dark);
+  --accent-foreground: #ffffff;
+  
+  /* Neutral System */
+  --muted: #6B7280;
+  --muted-dark: #4B5563;
+  --muted-foreground: #9CA3AF;
+  --border: #E5E7EB;
+  --border-dark: #D1D5DB;
+  
+  /* Status Colors */
+  --success: #10B981;
+  --success-dark: #059669;
+  --success-foreground: #ffffff;
+  --warning: #F59E0B;
+  --warning-dark: #D97706;
+  --warning-foreground: #000000;
+  --error: #EF4444;
+  --error-dark: #DC2626;
+  --error-foreground: #ffffff;
+  --info: var(--accent);
+  --info-dark: var(--accent-dark);
+  --info-foreground: #ffffff;
+  
+  /* === COMPONENT SPECIFIC COLORS === */
+  /* Cards */
+  --card-bg: var(--background);
+  --card-bg-secondary: var(--background-secondary);
+  --card-border: var(--border);
+  --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --card-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  
+  /* Buttons */
+  --button-primary: var(--primary);
+  --button-primary-hover: var(--primary-dark);
+  --button-primary-active: var(--primary-darker);
+  --button-secondary: var(--muted);
+  --button-secondary-hover: var(--muted-dark);
+  
+  /* Navigation */
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-border: var(--border);
+  --nav-link: var(--muted);
+  --nav-link-hover: var(--foreground);
+  --nav-link-active: var(--primary);
+  
+  /* Charts & Data Visualization */
+  --chart-primary: var(--primary);
+  --chart-secondary: var(--ordira-primary-dark);
+  --chart-tertiary: var(--success);
+  --chart-quaternary: var(--warning);
+  --chart-grid: #F3F4F6;
+  
+  /* Form Elements */
+  --input-bg: var(--background);
+  --input-border: var(--border);
+  --input-border-focus: var(--primary);
+  --input-placeholder: var(--muted-foreground);
+  
+  /* Typography Hierarchy */
+  --heading-color: var(--foreground);
+  --body-color: var(--foreground-secondary);
+  --caption-color: var(--muted);
+  
+  /* Interactive Elements */
+  --hover-overlay: rgba(255, 105, 0, 0.05);
+  --active-overlay: rgba(255, 105, 0, 0.1);
+  --focus-ring: var(--primary);
+  --selection-bg: rgba(255, 105, 0, 0.15);
+}
+
+/* Dark Mode Support (for future implementation) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --background-secondary: #141414;
+    --background-tertiary: #1a1a1a;
+    --foreground: #fafafa;
+    --foreground-secondary: #a3a3a3;
+    
+    --border: #262626;
+    --border-dark: #404040;
+    --muted: #737373;
+    --muted-foreground: #525252;
+    
+    --card-bg: var(--background-secondary);
+    --card-border: var(--border);
+    --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+    
+    --nav-bg: rgba(10, 10, 10, 0.95);
+    --hover-overlay: rgba(255, 105, 0, 0.1);
+    --active-overlay: rgba(255, 105, 0, 0.15);
+  }
+}
+
+/* === BASE STYLES === */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Satoshi', var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === TYPOGRAPHY SYSTEM === */
+.font-satoshi-light { font-family: 'Satoshi', sans-serif; font-weight: 300; }
+.font-satoshi { font-family: 'Satoshi', sans-serif; font-weight: 400; }
+.font-satoshi-medium { font-family: 'Satoshi', sans-serif; font-weight: 500; }
+.font-satoshi-bold { font-family: 'Satoshi', sans-serif; font-weight: 700; }
+.font-satoshi-black { font-family: 'Satoshi', sans-serif; font-weight: 900; }
+
+/* Heading Hierarchy */
+h1, .h1 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 700;
+  font-size: 2.25rem; /* 36px */
+  line-height: 2.5rem; /* 40px */
+  color: var(--heading-color);
+  letter-spacing: -0.025em;
+}
+
+h2, .h2 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 700;
+  font-size: 1.875rem; /* 30px */
+  line-height: 2.25rem; /* 36px */
+  color: var(--heading-color);
+  letter-spacing: -0.025em;
+}
+
+h3, .h3 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 600;
+  font-size: 1.5rem; /* 24px */
+  line-height: 2rem; /* 32px */
+  color: var(--heading-color);
+}
+
+h4, .h4 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 600;
+  font-size: 1.25rem; /* 20px */
+  line-height: 1.75rem; /* 28px */
+  color: var(--heading-color);
+}
+
+h5, .h5 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 500;
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.75rem; /* 28px */
+  color: var(--heading-color);
+}
+
+h6, .h6 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 500;
+  font-size: 1rem; /* 16px */
+  line-height: 1.5rem; /* 24px */
+  color: var(--heading-color);
+}
+
+/* Body Text */
+p, .body {
+  color: var(--body-color);
+  margin-bottom: 1rem;
+}
+
+.body-large {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.75rem; /* 28px */
+}
+
+.body-small {
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.25rem; /* 20px */
+}
+
+.caption {
+  font-size: 0.75rem; /* 12px */
+  line-height: 1rem; /* 16px */
+  color: var(--caption-color);
+}
+
+/* === INTERACTIVE ELEMENTS === */
+/* Selection */
+::selection {
+  background-color: var(--selection-bg);
+  color: var(--foreground);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* === SCROLLBAR CUSTOMIZATION === */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* === UTILITY CLASSES === */
+/* Ordira Brand Utilities */
+.ordira-gradient {
+  background: var(--ordira-gradient);
+}
+
+.ordira-gradient-hover:hover {
+  background: var(--ordira-gradient-hover);
+}
+
+.ordira-text-gradient {
+  background: var(--ordira-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ordira-border-gradient {
+  position: relative;
+}
+
+.ordira-border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: var(--ordira-gradient);
+  border-radius: inherit;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+}
+
+/* Animation utilities */
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Shadow utilities */
+.shadow-ordira {
+  box-shadow: 0 4px 14px 0 rgba(255, 105, 0, 0.15);
+}
+
+.shadow-ordira-lg {
+  box-shadow: 0 10px 25px 0 rgba(255, 105, 0, 0.2);
+}
+
+/* === RESPONSIVE DESIGN === */
+/* Mobile-first approach */
+@media (max-width: 640px) {
+  h1, .h1 { font-size: 1.875rem; line-height: 2.25rem; }
+  h2, .h2 { font-size: 1.5rem; line-height: 2rem; }
+  h3, .h3 { font-size: 1.25rem; line-height: 1.75rem; }
+}
+
+/* Tablet */
+@media (min-width: 768px) {
+  body {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* === PERFORMANCE OPTIMIZATIONS === */
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: #000000;
+    --muted: #000000;
+  }
+}

@@ -1,111 +1,14 @@
-// src/lib/auth/auth-utils.ts
-import { User } from '@/types/auth';
+// lib/auth/auth-utils.ts - NEW FILE
+import { AnyUser } from '@/lib/types/user';
 
 /**
- * Token management utilities
- */
-export const tokenUtils = {
-  /**
-   * Get stored authentication token
-   */
-  getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('auth_token');
-  },
-
-  /**
-   * Get stored refresh token
-   */
-  getRefreshToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('refresh_token');
-  },
-
-  /**
-   * Store authentication tokens
-   */
-  setTokens(authToken: string, refreshToken?: string): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('auth_token', authToken);
-    if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
-    }
-  },
-
-  /**
-   * Clear all stored tokens
-   */
-  clearTokens(): void {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
-  },
-
-  /**
-   * Check if token exists
-   */
-  hasToken(): boolean {
-    return !!this.getToken();
-  },
-
-  /**
-   * Decode JWT token payload (basic decode, not for security validation)
-   */
-  decodeToken(token: string): any {
-    try {
-      const payload = token.split('.')[1];
-      const decoded = atob(payload);
-      return JSON.parse(decoded);
-    } catch (error) {
-      console.error('Failed to decode token:', error);
-      return null;
-    }
-  },
-
-  /**
-   * Check if token is expired
-   */
-  isTokenExpired(token?: string): boolean {
-    const tokenToCheck = token || this.getToken();
-    if (!tokenToCheck) return true;
-
-    try {
-      const payload = this.decodeToken(tokenToCheck);
-      if (!payload || !payload.exp) return true;
-
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp < currentTime;
-    } catch (error) {
-      return true;
-    }
-  },
-
-  /**
-   * Get token expiration time
-   */
-  getTokenExpiration(token?: string): Date | null {
-    const tokenToCheck = token || this.getToken();
-    if (!tokenToCheck) return null;
-
-    try {
-      const payload = this.decodeToken(tokenToCheck);
-      if (!payload || !payload.exp) return null;
-
-      return new Date(payload.exp * 1000);
-    } catch (error) {
-      return null;
-    }
-  },
-};
-
-/**
- * User role and permission utilities
+ * Role-based utilities - Creators and Brands have SAME functionalities
  */
 export const roleUtils = {
   /**
    * Check if user has specific role
    */
-  hasRole(user: User | null, role: string): boolean {
+  hasRole(user: AnyUser | null, role: string): boolean {
     if (!user) return false;
     return user.occupation === role;
   },
@@ -113,40 +16,18 @@ export const roleUtils = {
   /**
    * Check if user has any of the specified roles
    */
-  hasAnyRole(user: User | null, roles: string[]): boolean {
+  hasAnyRole(user: AnyUser | null, roles: string[]): boolean {
     if (!user) return false;
     return roles.includes(user.occupation);
   },
 
   /**
-   * Check if user has specific permission
+   * Check if user has permission
    */
-  hasPermission(user: User | null, permission: string): boolean {
+  hasPermission(user: AnyUser | null, permission: string): boolean {
     if (!user) return false;
     const userPermissions = (user as any).permissions || [];
     return userPermissions.includes(permission) || userPermissions.includes('*');
-  },
-
-  /**
-   * Check if user has all specified permissions
-   */
-  hasAllPermissions(user: User | null, permissions: string[]): boolean {
-    if (!user) return false;
-    const userPermissions = (user as any).permissions || [];
-    return permissions.every(
-      permission => userPermissions.includes(permission) || userPermissions.includes('*')
-    );
-  },
-
-  /**
-   * Check if user has any of the specified permissions
-   */
-  hasAnyPermission(user: User | null, permissions: string[]): boolean {
-    if (!user) return false;
-    const userPermissions = (user as any).permissions || [];
-    return permissions.some(
-      permission => userPermissions.includes(permission) || userPermissions.includes('*')
-    );
   },
 
   /**
@@ -162,24 +43,127 @@ export const roleUtils = {
   },
 
   /**
-   * Check if user is brand owner
+   * Check if user is brand owner (INCLUDES Creators)
    */
-  isBrand(user: User | null): boolean {
-    return this.hasRole(user, 'Brand');
+  isBrand(user: AnyUser | null): boolean {
+    return this.hasAnyRole(user, ['Brand', 'Creator']); // ✅ FIXED: Creators included
   },
 
   /**
    * Check if user is manufacturer
    */
-  isManufacturer(user: User | null): boolean {
+  isManufacturer(user: AnyUser | null): boolean {
     return this.hasRole(user, 'Manufacturer');
   },
 
   /**
    * Check if user is creator
    */
-  isCreator(user: User | null): boolean {
+  isCreator(user: AnyUser | null): boolean {
     return this.hasRole(user, 'Creator');
+  },
+
+  /**
+   * Check if user is brand-like (Brand OR Creator) - NEW helper
+   */
+  isBrandLike(user: AnyUser | null): boolean {
+    return this.hasAnyRole(user, ['Brand', 'Creator']);
+  },
+};
+
+/**
+ * Route protection utilities - FIXED to treat Creators same as Brands
+ */
+export const routeProtection = {
+  /**
+   * Get redirect path for user type - FIXED: Creators go to same dashboard as Brands
+   */
+  getDefaultRedirectPath(user: AnyUser | null): string {
+    if (!user) return '/auth/login';
+    
+    switch (user.occupation) {
+      case 'Brand':
+      case 'Creator': // ✅ FIXED: Same dashboard as Brand
+        return '/dashboard';
+      case 'Manufacturer':
+        return '/manufacturer/dashboard';
+      default:
+        return '/dashboard';
+    }
+  },
+
+  /**
+   * Check if route is accessible for user - FIXED: Creators have same access as Brands
+   */
+  canAccessRoute(user: AnyUser | null, route: string): boolean {
+    if (!user) return false;
+
+    // Public routes that all authenticated users can access
+    const publicRoutes = ['/dashboard', '/profile', '/settings'];
+    if (publicRoutes.some(publicRoute => route.startsWith(publicRoute))) {
+      return true;
+    }
+
+    // Brand-like routes (Brand AND Creator access) - FIXED
+    const brandRoutes = ['/voting', '/certificates', '/products', '/domains', '/integrations'];
+    if (brandRoutes.some(brandRoute => route.startsWith(brandRoute))) {
+      return roleUtils.isBrandLike(user); // ✅ FIXED: Includes both Brand and Creator
+    }
+
+    // Manufacturer-only routes
+    const manufacturerRoutes = ['/manufacturer', '/orders', '/production'];
+    if (manufacturerRoutes.some(mfgRoute => route.startsWith(mfgRoute))) {
+      return roleUtils.isManufacturer(user);
+    }
+
+    // Creator-specific routes (optional - for creator-specific features)
+    const creatorSpecificRoutes = ['/creator', '/content-studio', '/creator-tools'];
+    if (creatorSpecificRoutes.some(creatorRoute => route.startsWith(creatorRoute))) {
+      return roleUtils.isCreator(user);
+    }
+
+    // Default to allowing access
+    return true;
+  },
+
+  /**
+   * Get user type for API calls - NEW helper
+   */
+  getUserType(user: AnyUser | null): 'brand' | 'manufacturer' | null {
+    if (!user) return null;
+    
+    // Both Brand and Creator users use 'brand' API endpoints
+    if (roleUtils.isBrandLike(user)) return 'brand';
+    if (roleUtils.isManufacturer(user)) return 'manufacturer';
+    
+    return null;
+  },
+
+  /**
+   * Get appropriate auth API methods based on user type
+   */
+  getAuthMethods(userType: 'Brand' | 'Creator' | 'Manufacturer') {
+    switch (userType) {
+      case 'Brand':
+      case 'Creator': // ✅ Both use business auth methods
+        return {
+          register: 'registerBusiness',
+          login: 'loginBusiness', 
+          verify: 'verifyBusiness'
+        };
+      case 'Manufacturer':
+        return {
+          register: 'registerManufacturer',
+          login: 'loginManufacturer',
+          verify: 'verifyManufacturer'
+        };
+      default:
+        return {
+          register: 'registerUser',
+          login: 'loginUser',
+          verify: 'verifyUser'
+        };
+    }
   },
 };
 
@@ -268,57 +252,6 @@ export const authValidation = {
 };
 
 /**
- * Route protection utilities
- */
-export const routeProtection = {
-  /**
-   * Get redirect path for user type
-   */
-  getDefaultRedirectPath(user: User | null): string {
-    if (!user) return '/auth/login';
-    
-    switch (user.occupation) {
-      case 'Brand':
-        return '/dashboard';
-      case 'Manufacturer':
-        return '/manufacturer/dashboard';
-      case 'Creator':
-        return '/creator/dashboard';
-      default:
-        return '/dashboard';
-    }
-  },
-
-  /**
-   * Check if route is accessible for user
-   */
-  canAccessRoute(user: User | null, route: string): boolean {
-    if (!user) return false;
-
-    // Public routes that all authenticated users can access
-    const publicRoutes = ['/dashboard', '/profile', '/settings'];
-    if (publicRoutes.some(publicRoute => route.startsWith(publicRoute))) {
-      return true;
-    }
-
-    // Brand-only routes
-    const brandRoutes = ['/voting', '/certificates', '/products', '/domains', '/integrations'];
-    if (brandRoutes.some(brandRoute => route.startsWith(brandRoute))) {
-      return roleUtils.isBrand(user);
-    }
-
-    // Manufacturer-only routes
-    const manufacturerRoutes = ['/manufacturer', '/orders', '/production'];
-    if (manufacturerRoutes.some(mfgRoute => route.startsWith(mfgRoute))) {
-      return roleUtils.isManufacturer(user);
-    }
-
-    // Default to allowing access
-    return true;
-  },
-};
-
-/**
  * Session management utilities
  */
 export const sessionUtils = {
@@ -326,10 +259,15 @@ export const sessionUtils = {
    * Calculate time until token expires
    */
   getTimeUntilExpiry(token?: string): number {
-    const expiration = tokenUtils.getTokenExpiration(token);
-    if (!expiration) return 0;
+    if (!token) return 0;
     
-    return Math.max(0, expiration.getTime() - Date.now());
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expiration = new Date(payload.exp * 1000);
+      return Math.max(0, expiration.getTime() - Date.now());
+    } catch {
+      return 0;
+    }
   },
 
   /**
@@ -344,55 +282,32 @@ export const sessionUtils = {
    * Format time remaining until expiry
    */
   formatTimeUntilExpiry(token?: string): string {
-    const timeUntilExpiry = this.getTimeUntilExpiry(token);
-    if (timeUntilExpiry <= 0) return 'Expired';
+    const timeUntil = this.getTimeUntilExpiry(token);
+    if (timeUntil <= 0) return 'Expired';
     
-    const minutes = Math.floor(timeUntilExpiry / (60 * 1000));
+    const minutes = Math.floor(timeUntil / (1000 * 60));
     const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
     
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    }
-    
-    return `${minutes}m`;
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} remaining`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} remaining`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} remaining`;
+    return 'Less than a minute remaining';
   },
 };
 
 /**
- * Error handling utilities
+ * Type guards for authentication data - FIXED to handle Creator as Brand
  */
-export const authErrorUtils = {
-  /**
-   * Check if error is authentication related
-   */
-  isAuthError(error: any): boolean {
-    return error?.response?.status === 401 || 
-           error?.code === 'INVALID_TOKEN' ||
-           error?.code === 'TOKEN_EXPIRED';
-  },
+export const isRegisterBusinessData = (data: any): boolean => {
+  return data && (data.businessName || data.businessAddress) && 
+         (data.occupation === 'Brand' || data.occupation === 'Creator'); // ✅ FIXED
+};
 
-  /**
-   * Check if error is authorization related
-   */
-  isAuthorizationError(error: any): boolean {
-    return error?.response?.status === 403 ||
-           error?.code === 'INSUFFICIENT_PERMISSIONS';
-  },
+export const isRegisterManufacturerData = (data: any): boolean => {
+  return data && data.industry && data.occupation === 'Manufacturer';
+};
 
-  /**
-   * Get user-friendly error message
-   */
-  getErrorMessage(error: any): string {
-    if (this.isAuthError(error)) {
-      return 'Your session has expired. Please log in again.';
-    }
-    
-    if (this.isAuthorizationError(error)) {
-      return 'You do not have permission to access this resource.';
-    }
-    
-    return error?.response?.data?.message || 
-           error?.message || 
-           'An unexpected error occurred. Please try again.';
-  },
+export const isRegisterUserData = (data: any): boolean => {
+  return data && data.email && !isRegisterBusinessData(data) && !isRegisterManufacturerData(data);
 };

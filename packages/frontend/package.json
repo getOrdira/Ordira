@@ -1,40 +1,39 @@
 {
-    "name": "@b2b/frontend",
-    "version": "0.1.0",
-    "private": true,
-    "scripts": {
-      "dev": "next dev -p 3000",
-      "build": "next build",
-      "start": "next start",
-      "lint": "next lint",
-      "type-check": "tsc --noEmit"
-    },
-    "dependencies": {
-      "next": "^14.2.5",
-      "react": "^18.3.1",
-      "react-dom": "^18.3.1",
-      "@heroicons/react": "^2.0.18",
-      "@headlessui/react": "^1.7.17",
-      "chart.js": "^4.4.0",
-      "recharts": "^2.8.0",
-      "clsx": "^2.0.0",
-      "tailwind-merge": "^2.0.0",
-      "@tanstack/react-query": "^5.8.4",
-      "zustand": "^4.4.6",
-      "react-hook-form": "^7.47.0",
-      "@hookform/resolvers": "^3.3.2",
-      "zod": "^3.22.4",
-      "axios": "^1.6.0"
-    },
-    "devDependencies": {
-      "typescript": "^5.2.2",
-      "@types/node": "^20.8.6",
-      "@types/react": "^18.2.33",
-      "@types/react-dom": "^18.2.14",
-      "autoprefixer": "^10.4.16",
-      "eslint": "^8.52.0",
-      "eslint-config-next": "^14.0.1",
-      "postcss": "^8.4.31",
-      "tailwindcss": "^3.3.5"
-    }
+  "name": "@b2b/frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.1",
+    "@tanstack/react-query": "^5.86.0",
+    "@tanstack/react-query-devtools": "^5.86.0",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.11.0",
+    "ethers": "^6.15.0",
+    "lucide-react": "^0.542.0",
+    "next": "^15.5.2",
+    "postcss": "^8.5.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hook-form": "^7.62.0",
+    "tailwindcss": "^4.1.12",
+    "viem": "^2.37.3",
+    "wagmi": "^2.16.9",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^9.9.0",
+    "eslint-config-next": "15.0.0",
+    "typescript": "^5.5.4"
   }
+}
