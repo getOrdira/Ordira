@@ -8,7 +8,7 @@ import { loadSecrets } from './config/secrets';
 import { validateEnv } from './config/validateEnv';
 
 // 2️⃣ Core dependencies with enhanced monitoring
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import path from 'path';
@@ -22,7 +22,7 @@ import * as Tracing from '@sentry/tracing';
 import { resolveTenant, requireTenantSetup, requireTenantPlan, tenantCorsMiddleware } from './middleware/tenant.middleware';
 import { authenticate } from './middleware/auth.middleware';
 import { authenticateManufacturer, requireBrandAccess, requireVerifiedManufacturer } from './middleware/manufacturerAuth.middleware';
-import { dynamicRateLimiter, strictRateLimiter, apiRateLimiter, warmupPlanCache } from './middleware/rateLimiter.middleware';
+import { dynamicRateLimiter, strictRateLimiter, apiRateLimiter, warmupPlanCache, clearPlanCache } from './middleware/rateLimiter.middleware';
 import { metricsMiddleware, metricsHandler, trackManufacturerAction, trackBrandConnection } from './middleware/metrics.middleware';
 import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from './middleware/upload.middleware';
 import { errorHandler } from './middleware/error.middleware';
@@ -51,7 +51,6 @@ import billingRoutes from './routes/billing.routes';
 
 // 5️⃣ Enhanced cache and utility imports
 import { startDomainCachePolling, isAllowedCustomDomain } from './cache/domainCache';
-import { clearTenantCache, clearPlanCache } from './middleware/rateLimiter.middleware';
 
 // 6️⃣ Validation schemas for route-specific validation
 import { authValidationSchemas } from './validation/auth.validation';
@@ -61,6 +60,15 @@ import { brandSettingsValidationSchemas } from './validation/brandSettings.valid
 import { productValidationSchemas } from './validation/product.validation';
 import { nftValidationSchemas } from './validation/nfts.validation';
 import { votesValidationSchemas } from './validation/votes.validation';
+
+// 7️⃣ Type definitions for enhanced request handling
+interface RequestWithRawBody extends Request {
+  rawBody?: Buffer;
+}
+
+interface ErrorWithStatus extends Error {
+  status?: string | number;
+}
 
 // Self-invoking async function to bootstrap the application
 (async () => {
@@ -72,13 +80,13 @@ import { votesValidationSchemas } from './validation/votes.validation';
     validateEnv();
     console.log('✅ Environment configuration loaded and validated');
 
-    // Enhanced MongoDB connection with options
+    // Enhanced MongoDB connection with updated options
     await mongoose.connect(process.env.MONGODB_URI!, {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      bufferCommands: false,
-      bufferMaxEntries: 0
+      bufferCommands: false
+      // Removed deprecated bufferMaxEntries option
     });
     console.log('✅ Connected to MongoDB with enhanced configuration');
 
@@ -155,7 +163,7 @@ import { votesValidationSchemas } from './validation/votes.validation';
         if (isAllowedCustomDomain(origin)) return callback(null, true);
         
         // Block unauthorized origins
-        console.warn(`❌ CORS blocked origin: ${origin}`);
+        console.warn(`⚠️ CORS blocked origin: ${origin}`);
         return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
@@ -195,7 +203,7 @@ import { votesValidationSchemas } from './validation/votes.validation';
             }
           }
         });
-      } catch (error) {
+      } catch (error: any) {
         res.status(503).json({
           status: 'unhealthy',
           error: error.message,
@@ -209,13 +217,13 @@ import { votesValidationSchemas } from './validation/votes.validation';
       express.static(path.join(process.cwd(), '.well-known', 'acme-challenge'))
     );
 
-    // Enhanced body parsing with size limits
+    // Enhanced body parsing with size limits and proper typing
     app.use(express.json({ 
       limit: '10mb',
-      verify: (req, res, buf) => {
+      verify: (req: RequestWithRawBody, res, buf) => {
         // Store raw body for webhook signature verification
         if (req.url?.includes('/webhook')) {
-          req.body.rawBody = buf;
+          req.rawBody = buf;
         }
       }
     }));
@@ -267,12 +275,6 @@ import { votesValidationSchemas } from './validation/votes.validation';
       authenticate, 
       dynamicRateLimiter(),
       cleanupOnError
-    );
-
-    // Enhanced media routes with upload handling
-    app.use('/api/media', 
-      ...uploadMiddleware.mixed,
-      mediaRoutes
     );
 
     // Product management with enhanced validation
@@ -419,7 +421,7 @@ import { votesValidationSchemas } from './validation/votes.validation';
       }
     );
 
-    // Cache management endpoints (admin only)
+    // Cache management endpoints (admin only) - Fixed function name
     app.post('/api/admin/cache/clear',
       authenticate,
       requireTenantPlan(['enterprise']),
@@ -428,14 +430,11 @@ import { votesValidationSchemas } from './validation/votes.validation';
         
         try {
           switch (type) {
-            case 'tenant':
-              clearTenantCache(identifier);
-              break;
             case 'plan':
               clearPlanCache(identifier);
               break;
             default:
-              return res.status(400).json({ error: 'Invalid cache type' });
+              return res.status(400).json({ error: 'Invalid cache type. Only "plan" is supported.' });
           }
           
           res.status(200).json({ 
@@ -448,12 +447,12 @@ import { votesValidationSchemas } from './validation/votes.validation';
       }
     );
 
-    // Enhanced error handling
+    // Enhanced error handling with proper typing
     if (process.env.SENTRY_DSN) {
       app.use(Sentry.Handlers.errorHandler({
-        shouldHandleError: (error) => {
-          // Only send 500+ errors to Sentry
-          return error.status >= 500;
+        shouldHandleError: (error: ErrorWithStatus) => {
+          // Only send 500+ errors to Sentry - Fixed type conversion
+          return Number(error.status) >= 500;
         }
       }));
     }
@@ -463,7 +462,7 @@ import { votesValidationSchemas } from './validation/votes.validation';
 
     // 404 handler for unmatched routes
     app.use('*', (req, res) => {
-      console.warn(`❌ Route not found: ${req.method} ${req.originalUrl}`);
+      console.warn(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
       res.status(404).json({ 
         error: 'Route not found',
         path: req.originalUrl,
@@ -471,64 +470,18 @@ import { votesValidationSchemas } from './validation/votes.validation';
       });
     });
 
-    // Graceful shutdown handling
-    const gracefulShutdown = (signal: string) => {
-      console.log(`\n📡 Received ${signal}. Starting graceful shutdown...`);
-      
-      server.close(async () => {
-        console.log('📡 HTTP server closed');
-        
-        try {
-          await mongoose.connection.close();
-          console.log('📡 MongoDB connection closed');
-        } catch (error) {
-          console.error('❌ Error closing MongoDB:', error);
-        }
-        
-        console.log('📡 Graceful shutdown complete');
-        process.exit(0);
-      });
-      
-      // Force close after 30 seconds
-      setTimeout(() => {
-        console.error('❌ Forced shutdown after timeout');
-        process.exit(1);
-      }, 30000);
-    };
-
-    // Register shutdown handlers
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-    // Unhandled promise rejection handler
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('❌ Unhandled Promise Rejection at:', promise, 'reason:', reason);
-      if (process.env.SENTRY_DSN) {
-        Sentry.captureException(reason);
-      }
-    });
-
-    // Uncaught exception handler
-    process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error);
-      if (process.env.SENTRY_DSN) {
-        Sentry.captureException(error);
-      }
-      process.exit(1);
-    });
-
     // Start the enhanced server
     const PORT = Number(process.env.PORT) || 4000;
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`
 🚀 Ordira Platform Server Started!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📡 Server:     http://0.0.0.0:${PORT}
-🌍 Environment: ${process.env.NODE_ENV}
-📊 Metrics:    http://0.0.0.0:${PORT}/metrics
-💊 Health:     http://0.0.0.0:${PORT}/health
-🔧 Version:    ${process.env.npm_package_version || '1.0.0'}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌────────────────────────────────────────────────────────────────────┐
+│ 📡 Server:     http://0.0.0.0:${PORT}                                │
+│ 🌐 Environment: ${process.env.NODE_ENV}                               │
+│ 📊 Metrics:    http://0.0.0.0:${PORT}/metrics                       │
+│ 💊 Health:     http://0.0.0.0:${PORT}/health                        │
+│ 🔧 Version:    ${process.env.npm_package_version || '1.0.0'}         │
+└────────────────────────────────────────────────────────────────────┘
 
 ✅ Features Enabled:
    • Enhanced Authentication & Authorization
@@ -542,7 +495,7 @@ import { votesValidationSchemas } from './validation/votes.validation';
    • Manufacturer Verification
    • E-commerce Integrations
    
-🔐 Security Features:
+🔒 Security Features:
    • Helmet Security Headers
    • CORS with Custom Domain Support
    • Rate Limiting & DDoS Protection
@@ -563,8 +516,54 @@ import { votesValidationSchemas } from './validation/votes.validation';
     server.keepAliveTimeout = 61000; // 61 seconds
     server.headersTimeout = 62000; // 62 seconds
 
+    // Graceful shutdown handling
+    const gracefulShutdown = (signal: string) => {
+      console.log(`\n📡 Received ${signal}. Starting graceful shutdown...`);
+      
+      server.close(async () => {
+        console.log('📡 HTTP server closed');
+        
+        try {
+          await mongoose.connection.close();
+          console.log('📡 MongoDB connection closed');
+        } catch (error) {
+          console.error('⚠️ Error closing MongoDB:', error);
+        }
+        
+        console.log('📡 Graceful shutdown complete');
+        process.exit(0);
+      });
+      
+      // Force close after 30 seconds
+      setTimeout(() => {
+        console.error('⚠️ Forced shutdown after timeout');
+        process.exit(1);
+      }, 30000);
+    };
+
+    // Register shutdown handlers
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    // Unhandled promise rejection handler
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('⚠️ Unhandled Promise Rejection at:', promise, 'reason:', reason);
+      if (process.env.SENTRY_DSN) {
+        Sentry.captureException(reason);
+      }
+    });
+
+    // Uncaught exception handler
+    process.on('uncaughtException', (error) => {
+      console.error('⚠️ Uncaught Exception:', error);
+      if (process.env.SENTRY_DSN) {
+        Sentry.captureException(error);
+      }
+      process.exit(1);
+    });
+
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('⚠️ Failed to start server:', error);
     
     if (process.env.SENTRY_DSN) {
       Sentry.captureException(error);
@@ -573,7 +572,6 @@ import { votesValidationSchemas } from './validation/votes.validation';
     process.exit(1);
   }
 })();
-
 
 
 
