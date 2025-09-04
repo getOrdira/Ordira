@@ -467,7 +467,7 @@ async sendCancellationNotification(
       throw new Error('Business not found for cancellation notification');
     }
 
-    const plan = planName || 'subscription';
+    const plan = planName || 'subscription'; // Use passed plan or default
 
     const subject = 'Subscription Cancelled - We\'re Sorry to See You Go';
     
@@ -496,6 +496,38 @@ async sendCancellationNotification(
 
   } catch (error) {
     console.error('Failed to send cancellation notification:', error);
+  }
+}
+
+/**
+ * Send account deletion confirmation
+ */
+async sendAccountDeletionConfirmation(email: string, reason?: string): Promise<void> {
+  try {
+    const subject = 'Account Deletion Confirmation';
+    
+    const templateData = {
+      email,
+      deletionDate: new Date().toLocaleDateString(),
+      deletionReason: reason || 'User requested account deletion',
+      dataRetentionPeriod: '30 days',
+      reactivationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      year: new Date().getFullYear()
+    };
+
+    await this.sendEmail({
+      to: email,
+      subject,
+      template: 'account-deletion',
+      data: templateData
+    });
+
+    console.log(`Account deletion confirmation sent to: ${email}`);
+
+  } catch (error) {
+    console.error('Failed to send account deletion confirmation:', error);
+    // Don't throw - this shouldn't break account deletion
   }
 }
 

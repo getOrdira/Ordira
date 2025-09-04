@@ -355,7 +355,13 @@ async testConnection(businessId: string): Promise<{
       };
     }
 
-    const systemStatus = await response.json();
+    const systemStatus = await response.json() as {
+      environment?: { version?: string };
+      settings?: {
+        title?: string;
+        currency?: string;
+      };
+    };
 
     return {
       success: true,

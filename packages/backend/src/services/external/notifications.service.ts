@@ -3,13 +3,11 @@ import nodemailer from 'nodemailer';
 import { Business } from '../../models/business.model';
 import { Manufacturer } from '../../models/manufacturer.model';
 import { BrandSettings } from '../../models/brandSettings.model';
-import { Certificate } from '../../models/certificate.model';
 import { Notification, INotification } from '../../models/notification.model';
 import { PlanKey } from '../../constants/plans';
-import { Types } from 'mongoose';
 import { UtilsService } from '../utils/utils.service';
 import path from 'path';
-import stripe from 'stripe'
+import stripe, { Stripe } from 'stripe'
 
 const transport = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -374,11 +372,6 @@ export class NotificationsService {
         }
       }
 
-      // Send Slack notification if configured
-      if (notificationSettings?.slackIntegration?.enabled) {
-        await this.sendSlackTransferNotification(brandSettings, transferData, 'success');
-      }
-
       // Send webhook notification if configured
       if (notificationSettings?.webhookNotifications && notificationSettings?.webhookUrl) {
         await this.sendWebhookNotification(notificationSettings.webhookUrl, {
@@ -460,11 +453,6 @@ export class NotificationsService {
             trackingEnabled: true
           });
         }
-      }
-
-      // Send Slack notification if configured
-      if (notificationSettings?.slackIntegration?.enabled) {
-        await this.sendSlackTransferNotification(brandSettings, failureData, 'failure');
       }
 
       // Send webhook notification if configured
@@ -1052,12 +1040,14 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
       companyName: process.env.COMPANY_NAME || 'Your Company'
     };
 
-    await this.sendEmail({
-      to: email,
+    const template = this.getEmailTemplate('payment-failed', templateData);
+    await this.sendEmail(
+      email,
       subject,
-      template: 'payment-failed',
-      data: templateData
-    });
+      template.text,
+      template.html,
+      { priority: 'high', trackingEnabled: true }
+    );
 
     console.log(`Payment failure notification sent to: ${email} (attempt ${attemptCount})`);
 
@@ -1070,6 +1060,23 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
     // Don't throw - payment failure processing should continue
   }
 }
+
+async sendVotingContractDeployedNotification(businessId: string, data: {
+    contractAddress: string;
+    txHash: string;
+  }): Promise<void> {
+    // Implementation of notification sending logic
+    // This is a placeholder implementation
+    console.log(`Contract deployment notification for business ${businessId}:`, data);
+  }
+
+  async sendProposalCreatedNotification(businessId: string, data: {
+    proposalId: string;
+    description: string;
+  }): Promise<void> {
+    // Implement the notification logic here
+    console.log('Sending proposal created notification:', { businessId, data });
+  }
 
 /**
  * Send verification submission confirmation email
@@ -1347,12 +1354,15 @@ async sendProfileChangeNotification(
       companyName: process.env.COMPANY_NAME || 'Your Company'
     };
 
-    await this.sendEmail({
-      to: email,
+    const emailText = `Your ${templateData.plan} subscription has been renewed successfully for ${templateData.amount} ${templateData.currency}.\n\nNext billing date: ${templateData.nextBillingDate}`;
+
+    await this.sendEmail(
+      email,
       subject,
-      template: 'subscription-renewal',
-      data: templateData
-    });
+      emailText,
+      undefined,
+      { priority: 'normal', trackingEnabled: true }
+    );
 
     console.log(`Renewal confirmation sent successfully to: ${email}`);
 
@@ -1395,18 +1405,44 @@ async sendProfileChangeNotification(
       finalBillingDate: cancellationData.finalBillingDate || null,
       // Feedback and support
       feedbackUrl: `${process.env.FRONTEND_URL}/feedback`,
-      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      supportEmail: process.env.SUPPORT_EMAIL || 'hello@ordira.xyz',
       // Re-activation info
       reactivationUrl: `${process.env.FRONTEND_URL}/billing`,
       year: new Date().getFullYear()
     };
 
-    await this.sendEmail({
-      to: email,
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333; text-align: center;">Subscription Cancelled</h2>
+        <p>Dear ${templateData.businessName},</p>
+        
+        <p>Your ${templateData.plan} subscription has been cancelled.</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #555;">Cancellation Details</h3>
+          <p><strong>Effective Date:</strong> ${templateData.effectiveDate}</p>
+          ${templateData.refundAmount ? `<p><strong>Refund Amount:</strong> ${templateData.refundAmount}</p>` : ''}
+          ${templateData.finalBillingDate ? `<p><strong>Final Billing Date:</strong> ${templateData.finalBillingDate}</p>` : ''}
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${templateData.feedbackUrl}" style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px;">Share Feedback</a>
+          <a href="${templateData.reactivationUrl}" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Reactivate</a>
+        </div>
+        
+        <p style="color: #666; font-size: 14px; text-align: center;">
+          If you have any questions, please contact us at ${templateData.supportEmail}
+        </p>
+      </div>
+    `;
+
+    await this.sendEmail(
+      email,
       subject,
-      template: 'cancellation-confirmation',
-      templateData
-    });
+      `Your ${templateData.plan} subscription has been cancelled. The cancellation will be effective on ${templateData.effectiveDate}. ${templateData.refundAmount ? `A refund of ${templateData.refundAmount} will be processed.` : ''}`,
+      html,
+      { priority: 'normal', trackingEnabled: true }
+    );
 
     console.log(`Cancellation confirmation sent to: ${email}`);
 
@@ -1418,6 +1454,28 @@ async sendProfileChangeNotification(
     throw error;
   }
 }
+
+  private getEmailTemplate(templateName: string, templateData: any): EmailTemplate {
+    // Map template names to their respective template generation methods
+    const templateMap: Record<string, (data: any) => EmailTemplate> = {
+      'payment-failed': (data) => ({
+        subject: `Payment Failed - Action Required ${data.attemptCount > 1 ? `(Attempt ${data.attemptCount})` : ''}`,
+        text: `Your payment of ${data.amount} ${data.currency} has failed.\n\nPlease update your payment method to ensure continued service.`,
+        html: this.getPaymentFailureEmailTemplate(data.amount, data.reason, {
+          attemptCount: data.attemptCount,
+          nextRetryDate: data.nextRetryDate,
+          paymentMethodLast4: data.paymentMethodLast4
+        }).html
+      })
+    };
+
+    const templateGenerator = templateMap[templateName];
+    if (!templateGenerator) {
+      throw new Error(`Email template '${templateName}' not found`);
+    }
+
+    return templateGenerator(templateData);
+  }
 
   async sendPlanChangeNotification(email: string, oldPlan: string, newPlan: string, changeType?: 'upgrade' | 'downgrade'): Promise<void> {
   try {
@@ -1439,12 +1497,14 @@ async sendProfileChangeNotification(
       supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com'
     };
 
-    await this.sendEmail({
-      to: email,
+    const template = this.getEmailTemplate('plan-change-notification', templateData);
+    await this.sendEmail(
+      email,
       subject,
-      template: 'plan-change-notification',
-      templateData
-    });
+      template.text,
+      template.html,
+      { priority: 'normal', trackingEnabled: true }
+    );
 
     console.log(`Plan change notification sent: ${email} changed from ${oldPlan} to ${newPlan}`);
     
@@ -2741,8 +2801,8 @@ private getProfileChangeEmailTemplate(
   private async getSubscriptionDetails(subscriptionId: string): Promise<any> {
   try {
     // If you have Stripe access in NotificationsService
-    const stripe = new stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2023-10-16'
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2022-11-15'
     });
     return await stripe.subscriptions.retrieve(subscriptionId);
   } catch (error) {

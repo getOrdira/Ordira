@@ -4,6 +4,8 @@ import { BrandSettings } from '../../models/brandSettings.model';
 import { SubscriptionService } from './subscription.service';
 import { BlockchainContractsService } from '../blockchain/contracts.service';
 import { Types } from 'mongoose';
+import { User } from '../../models/user.model';
+
 
 // Type definitions
 type VoteAnalytics = {
@@ -17,6 +19,28 @@ type VoteAnalytics = {
     count: number;
   }>;
 };
+
+interface VoteData {
+  proposalId: string;
+  businessId: string;
+  productId?: string;
+  selectedProductId: string; 
+  productName?: string;
+  productImageUrl?: string;
+  selectionReason?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+interface AnalyticsEvent {
+  eventType: string;
+  userId?: string;
+  businessId?: string;
+  metadata: any;
+  timestamp: Date;
+  sessionId?: string;
+  source?: string;
+}
 
 type NftAnalytics = {
   usedLast30d: number;
@@ -467,6 +491,134 @@ export class AnalyticsBusinessService {
       throw new Error(`Failed to get engagement analytics: ${(error as Error).message}`);
     }
   }
+/**
+ * Track user voting activity for analytics (CORRECTED for product selection)
+ */
+async trackUserVote(userId: string, voteData: VoteData): Promise<void> {
+  try {
+    // Log the vote for analytics - CORRECTED
+    console.log(`[Analytics] User vote tracked:`, {
+      userId,
+      proposalId: voteData.proposalId,
+      businessId: voteData.businessId,
+      selectedProductId: voteData.selectedProductId, // FIXED
+      productName: voteData.productName, // FIXED
+      selectionReason: voteData.selectionReason, // FIXED
+      timestamp: new Date().toISOString(),
+      userAgent: voteData.userAgent,
+      ipAddress: voteData.ipAddress
+    });
+
+    // Save vote analytics to VotingRecord for historical analysis - CORRECTED
+    try {
+      await VotingRecord.create({
+        business: new Types.ObjectId(voteData.businessId),
+        proposalId: voteData.proposalId,
+        voteId: `analytics_${Date.now()}_${userId}`,
+        timestamp: new Date(),
+        selectedProductId: voteData.selectedProductId, // FIXED - use selectedProductId
+        productName: voteData.productName, // FIXED
+        productImageUrl: voteData.productImageUrl, // FIXED
+        selectionReason: voteData.selectionReason, // FIXED
+        voterAddress: userId,
+        voterEmail: undefined, // Will be populated if available
+        userAgent: voteData.userAgent,
+        ipAddress: voteData.ipAddress,
+        votingSource: 'web', // Default, can be dynamic
+        isVerified: false, // For analytics tracking
+        verificationHash: undefined,
+        processedAt: new Date()
+      });
+    } catch (recordError) {
+      console.warn('Failed to save vote analytics to VotingRecord:', recordError);
+    }
+
+    // Update user voting analytics summary
+    await this.updateUserVotingAnalytics(userId, voteData);
+
+    // Track general event for broader analytics - CORRECTED
+    await this.trackEvent('user_vote', {
+      userId,
+      businessId: voteData.businessId,
+      proposalId: voteData.proposalId,
+      selectedProductId: voteData.selectedProductId, // FIXED
+      productName: voteData.productName, // FIXED
+      selectionReason: voteData.selectionReason, // FIXED
+      timestamp: new Date(),
+      source: 'voting_system'
+    });
+
+  } catch (error) {
+    console.error('Failed to track user vote:', error);
+    // Don't throw - analytics tracking shouldn't break voting
+  }
+}
+
+/**
+ * Track general user events
+ */
+async trackEvent(eventType: string, eventData: any): Promise<void> {
+  try {
+    console.log(`[Analytics] Event tracked: ${eventType}`, eventData);
+    
+    // Create analytics event record
+    const analyticsEvent: AnalyticsEvent = {
+      eventType,
+      userId: eventData.userId,
+      businessId: eventData.businessId,
+      metadata: {
+        ...eventData,
+        userAgent: eventData.userAgent,
+        ipAddress: eventData.ipAddress,
+        referrer: eventData.referrer,
+        sessionDuration: eventData.sessionDuration
+      },
+      timestamp: new Date(),
+      sessionId: eventData.sessionId,
+      source: eventData.source || 'web'
+    };
+
+    // Store in your preferred analytics storage
+    switch (eventType) {
+      case 'user_vote':
+        // Already handled in trackUserVote
+        break;
+      
+      case 'page_view':
+        await this.trackPageView(eventData);
+        break;
+      
+      case 'user_registration':
+        await this.trackUserRegistration(eventData);
+        break;
+      
+      case 'subscription_change':
+        await this.trackSubscriptionChange(eventData);
+        break;
+      
+      case 'product_view':
+        await this.trackProductView(eventData);
+        break;
+      
+      case 'nft_mint':
+        await this.trackNftMint(eventData);
+        break;
+      
+      default:
+        // Store generic events in a simple log format
+        console.log(`[Analytics] Generic event: ${eventType}`, analyticsEvent);
+    }
+
+    // Update business-level analytics aggregates
+    if (eventData.businessId) {
+      await this.updateBusinessAnalytics(eventData.businessId, eventType, eventData);
+    }
+
+  } catch (error) {
+    console.error(`Failed to track event ${eventType}:`, error);
+  }
+}
+
 
   /**
    * Get comparative analytics between periods
@@ -1084,6 +1236,8 @@ export class AnalyticsBusinessService {
     return ((newValue - oldValue) / oldValue) * 100;
   }
 
+  
+
   /**
    * Calculate user retention metrics
    */
@@ -1427,4 +1581,288 @@ export class AnalyticsBusinessService {
       contentType: 'application/pdf'
     };
   }
+
+  /**
+ * Update user voting analytics summary
+ */
+private async updateUserVotingAnalytics(userId: string, voteData: VoteData): Promise<void> {
+  try {
+    // This would update user analytics in your User model
+    // Assuming you have user analytics tracking
+    const user = await User.findById(userId);
+    if (user) {
+      // Update user analytics
+      if (!user.analytics) {
+        user.analytics = {
+          totalVotes: 0,
+          totalSessions: 0,
+          averageSessionDuration: 0,
+          lastActiveAt: new Date()
+        };
+      }
+      
+      user.analytics.totalVotes = (user.analytics.totalVotes || 0) + 1;
+      user.analytics.lastActiveAt = new Date();
+      
+      // Update brand-specific interaction
+      if (!user.brandInteractions) {
+        user.brandInteractions = [];
+      }
+      
+      let brandInteraction = user.brandInteractions.find(
+        bi => bi.businessId.toString() === voteData.businessId
+      );
+      
+      if (brandInteraction) {
+        brandInteraction.totalVotes += 1;
+        brandInteraction.lastInteraction = new Date();
+      } else {
+        user.brandInteractions.push({
+          businessId: voteData.businessId as any,
+          firstInteraction: new Date(),
+          lastInteraction: new Date(),
+          totalVotes: 1,
+          totalPageViews: 0,
+          favoriteProducts: []
+        });
+      }
+      
+      await user.save();
+    }
+  } catch (error) {
+    console.error('Failed to update user voting analytics:', error);
+  }
+}
+
+/**
+ * Track page views for user engagement analytics
+ */
+private async trackPageView(eventData: any): Promise<void> {
+  try {
+    // Update page view analytics
+    console.log('[Analytics] Page view tracked:', {
+      userId: eventData.userId,
+      businessId: eventData.businessId,
+      page: eventData.page,
+      timestamp: new Date(),
+      userAgent: eventData.userAgent,
+      referrer: eventData.referrer
+    });
+
+    // Update user session data if available
+    if (eventData.userId) {
+      const user = await User.findById(eventData.userId);
+      if (user) {
+        if (!user.analytics) user.analytics = { totalSessions: 0, totalVotes: 0, lastActiveAt: new Date(), averageSessionDuration: 0 };
+        user.analytics.lastActiveAt = new Date();
+        
+        // Update brand interaction
+        if (eventData.businessId && user.brandInteractions) {
+          let brandInteraction = user.brandInteractions.find(
+            bi => bi.businessId.toString() === eventData.businessId
+          );
+          
+          if (brandInteraction) {
+            brandInteraction.totalPageViews += 1;
+            brandInteraction.lastInteraction = new Date();
+          } else if (user.brandInteractions) {
+            user.brandInteractions.push({
+              businessId: eventData.businessId as any,
+              firstInteraction: new Date(),
+              lastInteraction: new Date(),
+              totalVotes: 0,
+              totalPageViews: 1,
+              favoriteProducts: []
+            });
+          }
+        }
+        
+        await user.save();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to track page view:', error);
+  }
+}
+
+/**
+ * Track user registration events
+ */
+private async trackUserRegistration(eventData: any): Promise<void> {
+  try {
+    console.log('[Analytics] User registration tracked:', {
+      userId: eventData.userId,
+      email: eventData.email,
+      registrationSource: eventData.source,
+      timestamp: new Date()
+    });
+
+    // Update business registration analytics
+    if (eventData.businessId) {
+      // Could update BrandSettings with registration metrics
+      const settings = await BrandSettings.findOne({ business: eventData.businessId });
+      if (settings) {
+        // Add registration tracking logic here
+        console.log(`New user registered for business: ${eventData.businessId}`);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to track user registration:', error);
+  }
+}
+
+/**
+ * Track subscription changes
+ */
+private async trackSubscriptionChange(eventData: any): Promise<void> {
+  try {
+    console.log('[Analytics] Subscription change tracked:', {
+      businessId: eventData.businessId,
+      fromPlan: eventData.fromPlan,
+      toPlan: eventData.toPlan,
+      changeType: eventData.changeType,
+      timestamp: new Date()
+    });
+    
+    // This data could be valuable for business intelligence
+  } catch (error) {
+    console.error('Failed to track subscription change:', error);
+  }
+}
+
+/**
+ * Track product views for product analytics
+ */
+private async trackProductView(eventData: any): Promise<void> {
+  try {
+    console.log('[Analytics] Product view tracked:', {
+      userId: eventData.userId,
+      businessId: eventData.businessId,
+      productId: eventData.productId,
+      viewDuration: eventData.viewDuration,
+      timestamp: new Date()
+    });
+    
+    // Update product view counts or user preferences
+  } catch (error) {
+    console.error('Failed to track product view:', error);
+  }
+}
+
+/**
+ * Track NFT minting events
+ */
+private async trackNftMint(eventData: any): Promise<void> {
+  try {
+    console.log('[Analytics] NFT mint tracked:', {
+      userId: eventData.userId,
+      businessId: eventData.businessId,
+      certificateId: eventData.certificateId,
+      productId: eventData.productId,
+      mintCost: eventData.mintCost,
+      timestamp: new Date()
+    });
+    
+    // This data is likely already in your NftCertificate model
+    // But you might want additional analytics aggregation here
+  } catch (error) {
+    console.error('Failed to track NFT mint:', error);
+  }
+}
+
+/**
+ * Update business-level analytics aggregates
+ */
+private async updateBusinessAnalytics(businessId: string, eventType: string, eventData: any): Promise<void> {
+  try {
+    // Update business analytics summary
+    // This could be stored in BrandSettings or a separate BusinessAnalytics model
+    const settings = await BrandSettings.findOne({ business: businessId });
+    if (settings) {
+      // Initialize analytics if not exists
+      if (!(settings as any).analyticsData) {
+        (settings as any).analyticsData = {
+          totalEvents: 0,
+          eventBreakdown: {},
+          lastUpdated: new Date()
+        };
+      }
+      
+      const analytics = (settings as any).analyticsData;
+      analytics.totalEvents += 1;
+      analytics.eventBreakdown[eventType] = (analytics.eventBreakdown[eventType] || 0) + 1;
+      analytics.lastUpdated = new Date();
+      
+      await settings.save();
+    }
+  } catch (error) {
+    console.error('Failed to update business analytics:', error);
+  }
+}
+
+/**
+ * Get analytics summary for a user
+ */
+async getUserAnalyticsSummary(userId: string): Promise<any> {
+  try {
+    // Get vote analytics
+    const voteCount = await VotingRecord.countDocuments({ voterAddress: userId });
+    
+    // Get recent activity
+    const recentVotes = await VotingRecord.find({ voterAddress: userId })
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .select('proposalId selectedProductId timestamp businessId');
+
+    // Get user from User model for additional analytics
+    const user = await User.findById(userId);
+    
+    return {
+      userId,
+      summary: {
+        totalVotes: voteCount,
+        totalSessions: user?.analytics?.totalSessions || 0,
+        lastActive: user?.analytics?.lastActiveAt,
+        engagementScore: this.calculateEngagementScore(voteCount, user?.analytics)
+      },
+      recentActivity: recentVotes,
+      brandInteractions: user?.brandInteractions || []
+    };
+  } catch (error) {
+    console.error('Failed to get user analytics summary:', error);
+    return {
+      userId,
+      summary: { totalVotes: 0, totalSessions: 0, engagementScore: 0 },
+      recentActivity: [],
+      brandInteractions: []
+    };
+  }
+}
+
+/**
+ * Calculate user engagement score
+ */
+private calculateEngagementScore(voteCount: number, analytics: any): number {
+  let score = 0;
+  
+  // Base score from votes
+  score += Math.min(voteCount * 10, 500); // Max 500 points from votes
+  
+  // Session activity
+  if (analytics?.totalSessions) {
+    score += Math.min(analytics.totalSessions * 5, 250); // Max 250 points from sessions
+  }
+  
+  // Recent activity bonus
+  if (analytics?.lastActiveAt) {
+    const daysSinceActive = (Date.now() - analytics.lastActiveAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceActive <= 7) {
+      score += 100; // Recent activity bonus
+    } else if (daysSinceActive <= 30) {
+      score += 50; // Moderate activity bonus
+    }
+  }
+  
+  return Math.min(score, 1000); // Cap at 1000
+}
 }

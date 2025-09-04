@@ -127,7 +127,7 @@ export class VotingBusinessService {
       }
 
       // Deploy contract on blockchain using static method
-      const deploymentResult = await VotingService.deployVotingContract();
+      const deploymentResult = await VotingService.deployVotingContract(businessId);
       
       // Save contract address to business settings
       const updatedSettings = await BrandSettings.findOneAndUpdate(
@@ -344,11 +344,11 @@ export class VotingBusinessService {
   try {
     const limits = await this.subscriptionService.getVotingLimits(businessId);
     
-    const canVote = limits.remainingVotes > 0 || limits.voteLimit === -1; // -1 = unlimited
+    const canVote = Number(limits.remainingVotes) > 0 || limits.voteLimit === -1; // -1 = unlimited
     
     return {
       canVote,
-      remainingVotes: limits.remainingVotes,
+      remainingVotes: limits.remainingVotes === "unlimited" ? -1 : limits.remainingVotes,
       reason: canVote ? undefined : 'Monthly voting limit exceeded'
     };
   } catch (error: any) {
@@ -517,8 +517,6 @@ export class VotingBusinessService {
           timestamp: new Date(),
           voteChoice: vote.selectedProductId || 'for', // ✓ Correctly mapped
           voterAddress: vote.userId, // Consider mapping to actual wallet address
-          blockNumber: batchResult.blockNumber, // ADD THIS from blockchain result
-          gasUsed: batchResult.gasUsed // ADD THIS from blockchain result
           });
 
           voteRecords.push(votingRecord);
@@ -530,7 +528,7 @@ export class VotingBusinessService {
         }
 
           // Mark pending vote as processed
-          await vote.markAsProcessed();
+          await PendingVote.updateOne({ _id: vote._id }, { $set: { isProcessed: true } });
 
           // Send notification
           try {
@@ -617,8 +615,8 @@ export class VotingBusinessService {
       txHash: event.txHash,
       createdAt: new Date(event.timestamp || Date.now()),
       blockNumber: event.blockNumber,
-      selectedProductId: event.selectedProductId || 'unknown-product', // ✅ ADD THIS - handle missing data
-      productName: event.productName || undefined, // ✅ ADD THIS - optional from blockchain
+      selectedProductId: undefined, // Not available from blockchain events
+      productName: undefined, // Product name not available from blockchain events
       voterAddress: event.voter,
       gasUsed: undefined
     }));
@@ -664,6 +662,10 @@ export class VotingBusinessService {
         proposalId: vote.proposalId,
         userId: vote.userId,
         voteId: vote.voteId,
+        selectedProductId: vote.selectedProductId,
+        productName: vote.productName,
+        productImageUrl: vote.productImageUrl,
+        selectionReason: vote.selectionReason,
         createdAt: vote.createdAt
       }));
     } catch (error: any) {
@@ -861,6 +863,10 @@ export class VotingBusinessService {
         proposalId: pendingVote.proposalId,
         userId: pendingVote.userId,
         voteId: pendingVote.voteId,
+        selectedProductId: pendingVote.selectedProductId,
+        productName: pendingVote.productName,
+        productImageUrl: pendingVote.productImageUrl,
+        selectionReason: pendingVote.selectionReason,
         createdAt: pendingVote.createdAt
       };
     } catch (error) {
@@ -1022,9 +1028,9 @@ export class VotingBusinessService {
               voteChoice,
               voterAddress: vote.userId
               });
-            const result = await this.recordPendingVote(businessId, vote.proposalId, vote.userId, {
-            voteType: vote.voteType,
-            reason: vote.reason
+          const selectedProductId = vote.voteType || 'for'; // Map voteType to a product ID
+          const result = await this.recordPendingVote(businessId, vote.proposalId, vote.userId, selectedProductId, {
+            selectionReason: vote.reason
           });
           results.push(result);
         } catch (error: any) {

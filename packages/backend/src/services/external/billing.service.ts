@@ -812,6 +812,21 @@ async isOverageBillingEnabled(businessId: string): Promise<{
 }
 
 /**
+ * Track vote usage for a business
+ */
+async trackVoteUsage(businessId: string, voteId: string): Promise<void> {
+    // Implementation for tracking vote usage in billing system
+    // This is a placeholder implementation
+    try {
+      // Add your billing tracking logic here
+      console.log(`Tracked vote usage for business ${businessId}, vote ${voteId}`);
+    } catch (error) {
+      console.error('Error tracking vote usage:', error);
+      throw new Error('Failed to track vote usage in billing system');
+    }
+  }
+
+/**
  * Get overage rates for different resource types
  */
 getOverageRates(plan: string): {

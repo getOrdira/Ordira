@@ -827,7 +827,7 @@ export class DomainMappingService {
         overall = 'fail';
       } else if (dnsTest.status === 'warning') {
         warnings.push('DNS configuration has warnings');
-        if (overall !== 'fail') overall = 'warning';
+        if (overall === 'pass') overall = 'warning';
       }
 
       // SSL Test

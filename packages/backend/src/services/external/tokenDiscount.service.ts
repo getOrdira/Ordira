@@ -6,7 +6,7 @@ import { TOKEN_DISCOUNT_TIERS } from '../../constants/tokenDiscounts';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2022-11-15',
 });
 
 // Initialize Web3 provider and contract
@@ -197,13 +197,14 @@ export class TokenDiscountService {
   async applyDiscountToCustomer(
     customerId: string, 
     walletAddress: string,
+    subscriptionId?: string,
     options: {
       subscriptionId?: string;
       validateBalance?: boolean;
     } = {}
   ): Promise<StripeDiscountApplication> {
     try {
-      const { subscriptionId, validateBalance = true } = options;
+      const { subscriptionId = undefined } = options;
       
       // Get the best available coupon
       const couponId = await this.getCouponForWallet(walletAddress);
@@ -213,7 +214,7 @@ export class TokenDiscountService {
           couponId: '',
           discountId: '',
           customerId,
-          subscriptionId,
+          subscriptionId: subscriptionId || undefined,
           applied: false,
           error: 'No eligible discount found'
         };
@@ -263,7 +264,7 @@ export class TokenDiscountService {
         couponId: '',
         discountId: '',
         customerId,
-        subscriptionId,
+        subscriptionId: subscriptionId || undefined,
         applied: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
