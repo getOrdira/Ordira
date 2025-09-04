@@ -4,6 +4,7 @@ import { VotingRecord } from '../../models/votingRecord.model';
 import { NftCertificate } from '../../models/nftCertificate.model';
 import { BillingService } from '../external/billing.service';
 import { NotificationService } from './notification.service';
+import { Business } from '../../models/business.model';
 
 export interface SubscriptionSummary {
   id: string;
@@ -42,6 +43,19 @@ export interface SubscriptionSummary {
   };
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface UsageLimitsCheck {
+  allowed: boolean;
+  message?: string;
+  overage?: number;
+  cost?: number;
+  invoiceId?: string; // Add this field
+  chargeId?: string;  // Add this field (optional)
+  remaining?: number;
+  resetDate?: Date;
+  planLimit?: number;
+  currentUsage?: number;
 }
 
 export interface CreateSubscriptionData {
@@ -90,7 +104,7 @@ export class SubscriptionService {
       throw new SubscriptionError('Subscription not found', 404);
     }
 
-    return this.mapToSummary(subscription);
+    return await this.mapToSummary(subscription);
   }
 
   /**
@@ -132,55 +146,60 @@ export class SubscriptionService {
     // Send welcome notification
     await this.notificationService.sendSubscriptionWelcome(data.businessId, subscription.tier);
 
-    return this.mapToSummary(subscription);
+    return await this.mapToSummary(subscription);
   }
 
-  /**
-   * Update an existing subscription
-   */
-  async updateSubscription(
-    businessId: string, 
-    data: UpdateSubscriptionData
-  ): Promise<SubscriptionSummary> {
-    const subscription = await Subscription.findByBusiness(businessId);
-    if (!subscription) {
-      throw new SubscriptionError('Subscription not found', 404);
+ /**
+ * Update an existing subscription
+ */
+async updateSubscription(
+  businessId: string, 
+  data: UpdateSubscriptionData
+): Promise<SubscriptionSummary> {
+  const subscription = await Subscription.findByBusiness(businessId);
+  if (!subscription) {
+    throw new SubscriptionError('Subscription not found', 404);
+  }
+
+  // Handle tier changes with validation
+  if (data.tier && data.tier !== subscription.tier) {
+    const validation = await this.validateTierChange(subscription, data.tier);
+    if (!validation.allowed) {
+      throw new SubscriptionError(
+        `Tier change not allowed: ${validation.reasons?.join(', ')}`, 
+        400
+      );
     }
+  }
 
-    // Handle tier changes with validation
-    if (data.tier && data.tier !== subscription.tier) {
-      const validation = await this.validateTierChange(subscription, data.tier);
-      if (!validation.allowed) {
-        throw new SubscriptionError(
-          `Tier change not allowed: ${validation.reasons?.join(', ')}`, 
-          400
-        );
-      }
-    }
+  // Store old tier for notification
+  const oldTier = subscription.tier;
 
-    // Update subscription
-    Object.assign(subscription, data);
-    await subscription.save();
+  // Update subscription
+  Object.assign(subscription, data);
+  await subscription.save();
 
-    // Handle billing integration updates
-    if (data.tier || data.billingCycle) {
-      await this.billingService.updateSubscription(businessId, {
-        tier: subscription.tier,
-        billingCycle: subscription.billingCycle
-      });
-    }
+  // Handle billing integration updates
+  if (data.tier || data.billingCycle) {
+    await this.billingService.changePlan(businessId, subscription.tier, {
+      billingCycle: subscription.billingCycle
+    });
+  }
 
-    // Send tier change notification
-    if (data.tier) {
-      await this.notificationService.sendTierChangeNotification(
-        businessId, 
-        subscription.tier, 
+  // Send tier change notification
+  if (data.tier) {
+    const business = await Business.findById(businessId);
+    if (business?.email) {
+      await this.notificationService.sendPlanChangeNotification(
+        business.email,
+        oldTier,
         data.tier
       );
     }
-
-    return this.mapToSummary(subscription);
   }
+
+  return await this.mapToSummary(subscription);
+}
 
   /**
    * Cancel a subscription
@@ -246,139 +265,236 @@ export class SubscriptionService {
     };
   }
 
-  /**
-   * Check voting limits before allowing votes
-   */
-  async checkVotingLimits(businessId: string, votesToAdd: number = 1): Promise<UsageLimitsCheck> {
-    const subscription = await Subscription.findByBusiness(businessId);
-    if (!subscription) {
-      throw new SubscriptionError('Subscription not found', 404);
-    }
+ /**
+ * Check voting limits before allowing votes
+ */
+async checkVotingLimits(businessId: string, votesToAdd: number = 1): Promise<UsageLimitsCheck> {
+  const subscription = await Subscription.findByBusiness(businessId);
+  if (!subscription) {
+    throw new SubscriptionError('Subscription not found', 404);
+  }
 
-    if (subscription.status !== 'active') {
+  if (subscription.status !== 'active') {
+    return {
+      allowed: false,
+      message: `Subscription is ${subscription.status}. Please activate your subscription to continue voting.`
+    };
+  }
+
+  const limitCheck = await subscription.checkVoteLimit(votesToAdd);
+  
+  if (!limitCheck.allowed && limitCheck.overage) {
+    const overageCost = limitCheck.overage * subscription.surchargePerVote;
+    
+    if (!subscription.allowOverage) {
       return {
         allowed: false,
-        message: `Subscription is ${subscription.status}. Please activate your subscription to continue voting.`
+        overage: limitCheck.overage,
+        message: `Monthly vote limit of ${subscription.voteLimit} would be exceeded by ${limitCheck.overage} votes. Upgrade your plan for more voting capacity.`
       };
     }
 
-    const limitCheck = await subscription.checkVoteLimit(votesToAdd);
-    
-    if (!limitCheck.allowed && limitCheck.overage) {
-      const overageCost = limitCheck.overage * subscription.surchargePerVote;
-      
-      if (!subscription.allowOverage) {
-        return {
-          allowed: false,
-          overage: limitCheck.overage,
-          message: `Monthly vote limit of ${subscription.voteLimit} would be exceeded by ${limitCheck.overage} votes. Upgrade your plan for more voting capacity.`
-        };
-      }
+    // Check if overage billing is enabled for this business
+    const overageBillingStatus = await this.billingService.isOverageBillingEnabled(businessId);
+    if (!overageBillingStatus.enabled) {
+      return {
+        allowed: false,
+        overage: limitCheck.overage,
+        message: `Overage billing not available: ${overageBillingStatus.reason}`
+      };
+    }
 
-      // Charge overage if allowed
-      await this.billingService.chargeOverage(
-        businessId, 
-        overageCost, 
-        `Vote overage: ${limitCheck.overage} votes`
-      );
+    // Charge overage if allowed
+    const chargeResult = await this.billingService.chargeOverage(
+      businessId,
+      overageCost,
+      `Vote overage: ${limitCheck.overage} votes`
+    );
+
+    if (chargeResult.success) {
+      return {
+        allowed: true,
+        overage: limitCheck.overage,
+        cost: overageCost,
+        invoiceId: chargeResult.invoiceId,
+        message: `Overage charge of $${(overageCost / 100).toFixed(2)} applied for ${limitCheck.overage} additional votes.`
+      };
+    } else {
+      // If charging failed, still track it for later billing
+      subscription.billingHistory.push({
+        date: new Date(),
+        amount: overageCost,
+        type: 'overage',
+        description: `Vote overage: ${limitCheck.overage} votes`,
+        status: 'pending'
+      });
+      await subscription.save();
 
       return {
         allowed: true,
         overage: limitCheck.overage,
         cost: overageCost,
-        message: `Overage charge of ${(overageCost / 100).toFixed(2)} applied for ${limitCheck.overage} additional votes.`
+        message: `Overage of ${limitCheck.overage} votes approved. Billing will be processed separately.`
       };
     }
-
-    return { allowed: true };
   }
 
-  /**
-   * Check NFT minting limits before allowing mints
-   */
-  async checkNftLimits(businessId: string, nftsToMint: number = 1): Promise<UsageLimitsCheck> {
-    const subscription = await Subscription.findByBusiness(businessId);
-    if (!subscription) {
-      throw new SubscriptionError('Subscription not found', 404);
-    }
+  return { allowed: true };
+}
 
-    if (subscription.status !== 'active') {
+/**
+ * Check NFT minting limits before allowing mints
+ */
+async checkNftLimits(businessId: string, nftsToMint: number = 1): Promise<UsageLimitsCheck> {
+  const subscription = await Subscription.findByBusiness(businessId);
+  if (!subscription) {
+    throw new SubscriptionError('Subscription not found', 404);
+  }
+
+  if (subscription.status !== 'active') {
+    return {
+      allowed: false,
+      message: `Subscription is ${subscription.status}. Please activate your subscription to mint NFTs.`
+    };
+  }
+
+  const limitCheck = await subscription.checkNftLimit(nftsToMint);
+  
+  if (!limitCheck.allowed && limitCheck.overage) {
+    const overageCost = limitCheck.overage * subscription.surchargePerNft;
+    
+    if (!subscription.allowOverage) {
       return {
         allowed: false,
-        message: `Subscription is ${subscription.status}. Please activate your subscription to mint NFTs.`
+        overage: limitCheck.overage,
+        message: `Monthly NFT limit of ${subscription.nftLimit} would be exceeded by ${limitCheck.overage} certificates. Upgrade your plan for more capacity.`
       };
     }
 
-    const limitCheck = await subscription.checkNftLimit(nftsToMint);
-    
-    if (!limitCheck.allowed && limitCheck.overage) {
-      const overageCost = limitCheck.overage * subscription.surchargePerNft;
-      
-      if (!subscription.allowOverage) {
-        return {
-          allowed: false,
-          overage: limitCheck.overage,
-          message: `Monthly NFT limit of ${subscription.nftLimit} would be exceeded by ${limitCheck.overage} certificates. Upgrade your plan for more capacity.`
-        };
-      }
+    // Check if overage billing is enabled
+    const overageBillingStatus = await this.billingService.isOverageBillingEnabled(businessId);
+    if (!overageBillingStatus.enabled) {
+      return {
+        allowed: false,
+        overage: limitCheck.overage,
+        message: `Overage billing not available: ${overageBillingStatus.reason}`
+      };
+    }
 
-      // Charge overage if allowed
-      await this.billingService.chargeOverage(
-        businessId, 
-        overageCost, 
-        `NFT overage: ${limitCheck.overage} certificates`
-      );
+    // Charge overage if allowed
+    const chargeResult = await this.billingService.chargeOverage(
+      businessId,
+      overageCost,
+      `NFT overage: ${limitCheck.overage} certificates`
+    );
+
+    if (chargeResult.success) {
+      return {
+        allowed: true,
+        overage: limitCheck.overage,
+        cost: overageCost,
+        invoiceId: chargeResult.invoiceId,
+        message: `Overage charge of $${(overageCost / 100).toFixed(2)} applied for ${limitCheck.overage} additional NFT certificates.`
+      };
+    } else {
+      // Track for later billing
+      subscription.billingHistory.push({
+        date: new Date(),
+        amount: overageCost,
+        type: 'overage',
+        description: `NFT overage: ${limitCheck.overage} certificates`,
+        status: 'pending'
+      });
+      await subscription.save();
 
       return {
         allowed: true,
         overage: limitCheck.overage,
         cost: overageCost,
-        message: `Overage charge of ${(overageCost / 100).toFixed(2)} applied for ${limitCheck.overage} additional NFT certificates.`
+        message: `Overage of ${limitCheck.overage} certificates approved. Billing will be processed separately.`
       };
     }
-
-    return { allowed: true };
   }
 
-  /**
-   * Check API call limits
-   */
-  async checkApiLimits(businessId: string, callsToAdd: number = 1): Promise<UsageLimitsCheck> {
-    const subscription = await Subscription.findByBusiness(businessId);
-    if (!subscription) {
-      throw new SubscriptionError('Subscription not found', 404);
-    }
+  return { allowed: true };
+}
 
-    if (subscription.status !== 'active') {
+/**
+ * Check API call limits
+ */
+async checkApiLimits(businessId: string, callsToAdd: number = 1): Promise<UsageLimitsCheck> {
+  const subscription = await Subscription.findByBusiness(businessId);
+  if (!subscription) {
+    throw new SubscriptionError('Subscription not found', 404);
+  }
+
+  if (subscription.status !== 'active') {
+    return {
+      allowed: false,
+      message: 'Subscription is inactive. API access denied.'
+    };
+  }
+
+  const limitCheck = await subscription.checkApiLimit(callsToAdd);
+  
+  if (!limitCheck.allowed && limitCheck.overage) {
+    const overageCost = limitCheck.overage * subscription.surchargePerApiCall;
+    
+    if (!subscription.allowOverage) {
       return {
         allowed: false,
-        message: 'Subscription is inactive. API access denied.'
+        overage: limitCheck.overage,
+        message: `Monthly API limit of ${subscription.apiLimit} would be exceeded.`
       };
     }
 
-    const limitCheck = await subscription.checkApiLimit(callsToAdd);
-    
-    if (!limitCheck.allowed && limitCheck.overage) {
-      const overageCost = limitCheck.overage * subscription.surchargePerApiCall;
-      
-      if (!subscription.allowOverage) {
-        return {
-          allowed: false,
-          overage: limitCheck.overage,
-          message: `Monthly API limit of ${subscription.apiLimit} would be exceeded. Upgrade your plan for more API capacity.`
-        };
-      }
+    // Check if overage billing is enabled
+    const overageBillingStatus = await this.billingService.isOverageBillingEnabled(businessId);
+    if (!overageBillingStatus.enabled) {
+      return {
+        allowed: false,
+        overage: limitCheck.overage,
+        message: `API overage billing not available: ${overageBillingStatus.reason}`
+      };
+    }
+
+    // Charge overage
+    const chargeResult = await this.billingService.chargeOverage(
+      businessId,
+      overageCost,
+      `API overage: ${limitCheck.overage} calls`
+    );
+
+    if (chargeResult.success) {
+      return {
+        allowed: true,
+        overage: limitCheck.overage,
+        cost: overageCost,
+        invoiceId: chargeResult.invoiceId,
+        message: `API overage charge of $${(overageCost / 100).toFixed(2)} applied.`
+      };
+    } else {
+      // Track for later billing
+      subscription.billingHistory.push({
+        date: new Date(),
+        amount: overageCost,
+        type: 'overage',
+        description: `API overage: ${limitCheck.overage} calls`,
+        status: 'pending'
+      });
+      await subscription.save();
 
       return {
         allowed: true,
         overage: limitCheck.overage,
         cost: overageCost,
-        message: `API overage charges may apply.`
+        message: `API overage approved. Billing will be processed separately.`
       };
     }
-
-    return { allowed: true };
   }
+
+  return { allowed: true };
+}
 
   /**
    * Record vote usage
@@ -693,42 +809,42 @@ export class SubscriptionService {
     return recommendations;
   }
 
-  /**
-   * Map subscription to summary format
-   */
-  private mapToSummary(subscription: ISubscription): SubscriptionSummary {
-    return {
-      id: subscription._id.toString(),
-      businessId: subscription.business.toString(),
-      tier: subscription.tier,
-      status: subscription.status,
-      limits: {
-        votes: subscription.voteLimit,
-        nfts: subscription.nftLimit,
-        api: subscription.apiLimit,
-        storage: subscription.storageLimit
-      },
-      usage: {
-        votes: subscription.currentVoteUsage,
-        nfts: subscription.currentNftUsage,
-        api: subscription.currentApiUsage,
-        storage: subscription.currentStorageUsage
-      },
-      usagePercentages: subscription.getUsagePercentages(),
-      features: subscription.features,
-      billing: {
-        nextBillingDate: subscription.nextBillingDate,
-        billingCycle: subscription.billingCycle,
-        nextPaymentAmount: subscription.nextPaymentAmount,
-        isTrialPeriod: subscription.isTrialPeriod,
-        trialEndsAt: subscription.trialEndsAt
-      },
-      overage: {
-        cost: await subscription.calculateOverageCost(),
-        allowed: subscription.allowOverage
-      },
-      createdAt: subscription.createdAt,
-      updatedAt: subscription.updatedAt
-    };
-  }
+ /**
+ * Map subscription to summary format
+ */
+private async mapToSummary(subscription: ISubscription): Promise<SubscriptionSummary> {
+  return {
+    id: subscription._id.toString(),
+    businessId: subscription.business.toString(),
+    tier: subscription.tier,
+    status: subscription.status,
+    limits: {
+      votes: subscription.voteLimit,
+      nfts: subscription.nftLimit,
+      api: subscription.apiLimit,
+      storage: subscription.storageLimit
+    },
+    usage: {
+      votes: subscription.currentVoteUsage,
+      nfts: subscription.currentNftUsage,
+      api: subscription.currentApiUsage,
+      storage: subscription.currentStorageUsage
+    },
+    usagePercentages: subscription.getUsagePercentages(),
+    features: subscription.features,
+    billing: {
+      nextBillingDate: subscription.nextBillingDate,
+      billingCycle: subscription.billingCycle,
+      nextPaymentAmount: subscription.nextPaymentAmount,
+      isTrialPeriod: subscription.isTrialPeriod,
+      trialEndsAt: subscription.trialEndsAt
+    },
+    overage: {
+      cost: await subscription.calculateOverageCost(),
+      allowed: subscription.allowOverage
+    },
+    createdAt: subscription.createdAt,
+    updatedAt: subscription.updatedAt
+  };
+}
 }

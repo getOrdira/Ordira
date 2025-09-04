@@ -6,6 +6,10 @@ import { Manufacturer } from '../../models/manufacturer.model';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { AnalyticsBusinessService } from './analytics.service';
 import { UtilsService } from '../utils/utils.service';
+import { VotingRecord } from '../../models/votingRecord.model';
+import { NftCertificate } from '../../models/nftCertificate.model';
+import { Invitation } from '../../models/invitation.model';
+import { Business } from '../../models/business.model';
 
 const JWT_SECRET = process.env.MFG_JWT_SECRET!;
 
@@ -640,72 +644,109 @@ async refreshToken(manufacturerId: string): Promise<{
     }));
   }
 
-  /**
-   * Get connection stats with enhanced metrics
-   */
-  async getConnectionStatus(manufacturerId: string, brandId: string): Promise<{
+/**
+ * Get connection status with enhanced metrics
+ */
+async getConnectionStatus(manufacturerId: string, brandId: string): Promise<{
   status: 'none' | 'pending' | 'connected' | 'rejected';
   connectedAt?: Date;
   history: any[];
 }> {
   try {
-    const mfg = await Manufacturer.findById(manufacturerId).populate({
-      path: 'brands',
-      populate: {
-        path: 'business',
-        select: 'businessName industry createdAt'
-      }
-    });
+    // First check for any invitation between this manufacturer and brand
+    const invitation = await Invitation.findOne({
+      manufacturer: manufacturerId,
+      brand: brandId
+    }).sort({ createdAt: -1 }); // Get the most recent invitation
 
+    // Build history array
+    const history: any[] = [];
+
+    if (invitation) {
+      // Add invitation creation event
+      history.push({
+        event: 'invitation_sent',
+        timestamp: invitation.createdAt,
+        details: 'Connection invitation was sent'
+      });
+
+      // Add response event if responded
+      if (invitation.respondedAt) {
+        const eventType = invitation.status === 'accepted' 
+          ? 'connection_accepted' 
+          : invitation.status === 'declined' 
+            ? 'connection_declined'
+            : 'connection_updated';
+        
+        history.push({
+          event: eventType,
+          timestamp: invitation.respondedAt,
+          details: `Invitation was ${invitation.status}`
+        });
+      }
+
+      // Return status based on invitation
+      switch (invitation.status) {
+        case 'accepted':
+          return {
+            status: 'connected',
+            connectedAt: invitation.respondedAt || invitation.createdAt,
+            history
+          };
+
+        case 'pending':
+          return {
+            status: 'pending',
+            connectedAt: undefined,
+            history
+          };
+
+        case 'declined':
+        case 'cancelled':
+        case 'expired':
+        case 'disconnected':
+          return {
+            status: 'rejected',
+            connectedAt: undefined,
+            history
+          };
+
+        default:
+          return {
+            status: 'none',
+            connectedAt: undefined,
+            history
+          };
+      }
+    }
+
+    // No invitation found - check if connected via the manufacturer's brands array
+    const mfg = await Manufacturer.findById(manufacturerId);
     if (!mfg) {
       throw { statusCode: 404, message: 'Manufacturer not found' };
     }
 
-    // Check if this brand is in the manufacturer's connected brands
-    const connectedBrand = mfg.brands?.find((brand: any) => 
-      brand.business?._id?.toString() === brandId || brand._id?.toString() === brandId
+    // Check if this brand is in the manufacturer's connected brands array
+    const isConnectedViaBrandsArray = mfg.brands?.some((brandObjectId: any) => 
+      brandObjectId.toString() === brandId
     );
 
-    if (connectedBrand) {
+    if (isConnectedViaBrandsArray) {
+      // Connected but no invitation record (might be legacy connection)
       return {
         status: 'connected',
-        connectedAt: connectedBrand.createdAt || new Date(),
+        connectedAt: mfg.createdAt, // Fallback to manufacturer creation date
         history: [
           {
             event: 'connection_established',
-            timestamp: connectedBrand.createdAt || new Date(),
-            details: `Connected with ${connectedBrand.business?.businessName || 'brand'}`
+            timestamp: mfg.createdAt,
+            details: 'Connection established (legacy)'
           }
         ]
       };
     }
 
-    // If you have an Invitation/Connection Request model, check for pending status
-    // For now, we'll check if there might be a pending invitation
-    // You might want to create an Invitation model and check it here
-    
-    // Example if you have an Invitation model:
-    // const pendingInvitation = await Invitation.findOne({
-    //   manufacturer: manufacturerId,
-    //   brand: brandId,
-    //   status: 'pending'
-    // });
-    
-    // if (pendingInvitation) {
-    //   return {
-    //     status: 'pending',
-    //     connectedAt: undefined,
-    //     history: [
-    //       {
-    //         event: 'invitation_sent',
-    //         timestamp: pendingInvitation.createdAt,
-    //         details: 'Invitation sent, awaiting response'
-    //       }
-    //     ]
-    //   };
-    // }
-
-    // Default to no connection
+    // No connection found
     return {
       status: 'none',
       connectedAt: undefined,
@@ -721,25 +762,6 @@ async refreshToken(manufacturerId: string): Promise<{
     };
   }
 }
-
-  private generateConnectionTrend(brands: any[]): Array<{ month: string; connections: number }> {
-    const monthCounts = new Map<string, number>();
-    
-    brands.forEach(brand => {
-      if (brand.createdAt) {
-        const monthKey = UtilsService.formatDate(brand.createdAt, { 
-          year: 'numeric', 
-          month: 'short' 
-        });
-        monthCounts.set(monthKey, (monthCounts.get(monthKey) || 0) + 1);
-      }
-    });
-
-    return Array.from(monthCounts.entries())
-      .map(([month, connections]) => ({ month, connections }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
-      .slice(-6); // Last 6 months
-  }
 
   /**
  * Check if a manufacturer can connect to a specific brand
@@ -993,10 +1015,37 @@ async getConnectionRequestStatus(manufacturerId: string, brandId: string): Promi
   }
 
   /**
+ * Get connection statistics for a manufacturer
+ */
+async getConnectionStats(manufacturerId: string): Promise<{
+  totalConnections: number;
+  pendingInvitations: number;
+  acceptedInvitations: number;
+  declinedInvitations: number;
+}> {
+  const [total, pending, accepted, declined] = await Promise.all([
+    Invitation.countDocuments({ manufacturer: manufacturerId }),
+    Invitation.countDocuments({ manufacturer: manufacturerId, status: 'pending' }),
+    Invitation.countDocuments({ manufacturer: manufacturerId, status: 'accepted' }),
+    Invitation.countDocuments({ 
+      manufacturer: manufacturerId, 
+      status: { $in: ['declined', 'cancelled', 'expired', 'disconnected'] }
+    })
+  ]);
+
+  return {
+    totalConnections: total,
+    pendingInvitations: pending,
+    acceptedInvitations: accepted,
+    declinedInvitations: declined
+  };
+}
+
+/**
  * Get comprehensive manufacturer analytics
  */
 async getManufacturerAnalytics(
-  manufacturerId: string, 
+  manufacturerId: string,
   options?: {
     timeframe?: string;
     brandId?: string;
@@ -1024,7 +1073,11 @@ async getManufacturerAnalytics(
     }
 
     const connectedBrands = manufacturer.brands || [];
-    const brandIds = brandId ? [brandId] : connectedBrands.map(b => b._id);
+    
+    // Fix: Convert ObjectIds to strings
+    const brandIds: string[] = brandId 
+      ? [brandId] 
+      : connectedBrands.map(b => b._id.toString()); // Convert ObjectId to string
 
     // Initialize analytics result
     const analytics: any = {
@@ -1070,7 +1123,6 @@ async getManufacturerAnalytics(
     throw new Error(`Failed to get manufacturer analytics: ${error.message}`);
   }
 }
-
   /**
    * Get comprehensive analytics for a brand with enhanced metrics
    */

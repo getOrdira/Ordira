@@ -1,6 +1,7 @@
 // src/services/business/notification.service.ts
 import { Notification, INotification } from '../../models/notification.model';
 import { Types } from 'mongoose';
+import { Business } from '../../models/business.model';
 
 export interface NotificationSummary {
   id: string;
@@ -16,6 +17,12 @@ export interface NotificationStats {
   unread: number;
   byType: Record<string, number>;
   recent: number;
+}
+
+export interface EmailTemplate {
+  subject: string;
+  text: string;
+  html?: string;
 }
 
 export interface NotificationPreferences {
@@ -342,8 +349,6 @@ export class NotificationService {
   }
 
   
-
-
   async sendPlanChangeNotification(email: string, oldPlan: string, newPlan: string): Promise<void> {
     const subject = `Plan Changed: Welcome to ${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)}!`;
     const template = 'plan-change';
@@ -404,6 +409,95 @@ export class NotificationService {
       }
     });
   }
+
+  /**
+ * Send welcome notification for new subscription
+ */
+async sendSubscriptionWelcome(businessId: string, tier: string): Promise<void> {
+  try {
+    // Get business details
+    const business = await Business.findById(businessId);
+    if (!business) {
+      throw new Error('Business not found for subscription welcome');
+    }
+
+    const subject = `Welcome to ${tier.charAt(0).toUpperCase() + tier.slice(1)}!`;
+    
+    const templateData = {
+      businessName: business.businessName || `${business.firstName} ${business.lastName}`,
+      email: business.email,
+      plan: tier.charAt(0).toUpperCase() + tier.slice(1),
+      welcomeDate: new Date().toLocaleDateString(),
+      // Plan-specific benefits
+      planFeatures: this.getPlanFeatures(tier),
+      // Support information
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      dashboardUrl: `${process.env.FRONTEND_URL}/dashboard`,
+      billingUrl: `${process.env.FRONTEND_URL}/billing`,
+      year: new Date().getFullYear()
+    };
+
+    await this.sendEmail({
+      to: business.email,
+      subject,
+      template: 'subscription-welcome',
+      data: templateData
+    });
+
+    console.log(`Subscription welcome sent to: ${business.email} for ${tier} plan`);
+
+  } catch (error) {
+    console.error('Failed to send subscription welcome:', error);
+    // Don't throw - this shouldn't break subscription creation
+  }
+}
+
+/**
+ * Send cancellation notification (enhanced version)
+ */
+async sendCancellationNotification(
+  businessId: string, 
+  effectiveDate: Date, 
+  refund?: any,
+  planName?: string  // Add this parameter
+): Promise<void> {
+  try {
+    const business = await Business.findById(businessId);
+    if (!business) {
+      throw new Error('Business not found for cancellation notification');
+    }
+
+    const plan = planName || 'subscription';
+
+    const subject = 'Subscription Cancelled - We\'re Sorry to See You Go';
+    
+    const templateData = {
+      businessName: business.businessName || `${business.firstName} ${business.lastName}`,
+      email: business.email,
+      plan: plan.charAt(0).toUpperCase() + plan.slice(1),
+      cancelDate: new Date().toLocaleDateString(),
+      effectiveDate: effectiveDate.toLocaleDateString(),
+      hasRefund: !!refund,
+      refundAmount: refund ? (refund.amount / 100).toFixed(2) : null,
+      feedbackUrl: `${process.env.FRONTEND_URL}/feedback`,
+      supportEmail: process.env.SUPPORT_EMAIL || 'support@yourcompany.com',
+      reactivationUrl: `${process.env.FRONTEND_URL}/billing`,
+      year: new Date().getFullYear()
+    };
+
+    await this.sendEmail({
+      to: business.email,
+      subject,
+      template: 'subscription-cancellation',
+      data: templateData  // Use 'data' not 'templateData'
+    });
+
+    console.log(`Cancellation notification sent to: ${business.email}`);
+
+  } catch (error) {
+    console.error('Failed to send cancellation notification:', error);
+  }
+}
 
   /**
    * Helper methods
@@ -468,6 +562,41 @@ private getVerificationSubmissionEmailTemplate(
       </div>
     `
   };
+}
+
+/**
+ * Helper method to get plan features
+ */
+private getPlanFeatures(plan: string): string[] {
+  const features = {
+    foundation: [
+      'Basic voting features',
+      'Limited API access',
+      'Community support'
+    ],
+    growth: [
+      'Enhanced voting features',
+      'Increased API limits',
+      'Email support',
+      'Basic analytics'
+    ],
+    premium: [
+      'Advanced voting features',
+      'Priority API access',
+      'Priority support',
+      'Advanced analytics',
+      'Custom branding'
+    ],
+    enterprise: [
+      'Full feature access',
+      'Unlimited API access',
+      'Dedicated support',
+      'Custom integrations',
+      'White-label options'
+    ]
+  };
+
+  return features[plan as keyof typeof features] || features.foundation;
 }
 
 /**

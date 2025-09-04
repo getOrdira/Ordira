@@ -244,89 +244,87 @@ export class MediaService {
   }
 
   /**
-   * List media uploaded by a given user/business with enhanced filtering
-   */
-  async listMediaByUser(
-    uploaderId: string,
-    options: MediaListOptions = {}
-  ): Promise<{
-    media: IMedia[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    try {
-      if (!uploaderId?.trim()) {
-        throw new MediaError('Uploader ID is required', 400, 'MISSING_UPLOADER_ID');
-      }
-
-      const page = options.page && options.page > 0 ? options.page : 1;
-      const limit = options.limit && options.limit > 0 && options.limit <= 200 ? options.limit : 50;
-      const offset = options.offset || (page - 1) * limit;
-
-      // Validate pagination parameters
-      if (page > 10000) {
-        throw new MediaError('Page number too large', 400, 'INVALID_PAGE');
-      }
-
-      // Build filter
-      const filter: Record<string, any> = { uploadedBy: uploaderId };
-      
-      if (options.type) filter.type = options.type;
-      if (options.category) filter.category = options.category;
-      if (options.isPublic !== undefined) filter.isPublic = options.isPublic;
-      
-      // Handle tags filtering
-      if (options.tags && options.tags.length > 0) {
-        filter.tags = { $in: options.tags };
-      }
-      
-      // Handle search
-      if (options.search) {
-        filter.$or = [
-          { originalName: { $regex: options.search, $options: 'i' } },
-          { filename: { $regex: options.search, $options: 'i' } },
-          { description: { $regex: options.search, $options: 'i' } },
-          { tags: { $in: [new RegExp(options.search, 'i')] } }
-        ];
-      }
-
-      // Build sort
-      const sortField = options.sortBy || 'createdAt';
-      const sortOrder = options.sortOrder === 'asc' ? 1 : -1;
-      const sortQuery: {
-        [x: string]: number;
-        } = { [sortField]: sortOrder };
-
-      const [media, total] = await Promise.all([
-        Media
-          .find(filter)
-          .sort(sortQuery)
-          .skip(offset)
-          .limit(limit)
-          .exec(),
-        Media.countDocuments(filter)
-      ]);
-
-      return {
-        media,
-        total,
-        page,
-        totalPages: Math.ceil(total / limit)
-      };
-    } catch (error: any) {
-      if (error instanceof MediaError) {
-        throw error;
-      }
-
-      // Handle database connection errors
-      if (error.name === 'MongooseError' || error.name === 'MongoError') {
-        throw new MediaError('Database error while fetching media', 503, 'DATABASE_ERROR');
-      }
-
-      throw new MediaError(`Failed to list media: ${error.message}`, 500, 'LIST_ERROR');
+ * List media uploaded by a given user/business with enhanced filtering
+ */
+async listMediaByUser(
+  uploaderId: string,
+  options: MediaListOptions = {}
+): Promise<{
+  media: IMedia[];
+  total: number;
+  page: number;
+  totalPages: number;
+}> {
+  try {
+    if (!uploaderId?.trim()) {
+      throw new MediaError('Uploader ID is required', 400, 'MISSING_UPLOADER_ID');
     }
+
+    const page = options.page && options.page > 0 ? options.page : 1;
+    const limit = options.limit && options.limit > 0 && options.limit <= 200 ? options.limit : 50;
+    const offset = options.offset || (page - 1) * limit;
+
+    // Validate pagination parameters
+    if (page > 10000) {
+      throw new MediaError('Page number too large', 400, 'INVALID_PAGE');
+    }
+
+    // Build filter
+    const filter: Record<string, any> = { uploadedBy: uploaderId };
+    
+    if (options.type) filter.type = options.type;
+    if (options.category) filter.category = options.category;
+    if (options.isPublic !== undefined) filter.isPublic = options.isPublic;
+    
+    // Handle tags filtering
+    if (options.tags && options.tags.length > 0) {
+      filter.tags = { $in: options.tags };
+    }
+    
+    // Handle search
+    if (options.search) {
+      filter.$or = [
+        { originalName: { $regex: options.search, $options: 'i' } },
+        { filename: { $regex: options.search, $options: 'i' } },
+        { description: { $regex: options.search, $options: 'i' } },
+        { tags: { $in: [new RegExp(options.search, 'i')] } }
+      ];
+    }
+
+    // Build sort - Fix: Remove type annotation and use proper typing
+    const sortField = options.sortBy || 'createdAt';
+    const sortDirection = options.sortOrder === 'asc' ? '' : '-';
+    const sortString = `${sortDirection}${sortField}`;
+
+    const [media, total] = await Promise.all([
+      Media
+        .find(filter)
+        .sort(sortString) // Use string instead of object
+        .skip(offset)
+        .limit(limit)
+        .exec(),
+      Media.countDocuments(filter)
+    ]);
+
+    return {
+      media,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
+  } catch (error: any) {
+    if (error instanceof MediaError) {
+      throw error;
+    }
+
+    // Handle database connection errors
+    if (error.name === 'MongooseError' || error.name === 'MongoError') {
+      throw new MediaError('Database error while fetching media', 503, 'DATABASE_ERROR');
+    }
+
+    throw new MediaError(`Failed to list media: ${error.message}`, 500, 'LIST_ERROR');
   }
+}
 
   /**
    * Get storage statistics for a user - NEW METHOD

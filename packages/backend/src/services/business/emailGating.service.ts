@@ -3,8 +3,9 @@ import { AllowedCustomer, IAllowedCustomer } from '../../models/allowedCustomer.
 import { User } from '../../models/user.model';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { NotificationService } from './notification.service';
+import { NotificationsService } from '../external/notifications.service';
 import { ShopifyService } from '../external/shopify.service';
-import { UtilsService } from '../external/utils.service';
+import { UtilsService } from '../utils/utils.service';
 
 export interface CustomerImportData {
   email: string;
@@ -66,7 +67,7 @@ class EmailGatingError extends Error {
 }
 
 export class EmailGatingService {
-  private notificationService = new NotificationService();
+  private notificationsService = new NotificationsService();
   private shopifyService = new ShopifyService();
 
   /**
@@ -324,45 +325,86 @@ export class EmailGatingService {
     };
   }
 
-  /**
-   * Sync customers from Shopify
-   */
-  async syncFromShopify(businessId: string): Promise<{
-    synced: number;
-    errors: string[];
-  }> {
-    try {
-      // Get Shopify settings from brand settings
-      const brandSettings = await BrandSettings.findOne({ business: businessId });
-      if (!brandSettings?.shopifyDomain) {
-        throw new EmailGatingError('Shopify integration not configured', 400);
-      }
-
-      // Get Shopify customers
-      const shopifyCustomers = await this.shopifyService.getCustomers(businessId);
-      
-      const customers: CustomerImportData[] = shopifyCustomers.map(customer => ({
-        email: customer.email,
-        firstName: customer.first_name,
-        lastName: customer.last_name,
-        externalCustomerId: customer.id.toString(),
-        tags: customer.tags?.split(',').map(t => t.trim()) || [],
-        vipStatus: customer.tags?.includes('VIP') || false
-      }));
-
-      const result = await this.addCustomers(businessId, customers, 'shopify');
-      
-      return {
-        synced: result.imported + result.updated,
-        errors: result.errors
-      };
-    } catch (error: any) {
-      return {
-        synced: 0,
-        errors: [error.message]
-      };
+/**
+ * Sync customers from Shopify
+ */
+async syncFromShopify(businessId: string): Promise<{
+  synced: number;
+  errors: string[];
+}> {
+  try {
+    // Get Shopify settings from brand settings
+    const brandSettings = await BrandSettings.findOne({ business: businessId });
+    if (!brandSettings?.shopifyDomain || !brandSettings?.shopifyAccessToken) {
+      throw new EmailGatingError('Shopify integration not configured', 400);
     }
+
+    // Get Shopify customers directly using Shopify Admin API
+    const shopifyCustomers = await this.fetchShopifyCustomers(brandSettings);
+    
+    const customers: CustomerImportData[] = shopifyCustomers.map(customer => ({
+      email: customer.email,
+      firstName: customer.first_name,
+      lastName: customer.last_name,
+      externalCustomerId: customer.id.toString(),
+      tags: customer.tags?.split(',').map(t => t.trim()) || [],
+      vipStatus: customer.tags?.includes('VIP') || false
+    }));
+
+    // Use 'api_import' as the source since this is an API-based import
+    const result = await this.addCustomers(businessId, customers, 'api_import');
+    
+    return {
+      synced: result.imported + result.updated,
+      errors: result.errors
+    };
+  } catch (error: any) {
+    return {
+      synced: 0,
+      errors: [error.message]
+    };
   }
+}
+
+/**
+ * Fetch customers directly from Shopify API
+ */
+private async fetchShopifyCustomers(brandSettings: any): Promise<Array<{
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  tags?: string;
+}>> {
+  try {
+    const axios = require('axios');
+    const response = await axios.get(
+      `https://${brandSettings.shopifyDomain}/admin/api/2024-01/customers.json`,
+      {
+        headers: { 'X-Shopify-Access-Token': brandSettings.shopifyAccessToken },
+        params: { limit: 250 }
+      }
+    );
+
+    if (!response.data?.customers || !Array.isArray(response.data.customers)) {
+      throw new Error('Invalid response from Shopify customers API');
+    }
+
+    return response.data.customers.filter((customer: any) => customer.email);
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      throw new Error('Shopify access token is invalid or expired');
+    }
+    if (error.response?.status === 403) {
+      throw new Error('Insufficient permissions to access Shopify customers');
+    }
+    if (error.response?.status >= 500) {
+      throw new Error('Shopify API is currently unavailable');
+    }
+    
+    throw new Error(`Failed to fetch Shopify customers: ${error.message}`);
+  }
+}
 
   /**
    * Get allowed customers for a business
@@ -446,55 +488,55 @@ export class EmailGatingService {
     return this.getEmailGatingSettings(businessId);
   }
 
-  /**
-   * Revoke access for a customer
-   */
-  async revokeCustomerAccess(
-    businessId: string,
-    customerId: string,
-    reason?: string,
-    revokedBy?: string
-  ): Promise<CustomerSummary> {
-    const customer = await AllowedCustomer.findOne({
-      _id: customerId,
-      business: businessId
-    });
+/**
+ * Revoke access for a customer
+ */
+async revokeCustomerAccess(
+  businessId: string,
+  customerId: string,
+  reason?: string,
+  revokedBy?: string
+): Promise<CustomerSummary> {
+  const customer = await AllowedCustomer.findOne({
+    _id: customerId,
+    business: businessId
+  });
 
-    if (!customer) {
-      throw new EmailGatingError('Customer not found', 404);
-    }
-
-    await customer.revokeAccess(reason, revokedBy);
-    
-    // Send notification to customer
-    await this.notificationService.sendAccessRevokedNotification(
-      customer.email,
-      reason || 'Access revoked by brand'
-    );
-
-    return this.mapToSummary(customer);
+  if (!customer) {
+    throw new EmailGatingError('Customer not found', 404);
   }
 
-  /**
-   * Restore access for a customer
-   */
-  async restoreCustomerAccess(businessId: string, customerId: string): Promise<CustomerSummary> {
-    const customer = await AllowedCustomer.findOne({
-      _id: customerId,
-      business: businessId
-    });
+  await customer.revokeAccess(reason, revokedBy);
+  
+  // Send notification to customer using the new method
+  await this.notificationsService.sendAccessRevokedNotification(
+    customer.email,
+    reason || 'Access revoked by brand'
+  );
 
-    if (!customer) {
-      throw new EmailGatingError('Customer not found', 404);
-    }
+  return this.mapToSummary(customer);
+}
 
-    await customer.grantAccess();
-    
-    // Send welcome back notification
-    await this.notificationService.sendAccessRestoredNotification(customer.email);
+/**
+ * Restore access for a customer
+ */
+async restoreCustomerAccess(businessId: string, customerId: string): Promise<CustomerSummary> {
+  const customer = await AllowedCustomer.findOne({
+    _id: customerId,
+    business: businessId
+  });
 
-    return this.mapToSummary(customer);
+  if (!customer) {
+    throw new EmailGatingError('Customer not found', 404);
   }
+
+  await customer.grantAccess();
+  
+  // Send welcome back notification using the new method
+  await this.notificationsService.sendAccessRestoredNotification(customer.email);
+
+  return this.mapToSummary(customer);
+}
 
   /**
    * Get customer analytics

@@ -10,7 +10,7 @@ export interface InvitationSummary {
   manufacturerId: string;
   brandName?: string;
   manufacturerName?: string;
-  status: 'pending' | 'accepted' | 'declined';
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled' | 'disconnected'; // Updated to match model
   createdAt: Date;
   respondedAt?: Date;
 }
@@ -175,40 +175,54 @@ export class InvitationService {
     };
   }
 
-  async getManufacturerConnectionStats(manufacturerId: string): Promise<ConnectionStats> {
-    const [total, pending, accepted, declined] = await Promise.all([
-      Invitation.countDocuments({ manufacturer: manufacturerId }),
-      Invitation.countDocuments({ manufacturer: manufacturerId, status: 'pending' }),
-      Invitation.countDocuments({ manufacturer: manufacturerId, status: 'accepted' }),
-      Invitation.countDocuments({ manufacturer: manufacturerId, status: 'declined' })
-    ]);
+ async getManufacturerConnectionStats(manufacturerId: string): Promise<ConnectionStats> {
+  const [total, pending, accepted, declined] = await Promise.all([
+    Invitation.countDocuments({ manufacturer: manufacturerId }),
+    Invitation.countDocuments({ manufacturer: manufacturerId, status: 'pending' }),
+    Invitation.countDocuments({ manufacturer: manufacturerId, status: 'accepted' }),
+    // Include all "declined" type statuses
+    Invitation.countDocuments({ 
+      manufacturer: manufacturerId, 
+      status: { $in: ['declined', 'cancelled', 'expired', 'disconnected'] }
+    })
+  ]);
 
-    return {
-      totalConnections: total,
-      pendingInvitations: pending,
-      acceptedInvitations: accepted,
-      declinedInvitations: declined
-    };
-  }
+  return {
+    totalConnections: total,
+    pendingInvitations: pending,
+    acceptedInvitations: accepted,
+    declinedInvitations: declined
+  };
+}
 
-  async getConnectedManufacturers(brandId: string): Promise<string[]> {
-    const brandSettings = await BrandSettings.findOne({ business: brandId });
-    return brandSettings?.manufacturers || [];
-  }
+async getConnectedManufacturers(brandId: string): Promise<string[]> {
+  // Get accepted invitations to find connected manufacturers
+  const acceptedInvitations = await Invitation.find({
+    brand: brandId,
+    status: 'accepted'
+  }).select('manufacturer');
 
-  async getConnectedBrands(manufacturerId: string): Promise<string[]> {
-    const manufacturer = await Manufacturer.findById(manufacturerId);
-    return manufacturer?.brands || [];
-  }
+  return acceptedInvitations.map(invitation => invitation.manufacturer.toString());
+}
 
-  async areConnected(brandId: string, manufacturerId: string): Promise<boolean> {
-    const connection = await Invitation.findOne({
-      brand: brandId,
-      manufacturer: manufacturerId,
-      status: 'accepted'
-    });
-    return !!connection;
-  }
+async getConnectedBrands(manufacturerId: string): Promise<string[]> {
+  // Get accepted invitations to find connected brands
+  const acceptedInvitations = await Invitation.find({
+    manufacturer: manufacturerId,
+    status: 'accepted'
+  }).select('brand');
+
+  return acceptedInvitations.map(invitation => invitation.brand.toString());
+}
+
+async areConnected(brandId: string, manufacturerId: string): Promise<boolean> {
+  const connection = await Invitation.findOne({
+    brand: brandId,
+    manufacturer: manufacturerId,
+    status: 'accepted'
+  });
+  return !!connection;
+}
 
   async removeConnection(brandId: string, manufacturerId: string): Promise<void> {
     // Remove from both sides

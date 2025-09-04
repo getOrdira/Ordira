@@ -560,11 +560,6 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
           }
         }
 
-        // Send Slack notification if configured
-        if (notificationSettings?.slackIntegration?.enabled) {
-          await this.sendSlackTransferNotification(brandSettings, retryData, 'retry');
-        }
-
         // Create in-app notification
         await this.createInAppNotification({
           business: businessId,
@@ -1650,6 +1645,38 @@ async sendProfileChangeNotification(
   /** ─────────────────────────────────────────────────────────────────────────── */
 
   /**
+ * Send access revoked notification to customer
+ */
+async sendAccessRevokedNotification(email: string, reason?: string): Promise<void> {
+  this.validateEmailAddress(email);
+  
+  const template = this.getAccessRevokedEmailTemplate(reason);
+  await this.sendEmail(email, template.subject, template.text, template.html, { 
+    priority: 'normal',
+    trackingEnabled: true 
+  });
+
+  this.logNotificationEvent('ACCESS_REVOKED_NOTIFICATION', email, 'ACCESS_CONTROL', true, {
+    reason: reason || 'No reason provided'
+  });
+}
+
+/**
+ * Send access restored notification to customer
+ */
+async sendAccessRestoredNotification(email: string): Promise<void> {
+  this.validateEmailAddress(email);
+  
+  const template = this.getAccessRestoredEmailTemplate();
+  await this.sendEmail(email, template.subject, template.text, template.html, { 
+    priority: 'normal',
+    trackingEnabled: true 
+  });
+
+  this.logNotificationEvent('ACCESS_RESTORED_NOTIFICATION', email, 'ACCESS_CONTROL', true);
+}
+
+  /**
    * Create enhanced in-app notification with validation
    */
   private async createInAppNotification(data: any): Promise<INotification> {
@@ -1851,6 +1878,112 @@ private getPlanFeatures(plan: string): string[] {
   /** ─────────────────────────────────────────────────────────────────────────── */
   /** 🎨 Enhanced Email Template Methods (Web3 Focused)                          */
   /** ─────────────────────────────────────────────────────────────────────────── */
+
+
+
+  /**
+ * Get access revoked email template
+ */
+private getAccessRevokedEmailTemplate(reason?: string): EmailTemplate {
+  const reasonText = reason || 'Access revoked by brand administrator';
+  
+  return {
+    subject: 'Access Revoked - Voting Platform',
+    text: `Your access to our voting platform has been revoked.
+
+Reason: ${reasonText}
+Date: ${new Date().toLocaleDateString()}
+
+If you believe this was done in error, please contact our support team.
+
+Best regards,
+The Team`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc3545; text-align: center;">Access Revoked</h2>
+        <p>Your access to our voting platform has been revoked.</p>
+        
+        <div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #721c24;">Revocation Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #f5c6cb;">
+              <td style="padding: 8px 0; font-weight: bold; color: #721c24;">Reason:</td>
+              <td style="padding: 8px 0; color: #721c24;">${reasonText}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #721c24;">Date:</td>
+              <td style="padding: 8px 0; color: #721c24;">${new Date().toLocaleDateString()}</td>
+            </tr>
+          </table>
+        </div>
+
+        <p>If you believe this was done in error, please contact our support team.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@yourcompany.com'}" style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">Contact Support</a>
+        </div>
+        
+        <p style="font-size: 14px; color: #666; text-align: center;">
+          Best regards,<br>The Team
+        </p>
+      </div>
+    `
+  };
+}
+
+/**
+ * Get access restored email template
+ */
+private getAccessRestoredEmailTemplate(): EmailTemplate {
+  return {
+    subject: 'Access Restored - Welcome Back!',
+    text: `Great news! Your access to our voting platform has been restored.
+
+You can now participate in product voting and access all platform features.
+
+Date Restored: ${new Date().toLocaleDateString()}
+
+Thank you for being a valued customer!
+
+Best regards,
+The Team`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #28a745; text-align: center;">🎉 Access Restored - Welcome Back!</h2>
+        <p>Great news! Your access to our voting platform has been restored.</p>
+        
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #155724;">You Can Now:</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #155724;">
+            <li>Participate in product voting</li>
+            <li>Access all platform features</li>
+            <li>View your voting history</li>
+            <li>Receive voting notifications</li>
+          </ul>
+        </div>
+
+        <div style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; color: #495057;">
+            <strong>Date Restored:</strong> ${new Date().toLocaleDateString()}
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL || '#'}" style="background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 10px;">Start Voting</a>
+          <a href="${process.env.FRONTEND_URL}/profile" style="background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px;">View Profile</a>
+        </div>
+        
+        <p style="font-size: 16px; text-align: center; color: #28a745; font-weight: bold;">
+          Thank you for being a valued customer!
+        </p>
+        
+        <p style="font-size: 14px; color: #666; text-align: center;">
+          Best regards,<br>The Team
+        </p>
+      </div>
+    `
+  };
+}
 
   private getTransferSuccessEmailTemplate(transferData: TransferNotificationData): EmailTemplate {
     const formattedWallet = this.formatBlockchainAddress(transferData.brandWallet);

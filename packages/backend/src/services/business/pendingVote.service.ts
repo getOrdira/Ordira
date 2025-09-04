@@ -14,7 +14,8 @@ export interface PendingVoteRecord {
   proposalId: string;
   userId: string;
   voteId: string;
-  voteChoice: 'for' | 'against' | 'abstain';
+  selectedProductId: string;
+  productName?: string;
   userSignature?: string;
   isProcessed: boolean;
   processedAt?: Date;
@@ -184,111 +185,128 @@ export class PendingVoteService {
 
   // ===== CORE PENDING VOTE OPERATIONS =====
 
-  async listPendingVotes(
-    businessId: string,
-    options: PendingVoteListOptions = {}
-  ): Promise<{
-    votes: PendingVoteRecord[];
-    total: number;
-    pending: number;
-    processed: number;
-  }> {
-    try {
-      if (!businessId?.trim()) {
-        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
-      }
-
-      // Build query
-      const query: any = { businessId };
-      
-      if (options.proposalId) query.proposalId = options.proposalId;
-      if (options.userId) query.userId = options.userId;
-      
-      if (options.onlyProcessed) {
-        query.isProcessed = true;
-      } else if (!options.includeProcessed) {
-        query.isProcessed = false;
-      }
-
-      // Build sort
-      const sortField = options.sortBy || 'createdAt';
-      const sortOrder = options.sortOrder === 'asc' ? 1 : -1;
-      const sort = { [sortField]: sortOrder };
-
-      // Execute queries
-      const [votes, totalCount, pendingCount, processedCount] = await Promise.all([
-        PendingVote.find(query)
-          .sort(sort)
-          .limit(options.limit || 50)
-          .skip(options.offset || 0)
-          .lean(),
-        PendingVote.countDocuments(query),
-        PendingVote.countDocuments({ businessId, isProcessed: false }),
-        PendingVote.countDocuments({ businessId, isProcessed: true })
-      ]);
-
-      // Enhance vote records with additional data
-      const enhancedVotes: PendingVoteRecord[] = votes.map(vote => ({
-        id: vote._id.toString(),
-        businessId: vote.businessId,
-        proposalId: vote.proposalId,
-        userId: vote.userId,
-        voteId: vote.voteId,
-        voteChoice: vote.voteChoice,
-        userSignature: vote.userSignature,
-        isProcessed: vote.isProcessed,
-        processedAt: vote.processedAt,
-        createdAt: vote.createdAt,
-        isValid: this.validateVoteRecord(vote),
-        canProcess: this.canProcessVote(vote),
-        validationErrors: this.getValidationErrors(vote),
-        eligibleForBatch: this.isEligibleForBatch(vote),
-        estimatedGasCost: this.estimateVoteGasCost(),
-        processingPriority: this.calculateProcessingPriority(vote),
-        estimatedConfirmationTime: '2-5 minutes'
-      }));
-
-      return {
-        votes: enhancedVotes,
-        total: totalCount,
-        pending: pendingCount,
-        processed: processedCount
-      };
-    } catch (error: any) {
-      console.error('List pending votes error:', error);
-      throw createAppError(`Failed to list pending votes: ${error.message}`, 500, 'LIST_PENDING_VOTES_FAILED');
+async listPendingVotes(
+  businessId: string,
+  options: PendingVoteListOptions = {}
+): Promise<{
+  votes: PendingVoteRecord[];
+  total: number;
+  pending: number;
+  processed: number;
+}> {
+  try {
+    if (!businessId?.trim()) {
+      throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
     }
-  }
 
-  async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVoteRecord | null> {
-    try {
-      const vote = await PendingVote.findOne({ _id: voteId, businessId }).lean();
-      if (!vote) return null;
-
-      return {
-        id: vote._id.toString(),
-        businessId: vote.businessId,
-        proposalId: vote.proposalId,
-        userId: vote.userId,
-        voteId: vote.voteId,
-        voteChoice: vote.voteChoice,
-        userSignature: vote.userSignature,
-        isProcessed: vote.isProcessed,
-        processedAt: vote.processedAt,
-        createdAt: vote.createdAt,
-        isValid: this.validateVoteRecord(vote),
-        canProcess: this.canProcessVote(vote),
-        validationErrors: this.getValidationErrors(vote),
-        eligibleForBatch: this.isEligibleForBatch(vote),
-        estimatedGasCost: this.estimateVoteGasCost(),
-        processingPriority: this.calculateProcessingPriority(vote),
-        estimatedConfirmationTime: '2-5 minutes'
-      };
-    } catch (error: any) {
-      console.error('Get pending vote by ID error:', error);
-      throw createAppError(`Failed to get pending vote: ${error.message}`, 500, 'GET_PENDING_VOTE_FAILED');
+    // Build query
+    const query: any = { businessId };
+    
+    if (options.proposalId) query.proposalId = options.proposalId;
+    if (options.userId) query.userId = options.userId;
+    
+    if (options.onlyProcessed) {
+      query.isProcessed = true;
+    } else if (!options.includeProcessed) {
+      query.isProcessed = false;
     }
+
+    // Build sort - Fix the SortOrder type issue
+    const sortField = options.sortBy || 'createdAt';
+    const sortOrder: 1 | -1 = options.sortOrder === 'asc' ? 1 : -1;
+    const sort: Record<string, 1 | -1> = { [sortField]: sortOrder };
+
+    // Execute queries - Remove .lean() to get full Mongoose documents
+    const [votes, totalCount, pendingCount, processedCount] = await Promise.all([
+      PendingVote.find(query)
+        .sort(sort)
+        .limit(options.limit || 50)
+        .skip(options.offset || 0), // Removed .lean()
+      PendingVote.countDocuments(query),
+      PendingVote.countDocuments({ businessId, isProcessed: false }),
+      PendingVote.countDocuments({ businessId, isProcessed: true })
+    ]);
+
+    // Enhance vote records with additional data - Now works with full documents
+    const enhancedVotes: PendingVoteRecord[] = votes.map(vote => ({
+      id: vote._id.toString(),
+      businessId: vote.businessId,
+      proposalId: vote.proposalId,
+      userId: vote.userId,
+      voteId: vote.voteId,
+      selectedProductId: vote.selectedProductId,
+      productName: vote.productName,
+      productImageUrl: vote.productImageUrl,
+      selectionReason: vote.selectionReason,
+      userSignature: vote.userSignature,
+      isProcessed: vote.isProcessed,
+      processedAt: vote.processedAt,
+      createdAt: vote.createdAt,
+      // Additional enhanced fields - Now works properly
+      isValid: this.validateVoteRecord(vote),
+      canProcess: this.canProcessVote(vote),
+      validationErrors: this.getValidationErrors(vote),
+      eligibleForBatch: this.isEligibleForBatch(vote),
+      estimatedGasCost: this.estimateVoteGasCost(),
+      processingPriority: this.calculateProcessingPriority(vote),
+      estimatedConfirmationTime: '2-5 minutes'
+    }));
+
+    return {
+      votes: enhancedVotes,
+      total: totalCount,
+      pending: pendingCount,
+      processed: processedCount
+    };
+  } catch (error: any) {
+    console.error('List pending votes error:', error);
+    throw createAppError(`Failed to list pending votes: ${error.message}`, 500, 'LIST_PENDING_VOTES_FAILED');
   }
+};
+
+async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVoteRecord | null> {
+  try {
+    const vote = await PendingVote.findOne({ _id: voteId, businessId }).lean();
+    if (!vote) return null;
+
+    // Create a compatible object for validation methods
+    const voteForValidation = {
+      ...vote,
+      _id: vote._id,
+      businessId: vote.businessId,
+      proposalId: vote.proposalId,
+      userId: vote.userId,
+      voteId: vote.voteId,
+      selectedProductId: vote.selectedProductId,
+      isProcessed: vote.isProcessed,
+      createdAt: vote.createdAt
+    } as any; // Cast to bypass strict typing for validation methods
+
+    return {
+      id: vote._id.toString(),
+      businessId: vote.businessId,
+      proposalId: vote.proposalId,
+      userId: vote.userId,
+      voteId: vote.voteId,
+      selectedProductId: vote.selectedProductId,
+      productName: vote.productName,
+      userSignature: vote.userSignature,
+      isProcessed: vote.isProcessed,
+      processedAt: vote.processedAt,
+      createdAt: vote.createdAt,
+      isValid: this.validateVoteRecord(voteForValidation),
+      canProcess: this.canProcessVote(voteForValidation),
+      validationErrors: this.getValidationErrors(voteForValidation),
+      eligibleForBatch: this.isEligibleForBatch(voteForValidation),
+      estimatedGasCost: this.estimateVoteGasCost(),
+      processingPriority: this.calculateProcessingPriority(voteForValidation),
+      estimatedConfirmationTime: '2-5 minutes'
+    };
+  } catch (error: any) {
+    console.error('Get pending vote by ID error:', error);
+    throw createAppError(`Failed to get pending vote: ${error.message}`, 500, 'GET_PENDING_VOTE_FAILED');
+  }
+};
 
   async getPendingVoteStats(businessId: string): Promise<PendingVoteStats> {
     try {
@@ -351,47 +369,50 @@ export class PendingVoteService {
   // ===== BATCHING OPERATIONS =====
 
   async getBatchingInfo(businessId: string): Promise<BatchingInfo> {
-    try {
-      const settings = await this.getBrandSettings(businessId);
-      const batchThreshold = parseInt(process.env.VOTE_BATCH_THRESHOLD || '20');
-      
-      const pendingCount = await PendingVote.countDocuments({ 
-        businessId, 
-        isProcessed: false 
-      });
+  try {
+    const settings = await this.getBrandSettings(businessId);
+    const batchThreshold = parseInt(process.env.VOTE_BATCH_THRESHOLD || '20');
+    
+    const pendingCount = await PendingVote.countDocuments({
+      businessId,
+      isProcessed: false
+    });
 
-      const lastProcessed = await PendingVote.findOne({
-        businessId,
-        isProcessed: true
-      }).sort({ processedAt: -1 });
+    const lastProcessed = await PendingVote.findOne({
+      businessId,
+      isProcessed: true
+    }).sort({ processedAt: -1 });
 
-      const canProcessNow = pendingCount >= batchThreshold;
-      const nextBatchSize = Math.min(pendingCount, batchThreshold);
-      const estimatedGasCost = this.estimateBatchGasCost(nextBatchSize);
+    const canProcessNow = pendingCount >= batchThreshold;
+    const nextBatchSize = Math.min(pendingCount, batchThreshold);
+    const estimatedGasCost = this.estimateBatchGasCost(nextBatchSize);
 
-      let reasonCannotProcess;
-      if (!canProcessNow) {
-        reasonCannotProcess = `Need ${batchThreshold - pendingCount} more votes to reach batch threshold`;
-      }
-
-      return {
-        readyForBatch: pendingCount,
-        batchThreshold,
-        autoProcessEnabled: settings.autoProcessVotes || false,
-        nextBatchSize,
-        estimatedGasCost,
-        lastProcessedAt: lastProcessed?.processedAt,
-        canProcessNow,
-        reasonCannotProcess,
-        batchEfficiency: pendingCount > 0 ? Math.min((pendingCount / batchThreshold) * 100, 100) : 0,
-        estimatedSavings: this.calculateBatchSavings(nextBatchSize),
-        recommendedAction: this.getRecommendedAction(pendingCount, batchThreshold)
-      };
-    } catch (error: any) {
-      console.error('Get batching info error:', error);
-      throw createAppError(`Failed to get batching info: ${error.message}`, 500, 'GET_BATCHING_INFO_FAILED');
+    let reasonCannotProcess;
+    if (!canProcessNow) {
+      reasonCannotProcess = `Need ${batchThreshold - pendingCount} more votes to reach batch threshold`;
     }
+
+    // Now this should work correctly with the schema field
+    const autoProcessEnabled = settings.votingSettings?.autoProcessEnabled || false;
+
+    return {
+      readyForBatch: pendingCount,
+      batchThreshold,
+      autoProcessEnabled,
+      nextBatchSize,
+      estimatedGasCost,
+      lastProcessedAt: lastProcessed?.processedAt,
+      canProcessNow,
+      reasonCannotProcess,
+      batchEfficiency: pendingCount > 0 ? Math.min((pendingCount / batchThreshold) * 100, 100) : 0,
+      estimatedSavings: this.calculateBatchSavings(nextBatchSize),
+      recommendedAction: this.getRecommendedAction(pendingCount, batchThreshold)
+    };
+  } catch (error: any) {
+    console.error('Get batching info error:', error);
+    throw createAppError(`Failed to get batching info: ${error.message}`, 500, 'GET_BATCHING_INFO_FAILED');
   }
+};
 
   async getProposalBreakdown(businessId: string): Promise<ProposalBreakdown[]> {
     try {
@@ -430,128 +451,124 @@ export class PendingVoteService {
     }
   }
 
-  async processBatch(
-    businessId: string, 
-    options: BatchProcessingOptions
-  ): Promise<BatchProcessingResult> {
-    try {
-      const batchId = this.generateBatchId();
-      
-      // Get votes to process
-      let votesToProcess;
-      if (options.voteIds && options.voteIds.length > 0) {
-        votesToProcess = await PendingVote.find({
-          businessId,
-          voteId: { $in: options.voteIds },
-          isProcessed: false
-        });
-      } else if (options.proposalId) {
-        votesToProcess = await PendingVote.find({
-          businessId,
-          proposalId: options.proposalId,
-          isProcessed: false
-        }).sort({ createdAt: 1 });
-      } else {
-        // Process oldest votes first
-        const batchSize = parseInt(process.env.VOTE_BATCH_SIZE || '50');
-        votesToProcess = await PendingVote.find({
-          businessId,
-          isProcessed: false
-        }).sort({ createdAt: 1 }).limit(batchSize);
-      }
-
-      if (votesToProcess.length === 0) {
-        return {
-          success: false,
-          totalVotes: 0,
-          processedCount: 0,
-          failedCount: 0,
-          skippedCount: 0,
-          error: 'No votes available for processing'
-        };
-      }
-
-      // Validate votes before processing
-      const validVotes = votesToProcess.filter(vote => this.validateVoteRecord(vote));
-      const invalidVotes = votesToProcess.filter(vote => !this.validateVoteRecord(vote));
-
-      if (validVotes.length === 0) {
-        return {
-          success: false,
-          totalVotes: votesToProcess.length,
-          processedCount: 0,
-          failedCount: invalidVotes.length,
-          skippedCount: 0,
-          error: 'No valid votes to process',
-          errors: invalidVotes.map(vote => `Vote ${vote.voteId}: ${this.getValidationErrors(vote).join(', ')}`)
-        };
-      }
-
-      // Process batch through blockchain service
-      try {
-        const voteData = validVotes.map(vote => ({
-          proposalId: vote.proposalId,
-          voter: vote.userId,
-          choice: vote.voteChoice,
-          signature: vote.userSignature
-        }));
-
-        const result = await VotingService.submitBatchVotes(
-          options.contractAddress,
-          voteData,
-          {
-            maxGasPrice: options.maxGasPrice,
-            batchId
-          }
-        );
-
-        // Mark votes as processed
-        const processedVoteIds = validVotes.map(vote => vote.voteId);
-        await PendingVote.updateMany(
-          { voteId: { $in: processedVoteIds } },
-          { 
-            isProcessed: true,
-            processedAt: new Date()
-          }
-        );
-
-        return {
-          success: true,
-          batchId,
-          totalVotes: votesToProcess.length,
-          processedCount: validVotes.length,
-          failedCount: invalidVotes.length,
-          skippedCount: 0,
-          transactionHash: result.transactionHash,
-          blockNumber: result.blockNumber,
-          gasUsed: result.gasUsed,
-          gasPrice: result.gasPrice,
-          totalCost: result.totalCost,
-          processedVotes: processedVoteIds,
-          failedVotes: invalidVotes.map(vote => ({
-            voteId: vote.voteId,
-            error: this.getValidationErrors(vote).join(', ')
-          }))
-        };
-      } catch (blockchainError: any) {
-        console.error('Blockchain batch processing error:', blockchainError);
-        
-        return {
-          success: false,
-          batchId,
-          totalVotes: votesToProcess.length,
-          processedCount: 0,
-          failedCount: votesToProcess.length,
-          skippedCount: 0,
-          error: `Blockchain processing failed: ${blockchainError.message}`,
-          errors: [blockchainError.message]
-        };
-      }
-    } catch (error: any) {
-      console.error('Process batch error:', error);
-      throw createAppError(`Failed to process batch: ${error.message}`, 500, 'PROCESS_BATCH_FAILED');
+async processBatch(
+  businessId: string, 
+  options: BatchProcessingOptions
+): Promise<BatchProcessingResult> {
+  try {
+    const batchId = this.generateBatchId();
+    
+    // Get votes to process
+    let votesToProcess;
+    if (options.voteIds && options.voteIds.length > 0) {
+      votesToProcess = await PendingVote.find({
+        businessId,
+        voteId: { $in: options.voteIds },
+        isProcessed: false
+      });
+    } else if (options.proposalId) {
+      votesToProcess = await PendingVote.find({
+        businessId,
+        proposalId: options.proposalId,
+        isProcessed: false
+      }).sort({ createdAt: 1 });
+    } else {
+      // Process oldest votes first
+      const batchSize = parseInt(process.env.VOTE_BATCH_SIZE || '50');
+      votesToProcess = await PendingVote.find({
+        businessId,
+        isProcessed: false
+      }).sort({ createdAt: 1 }).limit(batchSize);
     }
+
+    if (votesToProcess.length === 0) {
+      return {
+        success: false,
+        totalVotes: 0,
+        processedCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+        error: 'No votes available for processing'
+      };
+    }
+
+    // Validate votes before processing
+    const validVotes = votesToProcess.filter(vote => this.validateVoteRecord(vote));
+    const invalidVotes = votesToProcess.filter(vote => !this.validateVoteRecord(vote));
+
+    if (validVotes.length === 0) {
+      return {
+        success: false,
+        totalVotes: votesToProcess.length,
+        processedCount: 0,
+        failedCount: invalidVotes.length,
+        skippedCount: 0,
+        error: 'No valid votes to process',
+        errors: invalidVotes.map(vote => `Vote ${vote.voteId}: ${this.getValidationErrors(vote).join(', ')}`)
+      };
+    }
+
+    // Process batch through blockchain service - FIXED METHOD CALL AND PARAMETERS
+    try {
+      // Prepare data in the format expected by VotingService.batchSubmitVotes
+      const proposalIds = validVotes.map(vote => vote.proposalId);
+      const voteIds = validVotes.map(vote => vote.voteId);
+      const signatures = validVotes.map(vote => vote.userSignature || '0x'); // Provide default if missing
+
+      const result = await VotingService.batchSubmitVotes(
+        options.contractAddress,
+        proposalIds,
+        voteIds,
+        signatures
+      );
+
+      // Mark votes as processed
+      const processedVoteIds = validVotes.map(vote => vote.voteId);
+      await PendingVote.updateMany(
+        { voteId: { $in: processedVoteIds } },
+        { 
+          isProcessed: true,
+          processedAt: new Date()
+        }
+      );
+
+      return {
+        success: true,
+        batchId,
+        totalVotes: votesToProcess.length,
+        processedCount: validVotes.length,
+        failedCount: invalidVotes.length,
+        skippedCount: 0,
+        transactionHash: result.txHash,
+        blockNumber: undefined, // BatchVoteResult doesn't include blockNumber
+        gasUsed: undefined, // BatchVoteResult doesn't include gasUsed
+        gasPrice: undefined, // BatchVoteResult doesn't include gasPrice
+        totalCost: undefined, // BatchVoteResult doesn't include totalCost
+        processedVotes: processedVoteIds,
+        failedVotes: invalidVotes.map(vote => ({
+          voteId: vote.voteId,
+          error: this.getValidationErrors(vote).join(', ')
+        }))
+      };
+    } catch (blockchainError: any) {
+      console.error('Blockchain batch processing error:', blockchainError);
+      
+      return {
+        success: false,
+        batchId,
+        totalVotes: votesToProcess.length,
+        processedCount: 0,
+        failedCount: votesToProcess.length,
+        skippedCount: 0,
+        error: `Blockchain processing failed: ${blockchainError.message}`,
+        errors: [blockchainError.message]
+      };
+    }
+  } catch (error: any) {
+    console.error('Process batch error:', error);
+    throw createAppError(`Failed to process batch: ${error.message}`, 500, 'PROCESS_BATCH_FAILED');
   }
+};
 
   // ===== CONFIGURATION AND MANAGEMENT =====
 
@@ -614,65 +631,68 @@ export class PendingVoteService {
 
   // ===== VALIDATION AND UTILITY METHODS =====
 
-  async validatePendingVotes(
-    businessId: string,
-    options: { voteIds?: string[]; proposalId?: string } = {}
-  ): Promise<ValidationResult> {
-    try {
-      const query: any = { businessId, isProcessed: false };
-      if (options.voteIds) query.voteId = { $in: options.voteIds };
-      if (options.proposalId) query.proposalId = options.proposalId;
+ 
+async validatePendingVotes(
+  businessId: string,
+  options: { voteIds?: string[]; proposalId?: string } = {}
+): Promise<ValidationResult> {
+  try {
+    const query: any = { businessId, isProcessed: false };
+    if (options.voteIds) query.voteId = { $in: options.voteIds };
+    if (options.proposalId) query.proposalId = options.proposalId;
 
-      const votes = await PendingVote.find(query);
-      const eligible: string[] = [];
-      const ineligible: ValidationResult['ineligible'] = [];
-      const warnings: string[] = [];
+    // Don't use .lean() to ensure virtuals are available
+    const votes = await PendingVote.find(query);
+    const eligible: string[] = [];
+    const ineligibleVotes: ValidationResult['ineligibleVotes'] = []; // Fixed property name
+    const warnings: string[] = [];
 
-      votes.forEach(vote => {
-        if (this.validateVoteRecord(vote)) {
-          eligible.push(vote.voteId);
-        } else {
-          const errors = this.getValidationErrors(vote);
-          ineligible.push({
-            voteId: vote.voteId,
-            reason: errors.join(', '),
-            canFix: this.canFixVote(vote),
-            recommendation: this.getFixRecommendation(vote)
-          });
-        }
+    votes.forEach(vote => {
+      if (this.validateVoteRecord(vote)) {
+        eligible.push(vote.voteId);
+      } else {
+        const errors = this.getValidationErrors(vote);
+        ineligibleVotes.push({
+          voteId: vote.voteId,
+          reason: errors.join(', '),
+          canFix: this.canFixVote(vote),
+          recommendation: this.getFixRecommendation(vote)
+        });
+      }
 
-        // Check for warnings
-        if (vote.ageInMinutes > 60) {
-          warnings.push(`Vote ${vote.voteId} is over 1 hour old`);
-        }
-      });
+      // Check for warnings - Fixed ageInMinutes access
+      const ageInMinutes = Math.floor((Date.now() - vote.createdAt.getTime()) / (1000 * 60));
+      if (ageInMinutes > 60) {
+        warnings.push(`Vote ${vote.voteId} is over 1 hour old`);
+      }
+    });
 
-      const canProcessBatch = eligible.length >= 5; // Minimum batch size
-      const recommendedBatchSize = Math.min(eligible.length, 50);
-      const estimatedGasCost = this.estimateBatchGasCost(recommendedBatchSize);
+    const canProcessBatch = eligible.length >= 5; // Minimum batch size
+    const recommendedBatchSize = Math.min(eligible.length, 50);
+    const estimatedGasCost = this.estimateBatchGasCost(recommendedBatchSize);
 
-      const blockers: string[] = [];
-      if (eligible.length === 0) blockers.push('No eligible votes to process');
-      if (!canProcessBatch) blockers.push('Not enough votes for minimum batch size');
+    const blockers: string[] = [];
+    if (eligible.length === 0) blockers.push('No eligible votes to process');
+    if (!canProcessBatch) blockers.push('Not enough votes for minimum batch size');
 
-      return {
-        totalValidated: votes.length,
-        eligibleCount: eligible.length,
-        ineligibleCount: ineligible.length,
-        warningCount: warnings.length,
-        eligibleVotes: eligible,
-        ineligible,
-        warnings,
-        canProcessBatch,
-        recommendedBatchSize,
-        estimatedGasCost,
-        blockers
-      };
-    } catch (error: any) {
-      console.error('Validate pending votes error:', error);
-      throw createAppError(`Failed to validate pending votes: ${error.message}`, 500, 'VALIDATION_FAILED');
-    }
+    return {
+      totalValidated: votes.length,
+      eligibleCount: eligible.length,
+      ineligibleCount: ineligibleVotes.length, // Fixed property name
+      warningCount: warnings.length,
+      eligibleVotes: eligible,
+      ineligibleVotes, // Fixed property name
+      warnings,
+      canProcessBatch,
+      recommendedBatchSize,
+      estimatedGasCost,
+      blockers
+    };
+  } catch (error: any) {
+    console.error('Validate pending votes error:', error);
+    throw createAppError(`Failed to validate pending votes: ${error.message}`, 500, 'VALIDATION_FAILED');
   }
+}
 
   async deletePendingVotes(
     businessId: string,
@@ -771,7 +791,7 @@ export class PendingVoteService {
 
       // Get voting contract
       const settings = await this.getBrandSettings(businessId);
-      if (!settings.voteContract) {
+      if (!settings.web3Settings?.voteContract) {
         return {
           triggered: false,
           reason: 'No voting contract deployed',
@@ -781,7 +801,7 @@ export class PendingVoteService {
 
       // Trigger batch processing
       const result = await this.processBatch(businessId, {
-        contractAddress: settings.voteContract
+        contractAddress: settings.web3Settings?.voteContract
       });
 
       return {

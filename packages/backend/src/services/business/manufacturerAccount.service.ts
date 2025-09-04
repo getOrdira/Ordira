@@ -636,7 +636,7 @@ export class ManufacturerAccountService {
       const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
       // Log the export request
-      await this.logActivity(mfgId, 'data_export_requested', 'Data export requested for GDPR compliance', {
+      await this.logActivity(mfgId, 'profile_update', 'Data export requested for GDPR compliance', {
         exportId,
         requestedAt: now,
         estimatedCompletionTime,

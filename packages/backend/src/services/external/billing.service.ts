@@ -549,6 +549,307 @@ export class BillingService {
     };
   }
 
+  // Add these methods to your BillingService class
+
+/**
+ * Charge overage fees for usage beyond plan limits
+ */
+async chargeOverage(
+  businessId: string, 
+  amount: number, 
+  description: string
+): Promise<{
+  success: boolean;
+  invoiceId?: string;
+  chargeId?: string;
+  amount: number;
+  error?: string;
+}> {
+  try {
+    const billing = await this.getCurrentBilling(businessId);
+    if (!billing) {
+      throw new Error('No billing record found');
+    }
+
+    if (!billing.stripeCustomerId) {
+      throw new Error('No Stripe customer ID found');
+    }
+
+    // Create invoice item for overage
+    const invoiceItem = await this.stripe.invoiceItems.create({
+      customer: billing.stripeCustomerId,
+      amount: Math.round(amount), // Ensure it's in cents
+      currency: 'usd',
+      description: description,
+      metadata: {
+        businessId,
+        type: 'overage',
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    // Create and finalize invoice
+    const invoice = await this.stripe.invoices.create({
+      customer: billing.stripeCustomerId,
+      collection_method: 'charge_automatically',
+      auto_advance: true, // Automatically attempt payment
+      metadata: {
+        businessId,
+        type: 'overage'
+      }
+    });
+
+    // Finalize the invoice to attempt payment
+    const finalizedInvoice = await this.stripe.invoices.finalizeInvoice(invoice.id);
+
+    // Update local billing record
+    await this.updateLocalBilling(businessId, {
+      lastOverageCharge: amount,
+      lastOverageDate: new Date(),
+      totalOverageCharges: (billing.totalOverageCharges || 0) + amount
+    });
+
+    console.log(`Overage charge processed: ${description} - $${(amount/100).toFixed(2)} for business ${businessId}`);
+
+    return {
+      success: true,
+      invoiceId: finalizedInvoice.id,
+      chargeId: invoiceItem.id,
+      amount: amount
+    };
+
+  } catch (error: any) {
+    console.error('Overage charging failed:', {
+      businessId,
+      amount,
+      description,
+      error: error.message
+    });
+
+    // Don't throw error - log it and return failure status
+    return {
+      success: false,
+      amount: amount,
+      error: error.message || 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Create a one-time invoice for overages or additional charges
+ */
+async createOneTimeInvoice(
+  businessId: string,
+  items: Array<{
+    description: string;
+    amount: number;
+    quantity?: number;
+  }>
+): Promise<{
+  success: boolean;
+  invoiceId?: string;
+  totalAmount: number;
+  error?: string;
+}> {
+  try {
+    const billing = await this.getCurrentBilling(businessId);
+    if (!billing?.stripeCustomerId) {
+      throw new Error('No billing customer found');
+    }
+
+    let totalAmount = 0;
+
+    // Create invoice items
+    for (const item of items) {
+      const itemAmount = Math.round(item.amount * (item.quantity || 1));
+      totalAmount += itemAmount;
+
+      await this.stripe.invoiceItems.create({
+        customer: billing.stripeCustomerId,
+        amount: itemAmount,
+        currency: 'usd',
+        description: item.description,
+        quantity: item.quantity || 1,
+        metadata: {
+          businessId,
+          type: 'one_time_charge'
+        }
+      });
+    }
+
+    // Create and send invoice
+    const invoice = await this.stripe.invoices.create({
+      customer: billing.stripeCustomerId,
+      collection_method: 'charge_automatically',
+      auto_advance: true,
+      metadata: {
+        businessId,
+        type: 'one_time_invoice',
+        itemCount: items.length.toString()
+      }
+    });
+
+    const finalizedInvoice = await this.stripe.invoices.finalizeInvoice(invoice.id);
+
+    return {
+      success: true,
+      invoiceId: finalizedInvoice.id,
+      totalAmount
+    };
+
+  } catch (error: any) {
+    console.error('One-time invoice creation failed:', error);
+    return {
+      success: false,
+      totalAmount: items.reduce((sum, item) => sum + (item.amount * (item.quantity || 1)), 0),
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Get overage billing history for a business
+ */
+async getOverageHistory(
+  businessId: string, 
+  limit: number = 10
+): Promise<Array<{
+  date: Date;
+  amount: number;
+  description: string;
+  type: string;
+  status: string;
+  invoiceId?: string;
+}>> {
+  try {
+    const billing = await this.getCurrentBilling(businessId);
+    if (!billing?.stripeCustomerId) {
+      return [];
+    }
+
+    // Get recent invoices with overage items
+    const invoices = await this.stripe.invoices.list({
+      customer: billing.stripeCustomerId,
+      limit: limit * 2, // Get more than needed to filter
+      expand: ['data.lines']
+    });
+
+    const overageHistory: any[] = [];
+
+    for (const invoice of invoices.data) {
+      // Look for overage items in the invoice
+      const overageLines = invoice.lines.data.filter(
+        line => line.metadata?.type === 'overage' || 
+               line.description?.toLowerCase().includes('overage')
+      );
+
+      for (const line of overageLines) {
+        overageHistory.push({
+          date: new Date(invoice.created * 1000),
+          amount: line.amount,
+          description: line.description || 'Overage charge',
+          type: line.metadata?.type || 'overage',
+          status: invoice.status,
+          invoiceId: invoice.id
+        });
+      }
+
+      if (overageHistory.length >= limit) break;
+    }
+
+    return overageHistory.slice(0, limit);
+
+  } catch (error) {
+    console.error('Failed to get overage history:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if overage billing is enabled for a business plan
+ */
+async isOverageBillingEnabled(businessId: string): Promise<{
+  enabled: boolean;
+  reason?: string;
+  plan?: string;
+}> {
+  try {
+    const billing = await this.getCurrentBilling(businessId);
+    if (!billing) {
+      return { enabled: false, reason: 'No billing record found' };
+    }
+
+    // Overage typically not enabled for free plans
+    if (billing.plan === 'foundation') {
+      return { 
+        enabled: false, 
+        reason: 'Overage billing not available on Foundation plan',
+        plan: billing.plan 
+      };
+    }
+
+    // Check if payment method is set up
+    if (!billing.stripeCustomerId || !billing.stripeSubscriptionId) {
+      return { 
+        enabled: false, 
+        reason: 'Active subscription required for overage billing',
+        plan: billing.plan 
+      };
+    }
+
+    return { 
+      enabled: true, 
+      plan: billing.plan 
+    };
+
+  } catch (error) {
+    console.error('Error checking overage billing status:', error);
+    return { 
+      enabled: false, 
+      reason: 'Unable to check overage billing status' 
+    };
+  }
+}
+
+/**
+ * Get overage rates for different resource types
+ */
+getOverageRates(plan: string): {
+  votes: number;
+  certificates: number;
+  apiCalls: number;
+  storage: number; // per GB
+} {
+  const overageRates = {
+    foundation: {
+      votes: 0, // No overage on free plan
+      certificates: 0,
+      apiCalls: 0,
+      storage: 0
+    },
+    growth: {
+      votes: 5, // $0.05 per vote
+      certificates: 100, // $1.00 per certificate
+      apiCalls: 1, // $0.01 per API call
+      storage: 200 // $2.00 per GB
+    },
+    premium: {
+      votes: 3, // $0.03 per vote
+      certificates: 75, // $0.75 per certificate
+      apiCalls: 1, // $0.01 per API call
+      storage: 150 // $1.50 per GB
+    },
+    enterprise: {
+      votes: 2, // $0.02 per vote
+      certificates: 50, // $0.50 per certificate
+      apiCalls: 1, // $0.01 per API call
+      storage: 100 // $1.00 per GB
+    }
+  };
+
+  return overageRates[plan as keyof typeof overageRates] || overageRates.growth;
+}
+
   async updatePaymentMethod(businessId: string, paymentMethodId: string): Promise<any> {
     const billing = await this.getCurrentBilling(businessId);
     if (!billing?.stripeCustomerId) {
