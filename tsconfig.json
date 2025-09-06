@@ -11,8 +11,8 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "noEmitOnError": true,
-    "declaration": true
-  },
+    "declaration": true,
+    },
   "include": [
      "packages/*/src/**/*",
      "packages/*/src/**/*.json",

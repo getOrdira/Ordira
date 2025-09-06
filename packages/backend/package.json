@@ -23,6 +23,7 @@
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
     "acme-client": "^5.4.0",
+    "aws-sdk": "^2.1692.0",
     "bcrypt": "^5.1.0",
     "cloudflare": "^4.5.0",
     "compression": "^1.8.1",
@@ -52,6 +53,7 @@
     "cookie": "0.8.0"
   },
   "devDependencies": {
+    "@types/aws-sdk": "^0.0.42",
     "@types/bcrypt": "^5.0.0",
     "@types/cloudflare": "^2.7.15",
     "@types/compression": "^1.8.1",

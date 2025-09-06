@@ -5,21 +5,35 @@
   "workspaces": [
     "packages/*"
   ],
-  "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "lerna": "^8.2.3"
+  "engines": {
+    "node": ">=20.17.0"
   },
   "scripts": {
     "bootstrap": "npm install",
-    "start:backend": "npm --workspace=packages/backend run dev",
-    "build:backend": "npm --workspace=packages/backend run build",
-    "lint": "npm run lint --workspaces",
+    "dev": "npm run dev -w packages/frontend",
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "dev:backend": "npm run dev -w packages/backend",
     "build": "npm run build --workspaces",
+    "build:frontend": "npm run build -w packages/frontend",
+    "build:backend": "npm run build -w packages/backend",
+    "start:frontend": "npm run start -w packages/frontend",
     "test": "npm test --workspaces",
-    "test:backend": "jest --config packages/backend/jest.config.js"
+    "test:backend": "npm run test -w packages/backend"
   },
   "dependencies": {
     "cron": "^4.3.3",
+    "ioredis": "^5.7.0",
+    "mongodb": "^6.19.0",
     "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/ioredis": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "lerna": "^8.2.3",
+    "typechain": "^8.3.2"
+  },
+  "overrides": {
+    "ethers": "6.15.0",
+    "viem": "2.37.3"
   }
 }
