@@ -21,6 +21,24 @@ export interface ProposalEvent {
   txHash: string;
 }
 
+export interface ProductProposalData {
+  productId: string;
+  title: string;
+  description: string;
+  images: string[];
+  brandId: string;
+  category?: string;
+  price?: number;
+  features?: string[];
+}
+
+export interface VoteSubmissionData {
+  proposalId: string;
+  voterEmail: string;
+  voteId: string;
+  signature: string;
+}
+
 /**
  * Custom error class for blockchain operations with status codes
  */
@@ -159,8 +177,9 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
    */
   static async batchSubmitVotes(
     contractAddress: string,
-    proposalIds: string[],
+    selectedProposalsArray: string[][],
     voteIds: string[],
+    voterEmails: string[],
     signatures: string[]
   ): Promise<BatchVoteResult> {
     try {
@@ -168,19 +187,24 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       if (!contractAddress?.trim()) {
         throw new BlockchainError('Contract address is required', 400);
       }
-      if (!Array.isArray(proposalIds) || proposalIds.length === 0) {
-        throw new BlockchainError('Proposal IDs array is required and cannot be empty', 400);
+      if (!Array.isArray(selectedProposalsArray) || selectedProposalsArray.length === 0) {
+        throw new BlockchainError('Selected proposals array is required and cannot be empty', 400);
       }
       if (!Array.isArray(voteIds) || voteIds.length === 0) {
         throw new BlockchainError('Vote IDs array is required and cannot be empty', 400);
+      }
+      if (!Array.isArray(voterEmails) || voterEmails.length === 0) {
+        throw new BlockchainError('Voter emails array is required and cannot be empty', 400);
       }
       if (!Array.isArray(signatures) || signatures.length === 0) {
         throw new BlockchainError('Signatures array is required and cannot be empty', 400);
       }
       
       // Validate array lengths match
-      if (proposalIds.length !== voteIds.length || proposalIds.length !== signatures.length) {
-        throw new BlockchainError('Proposal IDs, vote IDs, and signatures arrays must have the same length', 400);
+      if (selectedProposalsArray.length !== voteIds.length || 
+          selectedProposalsArray.length !== voterEmails.length || 
+          selectedProposalsArray.length !== signatures.length) {
+        throw new BlockchainError('All arrays must have the same length', 400);
       }
       
       // Validate Ethereum address format
@@ -190,10 +214,20 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       
       const votingContract = BlockchainProviderService.getContract(contractAddress, votingAbi);
       
-      // Convert proposal IDs to BigInt for the contract
-      const proposalIdsBigInt = proposalIds.map(id => {
+      // Convert selected proposals to BigInt arrays
+      const selectedProposalsBigInt = selectedProposalsArray.map(proposals => {
+        return proposals.map(id => {
+          if (!id || isNaN(Number(id))) {
+            throw new BlockchainError(`Invalid proposal ID: ${id}`, 400);
+          }
+          return BigInt(id);
+        });
+      });
+      
+      // Convert vote IDs to BigInt for the contract
+      const voteIdsBigInt = voteIds.map(id => {
         if (!id || isNaN(Number(id))) {
-          throw new BlockchainError(`Invalid proposal ID: ${id}`, 400);
+          throw new BlockchainError(`Invalid vote ID: ${id}`, 400);
         }
         return BigInt(id);
       });
@@ -208,8 +242,9 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       });
       
       const tx = await votingContract.batchSubmitVote(
-        proposalIdsBigInt,
-        voteIds,
+        selectedProposalsBigInt,
+        voteIdsBigInt,
+        voterEmails,
         signatureBytes
       );
       
@@ -217,7 +252,7 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       
       return {
         txHash: receipt.transactionHash,
-        voteCount: proposalIds.length
+        voteCount: selectedProposalsArray.length
       };
     } catch (error: any) {
       if (error instanceof BlockchainError) {
@@ -451,6 +486,255 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
   }
 
   /**
+   * Create a product proposal with images
+   */
+  static async createProductProposal(
+    contractAddress: string,
+    proposalData: ProductProposalData
+  ): Promise<CreateProposalResult> {
+    try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
+      // Create metadata URI for the product proposal
+      const metadataUri = await this.createProductProposalMetadata(proposalData);
+      
+      // Create the proposal on the blockchain
+      return await this.createProposal(contractAddress, metadataUri);
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      throw new BlockchainError(`Failed to create product proposal: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * Create metadata URI for product proposal
+   */
+  private static async createProductProposalMetadata(proposalData: ProductProposalData): Promise<string> {
+    const metadata = {
+      name: proposalData.title,
+      description: proposalData.description,
+      image: proposalData.images[0] || '', // Primary image
+      images: proposalData.images,
+      attributes: [
+        {
+          trait_type: 'Product ID',
+          value: proposalData.productId
+        },
+        {
+          trait_type: 'Brand ID',
+          value: proposalData.brandId
+        },
+        {
+          trait_type: 'Category',
+          value: proposalData.category || 'General'
+        },
+        {
+          trait_type: 'Price',
+          value: proposalData.price || 0
+        }
+      ],
+      properties: {
+        productId: proposalData.productId,
+        brandId: proposalData.brandId,
+        category: proposalData.category,
+        price: proposalData.price,
+        features: proposalData.features || []
+      }
+    };
+
+    // In a real implementation, you would upload this to IPFS or your metadata service
+    // For now, we'll return a placeholder URI
+    const metadataJson = JSON.stringify(metadata);
+    const metadataHash = Buffer.from(metadataJson).toString('base64');
+    
+    return `${process.env.METADATA_BASE_URL}/proposals/${metadataHash}`;
+  }
+
+  /**
+   * Generate a unique vote ID for a voter
+   */
+  static generateVoteId(voterEmail: string, proposalId: string): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 15);
+    const voteData = `${voterEmail}-${proposalId}-${timestamp}-${random}`;
+    
+    // Create a simple hash (in production, use a proper hash function)
+    let hash = 0;
+    for (let i = 0; i < voteData.length; i++) {
+      const char = voteData.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return Math.abs(hash).toString();
+  }
+
+  /**
+   * Submit a single vote with selected proposals
+   */
+  static async submitVote(
+    contractAddress: string,
+    selectedProposals: string[],
+    voterEmail: string,
+    voteId: string,
+    signature: string
+  ): Promise<{ txHash: string; voteId: string }> {
+    try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!Array.isArray(selectedProposals) || selectedProposals.length === 0) {
+        throw new BlockchainError('Selected proposals array is required and cannot be empty', 400);
+      }
+      if (!voterEmail?.trim()) {
+        throw new BlockchainError('Voter email is required', 400);
+      }
+      if (!voteId?.trim()) {
+        throw new BlockchainError('Vote ID is required', 400);
+      }
+      if (!signature?.trim()) {
+        throw new BlockchainError('Signature is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
+      // Validate proposal IDs
+      for (const proposalId of selectedProposals) {
+        if (isNaN(Number(proposalId))) {
+          throw new BlockchainError(`Invalid proposal ID format: ${proposalId}`, 400);
+        }
+      }
+      
+      const votingContract = BlockchainProviderService.getContract(contractAddress, votingAbi);
+      
+      // Convert proposal IDs to BigInt
+      const proposalIdsBigInt = selectedProposals.map(id => BigInt(id));
+      
+      const tx = await votingContract.submitVote(
+        proposalIdsBigInt,
+        voterEmail,
+        BigInt(voteId),
+        getBytes(signature)
+      );
+      
+      const receipt = await tx.wait();
+      
+      return {
+        txHash: receipt.transactionHash,
+        voteId
+      };
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'INSUFFICIENT_FUNDS') {
+        throw new BlockchainError('Insufficient funds for vote submission', 400);
+      }
+      if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        throw new BlockchainError('Unable to estimate gas for vote submission', 400);
+      }
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Voting contract call failed - contract may not exist or invalid vote data', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error during vote submission', 503);
+      }
+      
+      throw new BlockchainError(`Failed to submit vote: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * Check if an email has already voted
+   */
+  static async hasVoted(
+    contractAddress: string,
+    voterEmail: string
+  ): Promise<boolean> {
+    try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!voterEmail?.trim()) {
+        throw new BlockchainError('Voter email is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
+      const votingContract = BlockchainProviderService.getReadOnlyContract(contractAddress, votingAbi);
+      
+      const hasVoted = await votingContract.hasVotedByEmail(voterEmail);
+      return hasVoted;
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Voting contract not found or unable to check vote status', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while checking vote status', 503);
+      }
+      
+      throw new BlockchainError(`Failed to check vote status: ${error.message}`, 500);
+    }
+  }
+  
+  /**
+   * Get email voter's selected proposals
+   */
+  static async getVoterSelections(
+    contractAddress: string,
+    voterEmail: string
+  ): Promise<string[]> {
+    try {
+      if (!contractAddress?.trim()) {
+        throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!voterEmail?.trim()) {
+        throw new BlockchainError('Voter email is required', 400);
+      }
+      
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+        throw new BlockchainError('Invalid contract address format', 400);
+      }
+      
+      const votingContract = BlockchainProviderService.getReadOnlyContract(contractAddress, votingAbi);
+      
+      const selections = await votingContract.getEmailVoterSelections(voterEmail);
+      return selections.map(id => id.toString());
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      if (error.code === 'CALL_EXCEPTION') {
+        throw new BlockchainError('Voting contract not found or unable to get voter selections', 404);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error while getting voter selections', 503);
+      }
+      
+      throw new BlockchainError(`Failed to get voter selections: ${error.message}`, 500);
+    }
+  }
+
+  /**
    * Get proposal details from contract
    */
   static async getProposal(contractAddress: string, proposalId: string): Promise<ProposalInfo> {
@@ -472,19 +756,22 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       
       const votingContract = BlockchainProviderService.getReadOnlyContract(contractAddress, votingAbi);
       
-      // This is a placeholder - implement based on your actual contract structure
-      const proposal = await votingContract.proposals(proposalId);
+      // Get proposal data from contract
+      const proposal = await votingContract.proposals(BigInt(proposalId));
+      
+      // Get proposal URI for metadata
+      const proposalUri = await votingContract.proposalUri(BigInt(proposalId));
       
       return {
         id: proposalId,
-        title: proposal.metadataUri || 'Untitled Proposal',
-        description: proposal.metadataUri || '',
-        startBlock: parseInt(proposal.startBlock?.toString() || '0'),
-        endBlock: parseInt(proposal.endBlock?.toString() || '0'),
-        forVotes: parseInt(proposal.forVotes?.toString() || '0'),
-        againstVotes: parseInt(proposal.againstVotes?.toString() || '0'),
-        abstainVotes: parseInt(proposal.abstainVotes?.toString() || '0'),
-        status: 'active', // Implement status logic based on your contract
+        title: proposalUri || 'Untitled Proposal',
+        description: proposalUri || '',
+        startBlock: parseInt(proposal.startTime?.toString() || '0'),
+        endBlock: parseInt(proposal.endTime?.toString() || '0'),
+        forVotes: parseInt(proposal.selectionCount?.toString() || '0'),
+        againstVotes: 0, // Not used in selection-based voting
+        abstainVotes: 0, // Not used in selection-based voting
+        status: this.determineProposalStatus(proposal),
         creator: proposal.creator || ''
       };
     } catch (error: any) {
@@ -500,6 +787,32 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       }
       
       throw new BlockchainError(`Failed to get proposal: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * Determine proposal status based on contract data
+   */
+  private static determineProposalStatus(proposal: any): 'pending' | 'active' | 'succeeded' | 'failed' | 'executed' {
+    const currentTime = Math.floor(Date.now() / 1000); // Current timestamp in seconds
+    const startTime = parseInt(proposal.startTime?.toString() || '0');
+    const endTime = parseInt(proposal.endTime?.toString() || '0');
+    
+    if (currentTime < startTime) {
+      return 'pending';
+    }
+    
+    if (currentTime <= endTime) {
+      return 'active';
+    }
+    
+    // Proposal has ended, determine if it succeeded or failed
+    const selectionCount = parseInt(proposal.selectionCount?.toString() || '0');
+    
+    if (selectionCount > 0) {
+      return 'succeeded';
+    } else {
+      return 'failed';
     }
   }
 }
