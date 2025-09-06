@@ -1,12 +1,10 @@
 // src/services/business/media.service.ts
 
 import path from 'path';
-import fs from 'fs/promises';
 import { createReadStream } from 'fs';
+import { Readable } from 'stream';
 import { Media, IMedia } from '../../models/media.model';
-
-const UPLOAD_URL_PREFIX = process.env.UPLOAD_URL_PREFIX || '/uploads';
-const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+import { S3Service } from '../external/s3.service';
 
 // Enhanced interfaces to match controller expectations
 export interface MediaUploadOptions {
@@ -74,6 +72,7 @@ export interface DownloadResult {
   filename: string;
   fileSize: number;
   stream: NodeJS.ReadableStream;
+  signedUrl?: string; // For S3 direct downloads
 }
 
 export interface BatchUploadResult {
@@ -83,6 +82,7 @@ export interface BatchUploadResult {
     originalName: string;
     url: string;
     size: number;
+    s3Key?: string;
   }>;
   failed: Array<{
     filename: string;
@@ -94,6 +94,7 @@ export interface DeletionResult {
   fileSize: number;
   filename: string;
   deletedAt: Date;
+  s3Key?: string;
 }
 
 /**
@@ -114,12 +115,12 @@ class MediaError extends Error {
 }
 
 /**
- * Enhanced media management service aligned with controller requirements
+ * Enhanced media management service with S3 integration
  */
 export class MediaService {
 
   /**
-   * Save an uploaded media file record with enhanced metadata
+   * Save an uploaded media file record with S3 storage
    */
   async saveMedia(
     file: Express.Multer.File | undefined,
@@ -163,17 +164,42 @@ export class MediaService {
         throw new MediaError('File appears to be empty', 400, 'EMPTY_FILE');
       }
 
+      // Generate secure filename and S3 key
+      const secureFilename = S3Service.generateSecureFilename(file.originalname);
+      const s3Key = S3Service.buildS3Key(uploaderId, options.resourceId, secureFilename);
+
+      // Upload to S3
+      let s3Result;
+      try {
+        s3Result = await S3Service.uploadFile(file.buffer, {
+          businessId: uploaderId,
+          resourceId: options.resourceId,
+          filename: secureFilename,
+          mimeType: file.mimetype,
+          isPublic: options.isPublic || false,
+          metadata: {
+            originalName: file.originalname,
+            category: options.category || 'product',
+            uploadedBy: uploaderId,
+            ...(options.description && { description: options.description }),
+            ...(options.tags && { tags: options.tags.join(',') })
+          }
+        });
+      } catch (s3Error) {
+        throw new MediaError(`S3 upload failed: ${s3Error.message}`, 500, 'S3_UPLOAD_ERROR');
+      }
+
       // Determine type from MIME
       const type = this.determineMediaType(file.mimetype);
 
-      // Build URL
-      const url = `${UPLOAD_URL_PREFIX}/${file.filename}`;
-
       const media = new Media({
-        url,
+        url: s3Result.url,
+        s3Key: s3Result.key,
+        s3Bucket: s3Result.bucket,
+        s3ETag: s3Result.etag,
         type,
         uploadedBy: uploaderId,
-        filename: file.filename,
+        filename: secureFilename,
         originalName: file.originalname,
         mimeType: file.mimetype,
         size: file.size,
@@ -186,7 +212,8 @@ export class MediaService {
         metadata: {
           uploadedAt: new Date(),
           fileExtension: path.extname(file.originalname),
-          ...((options as any).metadata || {})
+          s3Location: s3Result.location,
+          storageProvider: 's3'
         }
       });
 
@@ -212,7 +239,7 @@ export class MediaService {
   }
 
   /**
-   * Save multiple uploaded media files - NEW METHOD
+   * Save multiple uploaded media files with S3 storage
    */
   async saveMultipleMedia(
     files: Express.Multer.File[],
@@ -230,7 +257,8 @@ export class MediaService {
           filename: media.filename,
           originalName: media.originalName,
           url: media.url,
-          size: media.size
+          size: media.size,
+          s3Key: media.s3Key
         });
       } catch (error: any) {
         failed.push({
@@ -244,90 +272,90 @@ export class MediaService {
   }
 
   /**
- * List media uploaded by a given user/business with enhanced filtering
- */
-async listMediaByUser(
-  uploaderId: string,
-  options: MediaListOptions = {}
-): Promise<{
-  media: IMedia[];
-  total: number;
-  page: number;
-  totalPages: number;
-}> {
-  try {
-    if (!uploaderId?.trim()) {
-      throw new MediaError('Uploader ID is required', 400, 'MISSING_UPLOADER_ID');
+   * List media uploaded by a given user/business with enhanced filtering
+   */
+  async listMediaByUser(
+    uploaderId: string,
+    options: MediaListOptions = {}
+  ): Promise<{
+    media: IMedia[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    try {
+      if (!uploaderId?.trim()) {
+        throw new MediaError('Uploader ID is required', 400, 'MISSING_UPLOADER_ID');
+      }
+
+      const page = options.page && options.page > 0 ? options.page : 1;
+      const limit = options.limit && options.limit > 0 && options.limit <= 200 ? options.limit : 50;
+      const offset = options.offset || (page - 1) * limit;
+
+      // Validate pagination parameters
+      if (page > 10000) {
+        throw new MediaError('Page number too large', 400, 'INVALID_PAGE');
+      }
+
+      // Build filter
+      const filter: Record<string, any> = { uploadedBy: uploaderId };
+      
+      if (options.type) filter.type = options.type;
+      if (options.category) filter.category = options.category;
+      if (options.isPublic !== undefined) filter.isPublic = options.isPublic;
+      
+      // Handle tags filtering
+      if (options.tags && options.tags.length > 0) {
+        filter.tags = { $in: options.tags };
+      }
+      
+      // Handle search
+      if (options.search) {
+        filter.$or = [
+          { originalName: { $regex: options.search, $options: 'i' } },
+          { filename: { $regex: options.search, $options: 'i' } },
+          { description: { $regex: options.search, $options: 'i' } },
+          { tags: { $in: [new RegExp(options.search, 'i')] } }
+        ];
+      }
+
+      // Build sort
+      const sortField = options.sortBy || 'createdAt';
+      const sortDirection = options.sortOrder === 'asc' ? '' : '-';
+      const sortString = `${sortDirection}${sortField}`;
+
+      const [media, total] = await Promise.all([
+        Media
+          .find(filter)
+          .sort(sortString)
+          .skip(offset)
+          .limit(limit)
+          .exec(),
+        Media.countDocuments(filter)
+      ]);
+
+      return {
+        media,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      };
+    } catch (error: any) {
+      if (error instanceof MediaError) {
+        throw error;
+      }
+
+      // Handle database connection errors
+      if (error.name === 'MongooseError' || error.name === 'MongoError') {
+        throw new MediaError('Database error while fetching media', 503, 'DATABASE_ERROR');
+      }
+
+      throw new MediaError(`Failed to list media: ${error.message}`, 500, 'LIST_ERROR');
     }
-
-    const page = options.page && options.page > 0 ? options.page : 1;
-    const limit = options.limit && options.limit > 0 && options.limit <= 200 ? options.limit : 50;
-    const offset = options.offset || (page - 1) * limit;
-
-    // Validate pagination parameters
-    if (page > 10000) {
-      throw new MediaError('Page number too large', 400, 'INVALID_PAGE');
-    }
-
-    // Build filter
-    const filter: Record<string, any> = { uploadedBy: uploaderId };
-    
-    if (options.type) filter.type = options.type;
-    if (options.category) filter.category = options.category;
-    if (options.isPublic !== undefined) filter.isPublic = options.isPublic;
-    
-    // Handle tags filtering
-    if (options.tags && options.tags.length > 0) {
-      filter.tags = { $in: options.tags };
-    }
-    
-    // Handle search
-    if (options.search) {
-      filter.$or = [
-        { originalName: { $regex: options.search, $options: 'i' } },
-        { filename: { $regex: options.search, $options: 'i' } },
-        { description: { $regex: options.search, $options: 'i' } },
-        { tags: { $in: [new RegExp(options.search, 'i')] } }
-      ];
-    }
-
-    // Build sort - Fix: Remove type annotation and use proper typing
-    const sortField = options.sortBy || 'createdAt';
-    const sortDirection = options.sortOrder === 'asc' ? '' : '-';
-    const sortString = `${sortDirection}${sortField}`;
-
-    const [media, total] = await Promise.all([
-      Media
-        .find(filter)
-        .sort(sortString) // Use string instead of object
-        .skip(offset)
-        .limit(limit)
-        .exec(),
-      Media.countDocuments(filter)
-    ]);
-
-    return {
-      media,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
-  } catch (error: any) {
-    if (error instanceof MediaError) {
-      throw error;
-    }
-
-    // Handle database connection errors
-    if (error.name === 'MongooseError' || error.name === 'MongoError') {
-      throw new MediaError('Database error while fetching media', 503, 'DATABASE_ERROR');
-    }
-
-    throw new MediaError(`Failed to list media: ${error.message}`, 500, 'LIST_ERROR');
   }
-}
 
   /**
-   * Get storage statistics for a user - NEW METHOD
+   * Get storage statistics for a user with S3 integration
    */
   async getStorageStatistics(uploaderId: string): Promise<MediaStats> {
     try {
@@ -335,7 +363,7 @@ async listMediaByUser(
         throw new MediaError('Uploader ID is required', 400, 'MISSING_UPLOADER_ID');
       }
 
-      const [stats, typeStats, categoryStats, largestFileData] = await Promise.all([
+      const [stats, typeStats, categoryStats, largestFileData, s3Stats] = await Promise.all([
         Media.aggregate([
           { $match: { uploadedBy: uploaderId } },
           {
@@ -357,7 +385,9 @@ async listMediaByUser(
         ]),
         Media.findOne({ uploadedBy: uploaderId })
           .sort({ size: -1 })
-          .select('filename size createdAt')
+          .select('filename size createdAt'),
+        // Get S3 storage stats to verify consistency
+        S3Service.getStorageStats(uploaderId).catch(() => ({ totalFiles: 0, totalSize: 0, sizeFormatted: '0 MB' }))
       ]);
 
       const totalFiles = stats[0]?.totalFiles || 0;
@@ -397,7 +427,7 @@ async listMediaByUser(
   }
 
   /**
-   * Get media analytics - NEW METHOD
+   * Get media analytics
    */
   async getMediaAnalytics(mediaId: string): Promise<MediaAnalytics> {
     try {
@@ -405,7 +435,6 @@ async listMediaByUser(
         throw new MediaError('Media ID is required', 400, 'MISSING_MEDIA_ID');
       }
 
-      // For now, return basic analytics - can be expanded with actual tracking
       const media = await Media.findById(mediaId);
       if (!media) {
         throw new MediaError('Media not found', 404, 'MEDIA_NOT_FOUND');
@@ -427,7 +456,7 @@ async listMediaByUser(
   }
 
   /**
-   * Get related media files - NEW METHOD
+   * Get related media files
    */
   async getRelatedMedia(mediaId: string, uploaderId: string, limit: number = 5): Promise<IMedia[]> {
     try {
@@ -456,7 +485,7 @@ async listMediaByUser(
   }
 
   /**
-   * Get category statistics - NEW METHOD
+   * Get category statistics
    */
   async getCategoryStatistics(uploaderId: string, category: string): Promise<CategoryStats> {
     try {
@@ -504,7 +533,7 @@ async listMediaByUser(
   }
 
   /**
-   * Initiate file download - NEW METHOD
+   * Initiate file download with S3 support
    */
   async initiateDownload(mediaId: string, uploaderId?: string): Promise<DownloadResult> {
     try {
@@ -531,23 +560,37 @@ async listMediaByUser(
         $set: { lastDownloadedAt: new Date() }
       });
 
-      // Create file stream
-      const filePath = path.join(UPLOAD_DIR, path.basename(media.url));
-      
-      try {
-        await fs.access(filePath);
-      } catch {
-        throw new MediaError('File not found on disk', 404, 'FILE_NOT_FOUND');
+      // For S3 storage, provide both signed URL and stream options
+      if (media.s3Key) {
+        try {
+          const signedUrl = await S3Service.getSignedUrl(media.s3Key, 'getObject', 3600); // 1 hour
+          const stream = S3Service.getFileStream(media.s3Key);
+
+          return {
+            mimeType: media.mimeType,
+            filename: media.originalName,
+            fileSize: media.size,
+            stream,
+            signedUrl
+          };
+        } catch (s3Error) {
+          throw new MediaError(`S3 download failed: ${s3Error.message}`, 500, 'S3_DOWNLOAD_ERROR');
+        }
       }
 
-      const stream = createReadStream(filePath);
-
-      return {
-        mimeType: media.mimeType,
-        filename: media.originalName,
-        fileSize: media.size,
-        stream
-      };
+      // Fallback for legacy local files (if any exist)
+      const filePath = path.join(process.env.UPLOAD_DIR || 'uploads', path.basename(media.url));
+      try {
+        const stream = createReadStream(filePath);
+        return {
+          mimeType: media.mimeType,
+          filename: media.originalName,
+          fileSize: media.size,
+          stream
+        };
+      } catch {
+        throw new MediaError('File not found', 404, 'FILE_NOT_FOUND');
+      }
     } catch (error: any) {
       if (error instanceof MediaError) {
         throw error;
@@ -645,6 +688,26 @@ async listMediaByUser(
         throw new MediaError('Media not found or access denied', 404, 'MEDIA_NOT_FOUND');
       }
 
+      // Update S3 metadata if the file is stored in S3
+      if (media.s3Key) {
+        try {
+          const s3Metadata: Record<string, string> = {
+            category: updates.category || media.category,
+            uploadedBy: uploaderId,
+            lastUpdated: new Date().toISOString()
+          };
+
+          if (updates.description) s3Metadata.description = updates.description;
+          if (updates.tags) s3Metadata.tags = updates.tags.join(',');
+          if (updates.isPublic !== undefined) s3Metadata.isPublic = updates.isPublic.toString();
+
+          await S3Service.updateMetadata(media.s3Key, s3Metadata);
+        } catch (s3Error) {
+          // Log warning but don't fail the operation
+          console.warn(`Failed to update S3 metadata for ${media.s3Key}:`, s3Error.message);
+        }
+      }
+
       return media;
     } catch (error: any) {
       if (error instanceof MediaError) {
@@ -662,7 +725,7 @@ async listMediaByUser(
   }
 
   /**
-   * Delete media file and database record - Enhanced with return data
+   * Delete media file and database record with S3 support
    */
   async deleteMedia(mediaId: string, uploaderId: string): Promise<DeletionResult> {
     try {
@@ -677,14 +740,16 @@ async listMediaByUser(
 
       const fileSize = media.size;
       const filename = media.filename;
+      const s3Key = media.s3Key;
 
-      try {
-        // Delete physical file
-        const filePath = path.join(UPLOAD_DIR, path.basename(media.url));
-        await fs.unlink(filePath);
-      } catch (error: any) {
-        // Log warning but don't fail the operation if file doesn't exist
-        console.warn(`Could not delete file ${media.url}:`, error.message);
+      // Delete from S3 if stored there
+      if (s3Key) {
+        try {
+          await S3Service.deleteFile(s3Key);
+        } catch (s3Error) {
+          // Log warning but continue with database deletion
+          console.warn(`Could not delete S3 file ${s3Key}:`, s3Error.message);
+        }
       }
 
       // Delete database record
@@ -696,7 +761,8 @@ async listMediaByUser(
       return {
         fileSize,
         filename,
-        deletedAt: new Date()
+        deletedAt: new Date(),
+        s3Key
       };
     } catch (error: any) {
       if (error instanceof MediaError) {
@@ -741,11 +807,12 @@ async listMediaByUser(
   }
 
   /**
-   * Bulk delete media files
+   * Bulk delete media files with S3 support
    */
   async bulkDeleteMedia(mediaIds: string[], uploaderId: string): Promise<{
     deleted: number;
     errors: string[];
+    s3KeysDeleted: string[];
   }> {
     try {
       if (!uploaderId?.trim()) {
@@ -765,19 +832,44 @@ async listMediaByUser(
         }
       }
 
-      const errors: string[] = [];
-      let deleted = 0;
+      // Get all media records first
+      const mediaRecords = await Media.find({
+        _id: { $in: mediaIds },
+        uploadedBy: uploaderId
+      });
 
-      for (const mediaId of mediaIds) {
+      // Collect S3 keys for batch deletion
+      const s3Keys = mediaRecords
+        .filter(media => media.s3Key)
+        .map(media => media.s3Key!);
+
+      // Delete from S3 in batch
+      let s3KeysDeleted: string[] = [];
+      if (s3Keys.length > 0) {
         try {
-          await this.deleteMedia(mediaId, uploaderId);
-          deleted++;
-        } catch (error: any) {
-          errors.push(`Failed to delete ${mediaId}: ${error.message}`);
+          const s3Result = await S3Service.deleteFiles(s3Keys);
+          s3KeysDeleted = s3Result.deleted;
+          
+          // Log S3 errors but don't fail the operation
+          if (s3Result.errors.length > 0) {
+            console.warn('S3 deletion errors:', s3Result.errors);
+          }
+        } catch (s3Error) {
+          console.warn('S3 batch deletion failed:', s3Error.message);
         }
       }
 
-      return { deleted, errors };
+      // Delete from database
+      const dbResult = await Media.deleteMany({
+        _id: { $in: mediaIds },
+        uploadedBy: uploaderId
+      });
+
+      return {
+        deleted: dbResult.deletedCount || 0,
+        errors: [],
+        s3KeysDeleted
+      };
     } catch (error: any) {
       if (error instanceof MediaError) {
         throw error;
@@ -865,7 +957,7 @@ async listMediaByUser(
   }
 
   /**
-   * Clean up orphaned files (files without database records)
+   * Clean up orphaned files - S3 version
    */
   async cleanupOrphanedFiles(): Promise<{
     cleaned: number;
@@ -875,39 +967,165 @@ async listMediaByUser(
     let cleaned = 0;
 
     try {
-      const uploadDir = path.resolve(UPLOAD_DIR);
-      
-      // Check if upload directory exists
-      try {
-        await fs.access(uploadDir);
-      } catch {
-        throw new MediaError(`Upload directory does not exist: ${uploadDir}`, 500, 'UPLOAD_DIR_NOT_FOUND');
-      }
+      // Get all media records from database
+      const allMedia = await Media.find({}, 'uploadedBy s3Key').lean();
+      const dbS3Keys = new Set(allMedia.map(media => media.s3Key).filter(Boolean));
 
-      const files = await fs.readdir(uploadDir);
-      
-      for (const file of files) {
+      // Group by business ID for efficient S3 listing
+      const businessIds = [...new Set(allMedia.map(media => media.uploadedBy))];
+
+      for (const businessId of businessIds) {
         try {
-          const fileUrl = `${UPLOAD_URL_PREFIX}/${file}`;
-          const mediaRecord = await Media.findOne({ url: fileUrl });
-          
-          if (!mediaRecord) {
-            await fs.unlink(path.join(uploadDir, file));
-            cleaned++;
+          // List all files in S3 for this business
+          const s3Result = await S3Service.listFiles({ 
+            prefix: `${businessId}/`,
+            maxKeys: 1000 
+          });
+
+          // Find S3 files not in database
+          const orphanedS3Keys = s3Result.files
+            .map(file => file.key)
+            .filter(key => !dbS3Keys.has(key));
+
+          if (orphanedS3Keys.length > 0) {
+            // Delete orphaned files from S3
+            const deleteResult = await S3Service.deleteFiles(orphanedS3Keys);
+            cleaned += deleteResult.deleted.length;
+            
+            // Add any deletion errors
+            errors.push(...deleteResult.errors.map(err => err.error));
           }
         } catch (error: any) {
-          errors.push(`Failed to process file ${file}: ${error.message}`);
+          errors.push(`Failed to cleanup files for business ${businessId}: ${error.message}`);
+        }
+      }
+
+      // Also check for database records without corresponding S3 files
+      const orphanedDbRecords = await Media.find({
+        s3Key: { $exists: true, $ne: null }
+      });
+
+      for (const record of orphanedDbRecords) {
+        if (record.s3Key) {
+          try {
+            const exists = await S3Service.fileExists(record.s3Key);
+            if (!exists) {
+              // Remove database record for non-existent S3 file
+              await Media.findByIdAndDelete(record._id);
+              cleaned++;
+            }
+          } catch (error: any) {
+            errors.push(`Failed to check S3 file ${record.s3Key}: ${error.message}`);
+          }
         }
       }
     } catch (error: any) {
-      if (error instanceof MediaError) {
-        throw error;
-      }
-      
-      throw new MediaError(`Failed to cleanup orphaned files: ${error.message}`, 500, 'CLEANUP_ERROR');
+      errors.push(`Failed to cleanup orphaned files: ${error.message}`);
     }
 
     return { cleaned, errors };
+  }
+
+  /**
+   * Migrate existing local files to S3
+   */
+  async migrateLocalFilesToS3(uploaderId?: string): Promise<{
+    migrated: number;
+    failed: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let migrated = 0;
+    let failed = 0;
+
+    try {
+      // Find media records that don't have S3 keys (local files)
+      const filter: any = {
+        $or: [
+          { s3Key: { $exists: false } },
+          { s3Key: null },
+          { s3Key: '' }
+        ]
+      };
+
+      if (uploaderId) {
+        filter.uploadedBy = uploaderId;
+      }
+
+      const localMedia = await Media.find(filter);
+
+      for (const media of localMedia) {
+        try {
+          // Construct local file path
+          const localPath = path.join(
+            process.env.UPLOAD_DIR || 'uploads',
+            media.url.replace('/uploads/', '')
+          );
+
+          // Check if local file exists
+          const fs = require('fs').promises;
+          let fileBuffer: Buffer;
+          
+          try {
+            fileBuffer = await fs.readFile(localPath);
+          } catch (readError) {
+            errors.push(`Local file not found: ${localPath}`);
+            failed++;
+            continue;
+          }
+
+          // Generate S3 key
+          const s3Key = S3Service.buildS3Key(
+            media.uploadedBy.toString(),
+            media.resourceId,
+            media.filename
+          );
+
+          // Upload to S3
+          const s3Result = await S3Service.uploadFile(fileBuffer, {
+            businessId: media.uploadedBy.toString(),
+            resourceId: media.resourceId,
+            filename: media.filename,
+            mimeType: media.mimeType,
+            isPublic: media.isPublic || false,
+            metadata: {
+              originalName: media.originalName,
+              category: media.category,
+              migratedFrom: 'local',
+              migrationDate: new Date().toISOString()
+            }
+          });
+
+          // Update database record with S3 information
+          await Media.findByIdAndUpdate(media._id, {
+            url: s3Result.url,
+            s3Key: s3Result.key,
+            s3Bucket: s3Result.bucket,
+            s3ETag: s3Result.etag,
+            'metadata.storageProvider': 's3',
+            'metadata.migratedAt': new Date(),
+            'metadata.s3Location': s3Result.location
+          });
+
+          // Optionally delete local file after successful migration
+          try {
+            await fs.unlink(localPath);
+          } catch (unlinkError) {
+            // Log but don't fail migration
+            console.warn(`Could not delete local file ${localPath}:`, unlinkError.message);
+          }
+
+          migrated++;
+        } catch (error: any) {
+          errors.push(`Failed to migrate ${media.filename}: ${error.message}`);
+          failed++;
+        }
+      }
+    } catch (error: any) {
+      errors.push(`Migration process failed: ${error.message}`);
+    }
+
+    return { migrated, failed, errors };
   }
 
   /**
@@ -915,6 +1133,57 @@ async listMediaByUser(
    */
   async getMediaStats(uploaderId: string): Promise<MediaStats> {
     return this.getStorageStatistics(uploaderId);
+  }
+
+  /**
+   * Generate presigned URLs for direct S3 uploads
+   */
+  async generateUploadUrl(
+    uploaderId: string,
+    filename: string,
+    mimeType: string,
+    options: {
+      resourceId?: string;
+      expiresIn?: number;
+    } = {}
+  ): Promise<{
+    uploadUrl: string;
+    s3Key: string;
+    formData?: Record<string, string>;
+  }> {
+    try {
+      if (!uploaderId?.trim()) {
+        throw new MediaError('Uploader ID is required', 400, 'MISSING_UPLOADER_ID');
+      }
+      if (!filename?.trim()) {
+        throw new MediaError('Filename is required', 400, 'MISSING_FILENAME');
+      }
+      if (!mimeType?.trim()) {
+        throw new MediaError('MIME type is required', 400, 'MISSING_MIME_TYPE');
+      }
+
+      const secureFilename = S3Service.generateSecureFilename(filename);
+      const s3Key = S3Service.buildS3Key(uploaderId, options.resourceId, secureFilename);
+      
+      const uploadUrl = await S3Service.getSignedUrl(
+        s3Key,
+        'putObject',
+        options.expiresIn || 3600
+      );
+
+      return {
+        uploadUrl,
+        s3Key,
+        formData: {
+          'Content-Type': mimeType,
+          'x-amz-meta-original-name': filename,
+          'x-amz-meta-uploaded-by': uploaderId,
+          'x-amz-meta-upload-timestamp': new Date().toISOString()
+        }
+      };
+    } catch (error: any) {
+      throw new MediaError(`Failed to generate upload URL: ${error.message}`, 500, 'UPLOAD_URL_ERROR');
+    }
   }
 
   /**
@@ -984,6 +1253,49 @@ async listMediaByUser(
       return { valid: true };
     } catch (error: any) {
       return { valid: false, error: `File validation error: ${error.message}` };
+    }
+  }
+
+  /**
+   * Get S3 storage health check
+   */
+  async getStorageHealth(): Promise<{
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    s3Available: boolean;
+    latency?: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let s3Available = false;
+    let latency: number | undefined;
+
+    try {
+      const startTime = Date.now();
+      const validation = await S3Service.validateConfiguration();
+      latency = Date.now() - startTime;
+
+      s3Available = validation.configured && validation.canConnect && validation.bucketExists;
+      
+      if (validation.errors.length > 0) {
+        errors.push(...validation.errors);
+      }
+
+      const status = s3Available && errors.length === 0 ? 'healthy' : 
+                    s3Available ? 'degraded' : 'unhealthy';
+
+      return {
+        status,
+        s3Available,
+        latency,
+        errors
+      };
+    } catch (error: any) {
+      errors.push(`Storage health check failed: ${error.message}`);
+      return {
+        status: 'unhealthy',
+        s3Available: false,
+        errors
+      };
     }
   }
 }

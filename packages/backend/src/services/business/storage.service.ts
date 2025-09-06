@@ -6,9 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { Media, IMedia } from '../../models/media.model';
 import { Types } from 'mongoose';
 import { UtilsService } from '../utils/utils.service';
+import { S3Service } from '../external/s3.service';
 
+// Environment-based storage configuration
+const USE_S3 = process.env.STORAGE_PROVIDER === 's3' && process.env.AWS_S3_BUCKET;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
-const UPLOAD_URL_PREFIX = process.env.UPLOAD_URL_PREFIX || '/uploads';
 
 export interface StorageUploadOptions {
   businessId: string;
@@ -17,6 +19,7 @@ export interface StorageUploadOptions {
   metadata?: Record<string, any>;
   maxFileSize?: number;
   allowedTypes?: string[];
+  isPublic?: boolean;
 }
 
 export interface StorageStats {
@@ -34,6 +37,7 @@ export interface StorageStats {
     size: string;
     uploadDate: Date;
   } | null;
+  storageProvider: 'local' | 's3';
 }
 
 export interface FileInfo {
@@ -57,10 +61,11 @@ export interface FileInfo {
   sizeFormatted?: string;
   slug?: string;
   checksum?: string;
+  s3Key?: string; // For S3 storage
 }
 
 /**
- * Enhanced storage service for brands and manufacturers
+ * Enhanced storage service supporting both local and S3 storage
  */
 export class StorageService {
 
@@ -91,20 +96,20 @@ export class StorageService {
     return `${slug}-${uniqueId}${ext}`;
   }
 
-  private async calculateFileChecksum(filePath: string): Promise<string> {
+  private async calculateFileChecksum(buffer: Buffer): Promise<string> {
     try {
       const crypto = await import('crypto');
-      const fileBuffer = await fs.readFile(filePath);
-      return crypto.createHash('md5').update(fileBuffer).digest('hex');
+      return crypto.createHash('md5').update(buffer).digest('hex');
     } catch (error) {
       console.warn('Could not calculate file checksum:', error);
       return '';
     }
   }
 
-  private logStorageEvent(event: string, businessId: string, filename: string, success: boolean): void {
+  private logStorageEvent(event: string, businessId: string, filename: string, success: boolean, provider?: string): void {
     const maskedBusinessId = businessId.substring(0, 8) + '***';
-    console.log(`[STORAGE] ${event} - Business: ${maskedBusinessId} - File: ${filename} - ${success ? 'SUCCESS' : 'FAILED'}`);
+    const storageInfo = provider ? ` [${provider.toUpperCase()}]` : '';
+    console.log(`[STORAGE]${storageInfo} ${event} - Business: ${maskedBusinessId} - File: ${filename} - ${success ? 'SUCCESS' : 'FAILED'}`);
   }
 
   private async ensureDirectoryExists(dirPath: string): Promise<void> {
@@ -189,7 +194,8 @@ export class StorageService {
       downloadCount: media.downloadCount,
       sizeFormatted: UtilsService.formatFileSize(media.size),
       slug: additionalData?.slug || UtilsService.generateSlug(path.basename(media.originalName, path.extname(media.originalName))),
-      checksum: additionalData?.checksum || media.metadata?.checksum
+      checksum: additionalData?.checksum || media.metadata?.checksum,
+      s3Key: media.metadata?.s3Key // Include S3 key if available
     };
   }
 
@@ -217,7 +223,7 @@ export class StorageService {
   // Public methods
 
   /**
-   * Upload a file with enhanced validation and security
+   * Upload a file with enhanced validation and S3/local storage support
    */
   async uploadFile(file: Express.Multer.File, options: StorageUploadOptions): Promise<FileInfo> {
     if (!file) {
@@ -227,27 +233,62 @@ export class StorageService {
     this.validateUploadOptions(options);
     this.validateFile(file, options);
 
-    const { businessId, resourceId, category = 'document', metadata } = options;
-
+    const { businessId, resourceId, category = 'document', metadata, isPublic = false } = options;
     const secureFilename = this.generateSecureFilename(file.originalname);
-    const targetDir = this.buildFilePath(businessId, resourceId);
-    await this.ensureDirectoryExists(targetDir);
-
-    const filePath = path.join(targetDir, secureFilename);
 
     try {
-      await fs.rename(file.path, filePath);
+      let fileUrl: string;
+      let fileBuffer: Buffer;
+      let checksum: string;
+      let s3Key: string | undefined;
 
-      const checksum = await this.calculateFileChecksum(filePath);
+      // Read file buffer for processing
+      fileBuffer = await fs.readFile(file.path);
+      checksum = await this.calculateFileChecksum(fileBuffer);
 
-      const urlPath = resourceId 
-        ? `/uploads/${businessId}/${resourceId}/${secureFilename}`
-        : `/uploads/${businessId}/${secureFilename}`;
+      if (USE_S3) {
+        // Upload to S3
+        s3Key = S3Service.buildS3Key(businessId, resourceId, secureFilename);
+        
+        const uploadResult = await S3Service.uploadFile(fileBuffer, {
+          businessId,
+          resourceId,
+          filename: secureFilename,
+          mimeType: file.mimetype,
+          metadata: {
+            originalName: file.originalname,
+            checksum,
+            ...metadata
+          },
+          isPublic
+        });
+
+        fileUrl = uploadResult.url;
+        this.logStorageEvent('FILE_UPLOAD', businessId, secureFilename, true, 's3');
+      } else {
+        // Upload to local filesystem
+        const targetDir = this.buildFilePath(businessId, resourceId);
+        await this.ensureDirectoryExists(targetDir);
+        const filePath = path.join(targetDir, secureFilename);
+        
+        await fs.rename(file.path, filePath);
+        
+        fileUrl = resourceId 
+          ? `/uploads/${businessId}/${resourceId}/${secureFilename}`
+          : `/uploads/${businessId}/${secureFilename}`;
+        
+        this.logStorageEvent('FILE_UPLOAD', businessId, secureFilename, true, 'local');
+      }
+
+      // Clean up temporary file
+      try {
+        await fs.unlink(file.path);
+      } catch {}
 
       const slug = UtilsService.generateSlug(path.basename(file.originalname, path.extname(file.originalname)));
 
       const mediaRecord = new Media({
-        url: urlPath,
+        url: fileUrl,
         type: this.determineMediaType(file.mimetype),
         uploadedBy: businessId,
         filename: secureFilename,
@@ -259,24 +300,24 @@ export class StorageService {
         metadata: UtilsService.cleanObject({
           ...metadata,
           uploadTimestamp: new Date().toISOString(),
-          checksum
+          checksum,
+          s3Key,
+          storageProvider: USE_S3 ? 's3' : 'local'
         }),
         isActive: true,
         isProcessed: true,
-        isPublic: options.metadata?.isPublic || false
+        isPublic
       });
 
       const savedMedia = await mediaRecord.save();
-
-      this.logStorageEvent('FILE_UPLOAD', businessId, secureFilename, true);
-
       return this.mapToFileInfo(savedMedia, { slug, checksum });
 
     } catch (error) {
-      this.logStorageEvent('FILE_UPLOAD', businessId, file.originalname, false);
+      this.logStorageEvent('FILE_UPLOAD', businessId, file.originalname, false, USE_S3 ? 's3' : 'local');
       
+      // Clean up temporary file on error
       try {
-        await fs.unlink(filePath);
+        await fs.unlink(file.path);
       } catch {}
       
       throw { statusCode: 500, message: `File upload failed: ${error.message}` };
@@ -284,13 +325,13 @@ export class StorageService {
   }
 
   /**
-   * Upload JSON metadata with validation
+   * Upload JSON metadata with S3/local storage support
    */
   async uploadJsonMetadata(
     businessId: string,
     resourceId: string,
     metadata: Record<string, any>,
-    options: { category?: string; filename?: string } = {}
+    options: { category?: string; filename?: string; isPublic?: boolean } = {}
   ): Promise<string> {
     this.validateBusinessId(businessId);
 
@@ -310,48 +351,200 @@ export class StorageService {
       resourceId
     });
 
-    const targetDir = this.buildFilePath(businessId, resourceId);
-    await this.ensureDirectoryExists(targetDir);
-
     const timestamp = new Date().toISOString().split('T')[0];
     const baseFileName = options.filename || `metadata-${timestamp}`;
     const fileName = `${UtilsService.generateSlug(baseFileName)}-${uuidv4().split('-')[0]}.json`;
-    const filePath = path.join(targetDir, fileName);
+    const jsonContent = JSON.stringify(cleanedMetadata, null, 2);
+    const jsonBuffer = Buffer.from(jsonContent, 'utf8');
     
     try {
-      const jsonContent = JSON.stringify(cleanedMetadata, null, 2);
-      await fs.writeFile(filePath, jsonContent, 'utf-8');
+      let fileUrl: string;
+      let s3Key: string | undefined;
 
-      const checksum = await this.calculateFileChecksum(filePath);
+      if (USE_S3) {
+        // Upload to S3
+        s3Key = S3Service.buildS3Key(businessId, resourceId, fileName);
+        
+        const uploadResult = await S3Service.uploadFile(jsonBuffer, {
+          businessId,
+          resourceId,
+          filename: fileName,
+          mimeType: 'application/json',
+          metadata: {
+            type: 'metadata',
+            version: cleanedMetadata.version
+          },
+          isPublic: options.isPublic || false
+        });
+
+        fileUrl = uploadResult.url;
+      } else {
+        // Upload to local filesystem
+        const targetDir = this.buildFilePath(businessId, resourceId);
+        await this.ensureDirectoryExists(targetDir);
+        const filePath = path.join(targetDir, fileName);
+        
+        await fs.writeFile(filePath, jsonContent, 'utf-8');
+        fileUrl = `/uploads/${businessId}/${resourceId}/${fileName}`;
+      }
+
+      const checksum = await this.calculateFileChecksum(jsonBuffer);
 
       const mediaRecord = new Media({
-        url: `/uploads/${businessId}/${resourceId}/${fileName}`,
+        url: fileUrl,
         type: 'document',
         uploadedBy: businessId,
         filename: fileName,
         originalName: fileName,
         mimeType: 'application/json',
-        size: Buffer.byteLength(jsonContent),
+        size: jsonBuffer.length,
         category: options.category || 'metadata',
         resourceId,
         metadata: {
           ...cleanedMetadata,
-          checksum
+          checksum,
+          s3Key,
+          storageProvider: USE_S3 ? 's3' : 'local'
         },
         isActive: true,
-        isProcessed: true
+        isProcessed: true,
+        isPublic: options.isPublic || false
       });
 
       await mediaRecord.save();
 
-      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, true);
+      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, true, USE_S3 ? 's3' : 'local');
 
-      return `/uploads/${businessId}/${resourceId}/${fileName}`;
+      return fileUrl;
 
     } catch (error) {
-      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, false);
+      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, false, USE_S3 ? 's3' : 'local');
       throw { statusCode: 500, message: `JSON upload failed: ${error.message}` };
     }
+  }
+
+  /**
+   * Delete file with S3/local cleanup
+   */
+  async deleteFile(fileId: string, businessId: string): Promise<void> {
+    this.validateBusinessId(businessId);
+
+    const media = await Media.findOne({
+      _id: fileId,
+      uploadedBy: businessId,
+      isActive: true
+    });
+
+    if (!media) {
+      throw { statusCode: 404, message: 'File not found' };
+    }
+
+    try {
+      const s3Key = media.metadata?.s3Key;
+      
+      if (s3Key && USE_S3) {
+        // Delete from S3
+        await S3Service.deleteFile(s3Key);
+      } else {
+        // Delete from local filesystem
+        const fullPath = path.resolve(UPLOAD_DIR, media.url.replace('/uploads/', ''));
+        await fs.unlink(fullPath);
+      }
+    } catch (error) {
+      console.warn(`Could not delete file ${media.url}:`, error);
+    }
+
+    await media.updateOne({ isActive: false, deletedAt: new Date() });
+
+    this.logStorageEvent('FILE_DELETE', businessId, media.filename, true, USE_S3 ? 's3' : 'local');
+  }
+
+  /**
+   * Get storage statistics with S3 support
+   */
+  async getStorageStats(businessId: string): Promise<StorageStats> {
+    this.validateBusinessId(businessId);
+
+    let s3Stats = null;
+    if (USE_S3) {
+      try {
+        s3Stats = await S3Service.getStorageStats(businessId);
+      } catch (error) {
+        console.warn('Could not get S3 storage stats:', error);
+      }
+    }
+
+    const [businessStats, typeStats, categoryStats, largestFile] = await Promise.all([
+      Media.aggregate([
+        { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
+        {
+          $group: {
+            _id: null,
+            totalFiles: { $sum: 1 },
+            totalSize: { $sum: '$size' },
+            avgSize: { $avg: '$size' }
+          }
+        }
+      ]),
+      Media.aggregate([
+        { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
+        { 
+          $group: { 
+            _id: '$type', 
+            count: { $sum: 1 },
+            size: { $sum: '$size' }
+          } 
+        }
+      ]),
+      Media.aggregate([
+        { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
+        { 
+          $group: { 
+            _id: '$category', 
+            count: { $sum: 1 },
+            size: { $sum: '$size' }
+          } 
+        }
+      ]),
+      Media.findOne({ uploadedBy: businessId, isActive: true })
+        .sort({ size: -1 })
+        .select('filename size createdAt')
+    ]);
+
+    const totalFiles = s3Stats?.totalFiles || businessStats[0]?.totalFiles || 0;
+    const totalSize = s3Stats?.totalSize || businessStats[0]?.totalSize || 0;
+    const avgSize = businessStats[0]?.avgSize || 0;
+
+    const byFileType: Record<string, number> = {};
+    typeStats.forEach(stat => {
+      byFileType[stat._id || 'unknown'] = stat.count;
+    });
+
+    const byCategory: Record<string, number> = {};
+    categoryStats.forEach(stat => {
+      byCategory[stat._id || 'unknown'] = stat.count;
+    });
+
+    const storageQuotaBytes = 5 * 1024 * 1024 * 1024; // 5GB default
+    const quotaUsagePercentage = Math.round((totalSize / storageQuotaBytes) * 100);
+
+    return {
+      totalFiles,
+      totalSize,
+      storageUsed: s3Stats?.sizeFormatted || UtilsService.formatFileSize(totalSize),
+      storageQuota: UtilsService.formatFileSize(storageQuotaBytes),
+      quotaUsagePercentage,
+      byBusinessId: { [businessId]: totalFiles },
+      byFileType,
+      byCategory,
+      averageFileSize: UtilsService.formatFileSize(avgSize),
+      largestFile: largestFile ? {
+        filename: largestFile.filename,
+        size: UtilsService.formatFileSize(largestFile.size),
+        uploadDate: largestFile.createdAt
+      } : null,
+      storageProvider: USE_S3 ? 's3' : 'local'
+    };
   }
 
   /**
@@ -414,10 +607,14 @@ export class StorageService {
   }
 
   /**
-   * Delete file with cleanup
+   * Generate signed URL for direct S3 access (S3 only)
    */
-  async deleteFile(fileId: string, businessId: string): Promise<void> {
+  async getSignedUrl(fileId: string, businessId: string, expiresIn: number = 3600): Promise<string> {
     this.validateBusinessId(businessId);
+
+    if (!USE_S3) {
+      throw { statusCode: 400, message: 'Signed URLs only available with S3 storage' };
+    }
 
     const media = await Media.findOne({
       _id: fileId,
@@ -429,94 +626,12 @@ export class StorageService {
       throw { statusCode: 404, message: 'File not found' };
     }
 
-    try {
-      const fullPath = path.resolve(UPLOAD_DIR, media.url.replace('/uploads/', ''));
-      await fs.unlink(fullPath);
-    } catch (error) {
-      console.warn(`Could not delete file ${media.url}:`, error);
+    const s3Key = media.metadata?.s3Key;
+    if (!s3Key) {
+      throw { statusCode: 400, message: 'File not stored in S3' };
     }
 
-    await media.updateOne({ isActive: false, deletedAt: new Date() });
-
-    this.logStorageEvent('FILE_DELETE', businessId, media.filename, true);
-  }
-
-  /**
-   * Get storage statistics
-   */
-  async getStorageStats(businessId: string): Promise<StorageStats> {
-    this.validateBusinessId(businessId);
-
-    const [businessStats, typeStats, categoryStats, largestFile] = await Promise.all([
-      Media.aggregate([
-        { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
-        {
-          $group: {
-            _id: null,
-            totalFiles: { $sum: 1 },
-            totalSize: { $sum: '$size' },
-            avgSize: { $avg: '$size' }
-          }
-        }
-      ]),
-      Media.aggregate([
-        { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
-        { 
-          $group: { 
-            _id: '$type', 
-            count: { $sum: 1 },
-            size: { $sum: '$size' }
-          } 
-        }
-      ]),
-      Media.aggregate([
-        { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
-        { 
-          $group: { 
-            _id: '$category', 
-            count: { $sum: 1 },
-            size: { $sum: '$size' }
-          } 
-        }
-      ]),
-      Media.findOne({ uploadedBy: businessId, isActive: true })
-        .sort({ size: -1 })
-        .select('filename size createdAt')
-    ]);
-
-    const totalFiles = businessStats[0]?.totalFiles || 0;
-    const totalSize = businessStats[0]?.totalSize || 0;
-    const avgSize = businessStats[0]?.avgSize || 0;
-
-    const byFileType: Record<string, number> = {};
-    typeStats.forEach(stat => {
-      byFileType[stat._id || 'unknown'] = stat.count;
-    });
-
-    const byCategory: Record<string, number> = {};
-    categoryStats.forEach(stat => {
-      byCategory[stat._id || 'unknown'] = stat.count;
-    });
-
-    const storageQuotaBytes = 5 * 1024 * 1024 * 1024; // 5GB
-    const quotaUsagePercentage = Math.round((totalSize / storageQuotaBytes) * 100);
-
-    return {
-      totalFiles,
-      totalSize,
-      storageUsed: UtilsService.formatFileSize(totalSize),
-      storageQuota: UtilsService.formatFileSize(storageQuotaBytes),
-      quotaUsagePercentage,
-      byBusinessId: { [businessId]: totalFiles },
-      byFileType,
-      byCategory,
-      averageFileSize: UtilsService.formatFileSize(avgSize),
-      largestFile: largestFile ? {
-        filename: largestFile.filename,
-        size: UtilsService.formatFileSize(largestFile.size),
-        uploadDate: largestFile.createdAt
-      } : null
-    };
+    return await S3Service.getSignedUrl(s3Key, 'getObject', expiresIn);
   }
 
   /**
@@ -589,11 +704,20 @@ export class StorageService {
       throw { statusCode: 404, message: 'File not found' };
     }
 
+    // Update S3 metadata if using S3
+    if (USE_S3 && media.metadata?.s3Key && updates.metadata) {
+      try {
+        await S3Service.updateMetadata(media.metadata.s3Key, updates.metadata);
+      } catch (error) {
+        console.warn('Failed to update S3 metadata:', error);
+      }
+    }
+
     return this.mapToFileInfo(media);
   }
 
   /**
-   * Bulk delete files
+   * Bulk delete files with S3/local support
    */
   async bulkDeleteFiles(
     fileIds: string[],
@@ -613,25 +737,28 @@ export class StorageService {
     const errors: string[] = [];
     let deleted = 0;
     let totalSize = 0;
+    const s3KeysToDelete: string[] = [];
 
-    for (const fileId of fileIds) {
+    const files = await Media.find({
+      _id: { $in: fileIds },
+      uploadedBy: businessId,
+      isActive: true
+    });
+
+    for (const media of files) {
       try {
-        const media = await Media.findOne({
-          _id: fileId,
-          uploadedBy: businessId,
-          isActive: true
-        });
+        const s3Key = media.metadata?.s3Key;
 
-        if (!media) {
-          errors.push(`File ${fileId}: Not found or already deleted`);
-          continue;
-        }
-
-        try {
-          const fullPath = path.resolve(UPLOAD_DIR, media.url.replace('/uploads/', ''));
-          await fs.unlink(fullPath);
-        } catch (error) {
-          console.warn(`Could not delete file ${media.url}:`, error);
+        if (s3Key && USE_S3) {
+          s3KeysToDelete.push(s3Key);
+        } else {
+          // Delete from local filesystem
+          try {
+            const fullPath = path.resolve(UPLOAD_DIR, media.url.replace('/uploads/', ''));
+            await fs.unlink(fullPath);
+          } catch (error) {
+            console.warn(`Could not delete file ${media.url}:`, error);
+          }
         }
 
         await media.updateOne({ isActive: false, deletedAt: new Date() });
@@ -639,12 +766,24 @@ export class StorageService {
         totalSize += media.size;
         deleted++;
 
-        this.logStorageEvent('BULK_DELETE', businessId, media.filename, true);
+        this.logStorageEvent('BULK_DELETE', businessId, media.filename, true, USE_S3 ? 's3' : 'local');
 
       } catch (error) {
-        const errorMessage = `Failed to delete ${fileId}: ${error.message}`;
+        const errorMessage = `Failed to delete ${media._id}: ${error.message}`;
         errors.push(errorMessage);
-        this.logStorageEvent('BULK_DELETE', businessId, fileId, false);
+        this.logStorageEvent('BULK_DELETE', businessId, media.filename, false, USE_S3 ? 's3' : 'local');
+      }
+    }
+
+    // Bulk delete from S3 if using S3
+    if (s3KeysToDelete.length > 0 && USE_S3) {
+      try {
+        const s3DeleteResult = await S3Service.deleteFiles(s3KeysToDelete);
+        if (s3DeleteResult.errors.length > 0) {
+          errors.push(...s3DeleteResult.errors.map(e => e.error));
+        }
+      } catch (error) {
+        errors.push(`S3 bulk delete failed: ${error.message}`);
       }
     }
 
@@ -652,8 +791,51 @@ export class StorageService {
   }
 
   /**
-   * Add tags to a file
+   * Validate storage configuration
    */
+  async validateStorageConfiguration(): Promise<{
+    configured: boolean;
+    storageProvider: 'local' | 's3';
+    canConnect: boolean;
+    errors: string[];
+  }> {
+    const result = {
+      configured: true,
+      storageProvider: USE_S3 ? 's3' as const : 'local' as const,
+      canConnect: false,
+      errors: [] as string[]
+    };
+
+    if (USE_S3) {
+      try {
+        const s3Validation = await S3Service.validateConfiguration();
+        result.configured = s3Validation.configured;
+        result.canConnect = s3Validation.canConnect && s3Validation.bucketExists && s3Validation.hasPermissions;
+        result.errors = s3Validation.errors;
+      } catch (error) {
+        result.errors.push(`S3 validation failed: ${error.message}`);
+      }
+    } else {
+      // Validate local storage
+      try {
+        const uploadDir = path.resolve(UPLOAD_DIR);
+        await fs.access(uploadDir);
+        result.canConnect = true;
+      } catch {
+        try {
+          await fs.mkdir(path.resolve(UPLOAD_DIR), { recursive: true });
+          result.canConnect = true;
+        } catch (error) {
+          result.errors.push(`Cannot create upload directory: ${error.message}`);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  // Legacy methods preserved for backward compatibility...
+
   async addFileTags(fileId: string, businessId: string, tags: string[]): Promise<FileInfo> {
     this.validateBusinessId(businessId);
 
@@ -678,9 +860,6 @@ export class StorageService {
     return this.mapToFileInfo(media);
   }
 
-  /**
-   * Remove tags from a file
-   */
   async removeFileTags(fileId: string, businessId: string, tags: string[]): Promise<FileInfo> {
     this.validateBusinessId(businessId);
 
@@ -705,9 +884,6 @@ export class StorageService {
     return this.mapToFileInfo(media);
   }
 
-  /**
-   * Track file download
-   */
   async trackFileDownload(fileId: string, businessId: string): Promise<void> {
     this.validateBusinessId(businessId);
 
@@ -723,12 +899,9 @@ export class StorageService {
       }
     );
 
-    this.logStorageEvent('FILE_DOWNLOAD', businessId, fileId, true);
+    this.logStorageEvent('FILE_DOWNLOAD', businessId, fileId, true, USE_S3 ? 's3' : 'local');
   }
 
-  /**
-   * Get files by category
-   */
   async getFilesByCategory(
     businessId: string,
     category: 'profile' | 'product' | 'banner' | 'certificate' | 'document' | 'metadata'
@@ -744,9 +917,6 @@ export class StorageService {
     return files.map(file => this.mapToFileInfo(file));
   }
 
-  /**
-   * Get recent files
-   */
   async getRecentFiles(businessId: string, limit: number = 10): Promise<FileInfo[]> {
     this.validateBusinessId(businessId);
 
@@ -760,9 +930,6 @@ export class StorageService {
     return files.map(file => this.mapToFileInfo(file));
   }
 
-  /**
-   * Get large files for optimization
-   */
   async getLargeFiles(businessId: string, sizeThresholdMB: number = 10): Promise<FileInfo[]> {
     this.validateBusinessId(businessId);
 
@@ -777,14 +944,17 @@ export class StorageService {
     return files.map(file => this.mapToFileInfo(file));
   }
 
-  /**
-   * Cleanup orphaned files
-   */
   async cleanupOrphanedFiles(businessId: string): Promise<{ cleaned: number; errors: string[] }> {
     this.validateBusinessId(businessId);
 
     const errors: string[] = [];
     let cleaned = 0;
+
+    if (USE_S3) {
+      // For S3, we rely on the database records as the source of truth
+      console.log('S3 orphan cleanup: Using database records as source of truth');
+      return { cleaned: 0, errors: [] };
+    }
 
     try {
       const businessDir = path.resolve(UPLOAD_DIR, businessId);
