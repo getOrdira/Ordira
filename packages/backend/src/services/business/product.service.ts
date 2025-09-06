@@ -234,6 +234,52 @@ export class ProductService {
   }
 
   /**
+   * Upload product images directly
+   */
+  async uploadProductImages(
+    productId: string,
+    files: Express.Multer.File[],
+    businessId?: string,
+    manufacturerId?: string
+  ): Promise<any[]> {
+    if (!businessId && !manufacturerId) {
+      throw new Error('Either businessId or manufacturerId must be provided');
+    }
+
+    // Verify product exists and user has access
+    const query: any = { _id: productId };
+    if (businessId) query.business = businessId;
+    if (manufacturerId) query.manufacturer = manufacturerId;
+
+    const product = await Product.findOne(query);
+    if (!product) {
+      throw { statusCode: 404, message: 'Product not found or unauthorized.' };
+    }
+
+    // Upload images through media service
+    const uploadedImages = [];
+    for (const file of files) {
+      const media = await this.mediaService.saveMedia(file, businessId || manufacturerId!, {
+        category: 'product',
+        resourceId: productId,
+        description: `Product image for ${product.title}`
+      });
+      uploadedImages.push(media);
+    }
+
+    // Update product with new image URLs
+    const imageUrls = uploadedImages.map(img => img.url);
+    const updatedMedia = [...(product.media || []), ...imageUrls];
+    
+    await Product.findByIdAndUpdate(productId, {
+      media: updatedMedia,
+      updatedAt: new Date()
+    });
+
+    return uploadedImages;
+  }
+
+  /**
    * Get product statistics
    */
   async getProductStats(

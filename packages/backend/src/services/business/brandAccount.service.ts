@@ -3,8 +3,24 @@ import { Business, IBusiness } from '../../models/business.model';
 import { ethers } from 'ethers';
 import { TokenDiscountService } from '../external/tokenDiscount.service';
 import { BrandSettings } from '../../models/brandSettings.model';
+import { MediaService } from './media.service';
+
+export interface ProfilePictureUploadResult {
+  profilePictureUrl: string;
+  uploadedAt: Date;
+  filename: string;
+  fileSize: number;
+  s3Key?: string;
+  s3Bucket?: string;
+  s3Region?: string;
+}
 
 export class BrandAccountService {
+  private mediaService: MediaService;
+
+  constructor() {
+    this.mediaService = new MediaService();
+  }
   
   async getBrandAccount(businessId: string): Promise<IBusiness> {
     const biz = await Business.findById(businessId).select(
@@ -40,6 +56,68 @@ export class BrandAccountService {
       throw { statusCode: 404, message: 'Brand not found.' };
     }
     return biz;
+  }
+
+  /**
+   * Upload brand profile picture
+   */
+  async uploadProfilePicture(businessId: string, file: Express.Multer.File): Promise<ProfilePictureUploadResult> {
+    try {
+      if (!businessId?.trim()) {
+        throw { statusCode: 400, message: 'Business ID is required' };
+      }
+
+      if (!file) {
+        throw { statusCode: 400, message: 'Profile picture file is required' };
+      }
+
+      // Validate file type and size
+      const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        throw { statusCode: 400, message: 'Invalid file type. Only JPEG, PNG, and WebP are allowed' };
+      }
+
+      const maxFileSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxFileSize) {
+        throw { statusCode: 400, message: 'File size exceeds 5MB limit' };
+      }
+
+      // Upload through media service
+      const media = await this.mediaService.saveMedia(file, businessId, {
+        category: 'profile',
+        description: 'Brand profile picture',
+        isPublic: true
+      });
+
+      // Update brand profile with new picture URL
+      await Business.findByIdAndUpdate(businessId, {
+        profilePictureUrl: media.url,
+        updatedAt: new Date()
+      });
+
+      // Also update brand settings logo to keep them in sync
+      await BrandSettings.findOneAndUpdate(
+        { business: businessId },
+        { logoUrl: media.url },
+        { upsert: true }
+      );
+
+      return {
+        profilePictureUrl: media.url,
+        uploadedAt: media.createdAt,
+        filename: media.filename,
+        fileSize: file.size,
+        // Add S3 information if available
+        s3Key: media.s3Key,
+        s3Bucket: media.s3Bucket,
+        s3Region: media.s3Region
+      };
+    } catch (error: any) {
+      if (error.statusCode) {
+        throw error;
+      }
+      throw { statusCode: 500, message: `Failed to upload profile picture: ${error.message}` };
+    }
   }
 
   async updateContactInfo(businessId: string, contactEmail: string): Promise<IBusiness> {

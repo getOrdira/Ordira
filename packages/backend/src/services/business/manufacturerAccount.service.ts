@@ -88,6 +88,9 @@ export interface ProfilePictureUploadResult {
   uploadedAt: Date;
   filename: string;
   fileSize: number;
+  s3Key?: string;
+  s3Bucket?: string;
+  s3Region?: string;
 }
 
 export interface VerificationSubmissionResult {
@@ -340,7 +343,11 @@ export class ManufacturerAccountService {
         profilePictureUrl: media.url,
         uploadedAt: media.createdAt,
         filename: media.filename,
-        fileSize: file.size
+        fileSize: file.size,
+        // Add S3 information if available
+        s3Key: media.s3Key,
+        s3Bucket: media.s3Bucket,
+        s3Region: media.s3Region
       };
     } catch (error: any) {
       if (error instanceof ManufacturerAccountError) {
