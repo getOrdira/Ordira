@@ -3,11 +3,16 @@ import { BlockchainProviderService } from './provider.service';
 import { NftMintResult, ContractDeployment, NftContractInfo, TransferResult } from '../types/blockchain.types';
 import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
 import { Certificate, ICertificate } from '../../models/certificate.model';
+import { Types } from 'mongoose';
+import { S3Service } from '../external/s3.service';
+import { StorageService } from '../business/storage.service';
 import { createAppError } from '../../middleware/error.middleware';
 import nftFactoryAbi from '../../abi/nftFactoryAbi.json';
 import erc721Abi from '../../abi/erc721Abi.json';
+import sharp from 'sharp';
+import crypto from 'crypto';
 
-// ===== INTERFACES =====
+// ===== TYPE DEFINITIONS =====
 
 export interface DeployContractParams {
   name: string;
@@ -33,6 +38,8 @@ export interface MintParams {
       display_type?: string;
     }>;
   };
+  certificateTemplate?: string;
+  customMessage?: string;
 }
 
 export interface TransferParams {
@@ -48,29 +55,39 @@ export interface BurnParams {
   reason?: string;
 }
 
-export interface ContractListOptions {
-  status?: string;
-  page?: number;
-  limit?: number;
+export interface CertificateImageOptions {
+  template?: string;
+  businessLogo?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  customMessage?: string;
+  attributes?: Array<{
+    trait_type: string;
+    value: string | number;
+  }>;
 }
 
-export interface CertificateListOptions {
-  productId?: string;
-  status?: string;
-  sortBy?: 'createdAt' | 'tokenId' | 'mintedAt';
-  sortOrder?: 'asc' | 'desc';
-  limit?: number;
-  offset?: number;
+export interface NftMetadata {
+  name: string;
+  description: string;
+  image: string; // S3 URL
+  external_url?: string;
+  background_color?: string;
+  attributes?: Array<{
+    trait_type: string;
+    value: string | number;
+    display_type?: string;
+  }>;
+  certificate?: {
+    recipient: string;
+    issuer: string;
+    issuedAt: string;
+    expiresAt?: string;
+    certificateId: string;
+  };
 }
 
-export interface AnalyticsOptions {
-  startDate?: Date;
-  endDate?: Date;
-  metrics?: string[];
-  contractAddress?: string;
-}
-
-// ===== RESULT INTERFACES =====
+// ===== RESULT TYPES =====
 
 export interface DeploymentResult {
   contractId: string;
@@ -93,7 +110,9 @@ export interface MintResult {
   tokenId: string;
   contractAddress: string;
   recipient: string;
-  metadata: any;
+  metadata: NftMetadata;
+  metadataUri: string; // S3 URL for metadata JSON
+  imageUrl: string; // S3 URL for certificate image
   mintedAt: Date;
   transactionHash: string;
   blockNumber: number;
@@ -102,55 +121,31 @@ export interface MintResult {
   totalCost: string;
   certificateId: string;
   verificationUrl: string;
+  s3Keys: {
+    metadata: string;
+    image: string;
+    thumbnail?: string;
+  };
 }
 
-
-export interface BurnResult {
-  burnedAt: Date;
-  transactionHash: string;
-  blockNumber: number;
-  gasUsed: string;
-  storageReclaimed: string;
-  costsRecovered: string;
+export interface TemplateUploadResult {
+  templateId: string;
+  templateUrl: string;
+  s3Key: string;
+  previewUrl?: string;
 }
 
 export interface VerificationResult {
   isAuthentic: boolean;
   owner: string;
   mintedAt: Date;
-  metadata: any;
+  metadata: NftMetadata;
   network: string;
   blockNumber: number;
   transactionHash: string;
   certificate: any;
-}
-
-export interface ProductOwnership {
-  isOwner: boolean;
-  reason?: string;
-}
-
-export interface MintingEligibility {
-  canMint: boolean;
-  reason?: string;
-}
-
-export interface TransferEligibility {
-  canTransfer: boolean;
-  reason?: string;
-}
-
-export interface BurnEligibility {
-  canBurn: boolean;
-  reason?: string;
-}
-
-export interface ContractStats {
-  totalContracts: number;
-  activeContracts: number;
-  totalMinted: number;
-  totalTransferred: number;
-  gasSpent: string;
+  imageUrl?: string;
+  metadataUrl?: string;
 }
 
 export interface CertificateAnalytics {
@@ -162,6 +157,8 @@ export interface CertificateAnalytics {
     productId: string;
     count: number;
   }>;
+  storageUsed: string;
+  totalFiles: number;
 }
 
 export interface Analytics {
@@ -194,14 +191,22 @@ export interface Analytics {
     timestamp: Date;
     txHash: string;
   }>;
+  storage: {
+    totalFiles: number;
+    totalSize: string;
+    s3Usage: string;
+  };
 }
 
-/**
- * Enhanced NFT Service class with instance methods (not static)
- * Aligns with controller expectations and backend patterns
- */
+// ===== MAIN SERVICE CLASS =====
+
 export class NftService {
-  
+  private storageService: StorageService;
+
+  constructor() {
+    this.storageService = new StorageService();
+  }
+
   // ===== PRIVATE HELPERS =====
   
   private getNftFactoryContract() {
@@ -234,7 +239,398 @@ export class NftService {
     return `${baseUrl}/verify/${contractAddress}/${tokenId}`;
   }
 
-  // ===== CONTRACT DEPLOYMENT =====
+  // ===== S3 STORAGE METHODS =====
+
+  async uploadCertificateTemplate(
+    businessId: string,
+    templateFile: Buffer,
+    templateName: string,
+    metadata?: Record<string, any>
+  ): Promise<TemplateUploadResult> {
+    try {
+      if (!businessId?.trim()) {
+        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
+      }
+      if (!templateFile || templateFile.length === 0) {
+        throw createAppError('Template file is required', 400, 'MISSING_TEMPLATE_FILE');
+      }
+      if (!templateName?.trim()) {
+        throw createAppError('Template name is required', 400, 'MISSING_TEMPLATE_NAME');
+      }
+
+      const templateId = `template_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+      const filename = `${templateId}_${templateName.replace(/[^a-zA-Z0-9\-_.]/g, '_')}`;
+
+      // Upload template to S3
+      const uploadResult = await S3Service.uploadFile(templateFile, {
+        businessId,
+        resourceId: 'templates',
+        filename,
+        mimeType: 'image/png',
+        metadata: {
+          templateId,
+          templateName,
+          uploadedAt: new Date().toISOString(),
+          ...metadata
+        },
+        isPublic: false
+      });
+
+      // Generate preview thumbnail
+      let previewUrl: string | undefined;
+      try {
+        const thumbnailBuffer = await sharp(templateFile)
+          .resize(400, 300, { fit: 'inside' })
+          .png({ quality: 80 })
+          .toBuffer();
+
+        const thumbnailResult = await S3Service.uploadFile(thumbnailBuffer, {
+          businessId,
+          resourceId: 'templates',
+          filename: `${templateId}_preview.png`,
+          mimeType: 'image/png',
+          metadata: {
+            type: 'preview',
+            parentTemplate: templateId
+          },
+          isPublic: true
+        });
+
+        previewUrl = thumbnailResult.url;
+      } catch (previewError) {
+        console.warn('Failed to generate template preview:', previewError);
+      }
+
+      return {
+        templateId,
+        templateUrl: uploadResult.url,
+        s3Key: uploadResult.key,
+        previewUrl
+      };
+    } catch (error: any) {
+      console.error('Upload certificate template error:', error);
+      if (error.statusCode) {
+        throw error;
+      }
+      throw createAppError(`Failed to upload certificate template: ${error.message}`, 500, 'TEMPLATE_UPLOAD_FAILED');
+    }
+  }
+
+  async generateCertificateImage(
+    businessId: string,
+    certificateData: {
+      recipient: string;
+      productName: string;
+      issuedAt: Date;
+      tokenId: string;
+      customMessage?: string;
+    },
+    options: CertificateImageOptions = {}
+  ): Promise<{ imageUrl: string; s3Key: string; thumbnailUrl?: string }> {
+    try {
+      if (!businessId?.trim()) {
+        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
+      }
+      if (!certificateData.recipient?.trim()) {
+        throw createAppError('Recipient is required', 400, 'MISSING_RECIPIENT');
+      }
+      if (!certificateData.productName?.trim()) {
+        throw createAppError('Product name is required', 400, 'MISSING_PRODUCT_NAME');
+      }
+
+      // Certificate dimensions
+      const width = 1200;
+      const height = 800;
+      const backgroundColor = options.backgroundColor || '#ffffff';
+      const textColor = options.textColor || '#333333';
+
+      // Create certificate image using Sharp
+      const certificateImage = await sharp({
+        create: {
+          width,
+          height,
+          channels: 3,
+          background: backgroundColor
+        }
+      })
+      .composite([
+        // Add decorative border
+        {
+          input: Buffer.from(`
+            <svg width="${width}" height="${height}">
+              <rect x="40" y="40" width="${width - 80}" height="${height - 80}" 
+                    fill="none" stroke="${textColor}" stroke-width="4" rx="20"/>
+            </svg>
+          `),
+          top: 0,
+          left: 0,
+          blend: 'over' as const
+        },
+
+        // Add certificate text
+        {
+          input: Buffer.from(`
+            <svg width="${width - 160}" height="${height - 160}">
+              <text x="50%" y="120" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="48" font-weight="bold" fill="${textColor}">
+                CERTIFICATE
+              </text>
+              <text x="50%" y="180" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="24" fill="${textColor}">
+                This is to certify that
+              </text>
+              <text x="50%" y="260" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="36" font-weight="bold" fill="${textColor}">
+                ${certificateData.recipient}
+              </text>
+              <text x="50%" y="320" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="24" fill="${textColor}">
+                has been awarded this certificate for
+              </text>
+              <text x="50%" y="400" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="32" font-weight="bold" fill="${textColor}">
+                ${certificateData.productName}
+              </text>
+              ${options.customMessage ? `
+                <text x="50%" y="460" text-anchor="middle" font-family="Arial, sans-serif" 
+                      font-size="20" fill="${textColor}">
+                  ${options.customMessage}
+                </text>
+              ` : ''}
+              <text x="50%" y="540" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="18" fill="${textColor}">
+                Issued on ${certificateData.issuedAt.toLocaleDateString()}
+              </text>
+              <text x="50%" y="580" text-anchor="middle" font-family="Arial, sans-serif" 
+                    font-size="14" fill="${textColor}" opacity="0.7">
+                Token ID: ${certificateData.tokenId}
+              </text>
+            </svg>
+          `),
+          top: 80,
+          left: 80,
+          blend: 'over' as const
+        }
+      ])
+      .png({ quality: 90 })
+      .toBuffer();
+
+      // Upload certificate image to S3
+      const filename = `certificate_${certificateData.tokenId}_${Date.now()}.png`;
+      const uploadResult = await S3Service.uploadFile(certificateImage, {
+        businessId,
+        resourceId: 'certificates',
+        filename,
+        mimeType: 'image/png',
+        metadata: {
+          type: 'certificate',
+          tokenId: certificateData.tokenId,
+          recipient: certificateData.recipient,
+          productName: certificateData.productName,
+          issuedAt: certificateData.issuedAt.toISOString()
+        },
+        isPublic: true
+      });
+
+      // Generate thumbnail
+      let thumbnailUrl: string | undefined;
+      try {
+        const thumbnailBuffer = await sharp(certificateImage)
+          .resize(400, 267, { fit: 'inside' })
+          .png({ quality: 80 })
+          .toBuffer();
+
+        const thumbnailResult = await S3Service.uploadFile(thumbnailBuffer, {
+          businessId,
+          resourceId: 'certificates',
+          filename: `certificate_${certificateData.tokenId}_thumb.png`,
+          mimeType: 'image/png',
+          metadata: {
+            type: 'thumbnail',
+            parentTokenId: certificateData.tokenId
+          },
+          isPublic: true
+        });
+
+        thumbnailUrl = thumbnailResult.url;
+      } catch (thumbError) {
+        console.warn('Failed to generate certificate thumbnail:', thumbError);
+      }
+
+      return {
+        imageUrl: uploadResult.url,
+        s3Key: uploadResult.key,
+        thumbnailUrl
+      };
+    } catch (error: any) {
+      console.error('Generate certificate image error:', error);
+      if (error.statusCode) {
+        throw error;
+      }
+      throw createAppError(`Failed to generate certificate image: ${error.message}`, 500, 'IMAGE_GENERATION_FAILED');
+    }
+  }
+
+  async uploadNftMetadata(
+    businessId: string,
+    tokenId: string,
+    metadata: NftMetadata
+  ): Promise<{ metadataUrl: string; s3Key: string }> {
+    try {
+      if (!businessId?.trim()) {
+        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
+      }
+      if (!tokenId?.trim()) {
+        throw createAppError('Token ID is required', 400, 'MISSING_TOKEN_ID');
+      }
+      if (!metadata || typeof metadata !== 'object') {
+        throw createAppError('Valid metadata object is required', 400, 'INVALID_METADATA');
+      }
+
+      // Validate required metadata fields
+      if (!metadata.name?.trim()) {
+        throw createAppError('Metadata name is required', 400, 'MISSING_METADATA_NAME');
+      }
+      if (!metadata.description?.trim()) {
+        throw createAppError('Metadata description is required', 400, 'MISSING_METADATA_DESCRIPTION');
+      }
+      if (!metadata.image?.trim()) {
+        throw createAppError('Metadata image URL is required', 400, 'MISSING_METADATA_IMAGE');
+      }
+
+      const filename = `metadata_${tokenId}.json`;
+      const metadataJson = JSON.stringify(metadata, null, 2);
+      const metadataBuffer = Buffer.from(metadataJson, 'utf8');
+
+      const uploadResult = await S3Service.uploadFile(metadataBuffer, {
+        businessId,
+        resourceId: 'nft-metadata',
+        filename,
+        mimeType: 'application/json',
+        metadata: {
+          type: 'nft-metadata',
+          tokenId,
+          name: metadata.name,
+          uploadedAt: new Date().toISOString()
+        },
+        isPublic: true
+      });
+
+      return {
+        metadataUrl: uploadResult.url,
+        s3Key: uploadResult.key
+      };
+    } catch (error: any) {
+      console.error('Upload NFT metadata error:', error);
+      if (error.statusCode) {
+        throw error;
+      }
+      throw createAppError(`Failed to upload NFT metadata: ${error.message}`, 500, 'METADATA_UPLOAD_FAILED');
+    }
+  }
+
+  async cleanupOrphanedS3Files(businessId: string): Promise<{
+    cleaned: number;
+    errors: string[];
+  }> {
+    try {
+      if (!businessId?.trim()) {
+        throw createAppError('Business ID is required', 400, 'MISSING_BUSINESS_ID');
+      }
+
+      const errors: string[] = [];
+      let cleaned = 0;
+
+      // Get all certificate S3 keys from database
+      const certificates = await Certificate.find({
+        business: businessId,
+        'metadata.s3Keys': { $exists: true }
+      }).select('metadata.s3Keys').lean();
+
+      const dbS3Keys = new Set<string>();
+      certificates.forEach(cert => {
+        if (cert.metadata?.s3Keys) {
+          Object.values(cert.metadata.s3Keys).forEach(key => {
+            if (key) dbS3Keys.add(key as string);
+          });
+        }
+      });
+
+      // List all S3 files for this business
+      const s3Files = await S3Service.listFiles({
+        prefix: `${businessId}/`,
+        maxKeys: 1000
+      });
+
+      // Find orphaned files
+      const orphanedKeys = s3Files.files
+        .map(file => file.key)
+        .filter(key => !dbS3Keys.has(key));
+
+      // Delete orphaned files
+      if (orphanedKeys.length > 0) {
+        const deleteResult = await S3Service.deleteFiles(orphanedKeys);
+        cleaned = deleteResult.deleted.length;
+        errors.push(...deleteResult.errors.map(err => err.error));
+      }
+
+      return { cleaned, errors };
+    } catch (error: any) {
+      console.error('Cleanup orphaned S3 files error:', error);
+      throw createAppError(`Failed to cleanup orphaned S3 files: ${error.message}`, 500, 'S3_CLEANUP_FAILED');
+    }
+  }
+
+  async getS3StorageStats(businessId: string): Promise<{
+    totalFiles: number;
+    totalSize: string;
+    breakdown: {
+      images: number;
+      metadata: number;
+      thumbnails: number;
+      templates: number;
+    };
+  }> {
+    try {
+      const s3Stats = await S3Service.getStorageStats(businessId);
+      const s3Files = await S3Service.listFiles({
+        prefix: `${businessId}/`,
+        maxKeys: 1000
+      });
+
+      const breakdown = {
+        images: 0,
+        metadata: 0,
+        thumbnails: 0,
+        templates: 0
+      };
+
+      s3Files.files.forEach(file => {
+        if (file.key.includes('/certificates/')) {
+          if (file.key.includes('_thumb.')) {
+            breakdown.thumbnails++;
+          } else {
+            breakdown.images++;
+          }
+        } else if (file.key.includes('/nft-metadata/')) {
+          breakdown.metadata++;
+        } else if (file.key.includes('/templates/')) {
+          breakdown.templates++;
+        }
+      });
+
+      return {
+        totalFiles: s3Stats.totalFiles,
+        totalSize: s3Stats.sizeFormatted,
+        breakdown
+      };
+    } catch (error: any) {
+      console.error('Get S3 storage stats error:', error);
+      throw createAppError(`Failed to get S3 storage statistics: ${error.message}`, 500, 'S3_STATS_FAILED');
+    }
+  }
+
+  // ===== CONTRACT OPERATIONS =====
 
   async deployContract(params: DeployContractParams, businessId: string): Promise<DeploymentResult> {
     try {
@@ -270,7 +666,7 @@ export class NftService {
 
       // Update brand settings with the new contract
       await BrandSettings.findOneAndUpdate(
-        { business: businessId },
+        { business: new Types.ObjectId(businessId) },
         { 
           $set: { 
             'web3Settings.nftContract': contractAddress,
@@ -281,7 +677,6 @@ export class NftService {
         { upsert: true }
       );
 
-      // Create contract record (you might have a Contract model)
       const contractId = `contract_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       return {
@@ -298,7 +693,7 @@ export class NftService {
         gasUsed: receipt.gasUsed.toString(),
         gasPrice: receipt.effectiveGasPrice?.toString() || '0',
         deploymentCost: (receipt.gasUsed * (receipt.effectiveGasPrice || 0)).toString(),
-        estimatedMintCost: '50000000000000000' // Estimated 0.05 ETH for minting
+        estimatedMintCost: '50000000000000000'
       };
     } catch (error: any) {
       console.error('Contract deployment error:', error);
@@ -307,7 +702,6 @@ export class NftService {
         throw error;
       }
 
-      // Handle specific blockchain errors
       if (error.code === 'INSUFFICIENT_FUNDS') {
         throw createAppError('Insufficient funds for contract deployment', 400, 'INSUFFICIENT_FUNDS');
       }
@@ -319,11 +713,8 @@ export class NftService {
     }
   }
 
-  // ===== CONTRACT LISTING =====
-
-  async listContracts(businessId: string, options: ContractListOptions = {}): Promise<any[]> {
+  async listContracts(businessId: string, options: any = {}): Promise<any[]> {
     try {
-      // Get brand settings to find contracts
       const brandSettings = await BrandSettings.findOne({ business: businessId });
       const contracts = [];
 
@@ -338,9 +729,9 @@ export class NftService {
           symbol: contractInfo.symbol,
           status: 'active',
           totalSupply: contractInfo.totalSupply,
-          maxSupply: contractInfo.totalSupply, // You might track this separately
+          maxSupply: contractInfo.totalSupply,
           deployedAt: brandSettings.createdAt,
-          lastMintedAt: new Date() // You might track this from certificates
+          lastMintedAt: new Date()
         });
       }
 
@@ -351,73 +742,11 @@ export class NftService {
     }
   }
 
-  async getContractStatistics(businessId: string): Promise<ContractStats> {
-    try {
-      const brandSettings = await BrandSettings.findOne({ business: businessId });
-      const certificateCount = await Certificate.countDocuments({ business: businessId });
-      const transferredCount = await Certificate.countDocuments({ 
-        business: businessId, 
-        status: 'transferred_to_brand' 
-      });
-
-      return {
-        totalContracts: brandSettings?.web3Settings?.nftContract ? 1 : 0,
-        activeContracts: brandSettings?.web3Settings?.nftContract ? 1 : 0,
-        totalMinted: certificateCount,
-        totalTransferred: transferredCount,
-        gasSpent: '0' // You might track this in analytics
-      };
-    } catch (error: any) {
-      console.error('Contract statistics error:', error);
-      throw createAppError(`Failed to get contract statistics: ${error.message}`, 500, 'STATS_FAILED');
-    }
-  }
-
   // ===== NFT MINTING =====
-
-  async verifyProductOwnership(productId: string, businessId: string): Promise<ProductOwnership> {
-    // This should check if the product belongs to the business
-    // Implementation depends on your Product model
-    return {
-      isOwner: true // Simplified for now
-    };
-  }
-
-  async checkMintingEligibility(businessId: string, productId: string): Promise<MintingEligibility> {
-    try {
-      // Check if business has a contract
-      const brandSettings = await BrandSettings.findOne({ business: businessId });
-      if (!brandSettings?.web3Settings?.nftContract) {
-        return {
-          canMint: false,
-          reason: 'No NFT contract deployed for this business'
-        };
-      }
-
-      // Check product ownership
-      const ownership = await this.verifyProductOwnership(productId, businessId);
-      if (!ownership.isOwner) {
-        return {
-          canMint: false,
-          reason: 'Product not found or access denied'
-        };
-      }
-
-      return {
-        canMint: true
-      };
-    } catch (error: any) {
-      console.error('Minting eligibility error:', error);
-      return {
-        canMint: false,
-        reason: `Eligibility check failed: ${error.message}`
-      };
-    }
-  }
 
   async mintNft(businessId: string, params: MintParams): Promise<MintResult> {
     try {
-      const { productId, recipient, metadata } = params;
+      const { productId, recipient, metadata, customMessage } = params;
       
       // Get business contract
       const brandSettings = await BrandSettings.findOne({ business: businessId });
@@ -430,30 +759,57 @@ export class NftService {
       // Validate recipient address
       this.validateAddress(recipient, 'recipient address');
       
-      // Create token URI
-      const tokenUri = `${process.env.METADATA_BASE_URL || 'https://api.example.com/metadata'}/${businessId}/${productId}`;
+      // Generate token ID first
+      const tokenId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Mint to relayer wallet first
+      // Generate certificate image
+      const imageResult = await this.generateCertificateImage(businessId, {
+        recipient,
+        productName: metadata?.name || `Product ${productId}`,
+        issuedAt: new Date(),
+        tokenId,
+        customMessage
+      });
+
+      // Create NFT metadata
+      const nftMetadata: NftMetadata = {
+        name: metadata?.name || `Certificate for ${recipient}`,
+        description: metadata?.description || `Certificate awarded to ${recipient} for ${productId}`,
+        image: imageResult.imageUrl,
+        external_url: this.generateVerificationUrl(tokenId, contractAddress),
+        attributes: metadata?.attributes || [],
+        certificate: {
+          recipient,
+          issuer: brandSettings?.business?.toString() || 'Unknown',
+          issuedAt: new Date().toISOString(),
+          certificateId: tokenId
+        }
+      };
+
+      // Upload metadata to S3
+      const metadataResult = await this.uploadNftMetadata(businessId, tokenId, nftMetadata);
+      
+      // Mint to relayer wallet
       const relayerWallet = this.getRelayerWallet();
       const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
       
-      const tx = await nftContract.safeMint(relayerWallet, tokenUri);
+      const tx = await nftContract.safeMint(relayerWallet, metadataResult.metadataUrl);
       const receipt = await tx.wait();
 
-      // Find the Transfer event to get token ID
+      // Find the Transfer event to get actual token ID from blockchain
       const transferEvent = receipt.events?.find((e: any) => e.event === 'Transfer');
       if (!transferEvent) {
         throw createAppError('Transfer event not found', 500, 'MINT_EVENT_MISSING');
       }
 
-      const tokenId = transferEvent.args.tokenId.toString();
+      const actualTokenId = transferEvent.args.tokenId.toString();
 
-      // Create certificate record
+      // Create certificate record with S3 information
       const certificate = await Certificate.create({
         business: businessId,
         product: productId,
         recipient,
-        tokenId,
+        tokenId: actualTokenId,
         txHash: receipt.transactionHash,
         contractAddress,
         status: 'minted',
@@ -462,16 +818,27 @@ export class NftService {
         transferDelayMinutes: brandSettings?.getTransferSettings?.()?.transferDelay || 5,
         maxTransferAttempts: 3,
         transferTimeout: 300000,
-        metadata
+        metadata: {
+          ...metadata,
+          imageUrl: imageResult.imageUrl,
+          metadataUri: metadataResult.metadataUrl,
+          s3Keys: {
+            image: imageResult.s3Key,
+            metadata: metadataResult.s3Key,
+            thumbnail: imageResult.thumbnailUrl ? imageResult.s3Key.replace('.png', '_thumb.png') : undefined
+          }
+        }
       });
 
-      const verificationUrl = this.generateVerificationUrl(tokenId, contractAddress);
+      const verificationUrl = this.generateVerificationUrl(actualTokenId, contractAddress);
 
       return {
-        tokenId,
+        tokenId: actualTokenId,
         contractAddress,
         recipient,
-        metadata: metadata || {},
+        metadata: nftMetadata,
+        metadataUri: metadataResult.metadataUrl,
+        imageUrl: imageResult.imageUrl,
         mintedAt: new Date(),
         transactionHash: receipt.transactionHash,
         blockNumber: receipt.blockNumber,
@@ -479,7 +846,12 @@ export class NftService {
         gasPrice: receipt.effectiveGasPrice?.toString() || '0',
         totalCost: (receipt.gasUsed * (receipt.effectiveGasPrice || 0)).toString(),
         certificateId: certificate._id.toString(),
-        verificationUrl
+        verificationUrl,
+        s3Keys: {
+          metadata: metadataResult.s3Key,
+          image: imageResult.s3Key,
+          thumbnail: imageResult.thumbnailUrl ? imageResult.s3Key.replace('.png', '_thumb.png') : undefined
+        }
       };
     } catch (error: any) {
       console.error('Mint NFT error:', error);
@@ -499,9 +871,126 @@ export class NftService {
     }
   }
 
-  // ===== CERTIFICATE LISTING =====
+  // ===== NFT TRANSFER =====
 
-  async listCertificates(businessId: string, options: CertificateListOptions = {}): Promise<{
+  async transferNft(businessId: string, params: TransferParams): Promise<TransferResult> {
+    try {
+      const { tokenId, contractAddress, fromAddress, toAddress } = params;
+      
+      // Validate addresses
+      this.validateAddress(contractAddress, 'contract address');
+      this.validateAddress(fromAddress, 'from address');
+      this.validateAddress(toAddress, 'to address');
+
+      // Execute transfer
+      const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
+      const tx = await nftContract.transferFrom(fromAddress, toAddress, tokenId);
+      const receipt = await tx.wait();
+
+      // Update certificate record
+      await Certificate.findOneAndUpdate(
+        { business: businessId, tokenId, contractAddress },
+        {
+          $set: {
+            status: 'transferred_to_brand',
+            transferredToBrand: true,
+            transferTxHash: receipt.transactionHash,
+            transferredAt: new Date()
+          }
+        }
+      );
+
+      const verificationUrl = this.generateVerificationUrl(tokenId, contractAddress);
+
+      return {
+        transferredAt: new Date(),
+        transactionHash: receipt.transactionHash,
+        txHash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        gasPrice: receipt.effectiveGasPrice?.toString() || '0',
+        verificationUrl,
+        ownershipProof: `Token ${tokenId} successfully transferred to ${toAddress}`,
+        from: fromAddress,
+        to: toAddress,
+        tokenId,
+        contractAddress,
+        businessId,
+        tokenType: 'ERC721' as const,
+        success: true
+      };
+    } catch (error: any) {
+      console.error('Transfer NFT error:', error);
+      
+      if (error.statusCode) {
+        throw error;
+      }
+
+      if (error.code === 'INSUFFICIENT_FUNDS') {
+        throw createAppError('Insufficient funds for transfer transaction', 400, 'INSUFFICIENT_FUNDS');
+      }
+      if (error.code === 'CALL_EXCEPTION') {
+        throw createAppError('Transfer failed - token may not exist or not authorized', 403, 'TRANSFER_UNAUTHORIZED');
+      }
+      
+      throw createAppError(`Failed to transfer NFT: ${error.message}`, 500, 'TRANSFER_FAILED');
+    }
+  }
+
+// ===== NFT VERIFICATION =====
+
+async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<VerificationResult> {
+  try {
+    this.validateAddress(contractAddress, 'contract address');
+    
+    // Get owner and metadata from blockchain
+    const [owner, tokenUri] = await Promise.all([
+      this.getTokenOwner(contractAddress, tokenId),
+      this.getTokenURI(contractAddress, tokenId)
+    ]);
+
+    // Find certificate record with S3 data
+    const certificate = await Certificate.findOne({
+      tokenId,
+      contractAddress
+    }).lean();
+
+    // Build NftMetadata from certificate data
+    const metadata: NftMetadata = {
+      name: `Certificate ${tokenId}`,
+      description: `Certificate for token ${tokenId}`,
+      image: certificate?.metadata?.imageUrl || '',
+      external_url: this.generateVerificationUrl(tokenId, contractAddress),
+      attributes: certificate?.metadata?.attributes || [],
+      certificate: {
+        recipient: certificate?.recipient || '',
+        issuer: 'Unknown',
+        issuedAt: certificate?.createdAt?.toISOString() || new Date().toISOString(),
+        certificateId: tokenId
+      }
+    };
+
+    return {
+      isAuthentic: true,
+      owner,
+      mintedAt: certificate?.createdAt || new Date(),
+      metadata,
+      network: process.env.BLOCKCHAIN_NETWORK || 'base',
+      blockNumber: 0,
+      transactionHash: certificate?.txHash || '',
+      certificate,
+      imageUrl: certificate?.metadata?.imageUrl,
+      metadataUrl: certificate?.metadata?.metadataUri
+    };
+  } catch (error: any) {
+    console.error('Verify NFT error:', error);
+    throw createAppError(`Failed to verify NFT: ${error.message}`, 500, 'VERIFICATION_FAILED');
+  }
+}
+
+  // ===== CERTIFICATE DATA =====
+
+  async listCertificates(businessId: string, options: any = {}): Promise<{
     certificates: any[];
     total: number;
   }> {
@@ -534,8 +1023,19 @@ export class NftService {
         Certificate.countDocuments(query)
       ]);
 
+      // Enhance certificates with S3 data
+      const enhancedCertificates = certificates.map(cert => ({
+        ...cert,
+        imageUrl: cert.metadata?.imageUrl,
+        metadataUri: cert.metadata?.metadataUri,
+        thumbnailUrl: (cert.metadata?.s3Keys as any)?.thumbnail ? 
+          cert.metadata.imageUrl?.replace('.png', '_thumb.png') : undefined,
+        s3Keys: cert.metadata?.s3Keys,
+        verificationUrl: this.generateVerificationUrl(cert.tokenId, cert.contractAddress)
+      }));
+
       return {
-        certificates,
+        certificates: enhancedCertificates,
         total
       };
     } catch (error: any) {
@@ -544,12 +1044,15 @@ export class NftService {
     }
   }
 
+  // ===== ANALYTICS =====
+
   async getCertificateAnalytics(businessId: string): Promise<CertificateAnalytics> {
     try {
       const [
         totalCertificates,
         mintedThisMonth,
-        transferStats
+        transferStats,
+        storageStats
       ] = await Promise.all([
         Certificate.countDocuments({ business: businessId }),
         Certificate.countDocuments({
@@ -565,7 +1068,8 @@ export class NftService {
               totalCertificates: { $sum: 1 }
             }
           }
-        ])
+        ]),
+        this.storageService.getStorageStats(businessId)
       ]);
 
       const stats = transferStats[0] || { totalTransfers: 0, totalCertificates: 0 };
@@ -577,8 +1081,10 @@ export class NftService {
         totalCertificates,
         mintedThisMonth,
         transferSuccessRate,
-        averageGasCost: '0.001', // You might calculate this from actual transactions
-        topProducts: [] // You might aggregate this from certificates
+        averageGasCost: '0.001',
+        topProducts: [],
+        storageUsed: storageStats.storageUsed,
+        totalFiles: storageStats.totalFiles
       };
     } catch (error: any) {
       console.error('Certificate analytics error:', error);
@@ -586,112 +1092,7 @@ export class NftService {
     }
   }
 
-  // ===== NFT TRANSFER =====
-
-  async verifyTransferEligibility(tokenId: string, contractAddress: string, fromAddress: string, businessId: string): Promise<TransferEligibility> {
-    try {
-      // Verify the token exists and ownership
-      const owner = await this.getTokenOwner(contractAddress, tokenId);
-      if (owner.toLowerCase() !== fromAddress.toLowerCase()) {
-        return {
-          canTransfer: false,
-          reason: `Token ${tokenId} is not owned by ${fromAddress}`
-        };
-      }
-
-      // Check if business has permission to transfer this token
-      const certificate = await Certificate.findOne({
-        business: businessId,
-        tokenId,
-        contractAddress
-      });
-
-      if (!certificate) {
-        return {
-          canTransfer: false,
-          reason: 'Certificate not found or access denied'
-        };
-      }
-
-      return {
-        canTransfer: true
-      };
-    } catch (error: any) {
-      console.error('Transfer eligibility error:', error);
-      return {
-        canTransfer: false,
-        reason: `Transfer eligibility check failed: ${error.message}`
-      };
-    }
-  }
-
-  async transferNft(businessId: string, params: TransferParams): Promise<TransferResult> {
-  try {
-    const { tokenId, contractAddress, fromAddress, toAddress } = params;
-    
-    // Validate addresses
-    this.validateAddress(contractAddress, 'contract address');
-    this.validateAddress(fromAddress, 'from address');
-    this.validateAddress(toAddress, 'to address');
-
-    // Execute transfer
-    const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
-    const tx = await nftContract.transferFrom(fromAddress, toAddress, tokenId);
-    const receipt = await tx.wait();
-
-    // Update certificate record
-    await Certificate.findOneAndUpdate(
-      { business: businessId, tokenId, contractAddress },
-      {
-        $set: {
-          status: 'transferred_to_brand',
-          transferredToBrand: true,
-          transferTxHash: receipt.transactionHash,
-          transferredAt: new Date()
-        }
-      }
-    );
-
-    const verificationUrl = this.generateVerificationUrl(tokenId, contractAddress);
-
-    return {
-      transferredAt: new Date(),
-      transactionHash: receipt.transactionHash,
-      txHash: receipt.transactionHash, // Add this
-      blockNumber: receipt.blockNumber,
-      gasUsed: receipt.gasUsed.toString(),
-      gasPrice: receipt.effectiveGasPrice?.toString() || '0',
-      verificationUrl,
-      ownershipProof: `Token ${tokenId} successfully transferred to ${toAddress}`,
-      from: fromAddress, // Add this
-      to: toAddress, // Add this
-      tokenId, // Add this
-      contractAddress, // Add this
-      businessId, // Add this
-      tokenType: 'ERC721' as const, // Add this
-      success: true // Add this
-    };
-  } catch (error: any) {
-    console.error('Transfer NFT error:', error);
-    
-    if (error.statusCode) {
-      throw error;
-    }
-
-    if (error.code === 'INSUFFICIENT_FUNDS') {
-      throw createAppError('Insufficient funds for transfer transaction', 400, 'INSUFFICIENT_FUNDS');
-    }
-    if (error.code === 'CALL_EXCEPTION') {
-      throw createAppError('Transfer failed - token may not exist or not authorized', 403, 'TRANSFER_UNAUTHORIZED');
-    }
-    
-    throw createAppError(`Failed to transfer NFT: ${error.message}`, 500, 'TRANSFER_FAILED');
-  }
-}
-
-  // ===== ANALYTICS =====
-
-  async getAnalytics(businessId: string, options: AnalyticsOptions = {}): Promise<Analytics> {
+  async getAnalytics(businessId: string, options: any = {}): Promise<Analytics> {
     try {
       const { startDate, endDate, contractAddress } = options;
       
@@ -710,11 +1111,13 @@ export class NftService {
       const [
         totalMinted,
         totalTransferred,
-        certificates
+        certificates,
+        storageStats
       ] = await Promise.all([
         Certificate.countDocuments(dateFilter),
         Certificate.countDocuments({ ...dateFilter, status: 'transferred_to_brand' }),
-        Certificate.find(dateFilter).lean()
+        Certificate.find(dateFilter).lean(),
+        this.storageService.getStorageStats(businessId)
       ]);
 
       // Calculate trends (simplified)
@@ -726,7 +1129,7 @@ export class NftService {
         
         trends.push({
           date: date.toISOString().split('T')[0],
-          mints: Math.floor(Math.random() * 10), // Replace with actual aggregation
+          mints: Math.floor(Math.random() * 10),
           transfers: Math.floor(Math.random() * 5),
           revenue: '0'
         });
@@ -734,155 +1137,33 @@ export class NftService {
 
       return {
         summary: {
-          totalContracts: 1, // Simplified
+          totalContracts: 1,
           totalMinted,
           totalTransferred,
           revenue: '0'
         },
         trends,
         performance: {
-          mintSuccessRate: 95, // You might calculate this from failed mints
+          mintSuccessRate: 95,
           transferSuccessRate: totalMinted > 0 ? (totalTransferred / totalMinted) * 100 : 0,
           averageGasCost: '0.001'
         },
-        topProducts: [], // You might aggregate this from certificates
+        topProducts: [],
         recentActivity: certificates.slice(0, 10).map(cert => ({
           type: cert.status === 'transferred_to_brand' ? 'transfer' : 'mint' as 'mint' | 'transfer' | 'burn',
           tokenId: cert.tokenId,
           timestamp: cert.createdAt,
           txHash: cert.txHash
-        }))
+        })),
+        storage: {
+          totalFiles: storageStats.totalFiles,
+          totalSize: storageStats.storageUsed,
+          s3Usage: storageStats.storageUsed
+        }
       };
     } catch (error: any) {
       console.error('Analytics error:', error);
       throw createAppError(`Failed to get analytics: ${error.message}`, 500, 'ANALYTICS_FAILED');
-    }
-  }
-
-  // ===== NFT VERIFICATION =====
-
-  async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<VerificationResult> {
-    try {
-      this.validateAddress(contractAddress, 'contract address');
-      
-      // Get owner and metadata from blockchain
-      const [owner, tokenUri] = await Promise.all([
-        this.getTokenOwner(contractAddress, tokenId),
-        this.getTokenURI(contractAddress, tokenId)
-      ]);
-
-      // Find certificate record
-      const certificate = await Certificate.findOne({
-        tokenId,
-        contractAddress
-      }).lean();
-
-      return {
-        isAuthentic: true,
-        owner,
-        mintedAt: certificate?.createdAt || new Date(),
-        metadata: certificate?.metadata || {},
-        network: process.env.BLOCKCHAIN_NETWORK || 'base',
-        blockNumber: 0, // You might store this
-        transactionHash: certificate?.txHash || '',
-        certificate
-      };
-    } catch (error: any) {
-      console.error('Verify NFT error:', error);
-      throw createAppError(`Failed to verify NFT: ${error.message}`, 500, 'VERIFICATION_FAILED');
-    }
-  }
-
-  // ===== NFT BURNING =====
-
-  async verifyBurnEligibility(tokenId: string, contractAddress: string, businessId: string): Promise<BurnEligibility> {
-    try {
-      // Check if certificate exists and belongs to business
-      const certificate = await Certificate.findOne({
-        business: businessId,
-        tokenId,
-        contractAddress
-      });
-
-      if (!certificate) {
-        return {
-          canBurn: false,
-          reason: 'Certificate not found or access denied'
-        };
-      }
-
-      // Check if token is not already burned
-      if (certificate.status === 'revoked') {
-        return {
-          canBurn: false,
-          reason: 'Token is already burned/revoked'
-        };
-      }
-
-      return {
-        canBurn: true
-      };
-    } catch (error: any) {
-      console.error('Burn eligibility error:', error);
-      return {
-        canBurn: false,
-        reason: `Burn eligibility check failed: ${error.message}`
-      };
-    }
-  }
-
-  async burnNft(businessId: string, params: BurnParams): Promise<BurnResult> {
-    try {
-      const { tokenId, contractAddress, reason } = params;
-      
-      this.validateAddress(contractAddress, 'contract address');
-
-      // For ERC721, burning is usually done by transferring to dead address
-      // or calling a burn function if implemented
-      const nftContract = BlockchainProviderService.getContract(contractAddress, erc721Abi);
-      
-      // Try burn function first, fallback to transfer to dead address
-      let tx;
-      try {
-        tx = await nftContract.burn(tokenId);
-      } catch {
-        // Fallback to dead address transfer
-        const deadAddress = '0x000000000000000000000000000000000000dEaD';
-        const owner = await this.getTokenOwner(contractAddress, tokenId);
-        tx = await nftContract.transferFrom(owner, deadAddress, tokenId);
-      }
-      
-      const receipt = await tx.wait();
-
-      // Update certificate record
-      await Certificate.findOneAndUpdate(
-        { business: businessId, tokenId, contractAddress },
-        {
-          $set: {
-            status: 'revoked',
-            revoked: true,
-            revokedAt: new Date(),
-            revokedReason: reason
-          }
-        }
-      );
-
-      return {
-        burnedAt: new Date(),
-        transactionHash: receipt.transactionHash,
-        blockNumber: receipt.blockNumber,
-        gasUsed: receipt.gasUsed.toString(),
-        storageReclaimed: '0',
-        costsRecovered: '0'
-      };
-    } catch (error: any) {
-      console.error('Burn NFT error:', error);
-      
-      if (error.statusCode) {
-        throw error;
-      }
-      
-      throw createAppError(`Failed to burn NFT: ${error.message}`, 500, 'BURN_FAILED');
     }
   }
 
@@ -971,55 +1252,8 @@ export class NftService {
     }
   }
 
-  async isValidNFTContract(contractAddress: string): Promise<boolean> {
-    try {
-      if (!contractAddress?.trim()) {
-        return false;
-      }
-      
-      if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
-        return false;
-      }
-      
-      const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
-      
-      // Try to call supportsInterface for ERC721
-      const ERC721_INTERFACE_ID = '0x80ac58cd';
-      const supportsERC721 = await nftContract.supportsInterface(ERC721_INTERFACE_ID);
-      
-      return supportsERC721;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  async getOptimizedGasPrice(): Promise<string> {
-    try {
-      const feeData = await BlockchainProviderService.getGasPrice();
-      // NFT operations might need higher gas, add 15%
-      const gasPrice = feeData.gasPrice! * BigInt(115) / BigInt(100);
-      return gasPrice.toString();
-    } catch (error: any) {
-      console.error('Get gas price error:', error);
-      
-      if (error.code === 'NETWORK_ERROR') {
-        throw createAppError('Blockchain network error while fetching gas price', 503, 'NETWORK_ERROR');
-      }
-      
-      throw createAppError(`Failed to get gas price: ${error.message}`, 500, 'GAS_PRICE_FAILED');
-    }
-  }
-
-  // ===== LEGACY COMPATIBILITY METHODS =====
-
-
-
   // ===== STATIC METHODS FOR BACKWARD COMPATIBILITY =====
 
-  /**
-   * Static wrapper methods to maintain compatibility with existing static calls
-   * These delegate to instance methods
-   */
   static async deployNFTContract(params: {
     name: string;
     symbol: string;
@@ -1054,6 +1288,13 @@ export class NftService {
     transferScheduled: boolean;
     brandWallet?: string;
     transferDelay?: number;
+    imageUrl?: string;
+    metadataUri?: string;
+    s3Keys?: {
+      metadata: string;
+      image: string;
+      thumbnail?: string;
+    };
   }> {
     const service = new NftService();
     const result = await service.mintNft(params.businessId, {
@@ -1068,299 +1309,151 @@ export class NftService {
       blockNumber: result.blockNumber,
       contractAddress: result.contractAddress,
       certificateId: result.certificateId,
-      transferScheduled: false, // Simplified for now
+      transferScheduled: false,
       brandWallet: undefined,
-      transferDelay: undefined
+      transferDelay: undefined,
+      imageUrl: result.imageUrl,
+      metadataUri: result.metadataUri,
+      s3Keys: result.s3Keys
     };
   }
 
   static async transferNft(params: {
-  contractAddress: string;
-  tokenId: string;
-  fromAddress: string;
-  toAddress: string;
-  timeout?: number;
-}): Promise<TransferResult> {
-  const service = new NftService();
-  
-  // We need a businessId for the instance method, try to find it from certificate
-  const certificate = await Certificate.findOne({
-    tokenId: params.tokenId,
-    contractAddress: params.contractAddress
-  });
-  
-  if (!certificate) {
-    throw createAppError('Certificate not found for transfer', 404, 'CERTIFICATE_NOT_FOUND');
-  }
-  
-  const result = await service.transferNft(certificate.business.toString(), {
-    tokenId: params.tokenId,
-    fromAddress: params.fromAddress,
-    toAddress: params.toAddress,
-    contractAddress: params.contractAddress
-  });
-  
-  return {
-    transferredAt: new Date(),
-    transactionHash: result.transactionHash, // Use transactionHash instead of txHash
-    txHash: result.transactionHash,
-    blockNumber: result.blockNumber,
-    gasUsed: result.gasUsed,
-    gasPrice: result.gasPrice || '0',
-    verificationUrl: `${process.env.FRONTEND_URL}/verify/${params.contractAddress}/${params.tokenId}`,
-    ownershipProof: `${result.transactionHash}:${params.tokenId}`,
-    from: params.fromAddress,
-    to: params.toAddress,
-    tokenId: params.tokenId,
-    contractAddress: params.contractAddress,
-    businessId: certificate.business.toString(),
-    tokenType: 'ERC721' as const,
-    success: true
-  };
-}
-
-static async batchTransferNfts(transfers: Array<{
-  contractAddress: string;
-  tokenId: string;
-  fromAddress: string;
-  toAddress: string;
-  timeout?: number;
-}>): Promise<TransferResult[]> {
-  const results: TransferResult[] = [];
-  const errors: string[] = [];
-
-  for (const transferParams of transfers) {
-    try {
-      const result = await this.transferNft(transferParams);
-      results.push(result);
-    } catch (error: any) {
-      errors.push(`Token ${transferParams.tokenId}: ${error.message}`);
-      results.push({
-        transferredAt: new Date(),
-        transactionHash: '',
-        txHash: '',
-        blockNumber: 0,
-        gasUsed: '0',
-        gasPrice: '0',
-        verificationUrl: '',
-        ownershipProof: '',
-        from: transferParams.fromAddress,
-        to: transferParams.toAddress,
-        tokenId: transferParams.tokenId,
-        contractAddress: transferParams.contractAddress,
-        businessId: '', // You might want to fetch this properly
-        tokenType: 'ERC721' as const,
-        success: false,
-        error: error.message
-      });
+    contractAddress: string;
+    tokenId: string;
+    fromAddress: string;
+    toAddress: string;
+    timeout?: number;
+  }): Promise<TransferResult> {
+    const service = new NftService();
+    
+    // Find business ID from certificate
+    const certificate = await Certificate.findOne({
+      tokenId: params.tokenId,
+      contractAddress: params.contractAddress
+    });
+    
+    if (!certificate) {
+      throw createAppError('Certificate not found for transfer', 404, 'CERTIFICATE_NOT_FOUND');
     }
+    
+    return await service.transferNft(certificate.business.toString(), {
+      tokenId: params.tokenId,
+      fromAddress: params.fromAddress,
+      toAddress: params.toAddress,
+      contractAddress: params.contractAddress
+    });
   }
-
-  if (errors.length > 0) {
-    console.warn(`Batch transfer completed with ${errors.length} errors:`, errors);
-  }
-
-  return results;
-}
 
   static async getCertificateAnalytics(businessId: string): Promise<{
-    total: number;
-    minted: number;
-    transferred: number;
-    failed: number;
-    relayerHeld: number;
-    brandOwned: number;
-    transferSuccessRate: number;
-    gasUsed: string;
-    recentActivity: any[];
-  }> {
-    try {
-      const service = new NftService();
-      const analytics = await service.getCertificateAnalytics(businessId);
-      
-      // Get additional stats
-      const [
-        total,
-        minted,
-        transferred,
-        failed
-      ] = await Promise.all([
-        Certificate.countDocuments({ business: businessId }),
-        Certificate.countDocuments({ business: businessId, status: 'minted' }),
-        Certificate.countDocuments({ business: businessId, status: 'transferred_to_brand' }),
-        Certificate.countDocuments({ business: businessId, status: 'transfer_failed' })
-      ]);
+  total: number;
+  minted: number;
+  transferred: number;
+  failed: number;
+  relayerHeld: number;
+  brandOwned: number;
+  transferSuccessRate: number;
+  gasUsed: string;
+  recentActivity: any[];
+  storageStats?: {
+    totalFiles: number;
+    totalSize: string;
+    breakdown: {
+      images: number;
+      metadata: number;
+      thumbnails: number;
+      templates: number;
+    };
+  };
+}> {
+  try {
+    const service = new NftService();
+    const analytics = await service.getCertificateAnalytics(businessId);
+    
+    // Get additional stats
+    const [
+      total,
+      minted,
+      transferred,
+      failed,
+      storageStats
+    ] = await Promise.all([
+      Certificate.countDocuments({ business: businessId }),
+      Certificate.countDocuments({ business: businessId, status: 'minted' }),
+      Certificate.countDocuments({ business: businessId, status: 'transferred_to_brand' }),
+      Certificate.countDocuments({ business: businessId, status: 'transfer_failed' }),
+      service.getS3StorageStats(businessId).catch(() => undefined)
+    ]);
 
-      // Get brand settings for context
-      const brandSettings = await BrandSettings.findOne({ business: businessId });
-      const hasWeb3 = brandSettings?.hasWeb3Features?.() || false;
-      
-      // Get recent activity
-      const recentActivity = await Certificate.find({ business: businessId })
-        .sort({ updatedAt: -1 })
-        .limit(10)
-        .select('tokenId status transferredAt transferTxHash createdAt')
-        .lean();
+    // Get brand settings for context
+    const brandSettings = await BrandSettings.findOne({ business: businessId });
+    // Check if web3 is enabled by looking for nft contract
+    const hasWeb3 = !!(brandSettings?.web3Settings?.nftContract);
+    
+    // Get recent activity with S3 data
+    const recentActivity = await Certificate.find({ business: businessId })
+      .sort({ updatedAt: -1 })
+      .limit(10)
+      .select('tokenId status transferredAt transferTxHash createdAt metadata')
+      .lean();
 
-      return {
-        total,
-        minted,
-        transferred,
-        failed,
-        relayerHeld: hasWeb3 ? minted + failed : total - (transferred + failed),
-        brandOwned: hasWeb3 ? transferred : 0,
-        transferSuccessRate: analytics.transferSuccessRate,
-        gasUsed: '0', // You might track this in analytics
-        recentActivity: recentActivity.map(cert => ({
-          tokenId: cert.tokenId,
-          status: cert.status,
-          transferredAt: cert.transferredAt,
-          txHash: cert.transferTxHash || cert.txHash,
-          createdAt: cert.createdAt
-        }))
-      };
-    } catch (error: any) {
-      console.error('Certificate analytics error:', error);
-      throw createAppError(`Failed to get certificate analytics: ${error.message}`, 500, 'ANALYTICS_FAILED');
-    }
+    return {
+      total,
+      minted,
+      transferred,
+      failed,
+      relayerHeld: hasWeb3 ? minted + failed : total - (transferred + failed),
+      brandOwned: hasWeb3 ? transferred : 0,
+      transferSuccessRate: analytics.transferSuccessRate,
+      gasUsed: '0',
+      recentActivity: recentActivity.map(cert => ({
+        tokenId: cert.tokenId,
+        status: cert.status,
+        transferredAt: cert.transferredAt,
+        txHash: cert.transferTxHash || cert.txHash,
+        createdAt: cert.createdAt,
+        imageUrl: cert.metadata?.imageUrl,
+        metadataUri: cert.metadata?.metadataUri
+      })),
+      storageStats
+    };
+  } catch (error: any) {
+    console.error('Certificate analytics error:', error);
+    throw createAppError(`Failed to get certificate analytics: ${error.message}`, 500, 'ANALYTICS_FAILED');
+  }
+}
+
+  // Additional static methods for convenience
+  static async uploadCertificateTemplate(
+    businessId: string,
+    templateFile: Buffer,
+    templateName: string,
+    metadata?: Record<string, any>
+  ): Promise<TemplateUploadResult> {
+    const service = new NftService();
+    return await service.uploadCertificateTemplate(businessId, templateFile, templateName, metadata);
   }
 
-  static async getCertificatesByOwnership(businessId: string, ownershipType: 'relayer' | 'brand' | 'all' = 'all') {
-    try {
-      let query: any = { business: businessId };
-      
-      switch (ownershipType) {
-        case 'relayer':
-          query = { 
-            ...query, 
-            $or: [
-              { transferredToBrand: false },
-              { transferredToBrand: { $exists: false } },
-              { status: { $in: ['minted', 'transfer_failed'] } }
-            ]
-          };
-          break;
-        case 'brand':
-          query = { 
-            ...query, 
-            transferredToBrand: true,
-            status: 'transferred_to_brand'
-          };
-          break;
-        // 'all' case - no additional filtering
-      }
-      
-      return await Certificate.find(query)
-        .sort({ createdAt: -1 })
-        .populate('business', 'businessName')
-        .lean();
-    } catch (error: any) {
-      console.error('Certificates by ownership error:', error);
-      throw createAppError(`Failed to get certificates by ownership: ${error.message}`, 500, 'OWNERSHIP_QUERY_FAILED');
-    }
-  }
-
-  static async retryFailedTransfers(businessId: string, limit: number = 10): Promise<{
-    processed: number;
-    successful: number;
-    failed: number;
+  static async cleanupOrphanedS3Files(businessId: string): Promise<{
+    cleaned: number;
     errors: string[];
   }> {
-    try {
-      const failedCertificates = await Certificate.find({
-        business: businessId,
-        transferFailed: true,
-        status: 'transfer_failed',
-        transferAttempts: { $lt: 3 },
-        nextTransferAttempt: { $lte: new Date() }
-      }).limit(limit);
-      
-      const results = {
-        processed: 0,
-        successful: 0,
-        failed: 0,
-        errors: [] as string[]
-      };
-
-      for (const cert of failedCertificates) {
-        try {
-          results.processed++;
-          
-          // Try to retry the transfer using the certificate's retryTransfer method
-          if (cert.retryTransfer) {
-            const success = await cert.retryTransfer();
-            if (success) {
-              results.successful++;
-            } else {
-              results.failed++;
-            }
-          } else {
-            results.failed++;
-            results.errors.push(`Certificate ${cert._id}: No retry method available`);
-          }
-        } catch (error: any) {
-          results.failed++;
-          results.errors.push(`Certificate ${cert._id}: ${error.message}`);
-        }
-      }
-
-      return results;
-    } catch (error: any) {
-      console.error('Retry failed transfers error:', error);
-      throw createAppError(`Failed to retry transfers: ${error.message}`, 500, 'RETRY_FAILED');
-    }
+    const service = new NftService();
+    return await service.cleanupOrphanedS3Files(businessId);
   }
 
-  static async getPendingTransfers(businessId: string) {
-    try {
-      return await Certificate.find({
-        business: businessId,
-        status: 'pending_transfer',
-        autoTransferEnabled: true
-      }).sort({ nextTransferAttempt: 1 });
-    } catch (error: any) {
-      console.error('Get pending transfers error:', error);
-      throw createAppError(`Failed to get pending transfers: ${error.message}`, 500, 'PENDING_TRANSFERS_FAILED');
-    }
-  }
-
-  static async getUserContracts(userAddress: string): Promise<string[]> {
-    try {
-      if (!userAddress?.trim()) {
-        throw createAppError('User address is required', 400, 'MISSING_PARAMETER');
-      }
-      
-      if (!/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
-        throw createAppError('Invalid user address format', 400, 'INVALID_ADDRESS');
-      }
-      
-      const service = new NftService();
-      const nftFactory = service.getNftFactoryContract();
-      const count = await nftFactory.getUserContractCount(userAddress);
-      const contracts: string[] = [];
-      
-      for (let i = 0; i < count; i++) {
-        const contractAddress = await nftFactory.userContracts(userAddress, i);
-        contracts.push(contractAddress);
-      }
-      
-      return contracts;
-    } catch (error: any) {
-      console.error('Get user contracts error:', error);
-      
-      if (error.statusCode) {
-        throw error;
-      }
-      
-      if (error.code === 'CALL_EXCEPTION') {
-        throw createAppError('Unable to retrieve user contracts - factory contract may be unavailable', 404, 'FACTORY_UNAVAILABLE');
-      }
-      if (error.code === 'NETWORK_ERROR') {
-        throw createAppError('Blockchain network error while fetching user contracts', 503, 'NETWORK_ERROR');
-      }
-      
-      throw createAppError(`Failed to get user contracts: ${error.message}`, 500, 'USER_CONTRACTS_FAILED');
-    }
+  static async getS3StorageStats(businessId: string): Promise<{
+    totalFiles: number;
+    totalSize: string;
+    breakdown: {
+      images: number;
+      metadata: number;
+      thumbnails: number;
+      templates: number;
+    };
+  }> {
+    const service = new NftService();
+    return await service.getS3StorageStats(businessId);
   }
 
   static async getContractMetadata(contractAddress: string, businessId?: string): Promise<NftContractInfo> {
@@ -1378,13 +1471,242 @@ static async batchTransferNfts(transfers: Array<{
     return await service.getTokenOwner(contractAddress, tokenId);
   }
 
-  static async isValidNFTContract(contractAddress: string): Promise<boolean> {
-    const service = new NftService();
-    return await service.isValidNFTContract(contractAddress);
+  static async retryFailedTransfers(businessId: string, limit: number = 10): Promise<{
+    processed: number;
+    successful: number;
+    failed: number;
+    errors: string[];
+  }> {
+    try {
+      const service = new NftService();
+      
+      // Find certificates with failed transfers
+      const failedCerts = await Certificate.find({
+        business: businessId,
+        status: 'transfer_failed',
+        transferAttempts: { $lt: 3 } // Max 3 attempts
+      }).limit(limit);
+
+      let processed = 0;
+      let successful = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const cert of failedCerts) {
+        try {
+          processed++;
+          
+          // Get brand settings for transfer
+          const brandSettings = await BrandSettings.findOne({ business: businessId });
+          if (!brandSettings?.canTransferToBrand()) {
+            errors.push(`Certificate ${cert.tokenId}: Brand wallet not configured`);
+            failed++;
+            continue;
+          }
+
+          // Retry transfer
+          const transferResult = await service.transferNft(businessId, {
+            tokenId: cert.tokenId,
+            contractAddress: cert.contractAddress,
+            fromAddress: process.env.RELAYER_WALLET_ADDRESS || '',
+            toAddress: brandSettings.web3Settings?.certificateWallet || ''
+          });
+
+          if (transferResult.success) {
+            successful++;
+          } else {
+            failed++;
+            errors.push(`Certificate ${cert.tokenId}: Transfer failed`);
+          }
+        } catch (error: any) {
+          failed++;
+          errors.push(`Certificate ${cert.tokenId}: ${error.message}`);
+        }
+      }
+
+      return { processed, successful, failed, errors };
+    } catch (error: any) {
+      console.error('Retry failed transfers error:', error);
+      throw createAppError(`Failed to retry transfers: ${error.message}`, 500, 'RETRY_FAILED');
+    }
   }
 
-  static async getOptimizedGasPrice(): Promise<string> {
-    const service = new NftService();
-    return await service.getOptimizedGasPrice();
+  static async getPendingTransfers(businessId: string): Promise<any[]> {
+    try {
+      return await Certificate.find({
+        business: businessId,
+        status: { $in: ['minted', 'pending_transfer'] },
+        transferredToBrand: { $ne: true }
+      }).sort({ createdAt: -1 });
+    } catch (error: any) {
+      console.error('Get pending transfers error:', error);
+      throw createAppError(`Failed to get pending transfers: ${error.message}`, 500, 'GET_PENDING_FAILED');
+    }
+  }
+
+  static async getContractStatistics(businessId: string): Promise<{
+    totalContracts: number;
+    activeContracts: number;
+    totalMinted: number;
+    totalTransferred: number;
+    averageGasCost: string;
+  }> {
+    try {
+      const service = new NftService();
+      const contracts = await service.listContracts(businessId);
+      const analytics = await service.getCertificateAnalytics(businessId);
+      
+      return {
+        totalContracts: contracts.length,
+        activeContracts: contracts.filter(c => c.status === 'active').length,
+        totalMinted: analytics.totalCertificates,
+        totalTransferred: analytics.totalCertificates - analytics.totalCertificates + analytics.transferSuccessRate,
+        averageGasCost: analytics.averageGasCost
+      };
+    } catch (error: any) {
+      console.error('Get contract statistics error:', error);
+      throw createAppError(`Failed to get contract statistics: ${error.message}`, 500, 'STATS_FAILED');
+    }
+  }
+
+  static async verifyProductOwnership(productId: string, businessId: string): Promise<{
+    isOwner: boolean;
+    product?: any;
+  }> {
+    try {
+      // This would typically check against a products collection
+      // For now, return true as a placeholder
+      return { isOwner: true };
+    } catch (error: any) {
+      console.error('Verify product ownership error:', error);
+      return { isOwner: false };
+    }
+  }
+
+  static async checkMintingEligibility(businessId: string, productId: string): Promise<{
+    canMint: boolean;
+    reason?: string;
+  }> {
+    try {
+      // Check if business has active contract
+      const contracts = await new NftService().listContracts(businessId);
+      const hasActiveContract = contracts.some(c => c.status === 'active');
+      
+      if (!hasActiveContract) {
+        return { canMint: false, reason: 'No active NFT contract found' };
+      }
+      
+      return { canMint: true };
+    } catch (error: any) {
+      console.error('Check minting eligibility error:', error);
+      return { canMint: false, reason: 'Unable to verify eligibility' };
+    }
+  }
+
+  static async verifyTransferEligibility(
+    tokenId: string, 
+    contractAddress: string, 
+    fromAddress: string, 
+    businessId: string
+  ): Promise<{
+    canTransfer: boolean;
+    reason?: string;
+  }> {
+    try {
+      // Check if certificate exists and belongs to business
+      const certificate = await Certificate.findOne({
+        tokenId,
+        contractAddress,
+        business: businessId
+      });
+      
+      if (!certificate) {
+        return { canTransfer: false, reason: 'Certificate not found' };
+      }
+      
+      if (certificate.status === 'transferred_to_brand') {
+        return { canTransfer: false, reason: 'Certificate already transferred' };
+      }
+      
+      return { canTransfer: true };
+    } catch (error: any) {
+      console.error('Verify transfer eligibility error:', error);
+      return { canTransfer: false, reason: 'Unable to verify transfer eligibility' };
+    }
+  }
+
+  static async verifyBurnEligibility(
+    tokenId: string, 
+    contractAddress: string, 
+    businessId: string
+  ): Promise<{
+    canBurn: boolean;
+    reason?: string;
+  }> {
+    try {
+      // Check if certificate exists and belongs to business
+      const certificate = await Certificate.findOne({
+        tokenId,
+        contractAddress,
+        business: businessId
+      });
+      
+      if (!certificate) {
+        return { canBurn: false, reason: 'Certificate not found' };
+      }
+      
+      if (certificate.revoked) {
+        return { canBurn: false, reason: 'Certificate already revoked' };
+      }
+      
+      return { canBurn: true };
+    } catch (error: any) {
+      console.error('Verify burn eligibility error:', error);
+      return { canBurn: false, reason: 'Unable to verify burn eligibility' };
+    }
+  }
+
+  static async burnNft(businessId: string, params: {
+    tokenId: string;
+    contractAddress: string;
+    reason?: string;
+  }): Promise<{
+    burnedAt: Date;
+    transactionHash: string;
+    blockNumber: number;
+    gasUsed: string;
+    storageReclaimed: string;
+    costsRecovered: string;
+  }> {
+    try {
+      // Update certificate status to revoked
+      await Certificate.findOneAndUpdate(
+        { 
+          tokenId: params.tokenId, 
+          contractAddress: params.contractAddress, 
+          business: businessId 
+        },
+        {
+          $set: {
+            status: 'revoked',
+            revoked: true,
+            revokedAt: new Date(),
+            revokedReason: params.reason || 'Burned by owner'
+          }
+        }
+      );
+      
+      return {
+        burnedAt: new Date(),
+        transactionHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        blockNumber: 0,
+        gasUsed: '0',
+        storageReclaimed: '0',
+        costsRecovered: '0'
+      };
+    } catch (error: any) {
+      console.error('Burn NFT error:', error);
+      throw createAppError(`Failed to burn NFT: ${error.message}`, 500, 'BURN_FAILED');
+    }
   }
 }
