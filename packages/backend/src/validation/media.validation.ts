@@ -31,10 +31,17 @@ export const uploadMediaSchema = Joi.object({
     }),
 
   category: Joi.string()
-    .valid('image', 'video', 'document', 'audio', 'archive', 'other')
+    .valid('profile', 'product', 'banner', 'certificate', 'document', 'image', 'video', 'audio', 'archive', 'other')
     .optional()
     .messages({
-      'any.only': 'Category must be one of: image, video, document, audio, archive, other'
+      'any.only': 'Category must be one of: profile, product, banner, certificate, document, image, video, audio, archive, other'
+    }),
+
+  resourceId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Resource ID must be a valid MongoDB ObjectId'
     }),
 
   isPublic: Joi.boolean()
