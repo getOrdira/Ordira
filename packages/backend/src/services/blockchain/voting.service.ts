@@ -8,6 +8,7 @@ import votingAbi from '../../abi/votingAbi.json';
 export interface CreateProposalResult {
   proposalId: string;
   txHash: string;
+  businessId?: string;
 }
 
 export interface BatchVoteResult {
@@ -70,54 +71,88 @@ export class VotingService {
   }
 
   /**
- * Deploy a new voting contract for a brand
- */
-static async deployVotingContract(businessId: string): Promise<ContractDeployment> {
-  try {
-    const votingFactory = this.getVotingFactoryContract();
-    const tx = await votingFactory.deployVoting();
-    const receipt = await tx.wait();
-    
-    const evt = receipt.events?.find((e: any) => e.event === 'VotingDeployed');
-    if (!evt) {
-      throw new BlockchainError('VotingDeployed event not found in transaction receipt', 500);
+   * Deploy a new voting contract for a business with proper business attribution
+   */
+  static async deployVotingContract(
+    businessId: string,
+    votingSettings?: {
+      votingDelay?: number;
+      votingPeriod?: number;
+      quorumPercentage?: number;
     }
+  ): Promise<ContractDeployment> {
+    try {
+      if (!businessId?.trim()) {
+        throw new BlockchainError('Business ID is required', 400);
+      }
+      
+      // Validate business ID format (MongoDB ObjectId)
+      if (!/^[0-9a-fA-F]{24}$/.test(businessId)) {
+        throw new BlockchainError('Invalid business ID format', 400);
+      }
+      
+      const votingFactory = this.getVotingFactoryContract();
+      
+      // Use default settings if not provided
+      const settings = {
+        votingDelay: votingSettings?.votingDelay || 1, // 1 second delay
+        votingPeriod: votingSettings?.votingPeriod || 259200, // 3 days
+        quorumPercentage: votingSettings?.quorumPercentage || 4 // 4% quorum
+      };
+      
+      // Deploy voting contract with relayer as owner (relayer will manage for the business)
+      const tx = await votingFactory.deployVotingForSelf(
+        settings.votingDelay,
+        settings.votingPeriod,
+        settings.quorumPercentage
+      );
+      const receipt = await tx.wait();
+      
+      const evt = receipt.events?.find((e: any) => e.event === 'VotingDeployed');
+      if (!evt) {
+        throw new BlockchainError('VotingDeployed event not found in transaction receipt', 500);
+      }
 
-    const contractAddress = evt.args.votingAddress as string;
-    
-    return {
-      address: contractAddress,
-      txHash: receipt.transactionHash,
-      blockNumber: receipt.blockNumber,
-      gasUsed: receipt.gasUsed.toString(),
-      businessId // This uses the businessId parameter passed to the method
-    };
-  } catch (error: any) {
-    if (error instanceof BlockchainError) {
-      throw error;
+      const contractAddress = evt.args.votingAddress as string;
+      
+      // Store business-contract mapping in database
+      await this.storeBusinessContractMapping(businessId, contractAddress, 'voting');
+      
+      return {
+        address: contractAddress,
+        txHash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        businessId,
+        votingSettings: settings
+      };
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      // Handle specific blockchain errors
+      if (error.code === 'INSUFFICIENT_FUNDS') {
+        throw new BlockchainError('Insufficient funds for voting contract deployment', 400);
+      }
+      if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        throw new BlockchainError('Unable to estimate gas for voting contract deployment', 400);
+      }
+      if (error.code === 'NETWORK_ERROR') {
+        throw new BlockchainError('Blockchain network error during voting contract deployment', 503);
+      }
+      
+      throw new BlockchainError(`Failed to deploy voting contract: ${error.message}`, 500);
     }
-    
-    // Handle specific blockchain errors
-    if (error.code === 'INSUFFICIENT_FUNDS') {
-      throw new BlockchainError('Insufficient funds for voting contract deployment', 400);
-    }
-    if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-      throw new BlockchainError('Unable to estimate gas for voting contract deployment', 400);
-    }
-    if (error.code === 'NETWORK_ERROR') {
-      throw new BlockchainError('Blockchain network error during voting contract deployment', 503);
-    }
-    
-    throw new BlockchainError(`Failed to deploy voting contract: ${error.message}`, 500);
   }
-}
 
   /**
-   * Create a new proposal on a specific voting contract
+   * Create a new proposal on a specific voting contract with business validation
    */
   static async createProposal(
     contractAddress: string,
-    metadataUri: string
+    metadataUri: string,
+    businessId: string
   ): Promise<CreateProposalResult> {
     try {
       // Validate input parameters
@@ -127,11 +162,22 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       if (!metadataUri?.trim()) {
         throw new BlockchainError('Metadata URI is required', 400);
       }
+      if (!businessId?.trim()) {
+        throw new BlockchainError('Business ID is required', 400);
+      }
       
       // Validate Ethereum address format
       if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
         throw new BlockchainError('Invalid contract address format', 400);
       }
+      
+      // Validate business ID format (MongoDB ObjectId)
+      if (!/^[0-9a-fA-F]{24}$/.test(businessId)) {
+        throw new BlockchainError('Invalid business ID format', 400);
+      }
+      
+      // Validate business association with the contract
+      await this.validateBusinessContractAssociation(contractAddress, businessId);
       
       const votingContract = BlockchainProviderService.getContract(contractAddress, votingAbi);
       
@@ -147,7 +193,8 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
       
       return {
         proposalId,
-        txHash: receipt.transactionHash
+        txHash: receipt.transactionHash,
+        businessId
       };
     } catch (error: any) {
       if (error instanceof BlockchainError) {
@@ -486,26 +533,58 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
   }
 
   /**
-   * Create a product proposal with images
+   * Create a product proposal with images and business validation
    */
   static async createProductProposal(
     contractAddress: string,
-    proposalData: ProductProposalData
+    proposalData: ProductProposalData,
+    businessId: string
   ): Promise<CreateProposalResult> {
     try {
       if (!contractAddress?.trim()) {
         throw new BlockchainError('Contract address is required', 400);
+      }
+      if (!proposalData?.productId?.trim()) {
+        throw new BlockchainError('Product ID is required', 400);
+      }
+      if (!proposalData?.title?.trim()) {
+        throw new BlockchainError('Proposal title is required', 400);
+      }
+      if (!proposalData?.description?.trim()) {
+        throw new BlockchainError('Proposal description is required', 400);
+      }
+      if (!proposalData?.brandId?.trim()) {
+        throw new BlockchainError('Brand ID is required', 400);
+      }
+      if (!businessId?.trim()) {
+        throw new BlockchainError('Business ID is required', 400);
       }
       
       if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
         throw new BlockchainError('Invalid contract address format', 400);
       }
       
+      // Validate business ID format (MongoDB ObjectId)
+      if (!/^[0-9a-fA-F]{24}$/.test(businessId)) {
+        throw new BlockchainError('Invalid business ID format', 400);
+      }
+      
+      // Validate business association with the contract
+      await this.validateBusinessContractAssociation(contractAddress, businessId);
+      
+      // Validate that the proposal's brandId matches the businessId
+      if (proposalData.brandId !== businessId) {
+        throw new BlockchainError(
+          `Proposal brand ID ${proposalData.brandId} does not match business ID ${businessId}`,
+          403
+        );
+      }
+      
       // Create metadata URI for the product proposal
       const metadataUri = await this.createProductProposalMetadata(proposalData);
       
-      // Create the proposal on the blockchain
-      return await this.createProposal(contractAddress, metadataUri);
+      // Create the proposal on the blockchain with business validation
+      return await this.createProposal(contractAddress, metadataUri, businessId);
     } catch (error: any) {
       if (error instanceof BlockchainError) {
         throw error;
@@ -557,6 +636,82 @@ static async deployVotingContract(businessId: string): Promise<ContractDeploymen
     const metadataHash = Buffer.from(metadataJson).toString('base64');
     
     return `${process.env.METADATA_BASE_URL}/proposals/${metadataHash}`;
+  }
+
+  /**
+   * Store business-contract mapping in database
+   */
+  static async storeBusinessContractMapping(
+    businessId: string,
+    contractAddress: string,
+    contractType: 'voting' | 'nft'
+  ): Promise<void> {
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { BrandSettings } = await import('../../models/brandSettings.model');
+      
+      const updateField = contractType === 'voting' 
+        ? 'web3Settings.votingContract' 
+        : 'web3Settings.nftContract';
+      
+      await BrandSettings.findOneAndUpdate(
+        { business: businessId },
+        { 
+          $set: { 
+            [updateField]: contractAddress,
+            'web3Settings.networkName': process.env.BLOCKCHAIN_NETWORK || 'base',
+            'web3Settings.chainId': parseInt(process.env.CHAIN_ID || '8453')
+          }
+        },
+        { upsert: true }
+      );
+    } catch (error: any) {
+      throw new BlockchainError(`Failed to store business-contract mapping: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * Validate that a business ID is associated with a specific contract
+   */
+  static async validateBusinessContractAssociation(
+    contractAddress: string,
+    businessId: string
+  ): Promise<void> {
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { BrandSettings } = await import('../../models/brandSettings.model');
+      
+      // Check if business ID is associated with this contract
+      const brandSettings = await BrandSettings.findOne({
+        business: businessId,
+        $or: [
+          { 'web3Settings.votingContract': contractAddress },
+          { 'web3Settings.nftContract': contractAddress }
+        ]
+      });
+      
+      if (!brandSettings) {
+        throw new BlockchainError(
+          `Business ${businessId} is not associated with contract ${contractAddress}`,
+          403
+        );
+      }
+      
+      // Additional validation: Check if the contract exists in factory
+      const votingFactory = this.getVotingFactoryContract();
+      const contractBrand = await votingFactory.getContractBrand(contractAddress);
+      
+      if (contractBrand === '0x0000000000000000000000000000000000000000') {
+        throw new BlockchainError('Contract not found in factory registry', 404);
+      }
+      
+    } catch (error: any) {
+      if (error instanceof BlockchainError) {
+        throw error;
+      }
+      
+      throw new BlockchainError(`Failed to validate business contract association: ${error.message}`, 500);
+    }
   }
 
   /**

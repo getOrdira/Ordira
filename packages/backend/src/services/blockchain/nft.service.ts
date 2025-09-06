@@ -104,6 +104,7 @@ export interface DeploymentResult {
   gasPrice: string;
   deploymentCost: string;
   estimatedMintCost: string;
+  businessId?: string;
 }
 
 export interface MintResult {
@@ -632,6 +633,69 @@ export class NftService {
 
   // ===== CONTRACT OPERATIONS =====
 
+  /**
+   * Store business-contract mapping in database
+   */
+  private async storeBusinessContractMapping(
+    businessId: string,
+    contractAddress: string,
+    contractType: 'voting' | 'nft'
+  ): Promise<void> {
+    try {
+      const updateField = contractType === 'voting' 
+        ? 'web3Settings.votingContract' 
+        : 'web3Settings.nftContract';
+      
+      await BrandSettings.findOneAndUpdate(
+        { business: new Types.ObjectId(businessId) },
+        { 
+          $set: { 
+            [updateField]: contractAddress,
+            'web3Settings.networkName': process.env.BLOCKCHAIN_NETWORK || 'base',
+            'web3Settings.chainId': parseInt(process.env.CHAIN_ID || '8453')
+          }
+        },
+        { upsert: true }
+      );
+    } catch (error: any) {
+      throw createAppError(`Failed to store business-contract mapping: ${error.message}`, 500, 'MAPPING_STORAGE_FAILED');
+    }
+  }
+
+  /**
+   * Validate that a business ID is associated with a specific contract
+   */
+  private async validateBusinessContractAssociation(
+    contractAddress: string,
+    businessId: string
+  ): Promise<void> {
+    try {
+      // Check if business ID is associated with this contract
+      const brandSettings = await BrandSettings.findOne({
+        business: new Types.ObjectId(businessId),
+        $or: [
+          { 'web3Settings.votingContract': contractAddress },
+          { 'web3Settings.nftContract': contractAddress }
+        ]
+      });
+      
+      if (!brandSettings) {
+        throw createAppError(
+          `Business ${businessId} is not associated with contract ${contractAddress}`,
+          403,
+          'CONTRACT_ASSOCIATION_MISMATCH'
+        );
+      }
+      
+    } catch (error: any) {
+      if (error.statusCode) {
+        throw error;
+      }
+      
+      throw createAppError(`Failed to validate business contract association: ${error.message}`, 500, 'VALIDATION_FAILED');
+    }
+  }
+
   async deployContract(params: DeployContractParams, businessId: string): Promise<DeploymentResult> {
     try {
       const { name, symbol, baseUri, maxSupply, description } = params;
@@ -650,10 +714,15 @@ export class NftService {
         throw createAppError('Business ID is required', 400, 'MISSING_PARAMETER');
       }
       
+      // Validate business ID format (MongoDB ObjectId)
+      if (!/^[0-9a-fA-F]{24}$/.test(businessId)) {
+        throw createAppError('Invalid business ID format', 400, 'INVALID_BUSINESS_ID');
+      }
+      
       const nftFactory = this.getNftFactoryContract();
       
-      // Deploy the contract
-      const tx = await nftFactory.deployNFT(name, symbol, baseUri);
+      // Deploy the contract with relayer as owner (relayer will manage for the business)
+      const tx = await nftFactory.deployNFTForSelf(name, symbol, baseUri);
       const receipt = await tx.wait();
 
       // Find the deployment event
@@ -663,19 +732,9 @@ export class NftService {
       }
 
       const contractAddress = deployEvent.args.contractAddress as string;
-
-      // Update brand settings with the new contract
-      await BrandSettings.findOneAndUpdate(
-        { business: new Types.ObjectId(businessId) },
-        { 
-          $set: { 
-            'web3Settings.nftContract': contractAddress,
-            'web3Settings.networkName': process.env.BLOCKCHAIN_NETWORK || 'base',
-            'web3Settings.chainId': parseInt(process.env.CHAIN_ID || '8453')
-          }
-        },
-        { upsert: true }
-      );
+      
+      // Store business-contract mapping in database
+      await this.storeBusinessContractMapping(businessId, contractAddress, 'nft');
 
       const contractId = `contract_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -693,7 +752,8 @@ export class NftService {
         gasUsed: receipt.gasUsed.toString(),
         gasPrice: receipt.effectiveGasPrice?.toString() || '0',
         deploymentCost: (receipt.gasUsed * (receipt.effectiveGasPrice || 0)).toString(),
-        estimatedMintCost: '50000000000000000'
+        estimatedMintCost: '50000000000000000',
+        businessId
       };
     } catch (error: any) {
       console.error('Contract deployment error:', error);
@@ -755,6 +815,9 @@ export class NftService {
       if (!contractAddress) {
         throw createAppError('No NFT contract found for this business', 404, 'NO_CONTRACT');
       }
+
+      // Validate that the business ID is associated with this contract
+      await this.validateBusinessContractAssociation(contractAddress, businessId);
 
       // Validate recipient address
       this.validateAddress(recipient, 'recipient address');
