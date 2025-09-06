@@ -2,33 +2,98 @@
 import Joi from 'joi';
 
 const schema = Joi.object({
-  NODE_ENV:               Joi.string().valid('development','staging','production').required(),
-  PORT:                   Joi.number().default(3000),
-  MONGODB_URI:            Joi.string().uri().required(),                
-  BASE_RPC_URL:           Joi.string().uri().required(),
-  PRIVATE_KEY:            Joi.string().length(66).required(),           
-  JWT_SECRET:             Joi.string().min(32).required(),
-  STRIPE_SECRET_KEY:      Joi.string().required(),
+  NODE_ENV: Joi.string().valid('development', 'staging', 'production').required(),
+  PORT: Joi.number().default(4000),
+  
+  // Database - MongoDB URI required
+  MONGODB_URI: Joi.string().uri().required(),
+  
+  // Blockchain configuration
+  BASE_RPC_URL: Joi.string().uri().required(),
+  PRIVATE_KEY: Joi.string().length(66).required(),
   TOKEN_CONTRACT_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
   VOTING_FACTORY_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
-  NFT_FACTORY_ADDRESS:    Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
-  FRONTEND_URL:           Joi.string().uri().required(),
-  SENTRY_DSN:             Joi.string().uri().optional(),               
-  GCP_PROJECT_ID:         Joi.string().required(),
-  GCP_SECRET_NAME:        Joi.string().required()
+  NFT_FACTORY_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
+  
+  // Authentication
+  JWT_SECRET: Joi.string().min(32).required(),
+  
+  // Payment processing
+  STRIPE_SECRET_KEY: Joi.string().required(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
+  
+  // Frontend URL for CORS
+  FRONTEND_URL: Joi.string().uri().required(),
+  
+  // Google Cloud Platform - Only required in production if not using Render
+  GCP_PROJECT_ID: Joi.string().when(Joi.ref('NODE_ENV'), {
+    is: 'production',
+    then: Joi.when(Joi.ref('RENDER'), {
+      is: Joi.exist(),
+      then: Joi.optional(), // Optional on Render
+      otherwise: Joi.required() // Required on other platforms
+    }),
+    otherwise: Joi.optional()
+  }),
+  GCP_SECRET_NAME: Joi.string().when(Joi.ref('NODE_ENV'), {
+    is: 'production', 
+    then: Joi.when(Joi.ref('RENDER'), {
+      is: Joi.exist(),
+      then: Joi.optional(), // Optional on Render
+      otherwise: Joi.required() // Required on other platforms
+    }),
+    otherwise: Joi.optional()
+  }),
+  
+  // Optional monitoring and services
+  SENTRY_DSN: Joi.string().uri().optional(),
+  REDIS_URL: Joi.string().uri().optional(),
+  CLOUDFLARE_API_TOKEN: Joi.string().optional(),
+  
+  // Email services
+  POSTMARK_API_KEY: Joi.string().optional(),
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().optional(),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASS: Joi.string().optional(),
+  
+  // SMS services
+  TWILIO_SID: Joi.string().optional(),
+  TWILIO_TOKEN: Joi.string().optional(),
+  TWILIO_FROM: Joi.string().optional(),
+  
+  // File upload configuration
+  UPLOAD_DIR: Joi.string().default('uploads'),
+  MAX_FILE_SIZE: Joi.number().default(15728640), // 15MB
+  
+  // Platform detection
+  RENDER: Joi.string().optional(), // Render sets this automatically
+  
+  // Additional blockchain config
+  BLOCKCHAIN_NETWORK: Joi.string().optional(),
+  CHAIN_ID: Joi.number().optional(),
+  RELAYER_WALLET_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).optional(),
+  DEPLOYER_KEY: Joi.string().optional()
 })
-  .unknown()  // allow other vars (e.g. UPLOAD_DIR, webhook secrets)
+  .unknown() // Allow other environment variables
   .required();
 
 export function validateEnv() {
   const { error, value } = schema.validate(process.env, { abortEarly: false });
+  
   if (error) {
-    console.error(
-      '❌ Environment validation error:',
-      error.details.map(d => d.message).join('; ')
-    );
+    console.error('Environment validation error:');
+    error.details.forEach(detail => {
+      console.error(`  ${detail.path.join('.')}: ${detail.message}`);
+    });
     process.exit(1);
   }
+  
+  // Log platform detection
+  if (process.env.RENDER) {
+    console.log('Render platform detected');
+  }
+  
   Object.assign(process.env, value);
 }
 
