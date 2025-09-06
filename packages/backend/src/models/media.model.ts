@@ -14,6 +14,12 @@ export interface IMedia extends Document {
   mimeType: string;
   size: number;
   
+  // S3 Storage fields (new for S3 integration)
+  s3Key?: string;
+  s3Bucket?: string;
+  s3ETag?: string;
+  s3Region?: string;
+  
   // Organization (aligned with controller validation)
   category: 'profile' | 'product' | 'banner' | 'certificate' | 'document';
   resourceId?: string;
@@ -39,7 +45,7 @@ export interface IMedia extends Document {
   // Statistics (aligned with service analytics)
   downloadCount?: number;
   lastAccessedAt?: Date;
-  lastDownloadedAt?: Date; // Added for service compatibility
+  lastDownloadedAt?: Date;
   
   // Instance methods (aligned with service requirements)
   incrementDownloadCount(): Promise<IMedia>;
@@ -54,6 +60,9 @@ export interface IMedia extends Document {
   getFileExtension(): string;
   isOwnedBy(businessId: string): boolean;
   canBeAccessedBy(businessId?: string): boolean;
+  isStoredInS3(): boolean;
+  getStorageLocation(): 'local' | 's3';
+  getS3Url(): string | null;
 }
 
 const MediaSchema = new Schema<IMedia>(
@@ -79,7 +88,7 @@ const MediaSchema = new Schema<IMedia>(
     },
     uploadedBy: { 
       type: Schema.Types.ObjectId, 
-      ref: 'Business', // Aligned with service references
+      ref: 'Business',
       required: [true, 'Uploader reference is required'],
       index: true
     },
@@ -117,6 +126,44 @@ const MediaSchema = new Schema<IMedia>(
       min: [1, 'File size must be at least 1 byte'],
       max: [100 * 1024 * 1024, 'File size cannot exceed 100MB'], // 100MB limit
       index: true
+    },
+    
+    // S3 Storage fields (new for S3 integration)
+    s3Key: {
+      type: String,
+      trim: true,
+      sparse: true, // Allows null/undefined values
+      index: true,
+      validate: {
+        validator: function(v: string) {
+          if (!v) return true; // Optional field
+          return v.length <= 1024; // S3 key max length
+        },
+        message: 'S3 key cannot exceed 1024 characters'
+      }
+    },
+    s3Bucket: {
+      type: String,
+      trim: true,
+      sparse: true,
+      validate: {
+        validator: function(v: string) {
+          if (!v) return true;
+          return /^[a-z0-9][a-z0-9\-]*[a-z0-9]$/.test(v) && v.length >= 3 && v.length <= 63;
+        },
+        message: 'Invalid S3 bucket name format'
+      }
+    },
+    s3ETag: {
+      type: String,
+      trim: true,
+      sparse: true
+    },
+    s3Region: {
+      type: String,
+      trim: true,
+      sparse: true,
+      default: process.env.AWS_REGION || 'us-east-2'
     },
     
     // Organization (aligned with controller validation)
@@ -218,7 +265,7 @@ const MediaSchema = new Schema<IMedia>(
       default: Date.now
     },
     lastDownloadedAt: { 
-      type: Date // Added for service compatibility
+      type: Date
     }
   },
   { 
@@ -244,10 +291,15 @@ MediaSchema.index({ filename: 1 });
 MediaSchema.index({ mimeType: 1 });
 MediaSchema.index({ size: 1 });
 
+// S3-specific indexes
+MediaSchema.index({ s3Key: 1 }, { sparse: true });
+MediaSchema.index({ s3Bucket: 1 }, { sparse: true });
+
 // Compound indexes for service search methods
 MediaSchema.index({ uploadedBy: 1, category: 1, type: 1 });
 MediaSchema.index({ uploadedBy: 1, isActive: 1, createdAt: -1 });
 MediaSchema.index({ uploadedBy: 1, isPublic: 1 });
+MediaSchema.index({ uploadedBy: 1, s3Key: 1 }, { sparse: true });
 
 // Text index for search functionality (aligned with service search)
 MediaSchema.index({
@@ -278,6 +330,10 @@ MediaSchema.virtual('isExpired').get(function() {
 MediaSchema.virtual('popularityScore').get(function() {
   // Simple popularity calculation
   return (this.downloadCount || 0) * 1.5;
+});
+
+MediaSchema.virtual('storageType').get(function() {
+  return this.getStorageLocation();
 });
 
 // Instance Methods (aligned with service requirements)
@@ -323,6 +379,21 @@ MediaSchema.methods.isDocument = function(): boolean {
 
 MediaSchema.methods.getPublicUrl = function(): string {
   return this.isPublic ? this.url : '';
+};
+
+// S3-specific methods (new for S3 integration)
+MediaSchema.methods.isStoredInS3 = function(): boolean {
+  return !!(this.s3Key && this.s3Bucket);
+};
+
+MediaSchema.methods.getStorageLocation = function(): 'local' | 's3' {
+  return this.isStoredInS3() ? 's3' : 'local';
+};
+
+MediaSchema.methods.getS3Url = function(): string | null {
+  if (!this.isStoredInS3()) return null;
+  const region = this.s3Region || process.env.AWS_REGION || 'us-east-2';
+  return `https://${this.s3Bucket}.s3.${region}.amazonaws.com/${this.s3Key}`;
 };
 
 // Format file size method (aligned with service utility)
@@ -430,16 +501,32 @@ MediaSchema.statics.getStorageStats = function(businessId: string) {
         totalFiles: { $sum: 1 },
         totalSize: { $sum: '$size' },
         averageSize: { $avg: '$size' },
+        s3Files: { 
+          $sum: { 
+            $cond: [{ $ne: ['$s3Key', null] }, 1, 0] 
+          } 
+        },
+        localFiles: { 
+          $sum: { 
+            $cond: [{ $eq: ['$s3Key', null] }, 1, 0] 
+          } 
+        },
         byType: { 
           $push: { 
             type: '$type', 
-            size: '$size' 
+            size: '$size',
+            storage: { 
+              $cond: [{ $ne: ['$s3Key', null] }, 's3', 'local'] 
+            }
           } 
         },
         byCategory: { 
           $push: { 
             category: '$category', 
-            size: '$size' 
+            size: '$size',
+            storage: { 
+              $cond: [{ $ne: ['$s3Key', null] }, 's3', 'local'] 
+            }
           } 
         }
       }
@@ -463,6 +550,16 @@ MediaSchema.statics.getCategoryStats = function(businessId: string, category: st
         totalFiles: { $sum: 1 },
         totalSize: { $sum: '$size' },
         averageSize: { $avg: '$size' },
+        s3Files: { 
+          $sum: { 
+            $cond: [{ $ne: ['$s3Key', null] }, 1, 0] 
+          } 
+        },
+        localFiles: { 
+          $sum: { 
+            $cond: [{ $eq: ['$s3Key', null] }, 1, 0] 
+          } 
+        },
         fileTypes: { 
           $push: '$type'
         }
@@ -475,7 +572,23 @@ MediaSchema.statics.getCategoryStats = function(businessId: string, category: st
 MediaSchema.statics.getTypeStats = function(businessId: string) {
   return this.aggregate([
     { $match: { uploadedBy: new Types.ObjectId(businessId), isActive: true } },
-    { $group: { _id: '$type', count: { $sum: 1 }, totalSize: { $sum: '$size' } } }
+    { 
+      $group: { 
+        _id: '$type', 
+        count: { $sum: 1 }, 
+        totalSize: { $sum: '$size' },
+        s3Count: { 
+          $sum: { 
+            $cond: [{ $ne: ['$s3Key', null] }, 1, 0] 
+          } 
+        },
+        localCount: { 
+          $sum: { 
+            $cond: [{ $eq: ['$s3Key', null] }, 1, 0] 
+          } 
+        }
+      } 
+    }
   ]);
 };
 
@@ -518,6 +631,36 @@ MediaSchema.statics.getOrphanedFiles = function(businessId: string) {
   });
 };
 
+// Find files stored in S3 (new method for S3 integration)
+MediaSchema.statics.findS3Files = function(businessId: string) {
+  return this.find({
+    uploadedBy: businessId,
+    isActive: true,
+    s3Key: { $exists: true, $ne: null }
+  }).sort({ createdAt: -1 });
+};
+
+// Find files stored locally (new method for migration support)
+MediaSchema.statics.findLocalFiles = function(businessId: string) {
+  return this.find({
+    uploadedBy: businessId,
+    isActive: true,
+    $or: [
+      { s3Key: { $exists: false } },
+      { s3Key: null },
+      { s3Key: '' }
+    ]
+  }).sort({ createdAt: -1 });
+};
+
+// Find files by S3 bucket (new method for S3 management)
+MediaSchema.statics.findByS3Bucket = function(bucketName: string) {
+  return this.find({
+    s3Bucket: bucketName,
+    isActive: true
+  }).sort({ createdAt: -1 });
+};
+
 // Pre-save middleware (aligned with service validation)
 MediaSchema.pre('save', function(next) {
   // Clean up tags
@@ -547,17 +690,37 @@ MediaSchema.pre('save', function(next) {
     }
   }
   
+  // Set storage provider in metadata if not set
+  if (!this.metadata?.storageProvider) {
+    if (!this.metadata) this.metadata = {};
+    this.metadata.storageProvider = this.isStoredInS3() ? 's3' : 'local';
+  }
+  
+  // Validate S3 fields consistency
+  if (this.s3Key && !this.s3Bucket) {
+    return next(new Error('S3 bucket is required when S3 key is provided'));
+  }
+  
+  if (this.s3Bucket && !this.s3Key) {
+    return next(new Error('S3 key is required when S3 bucket is provided'));
+  }
+  
   next();
 });
 
 // Post-save middleware for analytics (aligned with service tracking)
 MediaSchema.post('save', function(doc) {
   if (this.isNew) {
-    console.log(`Media uploaded: ${doc.filename} by ${doc.uploadedBy}`);
+    const storageType = doc.isStoredInS3() ? 'S3' : 'local';
+    console.log(`Media uploaded to ${storageType}: ${doc.filename} by ${doc.uploadedBy}`);
   }
   
   if (this.isModified('downloadCount')) {
     console.log(`Media downloaded: ${doc.filename} (${doc.downloadCount} times)`);
+  }
+  
+  if (this.isModified('s3Key') && doc.s3Key) {
+    console.log(`Media migrated to S3: ${doc.filename} -> ${doc.s3Key}`);
   }
 });
 
@@ -565,7 +728,8 @@ MediaSchema.post('save', function(doc) {
  * Pre-remove hook for cleanup (document-level)
  */
 MediaSchema.pre('remove', function(this: IMedia, next) {
-  console.log(`Removing media: ${this.filename}`);
+  const storageInfo = this.isStoredInS3() ? `S3 key: ${this.s3Key}` : 'local storage';
+  console.log(`Removing media from ${storageInfo}: ${this.filename}`);
   next();
 });
 
@@ -577,7 +741,8 @@ MediaSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
     // Get the document that will be deleted
     const doc = await this.model.findOne(this.getQuery()) as IMedia;
     if (doc) {
-      console.log(`Removing media: ${doc.filename}`);
+      const storageInfo = doc.isStoredInS3() ? `S3 key: ${doc.s3Key}` : 'local storage';
+      console.log(`Removing media from ${storageInfo}: ${doc.filename}`);
     }
   } catch (error) {
     console.error('Error in pre-delete hook:', error);

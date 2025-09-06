@@ -11,6 +11,7 @@ export interface ICertificate extends Document {
   
   // Enhanced transfer tracking fields (from controller and service)
   status: 'minted' | 'pending_transfer' | 'transferred_to_brand' | 'transfer_failed' | 'revoked';
+  imageUrl?: string; 
   mintedToRelayer: boolean;
   transferredToBrand?: boolean;
   brandWallet?: string;
@@ -40,6 +41,13 @@ export interface ICertificate extends Document {
     }>;
     expirationDate?: Date;
     certificateLevel?: 'bronze' | 'silver' | 'gold' | 'platinum';
+    imageUrl?: string; // For S3 stored images
+    templateId?: string; // For certificate templates
+    metadataUri?: string; // S3 metadata URI
+    s3Keys?: {
+      image?: string;
+      metadata?: string;
+    };
   };
   
   // Delivery options (from controller)
@@ -229,7 +237,7 @@ const CertificateSchema = new Schema<ICertificate>(
       default: '0'
     },
     
-    // Certificate metadata
+    // Certificate metadata with S3 support
     metadata: {
       customMessage: {
         type: String,
@@ -265,6 +273,40 @@ const CertificateSchema = new Schema<ICertificate>(
       certificateLevel: {
         type: String,
         enum: ['bronze', 'silver', 'gold', 'platinum']
+      },
+      imageUrl: {
+        type: String,
+        trim: true,
+        validate: {
+          validator: function(v: string) {
+            return !v || /^https?:\/\/.+/.test(v);
+          },
+          message: 'Image URL must be a valid HTTP/HTTPS URL'
+        }
+      },
+      templateId: {
+        type: String,
+        trim: true
+      },
+      metadataUri: {
+        type: String,
+        trim: true,
+        validate: {
+          validator: function(v: string) {
+            return !v || /^https?:\/\/.+/.test(v);
+          },
+          message: 'Metadata URI must be a valid HTTP/HTTPS URL'
+        }
+      },
+      s3Keys: {
+        image: {
+          type: String,
+          trim: true
+        },
+        metadata: {
+          type: String,
+          trim: true
+        }
       }
     },
     
@@ -546,7 +588,7 @@ CertificateSchema.methods.scheduleTransfer = async function(): Promise<void> {
 
   try {
     // Import here to avoid circular dependencies
-    const { BrandSettings } = await import('../models/brandSettings.model');
+    const { BrandSettings } = await import('./brandSettings.model');
     
     // Get brand wallet from business settings
     const brandSettings = await BrandSettings.findOne({ business: this.business });
@@ -904,7 +946,7 @@ CertificateSchema.post('save', function(doc) {
   if (doc.isModified('transferredToBrand') && doc.transferredToBrand) {
     process.nextTick(async () => {
       try {
-        const { BrandSettings } = await import('../models/brandSettings.model');
+        const { BrandSettings } = await import('./brandSettings.model');
         const brandSettings = await BrandSettings.findOne({ business: doc.business });
         
         if (brandSettings) {
@@ -925,7 +967,7 @@ CertificateSchema.post('save', function(doc) {
   if (doc.isModified('transferFailed') && doc.transferFailed) {
     process.nextTick(async () => {
       try {
-        const { BrandSettings } = await import('../models/brandSettings.model');
+        const { BrandSettings } = await import('./brandSettings.model');
         const brandSettings = await BrandSettings.findOne({ business: doc.business });
         
         if (brandSettings) {
@@ -989,7 +1031,7 @@ CertificateSchema.post('remove', function(doc) {
     try {
       // Get business details for notification
       const { NotificationsService } = await import('../services/external/notifications.service');
-      const { Business } = await import('../models/business.model');
+      const { Business } = await import('./business.model');
       
       const notificationsService = new NotificationsService();
       const business = await Business.findById(doc.business).select('businessName email');
