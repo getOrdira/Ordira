@@ -50,6 +50,17 @@ export interface ContractDeployment {
   blockNumber: number;
   gasUsed: string;
   businessId: string;
+  votingSettings?: {
+    votingDelay: number;
+    votingPeriod: number;
+    quorumPercentage: number;
+  };
+}
+
+export interface CreateProposalResult {
+  proposalId: string;
+  txHash: string;
+  businessId?: string;
 }
 
 export interface VoteEvent {
