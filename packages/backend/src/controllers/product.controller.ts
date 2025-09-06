@@ -343,6 +343,85 @@ export const createProduct = asyncHandler(async (
 });
 
 /**
+ * Upload product images directly
+ * POST /api/products/:id/images
+ * 
+ * @requires authentication & tenant context
+ * @requires multipart/form-data with 'images' field(s)
+ * @returns { uploadedImages, product }
+ */
+export const uploadProductImages = asyncHandler(async (
+  req: TenantProductRequest & { 
+    params: { id: string }; 
+    files?: Express.Multer.File[] 
+  },
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Get user context
+  const userContext = getUserContext(req);
+  const { id } = req.params;
+
+  // Check if files were uploaded
+  if (!req.files || req.files.length === 0) {
+    throw createAppError('No image files provided', 400, 'MISSING_FILES');
+  }
+
+  // Validate file types
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  const invalidFiles = req.files.filter(file => !allowedMimeTypes.includes(file.mimetype));
+  if (invalidFiles.length > 0) {
+    throw createAppError('Invalid file types. Only JPEG, PNG, and WebP are allowed', 400, 'INVALID_FILE_TYPE');
+  }
+
+  // Upload images through service
+  const uploadedImages = await productService.uploadProductImages(
+    id,
+    req.files,
+    userContext.businessId,
+    userContext.manufacturerId
+  );
+
+  // Get updated product
+  const product = await productService.getProduct(
+    id,
+    userContext.businessId,
+    userContext.manufacturerId
+  );
+
+  // Return standardized response
+  res.status(201).json({
+    success: true,
+    message: `${uploadedImages.length} product images uploaded successfully`,
+    data: {
+      uploadedImages: uploadedImages.map(img => ({
+        id: img._id.toString(),
+        filename: img.filename,
+        url: img.url,
+        size: img.size,
+        mimeType: img.mimeType,
+        uploadedAt: img.createdAt,
+        // S3 information if available
+        ...(img.s3Key && {
+          storage: {
+            type: 's3',
+            s3Key: img.s3Key,
+            s3Bucket: img.s3Bucket,
+            s3Region: img.s3Region
+          }
+        })
+      })),
+      product: {
+        id: product.id,
+        title: product.title,
+        mediaCount: product.media?.length || 0,
+        updatedAt: product.updatedAt
+      }
+    }
+  });
+});
+
+/**
  * Update an existing product with change tracking
  * PUT /api/products/:id
  */

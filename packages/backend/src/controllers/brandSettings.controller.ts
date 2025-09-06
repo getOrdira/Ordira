@@ -393,6 +393,198 @@ export async function updateCertificateWallet(
 }
 
 /**
+ * Upload brand logo directly
+ * POST /api/brand-settings/logo
+ * 
+ * @requires authentication & tenant context
+ * @requires multipart/form-data with 'logo' field
+ * @returns { logoUrl, uploadedAt }
+ */
+export async function uploadBrandLogo(
+  req: AuthRequest & TenantRequest & { file?: Express.Multer.File },
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    if (!businessId) {
+      res.status(401).json({
+        error: 'Business ID not found in request',
+        code: 'MISSING_BUSINESS_ID'
+      });
+      return;
+    }
+
+    // Check if file was uploaded
+    if (!req.file) {
+      res.status(400).json({
+        error: 'No logo file provided',
+        code: 'MISSING_FILE'
+      });
+      return;
+    }
+
+    // Validate file type and size
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      res.status(400).json({
+        error: 'Invalid file type. Only JPEG, PNG, WebP, and SVG are allowed',
+        code: 'INVALID_FILE_TYPE'
+      });
+      return;
+    }
+
+    const maxFileSize = 10 * 1024 * 1024; // 10MB for logos
+    if (req.file.size > maxFileSize) {
+      res.status(400).json({
+        error: 'File size exceeds 10MB limit',
+        code: 'FILE_TOO_LARGE'
+      });
+      return;
+    }
+
+    // Upload logo through media service
+    const { MediaService } = await import('../services/business/media.service');
+    const mediaService = new MediaService();
+    
+    const media = await mediaService.saveMedia(req.file, businessId, {
+      category: 'banner',
+      description: 'Brand logo',
+      isPublic: true
+    });
+
+    // Update brand settings with new logo URL
+    const updatedSettings = await brandSettingsService.updateSettings(businessId, {
+      logoUrl: media.url
+    });
+
+    // Track logo upload
+    trackManufacturerAction('upload_brand_logo');
+
+    res.json({
+      success: true,
+      message: 'Brand logo uploaded successfully',
+      data: {
+        logoUrl: media.url,
+        uploadedAt: media.createdAt,
+        fileSize: req.file.size,
+        fileType: req.file.mimetype,
+        // S3 information if available
+        ...(media.s3Key && {
+          storage: {
+            type: 's3',
+            s3Key: media.s3Key,
+            s3Bucket: media.s3Bucket,
+            s3Region: media.s3Region
+          }
+        })
+      }
+    });
+  } catch (error) {
+    console.error('Upload brand logo error:', error);
+    next(error);
+  }
+}
+
+/**
+ * Upload brand banner image
+ * POST /api/brand-settings/banner
+ * 
+ * @requires authentication & tenant context
+ * @requires multipart/form-data with 'banner' field
+ * @returns { bannerUrl, uploadedAt }
+ */
+export async function uploadBrandBanner(
+  req: AuthRequest & TenantRequest & { file?: Express.Multer.File },
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    if (!businessId) {
+      res.status(401).json({
+        error: 'Business ID not found in request',
+        code: 'MISSING_BUSINESS_ID'
+      });
+      return;
+    }
+
+    // Check if file was uploaded
+    if (!req.file) {
+      res.status(400).json({
+        error: 'No banner file provided',
+        code: 'MISSING_FILE'
+      });
+      return;
+    }
+
+    // Validate file type and size
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      res.status(400).json({
+        error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed',
+        code: 'INVALID_FILE_TYPE'
+      });
+      return;
+    }
+
+    const maxFileSize = 15 * 1024 * 1024; // 15MB for banners
+    if (req.file.size > maxFileSize) {
+      res.status(400).json({
+        error: 'File size exceeds 15MB limit',
+        code: 'FILE_TOO_LARGE'
+      });
+      return;
+    }
+
+    // Upload banner through media service
+    const { MediaService } = await import('../services/business/media.service');
+    const mediaService = new MediaService();
+    
+    const media = await mediaService.saveMedia(req.file, businessId, {
+      category: 'banner',
+      description: 'Brand banner image',
+      isPublic: true
+    });
+
+    // Update brand settings with new banner URL
+    const currentSettings = await brandSettingsService.getSettings(businessId);
+    const updatedBannerImages = [...(currentSettings.bannerImages || []), media.url];
+    
+    const updatedSettings = await brandSettingsService.updateSettings(businessId, {
+      bannerImages: updatedBannerImages
+    });
+
+    // Track banner upload
+    trackManufacturerAction('upload_brand_banner');
+
+    res.json({
+      success: true,
+      message: 'Brand banner uploaded successfully',
+      data: {
+        bannerUrl: media.url,
+        uploadedAt: media.createdAt,
+        fileSize: req.file.size,
+        fileType: req.file.mimetype,
+        totalBanners: updatedBannerImages.length,
+        // S3 information if available
+        ...(media.s3Key && {
+          storage: {
+            type: 's3',
+            s3Key: media.s3Key,
+            s3Bucket: media.s3Bucket,
+            s3Region: media.s3Region
+          }
+        })
+      }
+    });
+  } catch (error) {
+    console.error('Upload brand banner error:', error);
+    next(error);
+  }
+}
+
+/**
  * PUT /api/brand-settings/quick-branding
  * Quick branding updates (theme color, logo)
  */

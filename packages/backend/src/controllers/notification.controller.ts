@@ -213,7 +213,7 @@ export const getNotificationStats = asyncHandler(async (
   req: AuthRequest | ManufacturerAuthRequest,
   res: Response,
   next: NextFunction
-): Promise<void> => {
+ ): Promise<void> => {
   // Get user context
   const userContext = getUserContext(req);
 

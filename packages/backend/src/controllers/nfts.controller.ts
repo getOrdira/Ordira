@@ -154,7 +154,7 @@ export const listNftContracts = asyncHandler(async (
 
   // Get contracts through service
   const contracts = await nftService.listContracts(businessId, { status, page, limit });
-  const contractStats = await nftService.getContractStatistics(businessId);
+  const contractStats = await NftService.getContractStatistics(businessId);
 
   // Return standardized response
   res.json({
@@ -209,7 +209,7 @@ export const mintNft = asyncHandler(async (
   const mintingParams = req.validatedBody;
 
   // Validate product ownership
-  const productOwnership = await nftService.verifyProductOwnership(
+  const productOwnership = await NftService.verifyProductOwnership(
     mintingParams.productId, 
     businessId
   );
@@ -219,7 +219,7 @@ export const mintNft = asyncHandler(async (
   }
 
   // Check minting limits and permissions
-  const mintingEligibility = await nftService.checkMintingEligibility(
+  const mintingEligibility = await NftService.checkMintingEligibility(
     businessId,
     mintingParams.productId
   );
@@ -360,7 +360,7 @@ export const transferNft = asyncHandler(async (
   const transferParams = req.validatedBody;
 
   // Verify ownership and transfer eligibility
-  const transferEligibility = await nftService.verifyTransferEligibility(
+  const transferEligibility = await NftService.verifyTransferEligibility(
     transferParams.tokenId,
     transferParams.contractAddress,
     transferParams.fromAddress,
@@ -537,7 +537,7 @@ export const burnNft = asyncHandler(async (
   const { contractAddress, reason } = req.body;
 
   // Verify burn eligibility
-  const burnEligibility = await nftService.verifyBurnEligibility(
+  const burnEligibility = await NftService.verifyBurnEligibility(
     tokenId,
     contractAddress,
     businessId
@@ -552,7 +552,7 @@ export const burnNft = asyncHandler(async (
   }
 
   // Execute burn through service
-  const burnResult = await nftService.burnNft(businessId, {
+  const burnResult = await NftService.burnNft(businessId, {
     tokenId,
     contractAddress,
     reason

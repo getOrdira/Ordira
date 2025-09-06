@@ -105,6 +105,88 @@ export async function getBrandProfile(
 }
 
 /**
+ * Upload brand profile picture
+ * POST /api/brand/account/profile-picture
+ * 
+ * @requires authentication & tenant context
+ * @requires multipart/form-data with 'profilePicture' field
+ * @returns { profilePictureUrl, uploadedAt }
+ */
+export async function uploadProfilePicture(
+  req: AuthRequest & TenantRequest & { file?: Express.Multer.File },
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const businessId = req.userId!;
+    if (!businessId) {
+      res.status(401).json({
+        error: 'Business ID not found in request',
+        code: 'MISSING_BUSINESS_ID'
+      });
+      return;
+    }
+
+    // Check if file was uploaded
+    if (!req.file) {
+      res.status(400).json({
+        error: 'No profile picture file provided',
+        code: 'MISSING_FILE'
+      });
+      return;
+    }
+
+    // Validate file type and size
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+      res.status(400).json({
+        error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed',
+        code: 'INVALID_FILE_TYPE'
+      });
+      return;
+    }
+
+    const maxFileSize = 5 * 1024 * 1024; // 5MB
+    if (req.file.size > maxFileSize) {
+      res.status(400).json({
+        error: 'File size exceeds 5MB limit',
+        code: 'FILE_TOO_LARGE'
+      });
+      return;
+    }
+
+    // Upload and update profile picture through service
+    const result = await brandAccountService.uploadProfilePicture(businessId, req.file);
+
+    // Track profile picture upload
+    trackManufacturerAction('upload_brand_profile_picture');
+
+    res.json({
+      success: true,
+      message: 'Profile picture uploaded successfully',
+      data: {
+        profilePictureUrl: result.profilePictureUrl,
+        uploadedAt: result.uploadedAt,
+        fileSize: req.file.size,
+        fileType: req.file.mimetype,
+        // Add S3 information if available
+        ...(result.s3Key && {
+          storage: {
+            type: 's3',
+            s3Key: result.s3Key,
+            s3Bucket: result.s3Bucket,
+            s3Region: result.s3Region
+          }
+        })
+      }
+    });
+  } catch (error) {
+    console.error('Upload brand profile picture error:', error);
+    next(error);
+  }
+}
+
+/**
  * PUT /api/brand/account/profile
  * Update brand profile with comprehensive validation and features
  */

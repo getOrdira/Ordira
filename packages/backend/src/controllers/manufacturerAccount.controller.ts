@@ -228,7 +228,16 @@ export const uploadProfilePicture = asyncHandler(async (
       profilePictureUrl: result.profilePictureUrl,
       uploadedAt: result.uploadedAt,
       fileSize: req.file.size,
-      fileType: req.file.mimetype
+      fileType: req.file.mimetype,
+      // Add S3 information if available
+      ...(result.s3Key && {
+        storage: {
+          type: 's3',
+          s3Key: result.s3Key,
+          s3Bucket: result.s3Bucket,
+          s3Region: result.s3Region
+        }
+      })
     }
   });
 });
