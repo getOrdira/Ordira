@@ -1,0 +1,69 @@
+# -------------------------
+# System / IDE
+# -------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# -------------------------
+# Node / Packages
+# -------------------------
+/node_modules/
+/packages/**/node_modules/
+
+# npm log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------------------------
+# Build output
+# -------------------------
+/dist/
+/build/
+/packages/**/dist/
+/packages/**/build/
+*.tsbuildinfo
+
+# -------------------------
+# TypeChain / Hardhat
+# -------------------------
+/packages/backend/artifacts/
+/packages/backend/cache/
+/packages/backend/typechain/
+
+# -------------------------
+# Test files .spec
+#--------------------------
+/packages/backend/.spec.ts
+
+# -------------------------
+# Coverage
+# -------------------------
+/coverage/
+
+# -------------------------
+# Environment
+# -------------------------
+.env
+.env.*.local
+.env.local
+
+# -------------------------
+# Docker
+# -------------------------
+docker-compose.override.yml
+docker-compose.local.yml
+/packages/backend/docker-compose.yml
+/packages/backend/Dockerfile
+
+
+# -------------------------
+# Misc
+# -------------------------
+*.pem
+*.key
+p
