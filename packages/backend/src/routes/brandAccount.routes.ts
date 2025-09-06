@@ -4,7 +4,10 @@ import { validateBody, validateQuery } from '../middleware/validation.middleware
 import { authenticate } from '../middleware/auth.middleware';
 import { resolveTenant, requireTenantSetup } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
+import { uploadMiddleware } from '../middleware/upload.middleware';
+import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as ctrl from '../controllers/brandAccount.controller';
+import { RequestHandler } from 'express';
 import { 
   updateBrandAccountSchema,
   submitVerificationSchema,
@@ -14,6 +17,9 @@ import {
 } from '../validation/brandAccount.validation';
 
 const router = Router();
+const safeUploadMiddleware = {
+  singleImage: uploadMiddleware.singleImage as RequestHandler[]
+};
 
 // Apply dynamic rate limiting to all brand account routes
 router.use(dynamicRateLimiter());
@@ -44,6 +50,17 @@ router.put(
   '/profile',
   validateBody(updateBrandAccountSchema),
   ctrl.updateBrandProfile
+);
+
+/**
+ * POST /api/brand/account/profile-picture
+ * Upload brand profile picture
+ */
+router.post(
+  '/profile-picture',
+  ...safeUploadMiddleware.singleImage,
+  trackManufacturerAction('upload_brand_profile_picture'),
+  ctrl.uploadProfilePicture
 );
 
 // ===== VERIFICATION MANAGEMENT =====

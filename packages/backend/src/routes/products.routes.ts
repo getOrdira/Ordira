@@ -6,6 +6,7 @@ import { authenticateManufacturer, requireVerifiedManufacturer } from '../middle
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { uploadMiddleware } from '../middleware/upload.middleware';
 import * as productCtrl from '../controllers/product.controller';
 import {
   createProductSchema,
@@ -15,6 +16,12 @@ import {
   productValidationSchemas
 } from '../validation/product.validation';
 import Joi from 'joi';
+import { RequestHandler } from 'express';
+
+// ===== UPLOAD MIDDLEWARE SETUP =====
+const safeUploadMiddleware = {
+  multipleImages: uploadMiddleware.multipleImages as RequestHandler[]
+};
 
 // ===== ADDITIONAL VALIDATION SCHEMAS =====
 // Schemas that align with your controller interfaces
@@ -297,6 +304,24 @@ router.put(
   validateBody(updateProductSchema),
   trackManufacturerAction('update_product'),
   productCtrl.updateProduct
+);
+
+/**
+ * Upload product images directly
+ * POST /api/products/:id/images
+ * 
+ * @requires authentication (business OR manufacturer)
+ * @requires multipart/form-data with 'images' field(s)
+ * @rate-limited: strict for upload operations
+ * @returns { uploadedImages, product }
+ */
+router.post(
+  '/:id/images',
+  strictRateLimiter(), // Strict rate limiting for uploads
+  validateParams(productParamsSchema),
+  ...safeUploadMiddleware.multipleImages,
+  trackManufacturerAction('upload_product_images'),
+  productCtrl.uploadProductImages
 );
 
 /**

@@ -4,6 +4,8 @@ import { validateBody, validateParams, validateQuery } from '../middleware/valid
 import { authenticate } from '../middleware/auth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
+import { uploadMiddleware } from '../middleware/upload.middleware';
+import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as settingsCtrl from '../controllers/brandSettings.controller';
 import {
   updateBrandSettingsSchema,
@@ -15,8 +17,14 @@ import {
   wixIntegrationSchema
 } from '../validation/brandSettings.validation';
 import Joi from 'joi';
+import { RequestHandler } from 'express';
 
 const router = Router();
+
+// ===== UPLOAD MIDDLEWARE SETUP =====
+const safeUploadMiddleware = {
+  singleImage: uploadMiddleware.singleImage as RequestHandler[]
+};
 
 // Apply dynamic rate limiting to all brand settings routes
 router.use(dynamicRateLimiter());
@@ -65,6 +73,30 @@ router.put(
   '/quick-branding',
   validateBody(quickBrandingSchema),
   settingsCtrl.updateQuickBranding
+);
+
+/**
+ * Upload brand logo directly
+ * POST /api/brand-settings/logo
+ */
+router.post(
+  '/logo',
+  strictRateLimiter(), // Strict rate limiting for uploads
+  ...safeUploadMiddleware.singleImage,
+  trackManufacturerAction('upload_brand_logo'),
+  settingsCtrl.uploadBrandLogo
+);
+
+/**
+ * Upload brand banner image
+ * POST /api/brand-settings/banner
+ */
+router.post(
+  '/banner',
+  strictRateLimiter(), // Strict rate limiting for uploads
+  ...safeUploadMiddleware.singleImage,
+  trackManufacturerAction('upload_brand_banner'),
+  settingsCtrl.uploadBrandBanner
 );
 
 /**
