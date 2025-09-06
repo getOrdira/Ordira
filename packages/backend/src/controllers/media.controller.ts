@@ -448,3 +448,247 @@ export const downloadMedia = asyncHandler(async (
   // Stream the file
   downloadResult.stream.pipe(res);
 });
+
+/**
+ * Get storage health status
+ * GET /api/media/health
+ * 
+ * @requires authentication & tenant context
+ * @returns { status, s3Available, latency, errors }
+ */
+export const getStorageHealth = asyncHandler(async (
+  req: TenantMediaRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract business ID from tenant context
+  const businessId = req.tenant?.business?.toString();
+  if (!businessId) {
+    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  }
+
+  // Get storage health through service
+  const healthStatus = await mediaService.getStorageHealth();
+
+  // Return standardized response
+  res.json({
+    success: true,
+    message: 'Storage health status retrieved successfully',
+    data: {
+      storage: healthStatus,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+/**
+ * Migrate local files to S3
+ * POST /api/media/migrate-to-s3
+ * 
+ * @requires authentication & tenant context
+ * @returns { migrated, failed, errors }
+ */
+export const migrateToS3 = asyncHandler(async (
+  req: TenantMediaRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract business ID from tenant context
+  const businessId = req.tenant?.business?.toString();
+  if (!businessId) {
+    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  }
+
+  // Migrate files through service
+  const migrationResult = await mediaService.migrateLocalFilesToS3(businessId);
+
+  // Return standardized response
+  res.json({
+    success: true,
+    message: `Migration completed: ${migrationResult.migrated} files migrated, ${migrationResult.failed} failed`,
+    data: {
+      migration: migrationResult,
+      migratedAt: new Date().toISOString()
+    }
+  });
+});
+
+/**
+ * Generate direct upload URL for S3
+ * POST /api/media/upload-url
+ * 
+ * @requires authentication & tenant context
+ * @requires validation: { filename, mimeType, resourceId? }
+ * @returns { uploadUrl, s3Key, formData }
+ */
+export const generateUploadUrl = asyncHandler(async (
+  req: TenantMediaRequest & { 
+    validatedBody: { 
+      filename: string; 
+      mimeType: string; 
+      resourceId?: string;
+      expiresIn?: number;
+    } 
+  },
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract business ID from tenant context
+  const businessId = req.tenant?.business?.toString();
+  if (!businessId) {
+    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  }
+
+  const { filename, mimeType, resourceId, expiresIn } = req.validatedBody;
+
+  // Generate upload URL through service
+  const uploadInfo = await mediaService.generateUploadUrl(businessId, filename, mimeType, {
+    resourceId,
+    expiresIn
+  });
+
+  // Return standardized response
+  res.json({
+    success: true,
+    message: 'Upload URL generated successfully',
+    data: {
+      upload: uploadInfo,
+      expiresIn: expiresIn || 3600,
+      generatedAt: new Date().toISOString()
+    }
+  });
+});
+
+/**
+ * Bulk delete media files
+ * DELETE /api/media/bulk
+ * 
+ * @requires authentication & tenant context
+ * @requires validation: { mediaIds: string[] }
+ * @returns { deleted, errors, s3KeysDeleted }
+ */
+export const bulkDeleteMedia = asyncHandler(async (
+  req: TenantMediaRequest & { validatedBody: { mediaIds: string[] } },
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract business ID from tenant context
+  const businessId = req.tenant?.business?.toString();
+  if (!businessId) {
+    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  }
+
+  const { mediaIds } = req.validatedBody;
+
+  if (!Array.isArray(mediaIds) || mediaIds.length === 0) {
+    throw createAppError('Media IDs array is required and cannot be empty', 400, 'MISSING_MEDIA_IDS');
+  }
+
+  // Bulk delete through service
+  const deleteResult = await mediaService.bulkDeleteMedia(mediaIds, businessId);
+
+  // Return standardized response
+  res.json({
+    success: true,
+    message: `Bulk deletion completed: ${deleteResult.deleted} files deleted`,
+    data: {
+      deletion: deleteResult,
+      deletedAt: new Date().toISOString()
+    }
+  });
+});
+
+// Update the existing uploadMedia response to include S3 information
+export const uploadMediaEnhanced = asyncHandler(async (
+  req: MediaUploadRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // Extract business ID from tenant context
+  const businessId = req.tenant?.business?.toString();
+  if (!businessId) {
+    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  }
+
+  // Validate file upload
+  if (!req.file) {
+    throw createAppError('No file provided for upload', 400, 'MISSING_FILE');
+  }
+
+  // Extract validated metadata
+  const metadata = req.validatedBody || {};
+
+  // Upload media through service
+  const media = await mediaService.saveMedia(req.file, businessId, metadata);
+
+  // Return enhanced response with S3 information
+  res.status(201).json({
+    success: true,
+    message: 'Media uploaded successfully',
+    data: {
+      media: {
+        id: media._id.toString(),
+        filename: media.filename,
+        originalName: media.originalName,
+        mimeType: media.mimeType,
+        size: media.size,
+        url: media.url,
+        category: media.category,
+        description: media.description,
+        tags: media.tags,
+        isPublic: media.isPublic,
+        uploadedAt: media.createdAt,
+        // S3 information if available
+        ...(media.s3Key && {
+          storage: {
+            type: 's3',
+            s3Key: media.s3Key,
+            s3Bucket: media.s3Bucket,
+            s3Region: media.s3Region
+          }
+        })
+      },
+      uploadStats: {
+        fileSize: req.file.size,
+        fileType: req.file.mimetype,
+        storageLocation: media.s3Key ? 's3' : 'local'
+      }
+    }
+  });
+});
+
+// Update the existing downloadMedia to handle S3 signed URLs
+export const downloadMediaEnhanced = asyncHandler(async (
+  req: TenantMediaRequest & { 
+    params: { mediaId: string };
+    query: { redirect?: 'true' | 'false' };
+  },
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const businessId = req.tenant?.business?.toString();
+  const { mediaId } = req.params;
+  const shouldRedirect = req.query.redirect === 'true';
+
+  // Get media and initiate download through service
+  const downloadResult = await mediaService.initiateDownload(mediaId, businessId);
+
+  // For S3 files, optionally provide direct redirect to signed URL
+  if (downloadResult.signedUrl && shouldRedirect) {
+    res.redirect(downloadResult.signedUrl);
+    return;
+  }
+
+  // Set appropriate headers for file download
+  res.setHeader('Content-Type', downloadResult.mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${downloadResult.filename}"`);
+  res.setHeader('Content-Length', downloadResult.fileSize);
+
+  // Add S3 information to headers if available
+  if (downloadResult.signedUrl) {
+    res.setHeader('X-S3-Signed-URL', downloadResult.signedUrl);
+  }
+
+  // Stream the file
+  downloadResult.stream.pipe(res);
+});
