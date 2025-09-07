@@ -593,7 +593,7 @@ ManufacturerSchema.virtual('yearsInBusiness').get(function() {
   return this.establishedYear ? new Date().getFullYear() - this.establishedYear : 0;
 });
 
-ManufacturerSchema.virtual('isProfileComplete').get(function() {
+ManufacturerSchema.virtual('profileComplete').get(function() {
   return this.getProfileCompleteness() >= 80;
 });
 
