@@ -30,7 +30,17 @@ export class CacheService {
   };
 
   constructor() {
-    this.redis = new Redis({
+    // Use REDIS_URL if available, otherwise fall back to individual variables
+    const redisConfig = process.env.REDIS_URL ? {
+      url: process.env.REDIS_URL,
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+      keepAlive: 30000,
+      connectTimeout: 10000,
+      commandTimeout: 5000,
+      family: 4,
+      enableReadyCheck: true
+    } : {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       password: process.env.REDIS_PASSWORD,
@@ -40,11 +50,11 @@ export class CacheService {
       keepAlive: 30000,
       connectTimeout: 10000,
       commandTimeout: 5000,
-      // Connection pool optimization
       family: 4,
-      // Performance optimizations
       enableReadyCheck: true
-    });
+    };
+
+    this.redis = new Redis(redisConfig);
 
     this.setupEventHandlers();
   }
