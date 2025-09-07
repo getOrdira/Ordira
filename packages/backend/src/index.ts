@@ -100,6 +100,9 @@ interface ErrorWithStatus extends Error {
     validateEnv();
     console.log('✅ Environment configuration loaded and validated');
 
+    // 🔧 Configure Mongoose settings
+    mongoose.set('strictQuery', false); // Suppress deprecation warning
+    
     // 🚀 Optimized MongoDB connection with performance enhancements
     await mongoose.connect(process.env.MONGODB_URI!, {
       maxPoolSize: 20, // Increased pool size
