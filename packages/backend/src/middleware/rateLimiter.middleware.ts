@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
 import { PlanKey, PLAN_DEFINITIONS } from '../constants/plans';
+import { ManufacturerPlanKey, MANUFACTURER_PLAN_DEFINITIONS } from '../constants/manufacturerPlans';
 import { AuthRequest } from './auth.middleware';
 import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
 import redis from 'ioredis';
@@ -38,6 +39,47 @@ const DEFAULT_RATE_LIMIT = {
 const MANUFACTURER_RATE_LIMITS = {
   verified: { rpm: 200, burst: 400, window: 1 },
   unverified: { rpm: 100, burst: 200, window: 1 }
+};
+
+/**
+ * Supply chain event rate limits per manufacturer plan (blockchain transactions)
+ * These are more restrictive since they involve gas costs
+ */
+const SUPPLY_CHAIN_RATE_LIMITS: Record<ManufacturerPlanKey, { 
+  eventsPerMinute: number; 
+  eventsPerHour: number; 
+  eventsPerDay: number;
+  burstAllowance: number;
+  cooldownPeriod: number; // seconds between events
+}> = {
+  starter: { 
+    eventsPerMinute: 2, 
+    eventsPerHour: 10, 
+    eventsPerDay: 50,
+    burstAllowance: 5,
+    cooldownPeriod: 30 // 30 seconds between events
+  },
+  professional: { 
+    eventsPerMinute: 5, 
+    eventsPerHour: 30, 
+    eventsPerDay: 200,
+    burstAllowance: 10,
+    cooldownPeriod: 15 // 15 seconds between events
+  },
+  enterprise: { 
+    eventsPerMinute: 10, 
+    eventsPerHour: 100, 
+    eventsPerDay: 1000,
+    burstAllowance: 25,
+    cooldownPeriod: 10 // 10 seconds between events
+  },
+  unlimited: { 
+    eventsPerMinute: 30, 
+    eventsPerHour: 500, 
+    eventsPerDay: 5000,
+    burstAllowance: 100,
+    cooldownPeriod: 5 // 5 seconds between events
+  }
 };
 
 /**
@@ -284,6 +326,202 @@ export function apiRateLimiter() {
  */
 export function clearPlanCache(userId: string): void {
   planCache.delete(userId);
+}
+
+/**
+ * Supply chain event rate limiter with plan-based limits and abuse prevention
+ */
+export function supplyChainRateLimiter() {
+  return rateLimit({
+    windowMs: 60 * 1000, // 1 minute window
+    max: async (req: Request) => {
+      const manufacturerReq = req as ManufacturerAuthRequest;
+      if (!manufacturerReq.userId || !manufacturerReq.manufacturer) {
+        return 0; // No access for non-manufacturers
+      }
+
+      try {
+        // Get manufacturer's plan
+        const manufacturer = await Manufacturer.findById(manufacturerReq.userId).select('plan');
+        const plan = manufacturer?.plan || 'starter';
+        const limits = SUPPLY_CHAIN_RATE_LIMITS[plan as ManufacturerPlanKey];
+        
+        return limits.eventsPerMinute;
+      } catch (error) {
+        console.error('Error getting supply chain rate limit:', error);
+        return SUPPLY_CHAIN_RATE_LIMITS.starter.eventsPerMinute; // Fallback to starter
+      }
+    },
+    
+    keyGenerator: (req: Request) => {
+      const manufacturerReq = req as ManufacturerAuthRequest;
+      return `supply-chain:${manufacturerReq.userId}`;
+    },
+
+    skip: async (req: Request) => {
+      // Skip rate limiting for health checks
+      if (req.path === '/health' || req.path === '/metrics') {
+        return true;
+      }
+      return false;
+    },
+
+    handler: (req: Request, res: Response) => {
+      const manufacturerReq = req as ManufacturerAuthRequest;
+      const key = `supply-chain:${manufacturerReq.userId}`;
+      
+      console.warn(`Supply chain rate limit exceeded for manufacturer ${manufacturerReq.userId} on ${req.method} ${req.path}`);
+      
+      res.status(429).json({
+        error: 'Supply chain event rate limit exceeded',
+        message: 'Too many supply chain events. These are blockchain transactions with gas costs.',
+        retryAfter: Math.ceil(res.getHeader('Retry-After') as number) || 60,
+        code: 'SUPPLY_CHAIN_RATE_LIMIT_EXCEEDED',
+        limits: {
+          window: '1 minute',
+          reason: 'Blockchain transactions require rate limiting to prevent abuse and manage gas costs'
+        }
+      });
+    },
+
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+}
+
+/**
+ * Enhanced supply chain rate limiter with multiple time windows and cooldown
+ */
+export function enhancedSupplyChainRateLimiter() {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const manufacturerReq = req as ManufacturerAuthRequest;
+    
+    if (!manufacturerReq.userId || !manufacturerReq.manufacturer) {
+      res.status(401).json({
+        error: 'Manufacturer authentication required',
+        code: 'MANUFACTURER_AUTH_REQUIRED'
+      });
+      return;
+    }
+
+    try {
+      // Get manufacturer's plan and limits
+      const manufacturer = await Manufacturer.findById(manufacturerReq.userId).select('plan');
+      const plan = manufacturer?.plan || 'starter';
+      const limits = SUPPLY_CHAIN_RATE_LIMITS[plan as ManufacturerPlanKey];
+      
+      const now = Date.now();
+      const minuteKey = `sc:${manufacturerReq.userId}:min:${Math.floor(now / 60000)}`;
+      const hourKey = `sc:${manufacturerReq.userId}:hour:${Math.floor(now / 3600000)}`;
+      const dayKey = `sc:${manufacturerReq.userId}:day:${Math.floor(now / 86400000)}`;
+      const cooldownKey = `sc:${manufacturerReq.userId}:cooldown`;
+      
+      // Check cooldown period
+      const lastEvent = await redisClient.get(cooldownKey);
+      if (lastEvent) {
+        const timeSinceLastEvent = now - parseInt(lastEvent);
+        if (timeSinceLastEvent < limits.cooldownPeriod * 1000) {
+          const waitTime = Math.ceil((limits.cooldownPeriod * 1000 - timeSinceLastEvent) / 1000);
+          
+          res.status(429).json({
+            error: 'Supply chain event cooldown active',
+            message: `Please wait ${waitTime} seconds before logging another event`,
+            retryAfter: waitTime,
+            code: 'SUPPLY_CHAIN_COOLDOWN_ACTIVE',
+            limits: {
+              cooldownPeriod: limits.cooldownPeriod,
+              plan: plan
+            }
+          });
+          return;
+        }
+      }
+      
+      // Check rate limits using Redis counters
+      const [minuteCount, hourCount, dayCount] = await Promise.all([
+        redisClient.incr(minuteKey),
+        redisClient.incr(hourKey),
+        redisClient.incr(dayKey)
+      ]);
+      
+      // Set expiration for counters
+      await Promise.all([
+        redisClient.expire(minuteKey, 60),
+        redisClient.expire(hourKey, 3600),
+        redisClient.expire(dayKey, 86400)
+      ]);
+      
+      // Check if any limit is exceeded
+      if (minuteCount > limits.eventsPerMinute) {
+        res.status(429).json({
+          error: 'Supply chain events per minute limit exceeded',
+          message: `Maximum ${limits.eventsPerMinute} events per minute allowed for ${plan} plan`,
+          retryAfter: 60,
+          code: 'SUPPLY_CHAIN_MINUTE_LIMIT_EXCEEDED',
+          limits: {
+            current: minuteCount,
+            limit: limits.eventsPerMinute,
+            plan: plan
+          }
+        });
+        return;
+      }
+      
+      if (hourCount > limits.eventsPerHour) {
+        res.status(429).json({
+          error: 'Supply chain events per hour limit exceeded',
+          message: `Maximum ${limits.eventsPerHour} events per hour allowed for ${plan} plan`,
+          retryAfter: 3600,
+          code: 'SUPPLY_CHAIN_HOUR_LIMIT_EXCEEDED',
+          limits: {
+            current: hourCount,
+            limit: limits.eventsPerHour,
+            plan: plan
+          }
+        });
+        return;
+      }
+      
+      if (dayCount > limits.eventsPerDay) {
+        res.status(429).json({
+          error: 'Supply chain events per day limit exceeded',
+          message: `Maximum ${limits.eventsPerDay} events per day allowed for ${plan} plan`,
+          retryAfter: 86400,
+          code: 'SUPPLY_CHAIN_DAY_LIMIT_EXCEEDED',
+          limits: {
+            current: dayCount,
+            limit: limits.eventsPerDay,
+            plan: plan
+          }
+        });
+        return;
+      }
+      
+      // Set cooldown timestamp
+      await redisClient.setex(cooldownKey, limits.cooldownPeriod, now.toString());
+      
+      // Add rate limit headers
+      res.set({
+        'X-RateLimit-Limit-Minute': limits.eventsPerMinute.toString(),
+        'X-RateLimit-Remaining-Minute': Math.max(0, limits.eventsPerMinute - minuteCount).toString(),
+        'X-RateLimit-Limit-Hour': limits.eventsPerHour.toString(),
+        'X-RateLimit-Remaining-Hour': Math.max(0, limits.eventsPerHour - hourCount).toString(),
+        'X-RateLimit-Limit-Day': limits.eventsPerDay.toString(),
+        'X-RateLimit-Remaining-Day': Math.max(0, limits.eventsPerDay - dayCount).toString(),
+        'X-RateLimit-Cooldown': limits.cooldownPeriod.toString(),
+        'X-RateLimit-Plan': plan
+      });
+      
+      next();
+    } catch (error) {
+      console.error('Enhanced supply chain rate limiter error:', error);
+      res.status(500).json({
+        error: 'Rate limiter error',
+        message: 'Unable to process rate limiting',
+        code: 'RATE_LIMITER_ERROR'
+      });
+    }
+  };
 }
 
 /**
