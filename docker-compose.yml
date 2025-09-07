@@ -9,22 +9,32 @@ services:
     ports:
       - "27017:27017"
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-defaultpassword}
+
   api:
     build:
       context: .
       dockerfile: packages/backend/Dockerfile
     depends_on:
       - mongo
+      - redis
     environment:
      - NODE_ENV=production
      - PORT=4000
-     - MONGODB_URI=mongodb://mongo:27017/your-db
+     - MONGODB_URI=mongodb://mongo:27017/b2b-platform
      - BASE_RPC_URL=${BASE_RPC_URL}
      - PRIVATE_KEY=${PRIVATE_KEY}
      - TOKEN_CONTRACT_ADDRESS=${TOKEN_CONTRACT_ADDRESS}
      - NFT_FACTORY_ADDRESS=${NFT_FACTORY_ADDRESS}
      - VOTING_FACTORY_ADDRESS=${VOTING_FACTORY_ADDRESS}
-     - CLOURFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+     - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
      - GODADDY_API_KEY=${GODADDY_API_KEY}
      - GODADDY_API_SECRET=${GODADDY_API_SECRET}
      - GODADDY_API_BASE_URL=${GODADDY_API_BASE_URL}
@@ -36,14 +46,29 @@ services:
      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
      - FRONTEND_URL=${FRONTEND_URL}
-     - GCP_PROJECT_ID=${GCP_PROJECT_ID}
-     - GCP_SECRET_NAME=${GCP_SECRET_NAME}
      - POSTMARK_API_KEY=${POSTMARK_API_KEY}
      - POSTMARK_API_SECRET=${POSTMARK_API_SECRET}
+     - REDIS_URL=redis://redis:6379
+     - REDIS_HOST=redis
+     - REDIS_PORT=6379
+     - REDIS_PASSWORD=${REDIS_PASSWORD}
+     - REDIS_DB=0
+     - SENTRY_DSN=${SENTRY_DSN}
+     - BLOCKCHAIN_NETWORK=${BLOCKCHAIN_NETWORK}
+     - CHAIN_ID=${CHAIN_ID}
+     - RELAYER_WALLET_ADDRESS=${RELAYER_WALLET_ADDRESS}
+     - DEPLOYER_KEY=${DEPLOYER_KEY}
+     - TWILIO_SID=${TWILIO_SID}
+     - TWILIO_TOKEN=${TWILIO_TOKEN}
+     - TWILIO_FROM=${TWILIO_FROM}
+     - UPLOAD_DIR=uploads
+     - MAX_FILE_SIZE=15728640
     ports:
       - "4000:4000"
     restart: on-failure
 
 volumes:
   mongo-data:
-  driver: local
+    driver: local
+  redis-data:
+    driver: local
