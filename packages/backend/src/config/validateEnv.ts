@@ -10,7 +10,7 @@ const schema = Joi.object({
   
   // Blockchain configuration
   BASE_RPC_URL: Joi.string().uri().required(),
-  PRIVATE_KEY: Joi.string().length(66).required(),
+  PRIVATE_KEY: Joi.string().pattern(/^(0x)?[a-fA-F0-9]{64}$/).required(),
   TOKEN_CONTRACT_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
   // Factory addresses are stored in database, not environment variables
   
@@ -23,6 +23,9 @@ const schema = Joi.object({
   
   // Frontend URL for CORS
   FRONTEND_URL: Joi.string().uri().required(),
+  
+  // Base domain for tenant resolution
+  BASE_DOMAIN: Joi.string().required(),
   
   // Google Cloud Platform - Not used (using Render environment variables)
   
