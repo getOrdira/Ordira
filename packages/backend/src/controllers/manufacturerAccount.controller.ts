@@ -455,3 +455,296 @@ export const exportAccountData = asyncHandler(async (
   });
 });
 
+// ===== SUPPLY CHAIN MANAGEMENT ENDPOINTS =====
+
+/**
+ * Deploy supply chain contract for manufacturer
+ * POST /api/manufacturer/account/supply-chain/deploy
+ * 
+ * @requires manufacturerAuth
+ * @requires validation: manufacturerName
+ * @returns { contractInfo }
+ */
+export const deploySupplyChainContract = asyncHandler(async (
+  req: ManufacturerAuthRequest & ValidatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const { manufacturerName } = req.validatedBody;
+
+  const contractInfo = await manufacturerAccountService.deploySupplyChainContract(
+    manufacturerId,
+    manufacturerName
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'Supply chain contract deployed successfully',
+    data: {
+      contractInfo,
+      deployedAt: new Date().toISOString()
+    }
+  });
+});
+
+/**
+ * Get supply chain contract information
+ * GET /api/manufacturer/account/supply-chain/contract
+ * 
+ * @requires manufacturerAuth
+ * @returns { contractInfo }
+ */
+export const getSupplyChainContract = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const contractInfo = await manufacturerAccountService.getSupplyChainContractInfo(manufacturerId);
+
+  if (!contractInfo) {
+    res.status(404).json({
+      success: false,
+      error: 'No supply chain contract deployed',
+      code: 'NO_CONTRACT_FOUND'
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      contractInfo
+    }
+  });
+});
+
+/**
+ * Create supply chain endpoint
+ * POST /api/manufacturer/account/supply-chain/endpoints
+ * 
+ * @requires manufacturerAuth
+ * @requires validation: endpoint data
+ * @returns { endpoint }
+ */
+export const createSupplyChainEndpoint = asyncHandler(async (
+  req: ManufacturerAuthRequest & ValidatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const endpointData = req.validatedBody;
+
+  const endpoint = await manufacturerAccountService.createSupplyChainEndpoint(
+    manufacturerId,
+    endpointData
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'Supply chain endpoint created successfully',
+    data: {
+      endpoint
+    }
+  });
+});
+
+/**
+ * Get all supply chain endpoints
+ * GET /api/manufacturer/account/supply-chain/endpoints
+ * 
+ * @requires manufacturerAuth
+ * @returns { endpoints }
+ */
+export const getSupplyChainEndpoints = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const endpoints = await manufacturerAccountService.getSupplyChainEndpoints(manufacturerId);
+
+  res.json({
+    success: true,
+    data: {
+      endpoints,
+      count: endpoints.length
+    }
+  });
+});
+
+/**
+ * Register product for supply chain tracking
+ * POST /api/manufacturer/account/supply-chain/products
+ * 
+ * @requires manufacturerAuth
+ * @requires validation: product data
+ * @returns { product }
+ */
+export const registerSupplyChainProduct = asyncHandler(async (
+  req: ManufacturerAuthRequest & ValidatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const productData = req.validatedBody;
+
+  const product = await manufacturerAccountService.registerSupplyChainProduct(
+    manufacturerId,
+    productData
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'Product registered for supply chain tracking successfully',
+    data: {
+      product
+    }
+  });
+});
+
+/**
+ * Get all supply chain products
+ * GET /api/manufacturer/account/supply-chain/products
+ * 
+ * @requires manufacturerAuth
+ * @returns { products }
+ */
+export const getSupplyChainProducts = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const products = await manufacturerAccountService.getSupplyChainProducts(manufacturerId);
+
+  res.json({
+    success: true,
+    data: {
+      products,
+      count: products.length
+    }
+  });
+});
+
+/**
+ * Log supply chain event
+ * POST /api/manufacturer/account/supply-chain/events
+ * 
+ * @requires manufacturerAuth
+ * @requires validation: event data
+ * @returns { event }
+ */
+export const logSupplyChainEvent = asyncHandler(async (
+  req: ManufacturerAuthRequest & ValidatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const eventData = req.validatedBody;
+
+  const event = await manufacturerAccountService.logSupplyChainEvent(
+    manufacturerId,
+    eventData
+  );
+
+  res.status(201).json({
+    success: true,
+    message: 'Supply chain event logged successfully',
+    data: {
+      event
+    }
+  });
+});
+
+/**
+ * Get supply chain events for a product
+ * GET /api/manufacturer/account/supply-chain/products/:productId/events
+ * 
+ * @requires manufacturerAuth
+ * @returns { events }
+ */
+export const getSupplyChainProductEvents = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const { productId } = req.params;
+
+  const events = await manufacturerAccountService.getSupplyChainProductEvents(
+    manufacturerId,
+    productId
+  );
+
+  res.json({
+    success: true,
+    data: {
+      events,
+      count: events.length,
+      productId
+    }
+  });
+});
+
+/**
+ * Get supply chain dashboard data
+ * GET /api/manufacturer/account/supply-chain/dashboard
+ * 
+ * @requires manufacturerAuth
+ * @returns { dashboard data }
+ */
+export const getSupplyChainDashboard = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  const dashboard = await manufacturerAccountService.getSupplyChainDashboard(manufacturerId);
+
+  res.json({
+    success: true,
+    data: {
+      dashboard,
+      generatedAt: new Date().toISOString()
+    }
+  });
+});
+

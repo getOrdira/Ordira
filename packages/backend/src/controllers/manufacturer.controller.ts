@@ -503,10 +503,20 @@ export const searchManufacturers = asyncHandler(async (
   // Search through service
   const results = await manufacturerService.searchManufacturers(q, searchOptions);
 
+  // Add plan-based ranking information to results
+  const enhancedResults = results.map((manufacturer: any) => ({
+    ...manufacturer,
+    planInfo: {
+      tier: manufacturer.plan || 'starter',
+      rankingBoost: getPlanRankingBoost(manufacturer.plan),
+      isPromoted: isPlanPromoted(manufacturer.plan)
+    }
+  }));
+
   res.json({
     success: true,
     data: {
-      manufacturers: results,
+      manufacturers: enhancedResults,
       query: q,
       filters: {
         industry,
@@ -520,7 +530,17 @@ export const searchManufacturers = asyncHandler(async (
         limit: searchOptions.limit,
         sortBy
       },
-      suggestions: generateSearchSuggestions(q, results)
+      suggestions: generateSearchSuggestions(q, results),
+      ranking: {
+        planBased: true,
+        fairRanking: true,
+        description: 'Results prioritize relevance and profile quality, with plan tier as a secondary factor. Starter plans are guaranteed visibility.',
+        algorithm: {
+          primary: 'Relevance and profile quality',
+          secondary: 'Subscription plan tier',
+          fairness: '30% of results reserved for starter plans'
+        }
+      }
     }
   });
 });
@@ -873,6 +893,18 @@ function generateDashboardInsights(dashboardData: any): string[] {
   }
   
   return insights;
+}
+
+function getPlanRankingBoost(plan: string): number {
+  const { MANUFACTURER_PLAN_DEFINITIONS } = require('../constants/manufacturerPlans');
+  const planDef = MANUFACTURER_PLAN_DEFINITIONS[plan as keyof typeof MANUFACTURER_PLAN_DEFINITIONS];
+  return planDef?.searchVisibility?.rankingBoost || 0;
+}
+
+function isPlanPromoted(plan: string): boolean {
+  const { MANUFACTURER_PLAN_DEFINITIONS } = require('../constants/manufacturerPlans');
+  const planDef = MANUFACTURER_PLAN_DEFINITIONS[plan as keyof typeof MANUFACTURER_PLAN_DEFINITIONS];
+  return planDef?.searchVisibility?.profilePromotion || false;
 }
 
 function generateSearchSuggestions(query: string, results: any[]): string[] {
