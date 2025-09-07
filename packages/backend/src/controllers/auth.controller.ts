@@ -274,7 +274,7 @@ export async function registerUserHandler(
 ): Promise<void> {
   try {
     const registrationData = req.validatedBody || req.body;
-    const userType = registrationData.businessName ? 'brand' : 'manufacturer';
+    const userType = 'user';
     
     // Add security context
     const securityContext = {

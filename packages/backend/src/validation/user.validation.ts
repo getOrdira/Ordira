@@ -9,22 +9,20 @@ export const registerUserSchema = Joi.object({
     .trim()
     .min(2)
     .max(50)
-    .required()
+    .optional()
     .messages({
       'string.min': 'First name must be at least 2 characters',
-      'string.max': 'First name cannot exceed 50 characters',
-      'any.required': 'First name is required'
+      'string.max': 'First name cannot exceed 50 characters'
     }),
 
   lastName: Joi.string()
     .trim()
     .min(2)
     .max(50)
-    .required()
+    .optional()
     .messages({
       'string.min': 'Last name must be at least 2 characters',
-      'string.max': 'Last name cannot exceed 50 characters',
-      'any.required': 'Last name is required'
+      'string.max': 'Last name cannot exceed 50 characters'
     }),
 
   email: Joi.string()

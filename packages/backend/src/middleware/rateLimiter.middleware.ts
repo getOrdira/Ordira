@@ -42,6 +42,15 @@ const MANUFACTURER_RATE_LIMITS = {
 };
 
 /**
+ * Customer/User rate limits (simplified for voters)
+ */
+const USER_RATE_LIMITS = {
+  rpm: 3,    // 50 requests per minute
+  burst: 5, // 100 burst requests
+  window: 1   // 1 minute window
+};
+
+/**
  * Supply chain event rate limits per manufacturer plan (blockchain transactions)
  * These are more restrictive since they involve gas costs
  */
@@ -91,7 +100,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 /**
  * Get user's rate limit configuration based on their plan
  */
-async function getUserRateLimit(userId: string, userType: 'brand' | 'manufacturer'): Promise<{ max: number; windowMs: number }> {
+async function getUserRateLimit(userId: string, userType: 'brand' | 'manufacturer' | 'user'): Promise<{ max: number; windowMs: number }> {
   try {
     // Check cache first
     const cached = planCache.get(userId);
@@ -115,6 +124,12 @@ async function getUserRateLimit(userId: string, userType: 'brand' | 'manufacture
           windowMs: limits.window * 60 * 1000
         };
       }
+    } else if (userType === 'user') {
+      // Customer/User - use simplified rate limits
+      return {
+        max: USER_RATE_LIMITS.burst,
+        windowMs: USER_RATE_LIMITS.window * 60 * 1000
+      };
     } else {
       // Brand user - get their plan from BrandSettings
       const brandSettings = await BrandSettings.findOne({ business: userId }).select('plan');
@@ -176,12 +191,15 @@ function generateRateLimitKey(req: Request): string {
 /**
  * Determine user type for rate limiting
  */
-function getUserType(req: Request): 'brand' | 'manufacturer' | 'anonymous' {
+function getUserType(req: Request): 'brand' | 'manufacturer' | 'user' | 'anonymous' {
   const manufacturerReq = req as ManufacturerAuthRequest;
   if (manufacturerReq.manufacturer) return 'manufacturer';
   
   const authReq = req as AuthRequest;
-  if (authReq.userId) return 'brand';
+  if (authReq.userId) {
+    // Check if this is a customer/user or business based on userType
+    return authReq.userType === 'user' ? 'user' : 'brand';
+  }
   
   return 'anonymous';
 }

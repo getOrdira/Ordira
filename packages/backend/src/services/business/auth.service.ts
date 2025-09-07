@@ -23,6 +23,7 @@ export type RegisterBusinessInput = {
   email: string;
   phone: string;
   businessName: string;
+  businessType: 'brand' | 'creator';
   regNumber?: string;
   taxId?: string;
   address: string;

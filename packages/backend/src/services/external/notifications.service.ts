@@ -311,14 +311,14 @@ export class NotificationsService {
   /**
    * Send welcome email with personalization
    */
-  async sendWelcomeEmail(email: string, name: string, userType: 'brand' | 'manufacturer'): Promise<void> {
+  async sendWelcomeEmail(email: string, name: string, userType: 'brand' | 'manufacturer' | 'user'): Promise<void> {
     this.validateEmailAddress(email);
     
     if (!name || name.trim().length === 0) {
       throw { statusCode: 400, message: 'User name is required for welcome email' };
     }
 
-    if (!['brand', 'manufacturer'].includes(userType)) {
+    if (!['brand', 'manufacturer', 'user'].includes(userType)) {
       throw { statusCode: 400, message: 'Invalid user type specified' };
     }
 
@@ -2405,11 +2405,15 @@ The Team`,
     };
   }
 
-  private getWelcomeEmailTemplate(name: string, userType: 'brand' | 'manufacturer'): EmailTemplate {
-    const platformName = userType === 'brand' ? 'brand dashboard' : 'manufacturer portal';
+  private getWelcomeEmailTemplate(name: string, userType: 'brand' | 'manufacturer' | 'user'): EmailTemplate {
+    const platformName = userType === 'brand' ? 'brand dashboard' : 
+                         userType === 'manufacturer' ? 'manufacturer portal' : 
+                         'customer portal';
     const features = userType === 'brand' 
       ? ['Create voting campaigns', 'Connect with manufacturers', 'Track customer engagement', 'Generate NFT certificates', 'Web3 wallet integration (Premium)']
-      : ['Connect with brands', 'Access voting analytics', 'View partnership opportunities', 'Track performance'];
+      : userType === 'manufacturer'
+      ? ['Connect with brands', 'Access voting analytics', 'View partnership opportunities', 'Track performance']
+      : ['Vote on product proposals', 'Follow your favorite brands', 'Discover new products', 'Influence production decisions'];
 
     return {
       subject: `Welcome to Ordira, ${name}!`,

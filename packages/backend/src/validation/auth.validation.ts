@@ -94,6 +94,14 @@ export const registerBusinessSchema = Joi.object({
       'string.prohibitedName': 'Business name cannot contain prohibited words',
       'string.requiresLetter': 'Business name must contain at least one letter'
     }),
+
+  businessType: Joi.string()
+    .valid('brand', 'creator')
+    .required()
+    .messages({
+      'any.only': 'Business type must be either "brand" or "creator"',
+      'any.required': 'Business type is required'
+    }),
   
   regNumber: Joi.string()
     .trim()

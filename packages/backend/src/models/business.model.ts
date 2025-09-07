@@ -8,6 +8,7 @@ export interface IBusiness extends Document {
   dateOfBirth: Date;
   email: string;
   businessName: string;
+  businessType: 'brand' | 'creator'; // Distinguish between brands and creators/influencers
   regNumber?: string;
   taxId?: string;
   address: string;
@@ -118,6 +119,15 @@ const BusinessSchema = new Schema<IBusiness>(
       trim: true,
       minlength: [2, 'Business name must be at least 2 characters'],
       maxlength: [100, 'Business name cannot exceed 100 characters']
+    },
+    businessType: {
+      type: String,
+      required: [true, 'Business type is required'],
+      enum: {
+        values: ['brand', 'creator'],
+        message: 'Business type must be either "brand" or "creator"'
+      },
+      default: 'brand'
     },
     address: { 
       type: String, 
