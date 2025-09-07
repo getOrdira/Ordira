@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { enforcePlanLimits, requireWeb3Plan } from '../middleware/planLimits.middleware';
 import * as certCtrl from '../controllers/certificate.controller';
 import {
   createCertificateSchema,
@@ -181,11 +182,13 @@ router.get(
  * 
  * @requires authentication: business/brand
  * @requires validation: certificate creation data
+ * @requires plan limits: certificate creation limits
  * @rate-limited: strict to prevent certificate spam
  */
 router.post(
   '/',
   strictRateLimiter(), // Prevent certificate creation abuse
+  enforcePlanLimits('certificates'), // Enforce certificate limits
   validateBody(createCertificateSchema),
   certCtrl.createCertificate
 );
@@ -195,14 +198,16 @@ router.post(
  * Create multiple certificates in batch with Web3 support
  * 
  * @requires authentication: business/brand
- * @requires plan: Premium or Enterprise for batch operations
+ * @requires plan: Growth, Premium or Enterprise for batch operations
  * @requires validation: batch certificate data
+ * @requires plan limits: certificate creation limits
  * @rate-limited: extra strict for batch operations
  */
 router.post(
   '/batch',
   strictRateLimiter(), // Very strict for resource-intensive batch operations
-  requireTenantPlan(['premium', 'enterprise']), // Batch requires higher plans
+  requireTenantPlan(['growth', 'premium', 'enterprise']), // Batch requires Growth+ plans
+  enforcePlanLimits('certificates'), // Enforce certificate limits
   validateBody(batchCreateCertificatesSchema),
   certCtrl.createBatchCertificates
 );
@@ -228,14 +233,15 @@ router.get(
  * Manually trigger NFT transfers to brand wallet
  * 
  * @requires authentication: business/brand
- * @requires plan: Premium or Enterprise for Web3 features
+ * @requires plan: Growth, Premium or Enterprise for Web3 features
  * @requires validation: transfer request data
+ * @requires plan limits: Web3 features
  * @rate-limited: strict for security
  */
 router.post(
   '/transfer',
   strictRateLimiter(), // Security for wallet transfers
-  requireTenantPlan(['premium', 'enterprise']), // Web3 features require higher plans
+  requireWeb3Plan, // Web3 features require Premium+ plans
   validateBody(transferCertificatesSchema),
   certCtrl.transferCertificates
 );
@@ -245,13 +251,14 @@ router.post(
  * Retry failed NFT transfers with exponential backoff
  * 
  * @requires authentication: business/brand
- * @requires plan: Premium or Enterprise for Web3 features
+ * @requires plan: Growth, Premium or Enterprise for Web3 features
+ * @requires plan limits: Web3 features
  * @rate-limited: strict to prevent retry abuse
  */
 router.post(
   '/retry-failed',
   strictRateLimiter(), // Prevent retry spam
-  requireTenantPlan(['premium', 'enterprise']), // Web3 features require higher plans
+  requireWeb3Plan, // Web3 features require Premium+ plans
   certCtrl.retryFailedTransfers
 );
 
@@ -260,12 +267,13 @@ router.post(
  * Get certificates pending transfer to brand wallet
  * 
  * @requires authentication: business/brand
- * @requires plan: Premium or Enterprise for Web3 features
+ * @requires plan: Growth, Premium or Enterprise for Web3 features
+ * @requires plan limits: Web3 features
  * @rate-limited: dynamic based on plan
  */
 router.get(
   '/pending-transfers',
-  requireTenantPlan(['premium', 'enterprise']), // Web3 features require higher plans
+  requireWeb3Plan, // Web3 features require Premium+ plans
   certCtrl.getPendingTransfers
 );
 
@@ -325,13 +333,14 @@ router.delete(
  * Get comprehensive Web3 analytics and metrics
  * 
  * @requires authentication: business/brand
- * @requires plan: Premium or Enterprise for Web3 features
+ * @requires plan: Growth, Premium or Enterprise for Web3 features
+ * @requires plan limits: Web3 features
  * @requires validation: analytics query parameters
  * @rate-limited: dynamic based on plan
  */
 router.get(
   '/analytics/web3',
-  requireTenantPlan(['premium', 'enterprise']), // Web3 analytics require higher plans
+  requireWeb3Plan, // Web3 analytics require Premium+ plans
   validateQuery(web3AnalyticsQuerySchema),
   certCtrl.getWeb3Analytics
 );
