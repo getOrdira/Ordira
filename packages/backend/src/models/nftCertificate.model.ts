@@ -434,8 +434,8 @@ NftCertificateSchema.virtual('isTransferPending').get(function() {
   );
 });
 
-NftCertificateSchema.virtual('canRetryTransfer').get(function() {
-  return this.canRetryTransfer();
+NftCertificateSchema.virtual('canRetry').get(function() {
+  return this.transferAttempts < this.maxTransferAttempts && this.status === 'transfer_failed';
 });
 
 NftCertificateSchema.virtual('ownershipStatus').get(function() {

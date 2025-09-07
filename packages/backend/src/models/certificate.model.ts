@@ -497,7 +497,7 @@ CertificateSchema.virtual('transferBlockchainUrl').get(function() {
   return `${baseUrl}/tx/${this.transferTxHash}`;
 });
 
-CertificateSchema.virtual('canRetryTransfer').get(function() {
+CertificateSchema.virtual('canRetry').get(function() {
   return this.transferAttempts < this.maxTransferAttempts && 
          this.status === 'transfer_failed' && 
          !this.revoked;
@@ -701,7 +701,7 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
  * Retry a failed transfer
  */
 CertificateSchema.methods.retryTransfer = async function(): Promise<boolean> {
-  if (!this.canRetryTransfer) {
+  if (!this.canRetry) {
     return false;
   }
 
