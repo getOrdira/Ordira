@@ -12,8 +12,7 @@ const schema = Joi.object({
   BASE_RPC_URL: Joi.string().uri().required(),
   PRIVATE_KEY: Joi.string().length(66).required(),
   TOKEN_CONTRACT_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
-  VOTING_FACTORY_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
-  NFT_FACTORY_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
+  // Factory addresses are stored in database, not environment variables
   
   // Authentication
   JWT_SECRET: Joi.string().min(32).required(),
