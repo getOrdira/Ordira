@@ -229,6 +229,20 @@ interface ErrorWithStatus extends Error {
       metricsHandler
     );
 
+    // Root endpoint for health checks
+    app.get('/', (req, res) => {
+      res.status(200).json({
+        message: 'Ordira Platform API',
+        version: '1.0.0',
+        status: 'running',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    app.head('/', (req, res) => {
+      res.status(200).end();
+    });
+
     // Health check endpoint with detailed status
     app.get('/health', async (req, res) => {
       try {
