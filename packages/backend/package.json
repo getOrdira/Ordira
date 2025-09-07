@@ -22,7 +22,6 @@
     "test:backend": "jest --config packages/backend/jest.config.js"
   },
   "dependencies": {
-    "@google-cloud/secret-manager": "^6.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
     "@sentry/node": "^7.34.0",
     "@sentry/tracing": "^7.34.0",

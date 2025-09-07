@@ -3,7 +3,7 @@
 // 0️⃣ Load local .env early for development
 import 'dotenv/config';
 
-// 1️⃣ Fetch GCP secrets and validate all required environment variables
+// 1️⃣ Load and validate all required environment variables
 import { loadSecrets } from './config/secrets';
 import { validateEnv } from './config/validateEnv';
 

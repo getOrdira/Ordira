@@ -24,9 +24,7 @@ const schema = Joi.object({
   // Frontend URL for CORS
   FRONTEND_URL: Joi.string().uri().required(),
   
-  // Google Cloud Platform - Only required in production if not using Render
-  GCP_PROJECT_ID: Joi.string().optional(),
-  GCP_SECRET_NAME: Joi.string().optional(),
+  // Google Cloud Platform - Not used (using Render environment variables)
   
   // Optional monitoring and services
   SENTRY_DSN: Joi.string().uri().optional(),
@@ -77,13 +75,7 @@ export function validateEnv() {
     console.log('Render platform detected');
   }
   
-  // Custom validation for GCP variables based on environment
-  if (process.env.NODE_ENV === 'production' && !process.env.RENDER) {
-    if (!process.env.GCP_PROJECT_ID || !process.env.GCP_SECRET_NAME) {
-      console.error('GCP_PROJECT_ID and GCP_SECRET_NAME are required in production when not using Render');
-      process.exit(1);
-    }
-  }
+  // No GCP validation needed - using Render environment variables
   
   Object.assign(process.env, value);
 }

@@ -31,7 +31,18 @@ export async function loadSecrets(): Promise<void> {
     return;
   }
 
-  // Fallback for other hosting platforms
+  // For other platforms, ensure critical variables are set
   console.log('🌐 Using system environment variables');
-  console.log('   Make sure all required variables are set in your hosting platform');
+  const requiredVars = [
+    'MONGODB_URI',
+    'JWT_SECRET',
+    'STRIPE_SECRET_KEY',
+    'FRONTEND_URL'
+  ];
+
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  }
 }
