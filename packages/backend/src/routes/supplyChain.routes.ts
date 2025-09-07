@@ -1,96 +1,21 @@
 // src/routes/supplyChain.routes.ts
 import { Router } from 'express';
-import Joi from 'joi';
 import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
-import { validateBody } from '../middleware/validation.middleware';
+import { validateBody, validateQuery } from '../middleware/validation.middleware';
 import { strictRateLimiter, dynamicRateLimiter, enhancedSupplyChainRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as supplyChainCtrl from '../controllers/supplyChain.controller';
+import {
+  contractDeploymentSchema,
+  endpointSchema,
+  productSchema,
+  eventSchema,
+  qrScanSchema,
+  locationSchema,
+  batchQrCodeSchema,
+  supplyChainQuerySchema
+} from '../validation/supplyChain.validation';
 
 const router = Router();
-
-// ===== VALIDATION SCHEMAS =====
-
-const contractDeploymentSchema = Joi.object({
-  manufacturerName: Joi.string().required().min(2).max(100).pattern(/^[a-zA-Z0-9\s\-&.,()]+$/)
-});
-
-const endpointSchema = Joi.object({
-  name: Joi.string().required().min(2).max(100),
-  eventType: Joi.string().valid('sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered').required(),
-  location: Joi.string().required().min(2).max(200)
-});
-
-const productSchema = Joi.object({
-  productId: Joi.string().required().min(1).max(50).pattern(/^[a-zA-Z0-9\-_]+$/),
-  name: Joi.string().required().min(2).max(100),
-  description: Joi.string().optional().max(500)
-});
-
-const eventSchema = Joi.object({
-  productId: Joi.string().required().min(1).max(50),
-  eventType: Joi.string().valid('sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered').required(),
-  eventData: Joi.object({
-    location: Joi.string().max(200),
-    coordinates: Joi.object({
-      lat: Joi.number().min(-90).max(90),
-      lng: Joi.number().min(-180).max(180)
-    }),
-    temperature: Joi.number().min(-50).max(100),
-    humidity: Joi.number().min(0).max(100),
-    qualityMetrics: Joi.object()
-  }).optional()
-});
-
-const qrScanSchema = Joi.object({
-  qrCodeData: Joi.string().required().min(10),
-  eventType: Joi.string().valid('sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered').required(),
-  eventData: Joi.object({
-    location: Joi.string().max(200),
-    coordinates: Joi.object({
-      lat: Joi.number().min(-90).max(90),
-      lng: Joi.number().min(-180).max(180)
-    }),
-    temperature: Joi.number().min(-50).max(100),
-    humidity: Joi.number().min(0).max(100),
-    qualityMetrics: Joi.object(),
-    notes: Joi.string().max(500)
-  }).optional()
-});
-
-const locationSchema = Joi.object({
-  name: Joi.string().required().min(2).max(200),
-  description: Joi.string().optional().max(1000),
-  address: Joi.string().required().min(5).max(500),
-  city: Joi.string().required().min(2).max(100),
-  state: Joi.string().required().min(2).max(100),
-  country: Joi.string().required().min(2).max(100),
-  postalCode: Joi.string().optional().max(20),
-  coordinates: Joi.object({
-    lat: Joi.number().required().min(-90).max(90),
-    lng: Joi.number().required().min(-180).max(180)
-  }).required(),
-  locationType: Joi.string().valid('factory', 'warehouse', 'distribution_center', 'retail_store', 'custom').required(),
-  capabilities: Joi.array().items(Joi.string().max(100)).optional(),
-  allowedEventTypes: Joi.array().items(
-    Joi.string().valid('sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered')
-  ).required().min(1),
-  contactInfo: Joi.object({
-    phone: Joi.string().optional().pattern(/^\+?[\d\s\-\(\)]+$/),
-    email: Joi.string().optional().email(),
-    contactPerson: Joi.string().optional().max(100)
-  }).optional(),
-  environmentalConditions: Joi.object({
-    temperatureRange: Joi.object({
-      min: Joi.number().min(-50).max(100),
-      max: Joi.number().min(-50).max(100)
-    }).optional(),
-    humidityRange: Joi.object({
-      min: Joi.number().min(0).max(100),
-      max: Joi.number().min(0).max(100)
-    }).optional(),
-    specialRequirements: Joi.array().items(Joi.string().max(200)).optional()
-  }).optional()
-});
 
 // ===== ROUTES =====
 
@@ -173,11 +98,13 @@ router.post(
  * Get all registered products
  * 
  * @requires authentication: manufacturer
+ * @optional query: page, limit, productId, eventType
  * @returns array of products with details
  */
 router.get(
   '/products',
   authenticateManufacturer,
+  validateQuery(supplyChainQuerySchema),
   supplyChainCtrl.getProducts
 );
 
@@ -187,11 +114,13 @@ router.get(
  * 
  * @requires authentication: manufacturer
  * @requires params: productId
+ * @optional query: page, limit, eventType, startDate, endDate
  * @returns array of events for the product
  */
 router.get(
   '/products/:productId/events',
   authenticateManufacturer,
+  validateQuery(supplyChainQuerySchema),
   supplyChainCtrl.getProductEvents
 );
 
@@ -254,6 +183,23 @@ router.post(
 );
 
 /**
+ * POST /api/supply-chain/qr-codes/batch
+ * Generate QR codes for multiple products as a batch
+ * Useful for tracking multiple products together (e.g., 50 T-shirts shipped together)
+ * 
+ * @requires authentication: manufacturer
+ * @requires validation: array of product IDs
+ * @rate-limited: enhanced for batch operations
+ */
+router.post(
+  '/qr-codes/batch',
+  enhancedSupplyChainRateLimiter(),
+  authenticateManufacturer,
+  validateBody(batchQrCodeSchema),
+  supplyChainCtrl.generateBatchQrCodes
+);
+
+/**
  * POST /api/supply-chain/locations
  * Create a new location for supply chain tracking
  * 
@@ -274,12 +220,13 @@ router.post(
  * Get all locations for the manufacturer
  * 
  * @requires authentication: manufacturer
- * @optional query: eventType, locationType, active
+ * @optional query: eventType, locationType, active, page, limit
  * @returns array of locations with filtering
  */
 router.get(
   '/locations',
   authenticateManufacturer,
+  validateQuery(supplyChainQuerySchema),
   supplyChainCtrl.getLocations
 );
 
@@ -333,12 +280,13 @@ router.delete(
  * Find locations within radius of given coordinates
  * 
  * @requires authentication: manufacturer
- * @requires query: lat, lng, radius (optional)
+ * @requires query: lat, lng, radius (optional), page, limit
  * @returns nearby locations
  */
 router.get(
   '/locations/nearby',
   authenticateManufacturer,
+  validateQuery(supplyChainQuerySchema),
   supplyChainCtrl.getNearbyLocations
 );
 

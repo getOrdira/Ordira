@@ -69,6 +69,22 @@ interface QrScanRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
+interface BatchQrCodeRequest extends ManufacturerAuthRequest, ValidatedRequest {
+  body: {
+    productIds: string[];
+    batchName?: string;
+    batchDescription?: string;
+    batchMetadata?: {
+      batchSize?: number;
+      productionDate?: Date;
+      qualityGrade?: string;
+      shippingMethod?: string;
+      destination?: string;
+      specialInstructions?: string;
+    };
+  };
+}
+
 interface LocationRequest extends ManufacturerAuthRequest, ValidatedRequest {
   body: {
     name: string;
@@ -581,6 +597,177 @@ export const scanQrCode = asyncHandler(async (
 
   } catch (error: any) {
     console.error('QR scan error:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /api/supply-chain/qr-codes/batch
+ * Generate QR codes for multiple products as a batch
+ * Useful for tracking multiple products together (e.g., 50 T-shirts shipped together)
+ */
+export const generateBatchQrCodes = asyncHandler(async (
+  req: BatchQrCodeRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const { productIds, batchName, batchDescription, batchMetadata } = req.validatedBody;
+
+  try {
+    // Validate product ownership for all products
+    const products = await Product.find({
+      _id: { $in: productIds },
+      manufacturer: manufacturerId
+    });
+
+    if (products.length !== productIds.length) {
+      const foundIds = products.map(p => p._id.toString());
+      const missingIds = productIds.filter(id => !foundIds.includes(id));
+      throw createAppError(
+        `Some products not found or access denied. Missing: ${missingIds.join(', ')}`,
+        404,
+        'PRODUCTS_NOT_FOUND'
+      );
+    }
+
+    // Check if any products already have active QR codes
+    const productsWithQrCodes = products.filter(p => p.supplyChainQrCode?.isActive);
+    if (productsWithQrCodes.length > 0) {
+      const productNames = productsWithQrCodes.map(p => p.title).join(', ');
+      throw createAppError(
+        `Some products already have active QR codes: ${productNames}`,
+        409,
+        'PRODUCTS_ALREADY_HAVE_QR_CODES'
+      );
+    }
+
+    // Generate batch QR code data
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const batchQrData = {
+      type: 'supply_chain_batch_tracking',
+      batchId,
+      manufacturerId,
+      productIds,
+      batchName: batchName || `Batch ${products.length} Products`,
+      batchDescription: batchDescription || `Batch containing ${products.length} products`,
+      batchMetadata: {
+        ...batchMetadata,
+        batchSize: products.length,
+        createdAt: new Date().toISOString(),
+        productNames: products.map(p => p.title)
+      }
+    };
+
+    // Generate QR code
+    const qrCodeDataUrl = await qrCodeService.generateQrCode(JSON.stringify(batchQrData), {
+      size: 300,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    });
+
+    // Create batch tracking record
+    const batchRecord = {
+      batchId,
+      manufacturer: manufacturerId,
+      productIds,
+      batchName: batchName || `Batch ${products.length} Products`,
+      batchDescription: batchDescription || `Batch containing ${products.length} products`,
+      batchMetadata: {
+        ...batchMetadata,
+        batchSize: products.length,
+        createdAt: new Date(),
+        productNames: products.map(p => p.title),
+        productTitles: products.map(p => p.title)
+      },
+      qrCode: {
+        data: qrCodeDataUrl,
+        imageUrl: qrCodeDataUrl,
+        isActive: true,
+        generatedAt: new Date()
+      },
+      status: 'active',
+      createdAt: new Date()
+    };
+
+    // Store batch record in Redis for quick access
+    await redisClient.setex(
+      `batch_qr:${batchId}`,
+      86400 * 30, // 30 days
+      JSON.stringify(batchRecord)
+    );
+
+    // Update all products with batch QR code reference
+    const updatePromises = products.map(product => 
+      Product.findByIdAndUpdate(product._id, {
+        $set: {
+          'supplyChainQrCode.batchId': batchId,
+          'supplyChainQrCode.isActive': true,
+          'supplyChainQrCode.generatedAt': new Date(),
+          'supplyChainQrCode.batchQrData': batchQrData
+        }
+      })
+    );
+
+    await Promise.all(updatePromises);
+
+    // Track analytics
+    await analyticsService.trackEvent('supply_chain_batch_qr_generated', {
+      userId: manufacturerId,
+      batchId,
+      productCount: products.length,
+      batchSize: products.length,
+      productTypes: [...new Set(products.map(p => p.category))],
+      totalValue: products.reduce((sum, p) => sum + (p.price || 0), 0)
+    });
+
+    // Get rate limit info
+    const rateLimitKey = `rate_limit:supply_chain:${manufacturerId}`;
+    const rateLimitInfo = await redisClient.hgetall(rateLimitKey);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        batch: {
+          id: batchId,
+          name: batchName || `Batch ${products.length} Products`,
+          description: batchDescription || `Batch containing ${products.length} products`,
+          productCount: products.length,
+          status: 'active',
+          createdAt: new Date()
+        },
+        qrCode: {
+          data: qrCodeDataUrl,
+          imageUrl: qrCodeDataUrl,
+          batchId,
+          isActive: true,
+          generatedAt: new Date()
+        },
+        products: products.map(product => ({
+          id: product._id,
+          title: product.title,
+          category: product.category,
+          price: product.price,
+          batchQrLinked: true
+        })),
+        batchMetadata: {
+          ...batchMetadata,
+          batchSize: products.length,
+          createdAt: new Date(),
+          productNames: products.map(p => p.title)
+        },
+        rateLimits: {
+          remaining: {
+            batchQrGeneration: Math.max(0, (parseInt(rateLimitInfo.batchQrGenerationLimit || '10') - parseInt(rateLimitInfo.batchQrGenerationUsed || '0')))
+          },
+          resetTime: rateLimitInfo.resetTime
+        }
+      },
+      message: `Batch QR code generated successfully for ${products.length} products`
+    });
+
+  } catch (error: any) {
+    console.error('Batch QR code generation error:', error);
     next(error);
   }
 });
