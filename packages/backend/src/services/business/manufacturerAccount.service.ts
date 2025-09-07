@@ -5,6 +5,7 @@ import { Media } from '../../models/media.model';
 import { Notification } from '../../models/notification.model';
 import { MediaService } from './media.service';
 import { SupplyChainService } from '../blockchain/supplyChain.service';
+import { QrCodeService } from '../external/qrCode.service';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
@@ -183,9 +184,11 @@ class ManufacturerAccountError extends Error {
  */
 export class ManufacturerAccountService {
   private mediaService: MediaService;
+  private qrCodeService: QrCodeService;
 
   constructor() {
     this.mediaService = new MediaService();
+    this.qrCodeService = new QrCodeService();
   }
 
   /**
@@ -1170,6 +1173,137 @@ export class ManufacturerAccountService {
 
     } catch (error: any) {
       throw new Error(`Failed to get supply chain dashboard: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate QR code for product supply chain tracking
+   */
+  async generateProductQrCode(
+    manufacturerId: string, 
+    productId: string
+  ): Promise<{
+    qrCodeUrl: string;
+    qrCodeData: string;
+    productName: string;
+    generatedAt: Date;
+  }> {
+    try {
+      // Import Product model dynamically to avoid circular dependencies
+      const { Product } = await import('../../models/product.model');
+      
+      // Find the product
+      const product = await Product.findOne({
+        _id: productId,
+        manufacturer: manufacturerId
+      });
+
+      if (!product) {
+        throw new Error('Product not found or access denied');
+      }
+
+      // Generate QR code using the product's method
+      await product.generateSupplyChainQrCode();
+
+      return {
+        qrCodeUrl: product.supplyChainQrCode!.qrCodeUrl,
+        qrCodeData: product.supplyChainQrCode!.qrCodeData,
+        productName: product.title,
+        generatedAt: product.supplyChainQrCode!.generatedAt
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to generate QR code: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate QR codes for multiple products in batch
+   */
+  async generateBatchProductQrCodes(
+    manufacturerId: string,
+    productIds: string[]
+  ): Promise<Array<{
+    productId: string;
+    success: boolean;
+    qrCodeUrl?: string;
+    qrCodeData?: string;
+    productName?: string;
+    error?: string;
+  }>> {
+    try {
+      const { Product } = await import('../../models/product.model');
+      
+      const products = await Product.find({
+        _id: { $in: productIds },
+        manufacturer: manufacturerId
+      });
+
+      const results = await Promise.allSettled(
+        products.map(async (product) => {
+          await product.generateSupplyChainQrCode();
+          return {
+            productId: product._id.toString(),
+            success: true,
+            qrCodeUrl: product.supplyChainQrCode!.qrCodeUrl,
+            qrCodeData: product.supplyChainQrCode!.qrCodeData,
+            productName: product.title
+          };
+        })
+      );
+
+      return results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            productId: productIds[index],
+            success: false,
+            error: result.reason.message
+          };
+        }
+      });
+
+    } catch (error: any) {
+      throw new Error(`Failed to generate batch QR codes: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get QR code information for a product
+   */
+  async getProductQrCodeInfo(
+    manufacturerId: string,
+    productId: string
+  ): Promise<{
+    hasQrCode: boolean;
+    qrCodeUrl?: string;
+    generatedAt?: Date;
+    isActive?: boolean;
+    productName: string;
+  }> {
+    try {
+      const { Product } = await import('../../models/product.model');
+      
+      const product = await Product.findOne({
+        _id: productId,
+        manufacturer: manufacturerId
+      }).select('title supplyChainQrCode');
+
+      if (!product) {
+        throw new Error('Product not found or access denied');
+      }
+
+      return {
+        hasQrCode: !!product.supplyChainQrCode?.isActive,
+        qrCodeUrl: product.supplyChainQrCode?.qrCodeUrl,
+        generatedAt: product.supplyChainQrCode?.generatedAt,
+        isActive: product.supplyChainQrCode?.isActive,
+        productName: product.title
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to get QR code info: ${error.message}`);
     }
   }
 }

@@ -39,6 +39,14 @@ export interface IProduct extends Document {
   metaDescription?: string;
   metaKeywords?: string[];
   
+  // Supply chain tracking
+  supplyChainQrCode?: {
+    qrCodeUrl: string;
+    qrCodeData: string; // The actual QR code image data
+    generatedAt: Date;
+    isActive: boolean;
+  };
+  
   // Instance methods for analytics
   incrementVoteCount(): Promise<IProduct>;
   incrementCertificateCount(): Promise<IProduct>;
@@ -48,6 +56,10 @@ export interface IProduct extends Document {
   // Instance methods for ownership and utility
   isOwnedBy(userId: string, userType: 'business' | 'manufacturer'): boolean;
   generateSlug(): string;
+  
+  // Supply chain QR code methods
+  generateSupplyChainQrCode(): Promise<IProduct>;
+  getSupplyChainQrData(): string;
   
   // Virtual properties
   ownerType: 'business' | 'manufacturer';
@@ -256,7 +268,26 @@ const ProductSchema = new Schema<IProduct>({
     trim: true,
     lowercase: true,
     maxlength: [50, 'Meta keyword cannot exceed 50 characters']
-  }]
+  }],
+  
+  // Supply chain QR code tracking
+  supplyChainQrCode: {
+    qrCodeUrl: {
+      type: String,
+      trim: true
+    },
+    qrCodeData: {
+      type: String // Base64 encoded QR code image
+    },
+    generatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  }
 }, { 
   timestamps: true,
   toJSON: { 
@@ -485,6 +516,52 @@ ProductSchema.methods.generateSlug = function(): string {
     .replace(/\s+/g, '-')         // Replace spaces with hyphens
     .replace(/-+/g, '-')          // Replace multiple hyphens with single
     .replace(/^-+|-+$/g, '');     // Remove leading/trailing hyphens
+};
+
+// Generate supply chain QR code for product tracking
+ProductSchema.methods.generateSupplyChainQrCode = async function(): Promise<IProduct> {
+  try {
+    // Import QR code service dynamically to avoid circular dependencies
+    const { QrCodeService } = await import('../services/external/qrCode.service');
+    const qrService = new QrCodeService();
+    
+    // Generate QR code data containing product ID and tracking URL
+    const qrData = this.getSupplyChainQrData();
+    
+    // Generate QR code image
+    const qrCodeImage = await qrService.generateQrCode(qrData, {
+      size: 256,
+      format: 'png',
+      errorCorrectionLevel: 'M'
+    });
+    
+    // Update product with QR code information
+    this.supplyChainQrCode = {
+      qrCodeUrl: `${process.env.FRONTEND_URL}/supply-chain/track/${this._id}`,
+      qrCodeData: qrCodeImage, // Base64 encoded image
+      generatedAt: new Date(),
+      isActive: true
+    };
+    
+    return this.save();
+  } catch (error) {
+    console.error('Failed to generate supply chain QR code:', error);
+    throw new Error('Failed to generate QR code for product tracking');
+  }
+};
+
+// Get QR code data string for supply chain tracking
+ProductSchema.methods.getSupplyChainQrData = function(): string {
+  const trackingData = {
+    productId: this._id.toString(),
+    productName: this.title,
+    ownerType: this.ownerType,
+    ownerId: this.ownerId,
+    trackingUrl: `${process.env.FRONTEND_URL}/supply-chain/track/${this._id}`,
+    timestamp: new Date().toISOString()
+  };
+  
+  return JSON.stringify(trackingData);
 };
 
 // ====================

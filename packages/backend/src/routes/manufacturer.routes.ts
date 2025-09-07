@@ -7,6 +7,7 @@ import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as mfgCtrl from '../controllers/manufacturer.controller';
 import * as mfgAccountCtrl from '../controllers/manufacturerAccount.controller';
+import * as supplyChainDashboardCtrl from '../controllers/supplyChainDashboard.controller';
 import {
   registerManufacturerSchema,
   loginManufacturerSchema,
@@ -258,6 +259,63 @@ router.get(
   authenticateManufacturer,
   trackManufacturerAction('get_supply_chain_dashboard'),
   mfgAccountCtrl.getSupplyChainDashboard
+);
+
+// Generate QR code for product
+router.post(
+  '/account/supply-chain/products/:productId/qr-code',
+  authenticateManufacturer,
+  trackManufacturerAction('generate_product_qr_code'),
+  mfgAccountCtrl.generateProductQrCode
+);
+
+// Generate QR codes for multiple products
+router.post(
+  '/account/supply-chain/products/qr-codes/batch',
+  authenticateManufacturer,
+  validateBody(Joi.object({
+    productIds: Joi.array().items(Joi.string().required()).min(1).max(50).required()
+  })),
+  trackManufacturerAction('generate_batch_product_qr_codes'),
+  mfgAccountCtrl.generateBatchProductQrCodes
+);
+
+// Get QR code information for product
+router.get(
+  '/account/supply-chain/products/:productId/qr-code',
+  authenticateManufacturer,
+  trackManufacturerAction('get_product_qr_code_info'),
+  mfgAccountCtrl.getProductQrCodeInfo
+);
+
+// ===== SUPPLY CHAIN DASHBOARD ROUTES =====
+
+// Get supply chain overview for dashboard
+router.get(
+  '/supply-chain/overview',
+  authenticateManufacturer,
+  trackManufacturerAction('get_supply_chain_overview'),
+  supplyChainDashboardCtrl.getSupplyChainOverview
+);
+
+// Get supply chain analytics
+router.get(
+  '/supply-chain/analytics',
+  authenticateManufacturer,
+  validateQuery(Joi.object({
+    timeframe: Joi.string().valid('7d', '30d', '90d').optional(),
+    groupBy: Joi.string().valid('hour', 'day', 'week', 'month').optional()
+  })),
+  trackManufacturerAction('get_supply_chain_analytics'),
+  supplyChainDashboardCtrl.getSupplyChainAnalytics
+);
+
+// Get quick actions for supply chain
+router.get(
+  '/supply-chain/quick-actions',
+  authenticateManufacturer,
+  trackManufacturerAction('get_supply_chain_quick_actions'),
+  supplyChainDashboardCtrl.getQuickActions
 );
 
 export default router;

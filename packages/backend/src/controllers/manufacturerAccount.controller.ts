@@ -748,3 +748,115 @@ export const getSupplyChainDashboard = asyncHandler(async (
   });
 });
 
+/**
+ * Generate QR code for product supply chain tracking
+ * POST /api/manufacturer/account/supply-chain/products/:productId/qr-code
+ * 
+ * @requires manufacturerAuth
+ * @requires params: productId
+ * @returns { qrCodeUrl, qrCodeData, productName }
+ */
+export const generateProductQrCode = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  const { productId } = req.params;
+
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  if (!productId) {
+    throw createAppError('Product ID is required', 400, 'MISSING_PRODUCT_ID');
+  }
+
+  const qrCodeInfo = await manufacturerAccountService.generateProductQrCode(manufacturerId, productId);
+
+  res.status(201).json({
+    success: true,
+    data: qrCodeInfo,
+    message: 'QR code generated successfully'
+  });
+});
+
+/**
+ * Generate QR codes for multiple products
+ * POST /api/manufacturer/account/supply-chain/products/qr-codes/batch
+ * 
+ * @requires manufacturerAuth
+ * @requires body: { productIds: string[] }
+ * @returns { results: Array<{ productId, success, qrCodeUrl?, error? }> }
+ */
+export const generateBatchProductQrCodes = asyncHandler(async (
+  req: ManufacturerAuthRequest & ValidatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  const { productIds } = req.validatedBody;
+
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+    throw createAppError('Product IDs array is required', 400, 'MISSING_PRODUCT_IDS');
+  }
+
+  if (productIds.length > 50) {
+    throw createAppError('Cannot generate more than 50 QR codes at once', 400, 'BATCH_SIZE_EXCEEDED');
+  }
+
+  const results = await manufacturerAccountService.generateBatchProductQrCodes(manufacturerId, productIds);
+
+  const successCount = results.filter(r => r.success).length;
+  const failureCount = results.filter(r => !r.success).length;
+
+  res.status(201).json({
+    success: true,
+    data: {
+      results,
+      summary: {
+        total: results.length,
+        successful: successCount,
+        failed: failureCount
+      }
+    },
+    message: `Generated ${successCount} QR codes successfully${failureCount > 0 ? `, ${failureCount} failed` : ''}`
+  });
+});
+
+/**
+ * Get QR code information for a product
+ * GET /api/manufacturer/account/supply-chain/products/:productId/qr-code
+ * 
+ * @requires manufacturerAuth
+ * @requires params: productId
+ * @returns { hasQrCode, qrCodeUrl?, generatedAt?, isActive?, productName }
+ */
+export const getProductQrCodeInfo = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId;
+  const { productId } = req.params;
+
+  if (!manufacturerId) {
+    throw createAppError('Manufacturer ID not found in request', 401, 'MISSING_MANUFACTURER_ID');
+  }
+
+  if (!productId) {
+    throw createAppError('Product ID is required', 400, 'MISSING_PRODUCT_ID');
+  }
+
+  const qrCodeInfo = await manufacturerAccountService.getProductQrCodeInfo(manufacturerId, productId);
+
+  res.json({
+    success: true,
+    data: qrCodeInfo
+  });
+});
+

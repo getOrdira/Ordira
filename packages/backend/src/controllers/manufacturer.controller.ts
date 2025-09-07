@@ -791,7 +791,7 @@ function generateConnectionNextSteps(status: string): string[] {
       ];
     case 'pending':
       return [
-        'Wait for brand response (typically 7-14 days)',
+        'Wait for brand response (typically 3-7 days)',
         'Prepare project requirements documentation',
         'Monitor your dashboard for updates'
       ];

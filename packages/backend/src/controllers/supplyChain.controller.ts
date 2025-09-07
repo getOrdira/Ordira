@@ -8,10 +8,14 @@ import { AnalyticsBusinessService } from '../services/business/analytics.service
 import { SupplyChainService } from '../services/blockchain/supplyChain.service';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
+import { Product } from '../models/product.model';
+import { Location } from '../models/location.model';
+import { QrCodeService } from '../services/external/qrCode.service';
 import redis from 'ioredis';
 
 // Initialize services
 const analyticsService = new AnalyticsBusinessService();
+const qrCodeService = new QrCodeService();
 const redisClient = new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 interface SupplyChainRequest extends ManufacturerAuthRequest, ValidatedRequest {
@@ -47,6 +51,47 @@ interface ProductRequest extends ManufacturerAuthRequest, ValidatedRequest {
     productId: string;
     name: string;
     description: string;
+  };
+}
+
+interface QrScanRequest extends ManufacturerAuthRequest, ValidatedRequest {
+  body: {
+    qrCodeData: string;
+    eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
+    eventData?: {
+      location?: string;
+      coordinates?: { lat: number; lng: number };
+      temperature?: number;
+      humidity?: number;
+      qualityMetrics?: Record<string, any>;
+      notes?: string;
+    };
+  };
+}
+
+interface LocationRequest extends ManufacturerAuthRequest, ValidatedRequest {
+  body: {
+    name: string;
+    description?: string;
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+    postalCode?: string;
+    coordinates: { lat: number; lng: number };
+    locationType: 'factory' | 'warehouse' | 'distribution_center' | 'retail_store' | 'custom';
+    capabilities?: string[];
+    allowedEventTypes: Array<'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered'>;
+    contactInfo?: {
+      phone?: string;
+      email?: string;
+      contactPerson?: string;
+    };
+    environmentalConditions?: {
+      temperatureRange?: { min: number; max: number };
+      humidityRange?: { min: number; max: number };
+      specialRequirements?: string[];
+    };
   };
 }
 
@@ -381,6 +426,418 @@ export const getProductEvents = asyncHandler(async (
     success: true,
     data: events,
     count: events.length
+  });
+});
+
+/**
+ * POST /api/supply-chain/scan-qr
+ * Scan QR code and log supply chain event
+ */
+export const scanQrCode = asyncHandler(async (
+  req: QrScanRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const { qrCodeData, eventType, eventData } = req.validatedBody;
+
+  try {
+    // Parse QR code data
+    const parsedData = qrCodeService.parseQrCodeData(qrCodeData);
+    
+    // Validate QR code data
+    if (!qrCodeService.validateQrCodeData(parsedData)) {
+      throw createAppError('Invalid QR code data format', 400, 'INVALID_QR_DATA');
+    }
+
+    // Check if it's a supply chain tracking QR code
+    if (parsedData.type !== 'supply_chain_tracking') {
+      throw createAppError('QR code is not for supply chain tracking', 400, 'INVALID_QR_TYPE');
+    }
+
+    // Verify product ownership
+    const product = await Product.findById(parsedData.productId);
+    if (!product) {
+      throw createAppError('Product not found', 404, 'PRODUCT_NOT_FOUND');
+    }
+
+    if (!product.isOwnedBy(manufacturerId, 'manufacturer')) {
+      throw createAppError('Product not owned by manufacturer', 403, 'PRODUCT_ACCESS_DENIED');
+    }
+
+    // Check rate limits
+    const manufacturer = await Manufacturer.findById(manufacturerId).select('plan');
+    const plan = manufacturer?.plan || 'starter';
+    const { MANUFACTURER_PLAN_DEFINITIONS } = await import('../constants/manufacturerPlans');
+    const planDef = MANUFACTURER_PLAN_DEFINITIONS[plan as keyof typeof MANUFACTURER_PLAN_DEFINITIONS];
+    const limits = planDef.supplyChain;
+
+    // Check rate limits
+    const now = Date.now();
+    const minuteKey = `sc:${manufacturerId}:min:${Math.floor(now / 60000)}`;
+    const hourKey = `sc:${manufacturerId}:hour:${Math.floor(now / 3600000)}`;
+    const dayKey = `sc:${manufacturerId}:day:${Math.floor(now / 86400000)}`;
+    const cooldownKey = `sc:${manufacturerId}:cooldown`;
+
+    const [minuteUsage, hourUsage, dayUsage, lastEventTime] = await Promise.all([
+      redisClient.get(minuteKey) || '0',
+      redisClient.get(hourKey) || '0',
+      redisClient.get(dayKey) || '0',
+      redisClient.get(cooldownKey)
+    ]);
+
+    const cooldownRemaining = lastEventTime ? 
+      Math.max(0, limits.cooldownPeriod - Math.floor((now - parseInt(lastEventTime)) / 1000)) : 0;
+
+    if (cooldownRemaining > 0) {
+      throw createAppError(
+        `Rate limit: ${cooldownRemaining} seconds remaining`,
+        429,
+        'RATE_LIMIT_EXCEEDED'
+      );
+    }
+
+    if (parseInt(minuteUsage) >= limits.eventsPerMinute) {
+      throw createAppError('Minute rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED');
+    }
+
+    if (parseInt(hourUsage) >= limits.eventsPerHour) {
+      throw createAppError('Hourly rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED');
+    }
+
+    if (parseInt(dayUsage) >= limits.eventsPerDay) {
+      throw createAppError('Daily rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED');
+    }
+
+    // Create supply chain event
+    const event = new SupplyChainEvent({
+      product: parsedData.productId,
+      manufacturer: manufacturerId,
+      eventType,
+      eventData: {
+        ...eventData,
+        scannedAt: new Date().toISOString(),
+        qrCodeData: qrCodeData // Store original QR data for audit
+      }
+    });
+
+    // Log to blockchain if contract exists
+    const brandSettings = await BrandSettings.findOne({ business: manufacturerId });
+    if (brandSettings?.web3Settings?.supplyChainContract) {
+      try {
+        await event.logToBlockchain();
+      } catch (blockchainError) {
+        console.warn('Failed to log to blockchain:', blockchainError);
+        // Continue without blockchain logging
+      }
+    }
+
+    await event.save();
+
+    // Update rate limit counters
+    const pipeline = redisClient.pipeline();
+    pipeline.incr(minuteKey);
+    pipeline.expire(minuteKey, 60);
+    pipeline.incr(hourKey);
+    pipeline.expire(hourKey, 3600);
+    pipeline.incr(dayKey);
+    pipeline.expire(dayKey, 86400);
+    pipeline.set(cooldownKey, now.toString(), 'EX', limits.cooldownPeriod);
+    await pipeline.exec();
+
+    // Track analytics
+    await analyticsService.trackEvent('supply_chain_qr_scanned', {
+      userId: manufacturerId,
+      eventType,
+      productId: parsedData.productId,
+      location: eventData?.location
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        event: {
+          id: event._id,
+          eventType: event.eventType,
+          timestamp: (event as any).createdAt,
+          location: event.eventData?.location,
+          txHash: event.txHash
+        },
+        product: {
+          id: product._id,
+          name: product.title,
+          qrCodeGenerated: !!product.supplyChainQrCode?.isActive
+        },
+        rateLimits: {
+          remaining: {
+            minute: Math.max(0, limits.eventsPerMinute - parseInt(minuteUsage) - 1),
+            hour: Math.max(0, limits.eventsPerHour - parseInt(hourUsage) - 1),
+            day: Math.max(0, limits.eventsPerDay - parseInt(dayUsage) - 1)
+          }
+        }
+      },
+      message: 'Supply chain event logged successfully via QR scan'
+    });
+
+  } catch (error: any) {
+    console.error('QR scan error:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /api/supply-chain/locations
+ * Create a new location for supply chain tracking
+ */
+export const createLocation = asyncHandler(async (
+  req: LocationRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const locationData = req.validatedBody;
+
+  // Create location
+  const location = new Location({
+    ...locationData,
+    manufacturer: manufacturerId
+  });
+
+  await location.save();
+
+  // Track analytics
+  await analyticsService.trackEvent('supply_chain_location_created', {
+    userId: manufacturerId,
+    locationType: locationData.locationType,
+    eventTypes: locationData.allowedEventTypes
+  });
+
+  res.status(201).json({
+    success: true,
+    data: location,
+    message: 'Location created successfully'
+  });
+});
+
+/**
+ * GET /api/supply-chain/locations
+ * Get all locations for the manufacturer
+ */
+export const getLocations = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const { eventType, locationType, active } = req.query;
+
+  let query: any = { manufacturer: manufacturerId };
+  
+  if (active !== undefined) {
+    query.isActive = active === 'true';
+  }
+  
+  if (eventType) {
+    query.allowedEventTypes = eventType;
+  }
+  
+  if (locationType) {
+    query.locationType = locationType;
+  }
+
+  const locations = await Location.find(query).sort({ name: 1 });
+
+  res.json({
+    success: true,
+    data: locations,
+    count: locations.length,
+    filters: {
+      eventType,
+      locationType,
+      active
+    }
+  });
+});
+
+/**
+ * GET /api/supply-chain/locations/:id
+ * Get specific location details
+ */
+export const getLocation = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const { id } = req.params;
+
+  const location = await Location.findOne({
+    _id: id,
+    manufacturer: manufacturerId
+  });
+
+  if (!location) {
+    throw createAppError('Location not found', 404, 'LOCATION_NOT_FOUND');
+  }
+
+  res.json({
+    success: true,
+    data: location
+  });
+});
+
+/**
+ * PUT /api/supply-chain/locations/:id
+ * Update location
+ */
+export const updateLocation = asyncHandler(async (
+  req: LocationRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const { id } = req.params;
+  const updateData = req.validatedBody;
+
+  const location = await Location.findOneAndUpdate(
+    { _id: id, manufacturer: manufacturerId },
+    updateData,
+    { new: true, runValidators: true }
+  );
+
+  if (!location) {
+    throw createAppError('Location not found', 404, 'LOCATION_NOT_FOUND');
+  }
+
+  res.json({
+    success: true,
+    data: location,
+    message: 'Location updated successfully'
+  });
+});
+
+/**
+ * DELETE /api/supply-chain/locations/:id
+ * Deactivate location (soft delete)
+ */
+export const deleteLocation = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const { id } = req.params;
+
+  const location = await Location.findOneAndUpdate(
+    { _id: id, manufacturer: manufacturerId },
+    { isActive: false },
+    { new: true }
+  );
+
+  if (!location) {
+    throw createAppError('Location not found', 404, 'LOCATION_NOT_FOUND');
+  }
+
+  res.json({
+    success: true,
+    message: 'Location deactivated successfully'
+  });
+});
+
+/**
+ * GET /api/supply-chain/locations/nearby
+ * Find locations within radius of given coordinates
+ */
+export const getNearbyLocations = asyncHandler(async (
+  req: ManufacturerAuthRequest & { query: { lat: string; lng: string; radius?: string } },
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  const radius = parseFloat(req.query.radius || '50'); // Default 50km radius
+
+  if (isNaN(lat) || isNaN(lng)) {
+    throw createAppError('Invalid coordinates', 400, 'INVALID_COORDINATES');
+  }
+
+  const locations = await Location.find({ manufacturer: manufacturerId, isActive: true });
+  const nearbyLocations = locations.filter(location => 
+    location.isWithinRadius({ lat, lng }, radius)
+  );
+
+  res.json({
+    success: true,
+    data: nearbyLocations,
+    count: nearbyLocations.length,
+    searchParams: {
+      coordinates: { lat, lng },
+      radiusKm: radius
+    }
+  });
+});
+
+/**
+ * GET /api/supply-chain/locations/stats
+ * Get location statistics for manufacturer
+ */
+export const getLocationStats = asyncHandler(async (
+  req: ManufacturerAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const manufacturerId = req.userId!;
+
+  const stats = await Location.aggregate([
+    { $match: { manufacturer: manufacturerId } },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: 1 },
+        active: { $sum: { $cond: ['$isActive', 1, 0] } },
+        totalEvents: { $sum: '$eventCount' },
+        byType: {
+          $push: {
+            type: '$locationType',
+            eventCount: '$eventCount',
+            isActive: '$isActive'
+          }
+        }
+      }
+    }
+  ]);
+
+  const result = stats[0] || {
+    total: 0,
+    active: 0,
+    totalEvents: 0,
+    byType: []
+  };
+
+  // Group by location type
+  const byType = result.byType.reduce((acc: any, item: any) => {
+    if (!acc[item.type]) {
+      acc[item.type] = { count: 0, events: 0, active: 0 };
+    }
+    acc[item.type].count++;
+    acc[item.type].events += item.eventCount;
+    if (item.isActive) acc[item.type].active++;
+    return acc;
+  }, {});
+
+  res.json({
+    success: true,
+    data: {
+      summary: {
+        total: result.total,
+        active: result.active,
+        inactive: result.total - result.active,
+        totalEvents: result.totalEvents
+      },
+      byType,
+      generatedAt: new Date()
+    }
   });
 });
 
