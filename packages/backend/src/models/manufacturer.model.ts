@@ -31,6 +31,9 @@ export interface IManufacturer extends Document {
   emailVerifiedAt?: Date;
   verificationToken?: string;
   
+  // Subscription Plan
+  plan?: 'starter' | 'professional' | 'enterprise' | 'unlimited';
+  
   // Business Information
   businessLicense?: string;
   certifications?: Array<{
@@ -157,6 +160,39 @@ export interface IManufacturer extends Document {
     };
   };
   
+  // Supply Chain Settings (for blockchain-based tracking)
+  supplyChainSettings?: {
+    contractAddress?: string;
+    deployedAt?: Date;
+    isActive?: boolean;
+    networkId?: string;
+    endpoints?: Array<{
+      id: number;
+      name: string;
+      eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
+      location: string;
+      isActive: boolean;
+      createdAt: Date;
+    }>;
+    products?: Array<{
+      id: number;
+      productId: string;
+      name: string;
+      description: string;
+      isActive: boolean;
+      createdAt: Date;
+    }>;
+    recentEvents?: Array<{
+      id: number;
+      eventType: string;
+      productId: string;
+      location: string;
+      details: string;
+      timestamp: Date;
+      loggedBy: string;
+    }>;
+  };
+
   // Instance methods (aligned with service requirements)
   comparePassword(candidatePassword: string): Promise<boolean>;
   isAccountActive(): boolean;
@@ -285,6 +321,13 @@ const ManufacturerSchema = new Schema<IManufacturer>({
   verificationToken: { 
     type: String, 
     select: false // Don't include in queries by default
+  },
+  
+  // Subscription Plan
+  plan: {
+    type: String,
+    enum: ['starter', 'professional', 'enterprise', 'unlimited'],
+    default: 'starter'
   },
   
   // Business Information
@@ -447,6 +490,43 @@ const ManufacturerSchema = new Schema<IManufacturer>({
       mentions: { type: Boolean, default: true },
       messages: { type: Boolean, default: true }
     }
+  },
+
+  // Supply Chain Settings (for blockchain-based tracking)
+  supplyChainSettings: {
+    contractAddress: { type: String, sparse: true },
+    deployedAt: { type: Date },
+    isActive: { type: Boolean, default: false },
+    networkId: { type: String },
+    endpoints: [{
+      id: { type: Number, required: true },
+      name: { type: String, required: true },
+      eventType: { 
+        type: String, 
+        required: true,
+        enum: ['sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered']
+      },
+      location: { type: String, required: true },
+      isActive: { type: Boolean, default: true },
+      createdAt: { type: Date, default: Date.now }
+    }],
+    products: [{
+      id: { type: Number, required: true },
+      productId: { type: String, required: true },
+      name: { type: String, required: true },
+      description: { type: String },
+      isActive: { type: Boolean, default: true },
+      createdAt: { type: Date, default: Date.now }
+    }],
+    recentEvents: [{
+      id: { type: Number, required: true },
+      eventType: { type: String, required: true },
+      productId: { type: String, required: true },
+      location: { type: String },
+      details: { type: String },
+      timestamp: { type: Date, default: Date.now },
+      loggedBy: { type: String, required: true }
+    }]
   }
 }, { 
   timestamps: true,
@@ -980,7 +1060,7 @@ ManufacturerSchema.statics.searchManufacturers = function(searchTerm: string, op
   }
   
   return this.find(query)
-    .sort({ profileScore: -1, totalConnections: -1 })
+    .sort({ profileScore: -1, plan: -1, totalConnections: -1 }) // Profile score first, then plan tier (more fair)
     .limit(options.limit || 50);
 };
 

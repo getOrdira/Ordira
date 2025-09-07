@@ -177,6 +177,7 @@ export interface IBrandSettings extends Document {
     voteContract?: string;
     transferHealth?: string;
     nftContract?: string;
+    supplyChainContract?: string;
     chainId?: number;
     networkName?: string;
     gasSettings?: {
@@ -192,6 +193,25 @@ export interface IBrandSettings extends Document {
       allowedSigners?: string[];
       sessionTimeout?: number;
     };
+  };
+  
+  // Supply Chain settings
+  supplyChainSettings?: {
+    contractDeployedAt?: Date;
+    networkId?: string;
+    endpoints?: Array<{
+      id: number;
+      name: string;
+      eventType: string;
+      location: string;
+      isActive: boolean;
+    }>;
+    products?: Array<{
+      id: number;
+      productId: string;
+      name: string;
+      description: string;
+    }>;
   };
   
   // Transfer preferences
