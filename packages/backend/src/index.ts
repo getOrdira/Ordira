@@ -28,6 +28,25 @@ import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from './middle
 import { errorHandler } from './middleware/error.middleware';
 import { validateBody, validateQuery, validateParams } from './middleware/validation.middleware';
 
+// 🚀 Performance optimization middleware
+import { 
+  performanceMiddleware, 
+  cacheMiddleware, 
+  compressionMiddleware,
+  requestSizeMiddleware,
+  responseTimeMiddleware,
+  queryOptimizationMiddleware,
+  memoryMonitoringMiddleware,
+  circuitBreakerMiddleware,
+  deduplicationMiddleware,
+  healthCheckMiddleware
+} from './middleware/performance.middleware';
+
+// 🔧 Performance services
+import { cacheService } from './services/external/cache.service';
+import { databaseService } from './services/external/database.service';
+import { performanceService } from './services/external/performance.service';
+
 // 4️⃣ Route imports with enhanced organization
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -74,22 +93,40 @@ interface ErrorWithStatus extends Error {
 // Self-invoking async function to bootstrap the application
 (async () => {
   try {
-    console.log('🚀 Starting enhanced manufacturer platform...');
+    console.log('🚀 Starting Ordira Platform...');
 
     // Load and validate environment configuration
     await loadSecrets();
     validateEnv();
     console.log('✅ Environment configuration loaded and validated');
 
-    // Enhanced MongoDB connection with updated options
+    // 🚀 Optimized MongoDB connection with performance enhancements
     await mongoose.connect(process.env.MONGODB_URI!, {
-      maxPoolSize: 10,
+      maxPoolSize: 20, // Increased pool size
+      minPoolSize: 5,  // Minimum connections
+      maxIdleTimeMS: 30000, // Close idle connections after 30s
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      bufferCommands: false
-      // Removed deprecated bufferMaxEntries option
+      // Connection optimization
+      connectTimeoutMS: 10000,
+      heartbeatFrequencyMS: 10000,
+      // Compression
+      compressors: ['zlib'],
+      zlibCompressionLevel: 6
     });
-    console.log('✅ Connected to MongoDB with enhanced configuration');
+    console.log('✅ Connected to MongoDB with optimized configuration');
+
+    // 🔧 Initialize performance services
+    await databaseService.createOptimizedIndexes();
+    console.log('✅ Database indexes optimized');
+
+    // Test cache connection
+    const cacheHealth = await cacheService.healthCheck();
+    if (cacheHealth.healthy) {
+      console.log('✅ Redis cache connected');
+    } else {
+      console.warn('⚠️ Redis cache connection failed, continuing without cache');
+    }
 
     // Start domain cache polling for dynamic CORS and tenant resolution
     startDomainCachePolling();
@@ -100,6 +137,13 @@ interface ErrorWithStatus extends Error {
 
     // Trust proxy for accurate IP addresses behind load balancers
     app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
+    // 🚀 Performance optimizations
+    app.use(performanceMiddleware);
+    app.use(responseTimeMiddleware);
+    app.use(memoryMonitoringMiddleware);
+    app.use(requestSizeMiddleware(10 * 1024 * 1024)); // 10MB limit
+    app.use(queryOptimizationMiddleware);
 
     // Enhanced security configuration
     app.use(helmet({
@@ -245,6 +289,9 @@ interface ErrorWithStatus extends Error {
     // Global metrics middleware
     app.use(metricsMiddleware);
 
+    // 🏥 Health check endpoint (before other middleware)
+    app.use(healthCheckMiddleware);
+
     // Plan cache warmup for authenticated users
     app.use(warmupPlanCache());
 
@@ -302,8 +349,9 @@ interface ErrorWithStatus extends Error {
       nftsRoutes
     );
 
-    // Analytics with metrics tracking
+    // Analytics with metrics tracking and caching
     app.use('/api/analytics', 
+      cacheMiddleware(300), // 5 minute cache
       trackManufacturerAction('view_analytics'),
       analyticsRoutes
     );
@@ -321,8 +369,9 @@ interface ErrorWithStatus extends Error {
       brandProfilesRoutes
     );
 
-    // Manufacturer profiles with verification requirements
+    // Manufacturer profiles with verification requirements and caching
     app.use('/api/manufacturers', 
+      cacheMiddleware(600), // 10 minute cache for profiles
       authenticateManufacturer,
       manufacturerProfilesRoutes
     );
@@ -380,6 +429,31 @@ interface ErrorWithStatus extends Error {
       supplyChainRoutes
     );
 
+    // 🚀 Performance monitoring endpoint
+    app.get('/api/performance', async (req, res) => {
+      try {
+        const health = await performanceService.getSystemHealth();
+        const summary = performanceService.getPerformanceSummary();
+        const cacheStats = await cacheService.getStats();
+        const dbStats = await databaseService.getStats();
+        
+        res.json({
+          status: health.status,
+          timestamp: new Date().toISOString(),
+          performance: summary,
+          system: health,
+          cache: cacheStats,
+          database: dbStats,
+          recommendations: await performanceService.optimizePerformance()
+        });
+      } catch (error) {
+        res.status(500).json({
+          error: 'Failed to get performance metrics',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
     // API routes with enhanced rate limiting
     app.use('/api/v1', 
       apiRateLimiter(),
@@ -395,7 +469,9 @@ interface ErrorWithStatus extends Error {
             nfts: '/api/nfts',
             votes: '/api/votes',
             analytics: '/api/analytics',
-            supplyChain: '/api/supply-chain'
+            supplyChain: '/api/supply-chain',
+            performance: '/api/performance',
+            health: '/health'
           }
         });
       }
