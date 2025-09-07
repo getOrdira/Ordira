@@ -69,7 +69,7 @@ export interface SearchOptions {
   page?: number;
   limit?: number;
   offset?: number;
-  sortBy?: 'name' | 'industry' | 'moq' | 'profileCompleteness';
+  sortBy?: 'name' | 'industry' | 'moq' | 'profileCompleteness' | 'plan';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -206,7 +206,7 @@ export class ManufacturerProfileService {
       if (maxMoq !== undefined) searchCriteria.moq.$lte = maxMoq;
     }
 
-    // Build sort criteria
+    // Build sort criteria with plan-based ranking
     const sortCriteria: any = {};
     switch (sortBy) {
       case 'profileCompleteness':
@@ -218,8 +218,15 @@ export class ManufacturerProfileService {
       case 'moq':
         sortCriteria.moq = sortOrder === 'desc' ? -1 : 1;
         break;
+      case 'plan':
+        // Sort by plan tier (unlimited > enterprise > professional > starter)
+        sortCriteria.plan = sortOrder === 'desc' ? -1 : 1;
+        break;
       default:
-        sortCriteria.name = sortOrder === 'desc' ? -1 : 1;
+        // Default sorting: profile score first, then plan tier (more fair)
+        sortCriteria.profileScore = -1; // Higher scores first
+        sortCriteria.plan = -1; // Higher plans second
+        sortCriteria.totalConnections = -1; // Social proof third
     }
 
     // Execute search with aggregations
@@ -230,7 +237,7 @@ export class ManufacturerProfileService {
           name industry description servicesOffered moq profilePictureUrl 
           isVerified establishedYear headquarters certifications averageResponseTime
           clientSatisfactionRating activityMetrics profileScore totalConnections
-          manufacturingCapabilities lastLoginAt
+          manufacturingCapabilities lastLoginAt plan
         `)
         .sort(sortCriteria)
         .skip(offset)

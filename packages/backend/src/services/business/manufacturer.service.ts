@@ -1209,7 +1209,7 @@ async getManufacturerAnalytics(
 
     // Execute search
     const manufacturers = await Manufacturer.find(filter)
-      .select('name email industry description servicesOffered moq isVerified totalConnections createdAt')
+      .select('name email industry description servicesOffered moq isVerified totalConnections createdAt plan')
       .limit(limit)
       .lean();
 
@@ -1264,15 +1264,33 @@ async getManufacturerAnalytics(
       score += 15;
     }
     
-    // Profile completeness bonus
-    score += this.calculateProfileCompleteness(manufacturer) * 0.1;
+    // Profile completeness bonus (more important than plan)
+    score += this.calculateProfileCompleteness(manufacturer) * 0.2;
     
-    // Verification bonus
+    // Verification bonus (more important than plan)
     if (manufacturer.isVerified) {
-      score += 10;
+      score += 15;
     }
     
+    // Connection success bonus (social proof)
+    if (manufacturer.totalConnections > 0) {
+      score += Math.min(manufacturer.totalConnections * 2, 20); // Cap at 20 points
+    }
+    
+    // Plan-based ranking boost (moderate influence)
+    const planBoost = this.getPlanRankingBoost(manufacturer.plan);
+    score += planBoost;
+    
     return score;
+  }
+
+  /**
+   * Get plan-based ranking boost for search results
+   */
+  private getPlanRankingBoost(plan: string): number {
+    const { MANUFACTURER_PLAN_DEFINITIONS } = require('../../constants/manufacturerPlans');
+    const planDef = MANUFACTURER_PLAN_DEFINITIONS[plan as keyof typeof MANUFACTURER_PLAN_DEFINITIONS];
+    return planDef?.searchVisibility?.rankingBoost || 0;
   }
 
   /**

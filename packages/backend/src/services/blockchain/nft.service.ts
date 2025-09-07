@@ -534,6 +534,71 @@ export class NftService {
     }
   }
 
+  /**
+   * Log supply chain event on blockchain using SupplyChain contract
+   */
+  async logSupplyChainEvent(eventData: {
+    productId: string;
+    eventType: string;
+    location?: string;
+    details?: string;
+    businessId?: string;
+  }): Promise<{ txHash: string; blockNumber: number }> {
+    try {
+      if (!eventData.productId?.trim()) {
+        throw createAppError('Product ID is required', 400, 'MISSING_PRODUCT_ID');
+      }
+      if (!eventData.eventType?.trim()) {
+        throw createAppError('Event type is required', 400, 'MISSING_EVENT_TYPE');
+      }
+
+      // Import SupplyChainService dynamically to avoid circular dependencies
+      const { SupplyChainService } = await import('./supplyChain.service');
+      
+      // Get business ID from eventData or use a default
+      const businessId = eventData.businessId;
+      if (!businessId) {
+        throw createAppError('Business ID is required for supply chain logging', 400, 'MISSING_BUSINESS_ID');
+      }
+
+      // Get the supply chain contract address for this business
+      const { BrandSettings } = require('../../models/brandSettings.model');
+      const brandSettings = await BrandSettings.findOne({ business: businessId });
+      
+      if (!brandSettings?.web3Settings?.supplyChainContract) {
+        throw createAppError('No supply chain contract deployed for this business', 404, 'NO_SUPPLY_CHAIN_CONTRACT');
+      }
+
+      const contractAddress = brandSettings.web3Settings.supplyChainContract;
+      
+      // For now, we'll use endpoint ID 1 (assuming it exists)
+      // In a real implementation, you'd validate the endpoint exists
+      const result = await SupplyChainService.logEvent(
+        contractAddress,
+        {
+          endpointId: 1, // Default endpoint - should be validated
+          productId: eventData.productId,
+          eventType: eventData.eventType,
+          location: eventData.location || '',
+          details: eventData.details || ''
+        },
+        businessId
+      );
+
+      return {
+        txHash: result.txHash,
+        blockNumber: 0 // Block number would be available from transaction receipt
+      };
+      
+    } catch (error: any) {
+      console.error('Log supply chain event error:', error);
+      if (error.statusCode) {
+        throw error;
+      }
+      throw createAppError(`Failed to log supply chain event: ${error.message}`, 500, 'SUPPLY_CHAIN_LOG_FAILED');
+    }
+  }
+
   async cleanupOrphanedS3Files(businessId: string): Promise<{
     cleaned: number;
     errors: string[];

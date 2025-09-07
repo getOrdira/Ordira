@@ -4,6 +4,7 @@ import { Manufacturer, IManufacturer } from '../../models/manufacturer.model';
 import { Media } from '../../models/media.model';
 import { Notification } from '../../models/notification.model';
 import { MediaService } from './media.service';
+import { SupplyChainService } from '../blockchain/supplyChain.service';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
@@ -44,13 +45,55 @@ export interface VerificationDocument {
 
 export interface AccountActivity {
   id: string;
-  type: 'login' | 'profile_update' | 'verification_submitted' | 'document_uploaded' | 'password_changed' | 'notification_sent' | 'account_activated' | 'account_deactivated' | 'notification_preferences_updated' | 'profile_viewed' | 'profile_picture_updated';
+  type: 'login' | 'profile_update' | 'verification_submitted' | 'document_uploaded' | 'password_changed' | 'notification_sent' | 'account_activated' | 'account_deactivated' | 'notification_preferences_updated' | 'profile_viewed' | 'profile_picture_updated' | 'supply_chain_contract_deployed' | 'supply_chain_endpoint_created' | 'supply_chain_product_registered' | 'supply_chain_event_logged';
   description: string;
   timestamp: Date;
   ipAddress?: string;
   userAgent?: string;
   metadata?: Record<string, any>;
   severity: 'low' | 'medium' | 'high';
+}
+
+// Supply Chain interfaces
+export interface SupplyChainContractInfo {
+  contractAddress: string;
+  manufacturerName: string;
+  deployedAt: Date;
+  totalEvents: number;
+  totalProducts: number;
+  totalEndpoints: number;
+  isActive: boolean;
+}
+
+export interface SupplyChainEndpoint {
+  id: number;
+  name: string;
+  eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
+  location: string;
+  isActive: boolean;
+  eventCount: number;
+  createdAt: Date;
+}
+
+export interface SupplyChainProduct {
+  id: number;
+  productId: string;
+  name: string;
+  description: string;
+  totalEvents: number;
+  createdAt: Date;
+  isActive: boolean;
+}
+
+export interface SupplyChainEvent {
+  id: number;
+  eventType: string;
+  productId: string;
+  location: string;
+  details: string;
+  timestamp: Date;
+  loggedBy: string;
+  isValid: boolean;
 }
 
 export interface NotificationPreferences {
@@ -773,6 +816,360 @@ export class ManufacturerAccountService {
     } catch (error) {
       // Log activity errors shouldn't break the main operation
       console.warn('Failed to log activity:', error);
+    }
+  }
+
+  // ===== SUPPLY CHAIN MANAGEMENT =====
+
+  /**
+   * Deploy supply chain contract for manufacturer
+   */
+  async deploySupplyChainContract(manufacturerId: string, manufacturerName: string): Promise<SupplyChainContractInfo> {
+    try {
+      // Deploy contract using SupplyChainService
+      const deployment = await SupplyChainService.deploySupplyChainContract(manufacturerId, manufacturerName);
+
+      // Update manufacturer profile with contract info
+      await Manufacturer.findByIdAndUpdate(manufacturerId, {
+        $set: {
+          'supplyChainSettings.contractAddress': deployment.contractAddress,
+          'supplyChainSettings.deployedAt': new Date(),
+          'supplyChainSettings.isActive': true
+        }
+      });
+
+      // Log activity
+      await this.logActivity(manufacturerId, 'supply_chain_contract_deployed', 
+        `Supply chain contract deployed at ${deployment.contractAddress}`, {
+          contractAddress: deployment.contractAddress,
+          txHash: deployment.txHash,
+          blockNumber: deployment.blockNumber
+        });
+
+      return {
+        contractAddress: deployment.contractAddress,
+        manufacturerName,
+        deployedAt: new Date(),
+        totalEvents: 0,
+        totalProducts: 0,
+        totalEndpoints: 0,
+        isActive: true
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to deploy supply chain contract: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get supply chain contract info for manufacturer
+   */
+  async getSupplyChainContractInfo(manufacturerId: string): Promise<SupplyChainContractInfo | null> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        return null;
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const stats = await SupplyChainService.getContractStats(contractAddress, manufacturerId);
+
+      return {
+        contractAddress,
+        manufacturerName: manufacturer.name,
+        deployedAt: manufacturer.supplyChainSettings.deployedAt || new Date(),
+        totalEvents: stats.totalEvents,
+        totalProducts: stats.totalProducts,
+        totalEndpoints: stats.totalEndpoints,
+        isActive: manufacturer.supplyChainSettings.isActive || false
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to get supply chain contract info: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create supply chain endpoint
+   */
+  async createSupplyChainEndpoint(
+    manufacturerId: string,
+    endpointData: {
+      name: string;
+      eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
+      location: string;
+    }
+  ): Promise<SupplyChainEndpoint> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        throw new Error('No supply chain contract deployed');
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const result = await SupplyChainService.createEndpoint(contractAddress, endpointData, manufacturerId);
+
+      // Log activity
+      await this.logActivity(manufacturerId, 'supply_chain_endpoint_created',
+        `Created endpoint: ${endpointData.name} (${endpointData.eventType})`, {
+          endpointId: result.endpointId,
+          endpointName: endpointData.name,
+          eventType: endpointData.eventType,
+          location: endpointData.location
+        });
+
+      return {
+        id: result.endpointId,
+        name: endpointData.name,
+        eventType: endpointData.eventType,
+        location: endpointData.location,
+        isActive: true,
+        eventCount: 0,
+        createdAt: new Date()
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to create supply chain endpoint: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all supply chain endpoints
+   */
+  async getSupplyChainEndpoints(manufacturerId: string): Promise<SupplyChainEndpoint[]> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        return [];
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const endpoints = await SupplyChainService.getEndpoints(contractAddress, manufacturerId);
+
+      return endpoints.map(endpoint => ({
+        id: endpoint.id,
+        name: endpoint.name,
+        eventType: endpoint.eventType,
+        location: endpoint.location,
+        isActive: endpoint.isActive,
+        eventCount: endpoint.eventCount,
+        createdAt: new Date(endpoint.createdAt * 1000)
+      }));
+
+    } catch (error: any) {
+      throw new Error(`Failed to get supply chain endpoints: ${error.message}`);
+    }
+  }
+
+  /**
+   * Register product for supply chain tracking
+   */
+  async registerSupplyChainProduct(
+    manufacturerId: string,
+    productData: {
+      productId: string;
+      name: string;
+      description: string;
+    }
+  ): Promise<SupplyChainProduct> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        throw new Error('No supply chain contract deployed');
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const result = await SupplyChainService.registerProduct(contractAddress, productData, manufacturerId);
+
+      // Log activity
+      await this.logActivity(manufacturerId, 'supply_chain_product_registered',
+        `Registered product: ${productData.name} (${productData.productId})`, {
+          productId: result.productId,
+          productName: productData.name,
+          description: productData.description
+        });
+
+      return {
+        id: result.productId,
+        productId: productData.productId,
+        name: productData.name,
+        description: productData.description,
+        totalEvents: 0,
+        createdAt: new Date(),
+        isActive: true
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to register supply chain product: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all supply chain products
+   */
+  async getSupplyChainProducts(manufacturerId: string): Promise<SupplyChainProduct[]> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        return [];
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const products = await SupplyChainService.getProducts(contractAddress, manufacturerId);
+
+      return products.map(product => ({
+        id: product.id,
+        productId: product.productId,
+        name: product.name,
+        description: product.description,
+        totalEvents: product.totalEvents,
+        createdAt: new Date(product.createdAt * 1000),
+        isActive: product.isActive
+      }));
+
+    } catch (error: any) {
+      throw new Error(`Failed to get supply chain products: ${error.message}`);
+    }
+  }
+
+  /**
+   * Log supply chain event
+   */
+  async logSupplyChainEvent(
+    manufacturerId: string,
+    eventData: {
+      endpointId: number;
+      productId: string;
+      eventType: string;
+      location: string;
+      details: string;
+    }
+  ): Promise<SupplyChainEvent> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        throw new Error('No supply chain contract deployed');
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const result = await SupplyChainService.logEvent(contractAddress, eventData, manufacturerId);
+
+      // Log activity
+      await this.logActivity(manufacturerId, 'supply_chain_event_logged',
+        `Logged event: ${eventData.eventType} for product ${eventData.productId}`, {
+          eventId: result.eventId,
+          productId: eventData.productId,
+          eventType: eventData.eventType,
+          location: eventData.location,
+          endpointId: eventData.endpointId
+        });
+
+      return {
+        id: result.eventId,
+        eventType: eventData.eventType,
+        productId: eventData.productId,
+        location: eventData.location,
+        details: eventData.details,
+        timestamp: new Date(),
+        loggedBy: manufacturerId,
+        isValid: true
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to log supply chain event: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get supply chain events for a product
+   */
+  async getSupplyChainProductEvents(manufacturerId: string, productId: string): Promise<SupplyChainEvent[]> {
+    try {
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        return [];
+      }
+
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+      const events = await SupplyChainService.getProductEvents(contractAddress, productId, manufacturerId);
+
+      return events.map(event => ({
+        id: event.id,
+        eventType: event.eventType,
+        productId: event.productId,
+        location: event.location,
+        details: event.details,
+        timestamp: new Date(event.timestamp * 1000),
+        loggedBy: event.loggedBy,
+        isValid: event.isValid
+      }));
+
+    } catch (error: any) {
+      throw new Error(`Failed to get supply chain product events: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get supply chain dashboard data
+   */
+  async getSupplyChainDashboard(manufacturerId: string): Promise<{
+    contractInfo: SupplyChainContractInfo | null;
+    endpoints: SupplyChainEndpoint[];
+    products: SupplyChainProduct[];
+    recentEvents: SupplyChainEvent[];
+    stats: {
+      totalEvents: number;
+      totalProducts: number;
+      totalEndpoints: number;
+      eventsThisMonth: number;
+    };
+  }> {
+    try {
+      const contractInfo = await this.getSupplyChainContractInfo(manufacturerId);
+      const endpoints = await this.getSupplyChainEndpoints(manufacturerId);
+      const products = await this.getSupplyChainProducts(manufacturerId);
+
+      // Get recent events from all products (limit to 10 most recent)
+      const allEvents: SupplyChainEvent[] = [];
+      for (const product of products.slice(0, 5)) { // Limit to first 5 products for performance
+        const events = await this.getSupplyChainProductEvents(manufacturerId, product.productId);
+        allEvents.push(...events);
+      }
+
+      // Sort by timestamp and take most recent 10
+      const recentEvents = allEvents
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, 10);
+
+      // Calculate stats
+      const totalEvents = allEvents.length;
+      const totalProducts = products.length;
+      const totalEndpoints = endpoints.length;
+      
+      // Count events this month
+      const thisMonth = new Date();
+      thisMonth.setDate(1);
+      thisMonth.setHours(0, 0, 0, 0);
+      
+      const eventsThisMonth = allEvents.filter(event => 
+        event.timestamp >= thisMonth
+      ).length;
+
+      return {
+        contractInfo,
+        endpoints,
+        products,
+        recentEvents,
+        stats: {
+          totalEvents,
+          totalProducts,
+          totalEndpoints,
+          eventsThisMonth
+        }
+      };
+
+    } catch (error: any) {
+      throw new Error(`Failed to get supply chain dashboard: ${error.message}`);
     }
   }
 }
