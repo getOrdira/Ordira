@@ -41,17 +41,13 @@ export const customJoi = Joi.extend({
   type: 'mongoId',
   base: Joi.string(),
   messages: {
-    'mongoId.invalid': 'Must be a valid MongoDB ObjectId'
+    'mongoId.base': 'Must be a valid MongoDB ObjectId'
   },
-  rules: {
-    valid: {
-      validate(value: string, helpers: any) {
-        if (!Types.ObjectId.isValid(value)) {
-          return helpers.error('mongoId.invalid');
-        }
-        return value;
-      }
+  validate(value: string, helpers: any) {
+    if (!Types.ObjectId.isValid(value)) {
+      return helpers.error('mongoId.base');
     }
+    return value;
   }
 }, {
   type: 'email',
@@ -85,8 +81,8 @@ export const customJoi = Joi.extend({
  */
 export const commonSchemas = {
   // MongoDB ObjectId validation
-  mongoId: customJoi.mongoId().valid().required(),
-  optionalMongoId: customJoi.mongoId().valid().optional(),
+  mongoId: customJoi.mongoId().required(),
+  optionalMongoId: customJoi.mongoId().optional(),
 
   // Email validations
   email: customJoi.string().email().lowercase().required(),
