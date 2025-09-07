@@ -155,6 +155,24 @@ export const getProduct = async (id: string): Promise<ProductDetailResponse> => 
   }
 };
 
+export const supplyChain = {
+  logEvent: async (productId: string, eventData: {
+    eventType: string;
+    location?: string;
+    eventData?: Record<string, any>;
+  }) => {
+    return apiClient.post(`/api/products/${productId}/supply-chain/events`, eventData);
+  },
+
+  getEvents: async (productId: string) => {
+    return apiClient.get(`/api/products/${productId}/supply-chain/events`);
+  },
+
+  getTrackingData: async (productId: string) => {
+    return apiClient.get(`/api/products/${productId}/supply-chain/track`);
+  }
+};
+
 /**
  * Gets product media files.
  * @param id - Product ID

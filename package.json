@@ -13,7 +13,8 @@
     "dev": "npm run dev -w packages/frontend",
     "dev:frontend": "npm run dev -w packages/frontend",
     "dev:backend": "npm run dev -w packages/backend",
-    "build": "npm run build --workspaces",
+    "build": "npm run build -w packages/backend",
+    "build:render": "cd packages/backend && npm install && npm run build",
     "build:frontend": "npm run build -w packages/frontend",
     "build:backend": "npm run build -w packages/backend",
     "start:frontend": "npm run start -w packages/frontend",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@types/ioredis": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "hardhat": "^3.0.4",
     "lerna": "^8.2.3",
     "typechain": "^8.3.2"
   },
