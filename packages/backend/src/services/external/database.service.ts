@@ -41,10 +41,6 @@ export class DatabaseService {
     
     // Optimize connection settings
     mongoose.set('bufferCommands', false);
-    mongoose.set('bufferMaxEntries', 0);
-    
-    // Enable lean queries by default for better performance
-    mongoose.set('lean', { virtuals: true });
   }
 
   /**
@@ -278,8 +274,6 @@ export class DatabaseService {
         maxIdleTimeMS: 30000, // Close idle connections after 30s
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
-        bufferCommands: false,
-        bufferMaxEntries: 0,
         // Connection optimization
         connectTimeoutMS: 10000,
         heartbeatFrequencyMS: 10000,

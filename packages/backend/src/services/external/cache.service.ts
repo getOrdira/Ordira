@@ -35,7 +35,6 @@ export class CacheService {
       port: parseInt(process.env.REDIS_PORT || '6379'),
       password: process.env.REDIS_PASSWORD,
       db: parseInt(process.env.REDIS_DB || '0'),
-      retryDelayOnFailover: 100,
       maxRetriesPerRequest: 3,
       lazyConnect: true,
       keepAlive: 30000,
@@ -43,10 +42,8 @@ export class CacheService {
       commandTimeout: 5000,
       // Connection pool optimization
       family: 4,
-      maxmemoryPolicy: 'allkeys-lru',
       // Performance optimizations
-      enableReadyCheck: true,
-      maxLoadingTimeout: 5000
+      enableReadyCheck: true
     });
 
     this.setupEventHandlers();
@@ -266,7 +263,8 @@ export class CacheService {
         }
         return 0;
       } else {
-        return await this.redis.flushdb();
+        await this.redis.flushdb();
+        return 1; // Return 1 to indicate success
       }
     } catch (error) {
       console.error('Cache clear error:', error);

@@ -25,24 +25,8 @@ const schema = Joi.object({
   FRONTEND_URL: Joi.string().uri().required(),
   
   // Google Cloud Platform - Only required in production if not using Render
-  GCP_PROJECT_ID: Joi.string().when(Joi.ref('NODE_ENV'), {
-    is: 'production',
-    then: Joi.when(Joi.ref('RENDER'), {
-      is: Joi.exist(),
-      then: Joi.optional(), // Optional on Render
-      otherwise: Joi.required() // Required on other platforms
-    }),
-    otherwise: Joi.optional()
-  }),
-  GCP_SECRET_NAME: Joi.string().when(Joi.ref('NODE_ENV'), {
-    is: 'production', 
-    then: Joi.when(Joi.ref('RENDER'), {
-      is: Joi.exist(),
-      then: Joi.optional(), // Optional on Render
-      otherwise: Joi.required() // Required on other platforms
-    }),
-    otherwise: Joi.optional()
-  }),
+  GCP_PROJECT_ID: Joi.string().optional(),
+  GCP_SECRET_NAME: Joi.string().optional(),
   
   // Optional monitoring and services
   SENTRY_DSN: Joi.string().uri().optional(),
@@ -91,6 +75,14 @@ export function validateEnv() {
   // Log platform detection
   if (process.env.RENDER) {
     console.log('Render platform detected');
+  }
+  
+  // Custom validation for GCP variables based on environment
+  if (process.env.NODE_ENV === 'production' && !process.env.RENDER) {
+    if (!process.env.GCP_PROJECT_ID || !process.env.GCP_SECRET_NAME) {
+      console.error('GCP_PROJECT_ID and GCP_SECRET_NAME are required in production when not using Render');
+      process.exit(1);
+    }
   }
   
   Object.assign(process.env, value);

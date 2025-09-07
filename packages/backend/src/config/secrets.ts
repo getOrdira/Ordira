@@ -1,8 +1,4 @@
 // src/config/secrets.ts
-import { config as dotenvConfig } from 'dotenv';
-
-// Load local .env file in development
-dotenvConfig();
 
 export async function loadSecrets(): Promise<void> {
   const nodeEnv = process.env.NODE_ENV;
