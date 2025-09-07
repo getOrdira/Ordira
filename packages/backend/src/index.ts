@@ -48,6 +48,7 @@ import apiKeyRoutes from './routes/apiKey.routes';
 import notificationRoutes from './routes/notification.routes';
 import domainMappingRoutes from './routes/domainMapping.routes';
 import billingRoutes from './routes/billing.routes';
+import supplyChainRoutes from './routes/supplyChain.routes';
 
 // 5️⃣ Enhanced cache and utility imports
 import { startDomainCachePolling, isAllowedCustomDomain } from './cache/domainCache';
@@ -373,6 +374,12 @@ interface ErrorWithStatus extends Error {
       billingRoutes
     );
 
+    // Supply chain management for manufacturers
+    app.use('/api/supply-chain',
+      authenticateManufacturer,
+      supplyChainRoutes
+    );
+
     // API routes with enhanced rate limiting
     app.use('/api/v1', 
       apiRateLimiter(),
@@ -387,7 +394,8 @@ interface ErrorWithStatus extends Error {
             products: '/api/products',
             nfts: '/api/nfts',
             votes: '/api/votes',
-            analytics: '/api/analytics'
+            analytics: '/api/analytics',
+            supplyChain: '/api/supply-chain'
           }
         });
       }
