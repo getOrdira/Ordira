@@ -11,6 +11,7 @@ import { StripeService } from '../services/external/stripe.service';
 import { TokenDiscountService } from '../services/external/tokenDiscount.service';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 import { clearPlanCache } from '../middleware/rateLimiter.middleware';
+import { Billing } from '../models/billing.model';
 
 // Enhanced request interfaces
 interface BillingRequest extends AuthRequest, TenantRequest, ValidatedRequest {
@@ -484,21 +485,48 @@ export async function handleStripeWebhook(
 
 // Enhanced webhook event handlers
 async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
-  if (invoice.billing_reason === 'subscription_cycle') {
+  try {
     const subscriptionId = invoice.subscription!.toString();
+    const businessId = invoice.metadata?.businessId;
     
-    // Process renewal with token discount re-evaluation
-    await billingService.processRenewal(subscriptionId);
+    if (!businessId) {
+      console.error('No businessId found in invoice metadata:', invoice.id);
+      return;
+    }
+
+    // Update billing record with successful payment
+    await Billing.findOneAndUpdate(
+      { business: businessId },
+      {
+        $set: {
+          status: 'active',
+          lastPaymentDate: new Date(),
+          lastPaymentAmount: invoice.amount_paid / 100, // Convert from cents
+          consecutivePayments: { $inc: 1 },
+          missedPayments: 0
+        }
+      }
+    );
     
-    // Send renewal notification
-    await notificationsService.sendRenewalConfirmation(subscriptionId);
+    if (invoice.billing_reason === 'subscription_cycle') {
+      // Process renewal with token discount re-evaluation
+      await billingService.processRenewal(subscriptionId);
+      
+      // Send renewal notification
+      await notificationsService.sendRenewalConfirmation(subscriptionId);
+    }
     
     // Clear any cached billing info
     const customer = await stripe.customers.retrieve(invoice.customer as string);
     if (customer && !customer.deleted) {
       // Clear plan cache for immediate effect
-      clearPlanCache((customer as any).metadata?.businessId);
+      clearPlanCache(businessId);
     }
+
+    console.log(`Payment succeeded for business ${businessId}, subscription ${subscriptionId}`);
+  } catch (error) {
+    console.error('Error handling payment succeeded webhook:', error);
+    throw error; // Re-throw to trigger webhook retry
   }
 }
 

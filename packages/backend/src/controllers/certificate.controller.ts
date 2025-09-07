@@ -4,13 +4,16 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { PlanLimitsRequest } from '../middleware/planLimits.middleware';
 import { CertificateService } from '../services/business/certificate.service';
 import { NftService } from '../services/blockchain/nft.service';
 import { BillingService } from '../services/external/billing.service';
 import { NotificationsService } from '../services/external/notifications.service';
 import { AnalyticsBusinessService } from '../services/business/analytics.service';
+import { UsageTrackingService } from '../services/business/usageTracking.service';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Certificate } from '../models/certificate.model';
+import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 
 // ✨ Enhanced request interfaces with Web3 support
 interface CertificateRequest extends AuthRequest, TenantRequest, ValidatedRequest {
@@ -123,6 +126,7 @@ const nftService = new NftService();
 const billingService = new BillingService();
 const notificationsService = new NotificationsService();
 const analyticsService = new AnalyticsBusinessService();
+const usageTrackingService = new UsageTrackingService();
 
 async function getGlobalTransferAnalytics(): Promise<any> {
   try {
@@ -149,7 +153,7 @@ async function getGlobalTransferAnalytics(): Promise<any> {
  * Create a new NFT certificate with automatic transfer capabilities
  */
 export async function createCertificate(
-  req: CertificateRequest,
+  req: CertificateRequest & PlanLimitsRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -163,25 +167,33 @@ export async function createCertificate(
     const hasWeb3 = brandSettings?.hasWeb3Features() || false;
     const shouldAutoTransfer = brandSettings?.shouldAutoTransfer() || false;
 
-    // Check plan-based certificate limits
-    const usage = await getCertificateUsage(businessId);
-    const planLimits = getPlanLimits(userPlan);
+    // Use the new plan limits system
+    const planLimits = PLAN_DEFINITIONS[userPlan as PlanKey];
+    const currentUsage = req.planLimits?.usage || { certificates: 0, votes: 0, apiCalls: 0, storage: 0 };
 
-    if (usage.certificatesThisMonth >= planLimits.certificates) {
-       res.status(403).json({
+    // Check certificate limits with enhanced validation
+    if (planLimits.certificates !== Infinity && currentUsage.certificates >= planLimits.certificates) {
+      const utilization = Math.round((currentUsage.certificates / planLimits.certificates) * 100);
+      
+      res.status(403).json({
         error: 'Certificate limit reached for your plan',
-        usage: {
-          current: usage.certificatesThisMonth,
+        details: {
+          plan: userPlan,
+          currentUsage: currentUsage.certificates,
           limit: planLimits.certificates,
-          plan: userPlan
+          utilization: `${utilization}%`
         },
         options: {
           upgradeAvailable: userPlan !== 'enterprise',
-          overageAllowed: planLimits.allowOverage,
-          overageCost: planLimits.overageCost
+          overageAllowed: planLimits.features.allowOverage
         },
+        recommendations: [
+          'Consider upgrading your plan for higher limits',
+          'Archive unused certificates to free up quota',
+          'Contact support for custom solutions'
+        ],
         code: 'CERTIFICATE_LIMIT_REACHED'
-      })
+      });
       return;
     }
 
@@ -299,10 +311,16 @@ export async function createCertificate(
     // Track certificate creation
     trackManufacturerAction('create_certificate');
 
+    // ✨ Update usage tracking
+    try {
+      await usageTrackingService.updateUsage(businessId, { certificates: 1 });
+    } catch (usageError) {
+      console.warn('Failed to update usage tracking:', usageError);
+      // Don't fail the certificate creation if usage tracking fails
+    }
 
     // Send delivery notification
     await processCertificateDelivery(mintResult, certificateData.deliveryOptions, hasWeb3);
-
 
     // ✨ Notify about certificate creation with transfer status
     await notificationsService.notifyBrandOfCertificateMinted(businessId, mintResult.certificateId, {
@@ -337,8 +355,8 @@ export async function createCertificate(
       },
       usage: {
         certificates: {
-          current: usage.certificatesThisMonth + 1,
-          remaining: Math.max(0, planLimits.certificates - usage.certificatesThisMonth - 1),
+          current: currentUsage.certificates + 1,
+          remaining: Math.max(0, planLimits.certificates - currentUsage.certificates - 1),
           limit: planLimits.certificates
         },
         ...(hasWeb3 && {
@@ -379,8 +397,9 @@ export async function transferCertificates(
     const brandSettings = await BrandSettings.findOne({ business: businessId });
     if (!brandSettings?.hasWeb3Features()) {
        res.status(403).json({
-        error: 'Web3 features require Premium plan or higher',
+        error: 'Web3 features require Growth plan or higher',
         currentPlan: userPlan,
+        requiredPlans: ['growth', 'premium', 'enterprise'],
         code: 'PLAN_UPGRADE_REQUIRED'
       })
       return;
@@ -513,7 +532,7 @@ export async function retryFailedTransfers(
     const brandSettings = await BrandSettings.findOne({ business: businessId });
     if (!brandSettings?.hasWeb3Features()) {
        res.status(403).json({
-        error: 'Web3 features require Premium plan or higher',
+        error: 'Web3 features require Growth plan or higher',
         code: 'PLAN_UPGRADE_REQUIRED'
       })
       return;
@@ -853,7 +872,7 @@ export async function getWeb3Analytics(
  * Create multiple certificates in batch with Web3 support
  */
 export async function createBatchCertificates(
-  req: BatchCertificateRequest,
+  req: BatchCertificateRequest & PlanLimitsRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -862,13 +881,15 @@ export async function createBatchCertificates(
     const userPlan = req.tenant?.plan || 'foundation';
     const batchData = req.validatedBody || req.body;
 
-    // Validate batch permissions
-    if (!['premium', 'enterprise'].includes(userPlan)) {
-       res.status(403).json({
-        error: 'Batch certificate creation requires Premium plan or higher',
+    // Validate batch permissions using new plan system
+    const planLimits = PLAN_DEFINITIONS[userPlan as PlanKey];
+    if (!planLimits.features.hasWeb3) {
+      res.status(403).json({
+        error: 'Batch certificate creation requires Growth plan or higher',
         currentPlan: userPlan,
+        requiredPlans: ['growth', 'premium', 'enterprise'],
         code: 'PLAN_UPGRADE_REQUIRED'
-      })
+      });
       return;
     }
 
@@ -877,27 +898,36 @@ export async function createBatchCertificates(
     // Validate batch size limits
     const batchLimits = getBatchLimits(userPlan);
     if (recipientCount > batchLimits.maxBatchSize) {
-       res.status(400).json({
+      res.status(400).json({
         error: 'Batch size exceeds plan limits',
         requestedSize: recipientCount,
         maxAllowed: batchLimits.maxBatchSize,
         code: 'BATCH_SIZE_EXCEEDED'
-      })
+      });
       return;
     }
 
-    // Check certificate and transfer limits
-    const usage = await getCertificateUsage(businessId);
-    const planLimits = getPlanLimits(userPlan);
-    const remainingLimit = planLimits.certificates - usage.certificatesThisMonth;
+    // Check certificate limits using new system
+    const currentUsage = req.planLimits?.usage || { certificates: 0, votes: 0, apiCalls: 0, storage: 0 };
+    const remainingLimit = planLimits.certificates === Infinity ? 
+      Infinity : 
+      planLimits.certificates - currentUsage.certificates;
 
-    if (recipientCount > remainingLimit) {
-       res.status(403).json({
+    if (remainingLimit !== Infinity && recipientCount > remainingLimit) {
+      res.status(403).json({
         error: 'Insufficient certificate quota for batch',
-        requested: recipientCount,
-        available: remainingLimit,
+        details: {
+          requested: recipientCount,
+          available: remainingLimit,
+          currentUsage: currentUsage.certificates,
+          planLimit: planLimits.certificates
+        },
+        options: {
+          upgradeAvailable: userPlan !== 'enterprise',
+          overageAllowed: planLimits.features.allowOverage
+        },
         code: 'INSUFFICIENT_QUOTA'
-      })
+      });
       return;
     }
 
@@ -945,6 +975,14 @@ export async function createBatchCertificates(
 
     // Track batch creation
     trackManufacturerAction('create_batch_certificates');
+
+    // ✨ Update usage tracking for batch
+    try {
+      await usageTrackingService.updateUsage(businessId, { certificates: recipientCount });
+    } catch (usageError) {
+      console.warn('Failed to update batch usage tracking:', usageError);
+      // Don't fail the batch creation if usage tracking fails
+    }
 
     res.status(202).json({
       success: true,
@@ -1092,7 +1130,7 @@ export async function getPendingTransfers(
     const brandSettings = await BrandSettings.findOne({ business: businessId });
     if (!brandSettings?.hasWeb3Features()) {
        res.status(403).json({
-        error: 'Web3 features require Premium plan or higher',
+        error: 'Web3 features require Growth plan or higher',
         code: 'PLAN_UPGRADE_REQUIRED'
       })
       return;
@@ -1217,41 +1255,21 @@ async function getTransferUsage(businessId: string) {
 }
 
 function getPlanLimits(plan: string) {
-  const limits = {
-    foundation: { 
-      certificates: 50, 
-      allowOverage: false, 
-      billPerCertificate: false, 
-      overageCost: 0,
-      hasWeb3: false
-    },
-    growth: { 
-      certificates: 150, 
-      allowOverage: false, 
-      billPerCertificate: false, 
-      overageCost: 0,
-      hasWeb3: false
-    },
-    premium: { 
-      certificates: 500, 
-      allowOverage: true, 
-      billPerCertificate: false, 
-      overageCost: 0.1,
-      hasWeb3: true
-    },
-    enterprise: { 
-      certificates: Infinity, 
-      allowOverage: true, 
-      billPerCertificate: false, 
-      overageCost: 0.05,
-      hasWeb3: true
-    }
+  const planKey = plan as PlanKey;
+  const planDef = PLAN_DEFINITIONS[planKey] || PLAN_DEFINITIONS.foundation;
+  
+  return {
+    certificates: planDef.certificates,
+    allowOverage: planDef.features.allowOverage,
+    billPerCertificate: false, // Not implemented yet
+    overageCost: planDef.features.allowOverage ? 0.1 : 0,
+    hasWeb3: planDef.features.hasWeb3
   };
-  return limits[plan as keyof typeof limits] || limits.foundation;
 }
 
 function getTransferLimits(plan: string) {
   const limits = {
+    growth: { transfersPerMonth: 500, gasCreditsWei: '50000000000000000' }, // 0.05 ETH
     premium: { transfersPerMonth: 1000, gasCreditsWei: '100000000000000000' }, // 0.1 ETH
     enterprise: { transfersPerMonth: Infinity, gasCreditsWei: '1000000000000000000' } // 1 ETH
   };
@@ -1260,6 +1278,7 @@ function getTransferLimits(plan: string) {
 
 function getBatchLimits(plan: string) {
   const limits = {
+    growth: { maxBatchSize: 50, maxConcurrent: 3 },
     premium: { maxBatchSize: 100, maxConcurrent: 5 },
     enterprise: { maxBatchSize: 1000, maxConcurrent: 20 }
   };
