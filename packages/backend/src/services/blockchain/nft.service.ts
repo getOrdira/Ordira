@@ -210,12 +210,16 @@ export class NftService {
 
   // ===== PRIVATE HELPERS =====
   
-  private getNftFactoryContract() {
-    const factoryAddress = process.env.NFT_FACTORY_ADDRESS;
-    if (!factoryAddress) {
-      throw createAppError('NFT_FACTORY_ADDRESS not configured', 500, 'MISSING_CONFIG');
+  private async getNftFactoryContract() {
+    // Get factory address from database (deployed once by relayer)
+    const { FactorySettings } = require('../../models/factorySettings.model');
+    const factorySettings = await FactorySettings.findOne({ type: 'nft' });
+    
+    if (!factorySettings?.address) {
+      throw createAppError('NFT factory not deployed. Please deploy factory first.', 500, 'MISSING_CONFIG');
     }
-    return BlockchainProviderService.getContract(factoryAddress, nftFactoryAbi);
+    
+    return BlockchainProviderService.getContract(factorySettings.address, nftFactoryAbi);
   }
 
   private getRelayerWallet(): string {
@@ -719,7 +723,7 @@ export class NftService {
         throw createAppError('Invalid business ID format', 400, 'INVALID_BUSINESS_ID');
       }
       
-      const nftFactory = this.getNftFactoryContract();
+      const nftFactory = await this.getNftFactoryContract();
       
       // Deploy the contract with relayer as owner (relayer will manage for the business)
       const tx = await nftFactory.deployNFTForSelf(name, symbol, baseUri);

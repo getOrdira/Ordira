@@ -175,48 +175,111 @@ export class BillingService {
     allowed: boolean;
     issues?: string[];
     recommendations?: string[];
+    impact?: {
+      features: string[];
+      limits: Record<string, { current: number; new: number; change: string }>;
+    };
   }> {
     try {
-      // Check if downgrade is allowed based on current usage
+      // Get current usage and plan limits
       const currentUsage = await this.getCurrentUsage(businessId);
-      const newPlanLimits = this.getPlanLimits(toPlan);
+      const fromPlanLimits = PLAN_DEFINITIONS[fromPlan as PlanKey];
+      const toPlanLimits = PLAN_DEFINITIONS[toPlan as PlanKey];
       
       const issues: string[] = [];
       const recommendations: string[] = [];
+      const impact = {
+        features: [] as string[],
+        limits: {} as Record<string, { current: number; new: number; change: string }>
+      };
 
-      // Validate against limits
-      if (currentUsage.apiCalls > newPlanLimits.apiCalls) {
-        issues.push(`Current API usage (${currentUsage.apiCalls}) exceeds ${toPlan} plan limit (${newPlanLimits.apiCalls})`);
-        recommendations.push(`Reduce API usage to under ${newPlanLimits.apiCalls} calls per month`);
+      // Check feature downgrades
+      if (fromPlanLimits.features.hasWeb3 && !toPlanLimits.features.hasWeb3) {
+        impact.features.push('Web3 features will be disabled');
+        recommendations.push('Consider keeping Premium plan to retain Web3 capabilities');
       }
 
-      if (currentUsage.certificates > newPlanLimits.certificates) {
-        issues.push(`Current certificate usage (${currentUsage.certificates}) exceeds ${toPlan} plan limit (${newPlanLimits.certificates})`);
-        recommendations.push(`Archive or delete certificates to get under ${newPlanLimits.certificates} certificates`);
+      if (fromPlanLimits.features.allowOverage && !toPlanLimits.features.allowOverage) {
+        impact.features.push('Overage billing will be disabled');
+        recommendations.push('Monitor usage closely as overages will not be allowed');
       }
 
-      if (currentUsage.votes > newPlanLimits.votes) {
-        issues.push(`Current voting usage (${currentUsage.votes}) exceeds ${toPlan} plan limit (${newPlanLimits.votes})`);
-        recommendations.push(`Voting history will be preserved, but future voting will be limited to ${newPlanLimits.votes} per month`);
+      // Check limit downgrades
+      const limitTypes = ['certificates', 'votes', 'apiCalls', 'storage'] as const;
+      
+      for (const limitType of limitTypes) {
+        const currentLimit = fromPlanLimits[limitType];
+        const newLimit = toPlanLimits[limitType];
+        const currentUsage = await this.getCurrentUsageForType(businessId, limitType);
+        
+        impact.limits[limitType] = {
+          current: currentLimit,
+          new: newLimit,
+          change: newLimit < currentLimit ? 'decreased' : 'increased'
+        };
+
+        if (newLimit !== Infinity && currentUsage > newLimit) {
+          issues.push(`Current ${limitType} usage (${currentUsage}) exceeds ${toPlan} plan limit (${newLimit})`);
+          
+          switch (limitType) {
+            case 'certificates':
+              recommendations.push(`Archive or delete ${currentUsage - newLimit} certificates to comply with new limit`);
+              break;
+            case 'votes':
+              recommendations.push(`Voting history will be preserved, but future voting will be limited to ${newLimit} per month`);
+              break;
+            case 'apiCalls':
+              recommendations.push(`Reduce API usage to under ${newLimit} calls per month`);
+              break;
+            case 'storage':
+              recommendations.push(`Clean up ${currentUsage - newLimit}MB of storage to comply with new limit`);
+              break;
+          }
+        }
       }
 
-      // Return the proper object structure
+      // Check API key limits
+      const currentApiKeys = await this.getCurrentApiKeyCount(businessId);
+      const newApiKeyLimit = toPlanLimits.features.maxApiKeys;
+      
+      if (newApiKeyLimit !== Infinity && currentApiKeys > newApiKeyLimit) {
+        issues.push(`Current API keys (${currentApiKeys}) exceeds ${toPlan} plan limit (${newApiKeyLimit})`);
+        recommendations.push(`Delete ${currentApiKeys - newApiKeyLimit} API keys to comply with new limit`);
+      }
+
       return {
         allowed: issues.length === 0,
         issues: issues.length > 0 ? issues : undefined,
-        recommendations: recommendations.length > 0 ? recommendations : undefined
+        recommendations: recommendations.length > 0 ? recommendations : undefined,
+        impact: impact.features.length > 0 || Object.keys(impact.limits).length > 0 ? impact : undefined
       };
 
     } catch (error) {
       console.error('Error validating downgrade:', error);
       
-      // Return error state with proper structure
       return {
         allowed: false,
         issues: ['Unable to validate current usage'],
         recommendations: ['Please try again later or contact support']
       };
     }
+  }
+
+  /**
+   * Helper method to get current usage for a specific type
+   */
+  private async getCurrentUsageForType(businessId: string, type: string): Promise<number> {
+    const billing = await Billing.findOne({ business: businessId });
+    return billing?.currentUsage?.[type] || 0;
+  }
+
+  /**
+   * Helper method to get current API key count
+   */
+  private async getCurrentApiKeyCount(businessId: string): Promise<number> {
+    // This should query your API key model
+    // For now, return 0 as placeholder
+    return 0;
   }
 
   async updateTokenDiscounts(businessId: string, walletAddress?: string): Promise<any> {

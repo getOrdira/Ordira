@@ -62,12 +62,16 @@ export class VotingService {
   /**
    * Get the voting factory contract instance
    */
-  private static getVotingFactoryContract() {
-    const factoryAddress = process.env.VOTING_FACTORY_ADDRESS;
-    if (!factoryAddress) {
-      throw new BlockchainError('VOTING_FACTORY_ADDRESS not configured', 500);
+  private static async getVotingFactoryContract() {
+    // Get factory address from database (deployed once by relayer)
+    const { FactorySettings } = require('../../models/factorySettings.model');
+    const factorySettings = await FactorySettings.findOne({ type: 'voting' });
+    
+    if (!factorySettings?.address) {
+      throw new BlockchainError('Voting factory not deployed. Please deploy factory first.', 500);
     }
-    return BlockchainProviderService.getContract(factoryAddress, votingFactoryAbi);
+    
+    return BlockchainProviderService.getContract(factorySettings.address, votingFactoryAbi);
   }
 
   /**
@@ -91,7 +95,7 @@ export class VotingService {
         throw new BlockchainError('Invalid business ID format', 400);
       }
       
-      const votingFactory = this.getVotingFactoryContract();
+      const votingFactory = await this.getVotingFactoryContract();
       
       // Use default settings if not provided
       const settings = {
@@ -698,7 +702,7 @@ export class VotingService {
       }
       
       // Additional validation: Check if the contract exists in factory
-      const votingFactory = this.getVotingFactoryContract();
+      const votingFactory = await this.getVotingFactoryContract();
       const contractBrand = await votingFactory.getContractBrand(contractAddress);
       
       if (contractBrand === '0x0000000000000000000000000000000000000000') {

@@ -513,12 +513,14 @@ async processBatch(
       // Prepare data in the format expected by VotingService.batchSubmitVotes
       const proposalIds = validVotes.map(vote => vote.proposalId);
       const voteIds = validVotes.map(vote => vote.voteId);
+      const voterEmails = validVotes.map(vote => vote.voterEmail);
       const signatures = validVotes.map(vote => vote.userSignature || '0x'); // Provide default if missing
 
       const result = await VotingService.batchSubmitVotes(
         options.contractAddress,
         proposalIds,
         voteIds,
+        voterEmails,
         signatures
       );
 

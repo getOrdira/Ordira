@@ -217,7 +217,7 @@ export class VotingBusinessService {
       const metadataUri = `${process.env.METADATA_BASE_URL || 'https://api.example.com/metadata'}/proposals/${businessId}/${Date.now()}`;
 
       // Create proposal using static method
-      const proposalResult = await VotingService.createProposal(settings.web3Settings?.voteContract, metadataUri);
+      const proposalResult = await VotingService.createProposal(settings.web3Settings?.voteContract, metadataUri, businessId);
 
       // Store proposal metadata in database (optional)
       try {
@@ -480,20 +480,22 @@ export class VotingBusinessService {
         throw createAppError('No voting contract deployed for this business', 404, 'NO_VOTING_CONTRACT');
       }
 
-      const proposalIds = pending.map(v => v.proposalId);
+      const selectedProposalsArray = pending.map(v => [v.proposalId]); // Convert to array of arrays
       const voteIds = pending.map(v => v.voteId);
+      const voterEmails = pending.map(v => v.userId); // Map userId to voterEmail
       const signatures = voteIds.map(() => ''); // Generate signatures as needed
 
       // Validate arrays have content
-      if (proposalIds.length === 0 || voteIds.length === 0) {
+      if (selectedProposalsArray.length === 0 || voteIds.length === 0) {
         throw createAppError('No valid votes to process', 400, 'NO_VALID_VOTES');
       }
 
       // Submit votes on blockchain using static method
       const batchResult = await VotingService.batchSubmitVotes(
         settings.web3Settings?.voteContract,
-        proposalIds,
+        selectedProposalsArray,
         voteIds,
+        voterEmails,
         signatures
       );
 
