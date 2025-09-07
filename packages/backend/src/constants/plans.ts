@@ -13,6 +13,13 @@ export const PLAN_DEFINITIONS = {
         allowOverage: false,
         maxApiKeys: 1,
         supportLevel: 'community'
+      },
+      supplyChain: {
+        eventsPerMinute: 2,
+        eventsPerHour: 10,
+        eventsPerDay: 50,
+        cooldownPeriod: 30, // seconds
+        burstAllowance: 5
       }
     },
     growth: {
@@ -27,6 +34,13 @@ export const PLAN_DEFINITIONS = {
         allowOverage: false,
         maxApiKeys: 3,
         supportLevel: 'email'
+      },
+      supplyChain: {
+        eventsPerMinute: 5,
+        eventsPerHour: 30,
+        eventsPerDay: 200,
+        cooldownPeriod: 15, // seconds
+        burstAllowance: 10
       }
     },
     premium: {
@@ -41,6 +55,13 @@ export const PLAN_DEFINITIONS = {
         allowOverage: true,
         maxApiKeys: 10,
         supportLevel: 'priority'
+      },
+      supplyChain: {
+        eventsPerMinute: 10,
+        eventsPerHour: 100,
+        eventsPerDay: 1000,
+        cooldownPeriod: 10, // seconds
+        burstAllowance: 25
       }
     },
     enterprise: {
@@ -55,6 +76,13 @@ export const PLAN_DEFINITIONS = {
         allowOverage: true,
         maxApiKeys: Infinity,
         supportLevel: 'dedicated'
+      },
+      supplyChain: {
+        eventsPerMinute: 30,
+        eventsPerHour: 500,
+        eventsPerDay: 5000,
+        cooldownPeriod: 5, // seconds
+        burstAllowance: 100
       }
     }
   } as const;
