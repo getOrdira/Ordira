@@ -6,6 +6,7 @@ import { authenticateManufacturer, requireVerifiedManufacturer } from '../middle
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as mfgCtrl from '../controllers/manufacturer.controller';
+import * as mfgAccountCtrl from '../controllers/manufacturerAccount.controller';
 import {
   registerManufacturerSchema,
   loginManufacturerSchema,
@@ -160,6 +161,103 @@ router.get(
   validateQuery(listBrandsQuerySchema), // For timeframe filtering
   trackManufacturerAction('view_comprehensive_analytics'),
   mfgCtrl.getComprehensiveAnalytics
+);
+
+// ===== SUPPLY CHAIN MANAGEMENT ROUTES =====
+
+// Deploy supply chain contract
+router.post(
+  '/account/supply-chain/deploy',
+  authenticateManufacturer,
+  validateBody(Joi.object({
+    manufacturerName: Joi.string().required().min(2).max(100).trim()
+  })),
+  trackManufacturerAction('deploy_supply_chain_contract'),
+  mfgAccountCtrl.deploySupplyChainContract
+);
+
+// Get supply chain contract info
+router.get(
+  '/account/supply-chain/contract',
+  authenticateManufacturer,
+  trackManufacturerAction('get_supply_chain_contract'),
+  mfgAccountCtrl.getSupplyChainContract
+);
+
+// Create supply chain endpoint
+router.post(
+  '/account/supply-chain/endpoints',
+  authenticateManufacturer,
+  validateBody(Joi.object({
+    name: Joi.string().required().min(2).max(100).trim(),
+    eventType: Joi.string().valid('sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered').required(),
+    location: Joi.string().required().min(2).max(200).trim()
+  })),
+  trackManufacturerAction('create_supply_chain_endpoint'),
+  mfgAccountCtrl.createSupplyChainEndpoint
+);
+
+// Get all supply chain endpoints
+router.get(
+  '/account/supply-chain/endpoints',
+  authenticateManufacturer,
+  trackManufacturerAction('get_supply_chain_endpoints'),
+  mfgAccountCtrl.getSupplyChainEndpoints
+);
+
+// Register product for supply chain tracking
+router.post(
+  '/account/supply-chain/products',
+  authenticateManufacturer,
+  validateBody(Joi.object({
+    productId: Joi.string().required().min(1).max(100).trim(),
+    name: Joi.string().required().min(2).max(200).trim(),
+    description: Joi.string().optional().max(1000).trim()
+  })),
+  trackManufacturerAction('register_supply_chain_product'),
+  mfgAccountCtrl.registerSupplyChainProduct
+);
+
+// Get all supply chain products
+router.get(
+  '/account/supply-chain/products',
+  authenticateManufacturer,
+  trackManufacturerAction('get_supply_chain_products'),
+  mfgAccountCtrl.getSupplyChainProducts
+);
+
+// Log supply chain event
+router.post(
+  '/account/supply-chain/events',
+  authenticateManufacturer,
+  validateBody(Joi.object({
+    endpointId: Joi.number().integer().positive().required(),
+    productId: Joi.string().required().min(1).max(100).trim(),
+    eventType: Joi.string().required().min(2).max(50).trim(),
+    location: Joi.string().required().min(2).max(200).trim(),
+    details: Joi.string().optional().max(1000).trim()
+  })),
+  trackManufacturerAction('log_supply_chain_event'),
+  mfgAccountCtrl.logSupplyChainEvent
+);
+
+// Get supply chain events for a product
+router.get(
+  '/account/supply-chain/products/:productId/events',
+  authenticateManufacturer,
+  validateParams(Joi.object({
+    productId: Joi.string().required().min(1).max(100).trim()
+  })),
+  trackManufacturerAction('get_supply_chain_product_events'),
+  mfgAccountCtrl.getSupplyChainProductEvents
+);
+
+// Get supply chain dashboard
+router.get(
+  '/account/supply-chain/dashboard',
+  authenticateManufacturer,
+  trackManufacturerAction('get_supply_chain_dashboard'),
+  mfgAccountCtrl.getSupplyChainDashboard
 );
 
 export default router;

@@ -17,6 +17,7 @@ import {
 } from '../validation/product.validation';
 import Joi from 'joi';
 import { RequestHandler } from 'express';
+import * as supplyChainCtrl from '../controllers/supplyChain.controller';
 
 // ===== UPLOAD MIDDLEWARE SETUP =====
 const safeUploadMiddleware = {
@@ -165,6 +166,38 @@ router.get(
       next(error);
     }
   }
+);
+
+/**
+ * POST /api/products/supply-chain
+ * Log supply chain event for a product
+ * 
+ * @requires validation: supply chain event data
+ * @returns { success, data, message }
+ */
+
+router.post(
+  '/:id/supply-chain/events',
+  validateParams(productParamsSchema),
+  validateBody(Joi.object({
+    productId: Joi.string().required(),
+    eventType: Joi.string().required(),
+    eventData: Joi.object().optional()
+  })),
+  trackManufacturerAction('log_supply_chain_event'),
+  supplyChainCtrl.logEvent
+);
+
+router.get(
+  '/:id/supply-chain/events',
+  validateParams(productParamsSchema),
+  supplyChainCtrl.getEvents
+);
+
+router.get(
+  '/:id/supply-chain/track',
+  validateParams(productParamsSchema),
+  supplyChainCtrl.getTrackingData
 );
 
 /**
