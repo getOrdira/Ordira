@@ -1,20 +1,20 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-ethers";
-import "@typechain/hardhat";
-import * as dotenv from "dotenv";
+require("hardhat/config");
+require("@nomicfoundation/hardhat-ethers");
+require("@typechain/hardhat");
+const dotenv = require("dotenv");
 
 dotenv.config();
 
-const config: HardhatUserConfig = {
+const config = {
   solidity: "0.8.19",
   networks: {
   hardhat: {},
   base: {
-    url: process.env.BASE_RPC_URL!,
+    url: process.env.BASE_RPC_URL,
     accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : []
   },
   'base-sepolia': {
-    url: process.env.BASE_SEPOLIA_RPC_URL!,
+    url: process.env.BASE_SEPOLIA_RPC_URL,
     accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : []
   }
 },
@@ -31,5 +31,5 @@ const config: HardhatUserConfig = {
   }
 };
 
-export default config;
+module.exports = config;
 
