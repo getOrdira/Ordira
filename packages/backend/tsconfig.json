@@ -6,8 +6,6 @@
     "allowJs": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": false,
-    "noImplicitAny": false,
     "strictNullChecks": false,
     "strictFunctionTypes": false,
     "strictBindCallApply": false,
@@ -29,6 +27,8 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strict": false,
     
   },
   "include": ["src/**/*", "src/types/**/*"],
