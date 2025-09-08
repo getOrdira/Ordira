@@ -22,7 +22,7 @@ export interface CacheStats {
  * High-performance Redis caching service with advanced features
  */
 export class CacheService {
-  private redis: Redis;
+  private redis: any;
   private stats = {
     hits: 0,
     misses: 0,
