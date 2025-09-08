@@ -1,11 +1,27 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "module": "commonjs",
-    "lib": ["es2020"],
-    "allowJs": true,
+    // Modern target for Node.js 16+ (your engines requirement)
+    "target": "ES2022",
+    "module": "CommonJS",
+    "lib": ["ES2022"],
+    
+    // Output configuration
     "outDir": "./dist",
     "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    
+    // Module resolution
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    
+    // Type checking - practical approach for Express apps
+    "strict": false,
+    "noImplicitAny": false,
     "strictNullChecks": false,
     "strictFunctionTypes": false,
     "strictBindCallApply": false,
@@ -15,22 +31,46 @@
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
+    "exactOptionalPropertyTypes": false,
+    
+    // Unused code detection (warnings only)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "exactOptionalPropertyTypes": false,
+    
+    // Additional checks
     "noImplicitThis": false,
     "alwaysStrict": false,
-    "esModuleInterop": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "node",
+    
+    // Performance and compatibility
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false,
-    "strict": false,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     
+    // Decorators support (for your existing code)
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    
+    // Type acquisition
+    "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
   },
-  "include": ["src/**/*", "src/types/**/*"],
-  "exclude": ["node_modules", "dist", "hardhat.config.*", "contracts/**/*", "artifacts/**/*", "cache/**/*", "test/**/*", "scripts/**/*"]
+  "include": [
+    "src/**/*",
+    "src/types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "hardhat.config.*",
+    "contracts/**/*",
+    "artifacts/**/*",
+    "cache/**/*",
+    "scripts/**/*"
+  ],
+  "ts-node": {
+    "esm": false,
+    "experimentalSpecifierResolution": "node"
+  }
 }
