@@ -17,7 +17,7 @@ interface TenantMediaRequest extends AuthRequest {
   file?: Express.Multer.File;
 }
 
-interface MediaUploadRequest extends TenantMediaRequest, ValidatedRequest {
+interface MediaUploadRequest extends TenantMediaRequest {
   validatedBody: {
     category?: 'profile' | 'product' | 'banner' | 'certificate' | 'document';
     description?: string;
@@ -27,9 +27,9 @@ interface MediaUploadRequest extends TenantMediaRequest, ValidatedRequest {
   };
 }
 
-interface MediaListRequest extends TenantMediaRequest, ValidatedRequest {
+interface MediaListRequest extends TenantMediaRequest {
   validatedQuery: {
-    category?: 'profile' | 'product' | 'banner' | 'certificate' | 'document'; // Make it specific
+    category?: 'profile' | 'product' | 'banner' | 'certificate' | 'document';
     tags?: string;
     search?: string;
     page?: number;
@@ -40,7 +40,7 @@ interface MediaListRequest extends TenantMediaRequest, ValidatedRequest {
   };
 }
 
-interface MediaUpdateRequest extends TenantMediaRequest, ValidatedRequest {
+interface MediaUpdateRequest extends TenantMediaRequest {
   validatedParams: { mediaId: string };
   validatedBody: {
     category?: 'profile' | 'product' | 'banner' | 'certificate' | 'document';

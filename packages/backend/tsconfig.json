@@ -19,7 +19,7 @@
     "resolveJsonModule": true,
     "allowJs": true,
     
-    // Type checking - practical approach for Express apps
+    // Type checking - extremely permissive for Express apps
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
