@@ -13,7 +13,7 @@ const wixService = new WixService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantWixRequest extends AuthRequest {
+interface TenantWixRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 
@@ -23,7 +23,7 @@ interface WixConnectRequest extends TenantWixRequest, ValidatedRequest {
   };
 }
 
-interface WixCallbackRequest extends Request, ValidatedRequest {
+interface WixCallbackRequest extends Request, ValidatedRequest{
   validatedQuery: {
     code: string;
     state: string;

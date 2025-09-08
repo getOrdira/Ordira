@@ -16,7 +16,7 @@ import { Certificate } from '../models/certificate.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 
 // ✨ Enhanced request interfaces with Web3 support
-interface CertificateRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface CertificateRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   body: {
     productId: string;
     recipient: string;

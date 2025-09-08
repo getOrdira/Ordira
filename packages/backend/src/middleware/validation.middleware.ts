@@ -5,7 +5,7 @@ import { Types } from 'mongoose';
 /**
  * Extended request interface for validation
  */
-export interface ValidatedRequest extends Request {
+export interface ValidatedRequest {
   validatedBody?: any;
   validatedQuery?: any;
   validatedParams?: any;
@@ -383,7 +383,7 @@ export function validate(
 ) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   
-  return (req: ValidatedRequest, res: Response, next: NextFunction): void | Response => {
+  return (req: Request & ValidatedRequest, res: Response, next: NextFunction): void | Response => {
     try {
       const dataToValidate = req[target];
       
@@ -464,7 +464,7 @@ export function validateMultiple(validations: {
   query?: ObjectSchema;
   params?: ObjectSchema;
 }, options: ValidationOptions = {}) {
-  return (req: ValidatedRequest, res: Response, next: NextFunction): void | Response => {
+  return (req: Request & ValidatedRequest, res: Response, next: NextFunction): void | Response => {
     const errors: string[] = [];
 
     // Validate each target
@@ -510,7 +510,7 @@ export function validateConditional(
   target: 'body' | 'query' | 'params' = 'body',
   options?: ValidationOptions
 ) {
-  return (req: ValidatedRequest, res: Response, next: NextFunction): void | Response => {
+  return (req: Request & ValidatedRequest, res: Response, next: NextFunction): void | Response => {
     if (condition(req)) {
       return validate(target, schema, options)(req, res, next);
     }

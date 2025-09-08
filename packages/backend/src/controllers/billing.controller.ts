@@ -14,7 +14,7 @@ import { clearPlanCache } from '../middleware/rateLimiter.middleware';
 import { Billing } from '../models/billing.model';
 
 // Enhanced request interfaces
-interface BillingRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface BillingRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   body: {
     plan?: PlanKey;
     paymentMethodId?: string;

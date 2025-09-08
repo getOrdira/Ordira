@@ -10,7 +10,7 @@ import { NotificationsService } from '../services/external/notifications.service
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
-interface DomainMappingRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface DomainMappingRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   body: {
     domain: string;
     certificateType?: 'letsencrypt' | 'custom';
@@ -27,7 +27,7 @@ interface DomainMappingRequest extends AuthRequest, TenantRequest, ValidatedRequ
   };
 }
 
-interface DomainVerificationRequest extends AuthRequest, TenantRequest {
+interface DomainVerificationRequest extends Request, AuthRequest, TenantRequest {
   params: {
     domainId: string;
   };

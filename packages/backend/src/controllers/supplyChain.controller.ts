@@ -1,5 +1,5 @@
 // src/controllers/supplyChain.controller.ts
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -18,7 +18,7 @@ const analyticsService = new AnalyticsBusinessService();
 const qrCodeService = new QrCodeService();
 const redisClient = new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
-interface SupplyChainRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface SupplyChainRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     productId: string;
     eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
@@ -32,13 +32,13 @@ interface SupplyChainRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
-interface ContractDeploymentRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface ContractDeploymentRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     manufacturerName: string;
   };
 }
 
-interface EndpointRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface EndpointRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     name: string;
     eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
@@ -46,7 +46,7 @@ interface EndpointRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
-interface ProductRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface ProductRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     productId: string;
     name: string;
@@ -54,7 +54,7 @@ interface ProductRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
-interface QrScanRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface QrScanRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     qrCodeData: string;
     eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
@@ -69,7 +69,7 @@ interface QrScanRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
-interface BatchQrCodeRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface BatchQrCodeRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     productIds: string[];
     batchName?: string;
@@ -85,7 +85,7 @@ interface BatchQrCodeRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
-interface LocationRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface LocationRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   body: {
     name: string;
     description?: string;

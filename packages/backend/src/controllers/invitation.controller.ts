@@ -1,6 +1,6 @@
 // src/controllers/invitation.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -13,12 +13,12 @@ const invitationService = new InvitationService();
 /**
  * Extended request interfaces for type safety
  */
-interface BrandInviteRequest extends AuthRequest, ValidatedRequest {
+interface BrandInviteRequest extends Request, AuthRequest, ValidatedRequest {
   tenant?: { business: { toString: () => string } };
   validatedBody: { manufacturerId: string };
 }
 
-interface ManufacturerInviteRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface ManufacturerInviteRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   validatedBody: { accept: boolean };
   validatedParams: { inviteId: string };
 }

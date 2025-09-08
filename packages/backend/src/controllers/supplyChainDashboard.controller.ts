@@ -1,5 +1,5 @@
 // src/controllers/supplyChainDashboard.controller.ts
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ManufacturerAccountService } from '../services/business/manufacturerAccount.service';

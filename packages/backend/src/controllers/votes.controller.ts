@@ -1,6 +1,6 @@
 // src/controllers/votes.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -14,7 +14,7 @@ const votingBusinessService = new VotingBusinessService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantVotingRequest extends AuthRequest {
+interface TenantVotingRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

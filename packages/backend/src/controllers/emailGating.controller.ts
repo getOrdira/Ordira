@@ -1,5 +1,5 @@
 // src/controllers/emailGating.controller.ts
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -11,11 +11,11 @@ const emailGatingService = new EmailGatingService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantEmailGatingRequest extends AuthRequest {
+interface TenantEmailGatingRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 
-interface EmailGatingSettingsRequest extends TenantEmailGatingRequest, ValidatedRequest {
+interface EmailGatingSettingsRequest extends Request, TenantEmailGatingRequest, ValidatedRequest {
   validatedBody: {
     enabled?: boolean;
     mode?: 'whitelist' | 'blacklist' | 'disabled';

@@ -12,7 +12,7 @@ const manufacturerService = new ManufacturerService();
 /**
  * Extended request interfaces for type safety
  */
-interface RegisterRequest extends Request, ValidatedRequest {
+interface RegisterRequest extends Request, ValidatedRequest{
   validatedBody: {
     name: string;
     email: string;
@@ -23,14 +23,14 @@ interface RegisterRequest extends Request, ValidatedRequest {
   };
 }
 
-interface LoginRequest extends Request, ValidatedRequest {
+interface LoginRequest extends Request, ValidatedRequest{
   validatedBody: {
     email: string;
     password: string;
   };
 }
 
-interface UpdateProfileRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface UpdateProfileRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   validatedBody: {
     name?: string;
     description?: string;
@@ -41,7 +41,7 @@ interface UpdateProfileRequest extends ManufacturerAuthRequest, ValidatedRequest
   };
 }
 
-interface ManufacturerBrandRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface ManufacturerBrandRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   validatedParams: { brandSettingsId: string };
   query: {
     includeAnalytics?: string;
@@ -49,7 +49,7 @@ interface ManufacturerBrandRequest extends ManufacturerAuthRequest, ValidatedReq
   };
 }
 
-interface ConnectionRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface ConnectionRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   validatedParams: { brandId: string };
   validatedBody: {
     message?: string;
@@ -61,7 +61,7 @@ interface ConnectionRequest extends ManufacturerAuthRequest, ValidatedRequest {
   };
 }
 
-interface SearchRequest extends Request, ValidatedRequest {
+interface SearchRequest extends Request, ValidatedRequest{
   query: {
     q?: string;
     industry?: string;

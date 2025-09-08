@@ -12,7 +12,7 @@ const manufacturerProfileService = new ManufacturerProfileService();
 /**
  * Extended request interfaces for type safety
  */
-interface SearchRequest extends AuthRequest, ValidatedRequest {
+interface SearchRequest extends Request, AuthRequest, ValidatedRequest {
   validatedQuery: {
     query?: string;
     industry?: string;
@@ -26,7 +26,7 @@ interface SearchRequest extends AuthRequest, ValidatedRequest {
   };
 }
 
-interface ProfileDetailRequest extends AuthRequest, ValidatedRequest {
+interface ProfileDetailRequest extends Request, AuthRequest, ValidatedRequest {
   validatedParams: { id: string };
 }
 

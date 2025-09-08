@@ -11,7 +11,7 @@ import { AnalyticsBusinessService } from '../services/business/analytics.service
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
-interface BrandAccountRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface BrandAccountRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   body: {
     profilePictureUrl?: string;
     description?: string;

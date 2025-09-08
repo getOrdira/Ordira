@@ -11,7 +11,7 @@ import { TokenDiscountService } from '../services/external/tokenDiscount.service
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
-interface BrandSettingsRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface BrandSettingsRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   body: {
     // Visual branding
     themeColor?: string;

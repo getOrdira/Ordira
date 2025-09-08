@@ -1,6 +1,6 @@
 // src/controllers/nfts.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -12,7 +12,7 @@ const nftService = new NftService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantNFTRequest extends AuthRequest {
+interface TenantNFTRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

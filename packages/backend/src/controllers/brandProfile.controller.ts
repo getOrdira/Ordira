@@ -6,7 +6,7 @@ import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { BrandProfileService } from '../services/business/brandProfile.service';
 
 // Enhanced request interfaces
-interface BrandProfileRequest extends Request, ValidatedRequest {
+interface BrandProfileRequest extends Request, ValidatedRequest{
   params: {
     id?: string;
     brandId?: string;

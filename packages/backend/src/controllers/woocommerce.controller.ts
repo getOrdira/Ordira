@@ -13,7 +13,7 @@ const wooCommerceService = new WooCommerceService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantWooRequest extends AuthRequest {
+interface TenantWooRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

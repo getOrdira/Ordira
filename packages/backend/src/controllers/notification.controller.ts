@@ -1,6 +1,6 @@
 // src/controllers/notification.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';

@@ -13,7 +13,7 @@ const shopifyService = new ShopifyService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantShopifyRequest extends AuthRequest {
+interface TenantShopifyRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 
@@ -24,7 +24,7 @@ interface ShopifyConnectRequest extends TenantShopifyRequest, ValidatedRequest {
   };
 }
 
-interface ShopifyCallbackRequest extends Request, ValidatedRequest {
+interface ShopifyCallbackRequest extends Request, ValidatedRequest{
   validatedQuery: {
     shop: string;
     code: string;

@@ -1,6 +1,6 @@
 // src/controllers/media.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -12,7 +12,7 @@ const mediaService = new MediaService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantMediaRequest extends AuthRequest {
+interface TenantMediaRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
   file?: Express.Multer.File;
 }

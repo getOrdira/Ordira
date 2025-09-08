@@ -33,14 +33,14 @@
     "noPropertyAccessFromIndexSignature": false,
     "exactOptionalPropertyTypes": false,
     "useUnknownInCatchVariables": false,
+    "noImplicitThis": false,
+    "alwaysStrict": false,
     
     // Unused code detection (warnings only)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     
-    // Additional checks
-    "noImplicitThis": false,
-    "alwaysStrict": false,
+   
     
     // Performance and compatibility
     "skipLibCheck": true,

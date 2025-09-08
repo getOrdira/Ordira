@@ -1,6 +1,6 @@
 // src/controllers/manufacturerAccount.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -12,7 +12,7 @@ const manufacturerAccountService = new ManufacturerAccountService();
 /**
  * Extended request interfaces for type safety
  */
-interface UpdateProfileRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface UpdateProfileRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   validatedBody: {
     name?: string;
     description?: string;
@@ -39,7 +39,7 @@ interface UpdateProfileRequest extends ManufacturerAuthRequest, ValidatedRequest
   };
 }
 
-interface UpdateNotificationPreferencesRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface UpdateNotificationPreferencesRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   validatedBody: {
     emailNotifications?: {
       invitations?: boolean;

@@ -13,11 +13,11 @@ const authService = new AuthService();
 /**
  * Extended request interfaces for type safety
  */
-interface UserAuthRequest extends Request, AuthRequest {
+interface UserAuthRequest extends Request, AuthRequest{
   userType?: 'user' | 'business';
 }
 
-interface UserRegisterRequest extends Request, ValidatedRequest {
+interface UserRegisterRequest extends Request, ValidatedRequest{
   validatedBody: {
     email: string;
     password: string;
@@ -32,7 +32,7 @@ interface UserRegisterRequest extends Request, ValidatedRequest {
   };
 }
 
-interface UserLoginRequest extends Request, ValidatedRequest {
+interface UserLoginRequest extends Request, ValidatedRequest{
   validatedBody: {
     email: string;
     password: string;
@@ -40,7 +40,7 @@ interface UserLoginRequest extends Request, ValidatedRequest {
   };
 }
 
-interface UserVerifyRequest extends Request, ValidatedRequest {
+interface UserVerifyRequest extends Request, ValidatedRequest{
   validatedBody: {
     email: string;
     emailCode: string;
@@ -65,7 +65,7 @@ interface UserVoteRequest extends Request, UserAuthRequest, ValidatedRequest {
   };
 }
 
-interface UserListRequest extends Request, ValidatedRequest {
+interface UserListRequest extends Request, ValidatedRequest{
   validatedQuery: {
     status?: 'active' | 'inactive' | 'suspended' | 'deleted';
     isEmailVerified?: boolean;
@@ -81,7 +81,7 @@ interface UserListRequest extends Request, ValidatedRequest {
   };
 }
 
-interface UserAnalyticsRequest extends ValidatedRequest {
+interface UserAnalyticsRequest extends Request, ValidatedRequest {
   validatedQuery: {
     businessId?: string;
     period?: '7d' | '30d' | '90d' | '1y';
@@ -739,7 +739,7 @@ export const recordInteraction = asyncHandler(async (
  * POST /api/users/forgot-password
  */
 export const forgotPassword = asyncHandler(async (
-  req: ValidatedRequest & { validatedBody: { email: string } },
+  req: Request & ValidatedRequest & { validatedBody: { email: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -768,7 +768,7 @@ export const forgotPassword = asyncHandler(async (
  * POST /api/users/reset-password
  */
 export const resetPassword = asyncHandler(async (
-  req: ValidatedRequest & {
+  req: Request & ValidatedRequest & {
     validatedBody: {
       email: string;
       resetCode: string;
@@ -807,7 +807,7 @@ export const resetPassword = asyncHandler(async (
  * POST /api/users/resend-verification
  */
 export const resendVerification = asyncHandler(async (
-  req: ValidatedRequest & { validatedBody: { email: string } },
+  req: Request & ValidatedRequest & { validatedBody: { email: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {

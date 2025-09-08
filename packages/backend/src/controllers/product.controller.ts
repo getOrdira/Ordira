@@ -1,6 +1,6 @@
 // src/controllers/product.controller.ts
 
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -13,11 +13,11 @@ const productService = new ProductService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantProductRequest extends AuthRequest {
+interface TenantProductRequest extends Request, AuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 
-interface ManufacturerProductRequest extends ManufacturerAuthRequest {
+interface ManufacturerProductRequest extends Request, ManufacturerAuthRequest {
   manufacturer?: any;
 }
 
