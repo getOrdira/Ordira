@@ -28,7 +28,8 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false
   },
   "include": ["src/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist", "hardhat.config.*", "contracts/**/*", "artifacts/**/*", "cache/**/*", "test/**/*", "scripts/**/*"]
