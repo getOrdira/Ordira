@@ -32,6 +32,7 @@
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
     "exactOptionalPropertyTypes": false,
+    "useUnknownInCatchVariables": false,
     
     // Unused code detection (warnings only)
     "noUnusedLocals": false,
