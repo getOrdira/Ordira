@@ -1,4 +1,6 @@
 // Global type declarations to resolve Express and other type issues
+import 'express';
+
 declare global {
   // Extend Express Request interface
   namespace Express {
@@ -16,10 +18,8 @@ declare global {
       file?: any;
       get: (name: string) => string | string[] | undefined;
     }
-  }
-  
-  // Add Multer types
-  namespace Express {
+    
+    // Add Multer types
     namespace Multer {
       interface File {
         fieldname: string;
