@@ -8,9 +8,7 @@ import { AuthRequest } from './auth.middleware';
 import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
 import redis from 'ioredis';
 
-// Redis store for distributed rate limiting (optional)
-// import RedisStore from 'rate-limit-redis';
-// import Redis from 'ioredis';
+
 
 const redisClient= new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
@@ -207,8 +205,8 @@ function getUserType(req: Request): 'brand' | 'manufacturer' | 'user' | 'anonymo
 /**
  * Dynamic rate limiter that adjusts limits based on user plan and type
  */
-export function dynamicRateLimiter() {
-  return rateLimit({
+export function dynamicRateLimiter(): any {
+  return (rateLimit as any)({
     // Remove the static windowMs and max - we'll use dynamic ones
     
     // Custom key generator
@@ -275,8 +273,8 @@ export function dynamicRateLimiter() {
 /**
  * Strict rate limiter for sensitive endpoints (auth, payments, etc.)
  */
-export function strictRateLimiter() {
-  return rateLimit({
+export function strictRateLimiter(): any {
+  return (rateLimit as any)({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // 5 attempts per window
     keyGenerator: generateRateLimitKey,
@@ -301,8 +299,8 @@ export function strictRateLimiter() {
 /**
  * API-specific rate limiter for external integrations
  */
-export function apiRateLimiter() {
-  return rateLimit({
+export function apiRateLimiter(): any {
+  return (rateLimit as any)({
     windowMs: 60 * 1000, // 1 minute
     max: async (req: Request) => {
       const userType = getUserType(req);
@@ -349,8 +347,8 @@ export function clearPlanCache(userId: string): void {
 /**
  * Supply chain event rate limiter with plan-based limits and abuse prevention
  */
-export function supplyChainRateLimiter() {
-  return rateLimit({
+export function supplyChainRateLimiter(): any {
+  return (rateLimit as any)({
     windowMs: 60 * 1000, // 1 minute window
     max: async (req: Request) => {
       const manufacturerReq = req as ManufacturerAuthRequest;
@@ -410,7 +408,7 @@ export function supplyChainRateLimiter() {
 /**
  * Enhanced supply chain rate limiter with multiple time windows and cooldown
  */
-export function enhancedSupplyChainRateLimiter() {
+export function enhancedSupplyChainRateLimiter(): any {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const manufacturerReq = req as ManufacturerAuthRequest;
     
