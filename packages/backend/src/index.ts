@@ -190,8 +190,8 @@ interface ErrorWithStatus extends Error {
     }
 
     // Performance and security middleware
-    app.use(compression());
-    app.use(mongoSanitize());
+    app.use(compression() as any);
+    app.use(mongoSanitize() as any);
 
     // Enhanced CORS policy with tenant-aware origin validation
     app.use(cors({
