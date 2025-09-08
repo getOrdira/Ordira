@@ -36,3 +36,25 @@ export const reqProps = {
   files: (req: Request) => (req as any).files,
   file: (req: Request) => (req as any).file
 };
+
+/**
+ * Type assertion for Multer file properties
+ */
+export interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination: string;
+  filename: string;
+  path: string;
+  buffer: Buffer;
+}
+
+/**
+ * Type assertion helper for Multer files
+ */
+export function getMulterFile(file: any): MulterFile {
+  return file as MulterFile;
+}

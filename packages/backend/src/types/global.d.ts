@@ -1,0 +1,39 @@
+// Global type declarations to resolve Express and other type issues
+declare global {
+  // Extend Express Request interface
+  namespace Express {
+    interface Request {
+      params: any;
+      body: any;
+      query: any;
+      headers: any;
+      ip: string;
+      hostname: string;
+      path: string;
+      url: string;
+      method: string;
+      files?: any;
+      file?: any;
+      get: (name: string) => string | string[] | undefined;
+    }
+  }
+  
+  // Add Multer types
+  namespace Express {
+    namespace Multer {
+      interface File {
+        fieldname: string;
+        originalname: string;
+        encoding: string;
+        mimetype: string;
+        size: number;
+        destination: string;
+        filename: string;
+        path: string;
+        buffer: Buffer;
+      }
+    }
+  }
+}
+
+export {};
