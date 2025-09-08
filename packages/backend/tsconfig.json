@@ -17,7 +17,6 @@
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
@@ -28,7 +27,10 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist", "hardhat.config.*", "contracts/**/*", "artifacts/**/*", "cache/**/*", "test/**/*", "scripts/**/*"]
 }
