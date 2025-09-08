@@ -17,7 +17,6 @@
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
-    "forceConsistentCasingInFileNames": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "exactOptionalPropertyTypes": false,
