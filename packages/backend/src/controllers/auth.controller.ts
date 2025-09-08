@@ -25,7 +25,7 @@ interface AuthControllerRequest extends Request, ValidatedRequest {
   };
 }
 
-interface LoginUserRequest extends AuthRequest, ValidatedRequest {
+interface LoginUserRequest extends Request, AuthRequest, ValidatedRequest {
   body: LoginUserInput;
   validatedBody?: LoginUserInput;
 }
@@ -49,21 +49,21 @@ interface PasswordResetRequest extends AuthControllerRequest {
   };
 }
 
-interface RevokeAllSessionsRequest extends AuthRequest, ValidatedRequest {
+interface RevokeAllSessionsRequest extends Request, AuthRequest, ValidatedRequest {
   validatedBody: {
     currentPassword: string;
     reason?: string;
   };
 }
 
-interface ChangePasswordRequest extends AuthRequest, ValidatedRequest {
+interface ChangePasswordRequest extends Request, AuthRequest, ValidatedRequest {
   validatedBody: {
     currentPassword: string;
     newPassword: string;
   };
 }
 
-interface UpdateSecurityPreferencesRequest extends AuthRequest, ValidatedRequest {
+interface UpdateSecurityPreferencesRequest extends Request, AuthRequest, ValidatedRequest {
   validatedBody: {
     twoFactorEnabled?: boolean;
     emailNotifications?: boolean;

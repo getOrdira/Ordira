@@ -1,5 +1,5 @@
 // src/controllers/user.controller.ts
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -13,11 +13,11 @@ const authService = new AuthService();
 /**
  * Extended request interfaces for type safety
  */
-interface UserAuthRequest extends AuthRequest {
+interface UserAuthRequest extends Request, AuthRequest {
   userType?: 'user' | 'business';
 }
 
-interface UserRegisterRequest extends ValidatedRequest {
+interface UserRegisterRequest extends Request, ValidatedRequest {
   validatedBody: {
     email: string;
     password: string;
@@ -32,7 +32,7 @@ interface UserRegisterRequest extends ValidatedRequest {
   };
 }
 
-interface UserLoginRequest extends ValidatedRequest {
+interface UserLoginRequest extends Request, ValidatedRequest {
   validatedBody: {
     email: string;
     password: string;
@@ -40,14 +40,14 @@ interface UserLoginRequest extends ValidatedRequest {
   };
 }
 
-interface UserVerifyRequest extends ValidatedRequest {
+interface UserVerifyRequest extends Request, ValidatedRequest {
   validatedBody: {
     email: string;
     emailCode: string;
   };
 }
 
-interface UserUpdateRequest extends UserAuthRequest, ValidatedRequest {
+interface UserUpdateRequest extends Request, UserAuthRequest, ValidatedRequest {
   validatedBody: {
     firstName?: string;
     lastName?: string;
@@ -56,7 +56,7 @@ interface UserUpdateRequest extends UserAuthRequest, ValidatedRequest {
   };
 }
 
-interface UserVoteRequest extends UserAuthRequest, ValidatedRequest {
+interface UserVoteRequest extends Request, UserAuthRequest, ValidatedRequest {
   validatedBody: {
     proposalId: string;
     businessId: string;
@@ -65,7 +65,7 @@ interface UserVoteRequest extends UserAuthRequest, ValidatedRequest {
   };
 }
 
-interface UserListRequest extends ValidatedRequest {
+interface UserListRequest extends Request, ValidatedRequest {
   validatedQuery: {
     status?: 'active' | 'inactive' | 'suspended' | 'deleted';
     isEmailVerified?: boolean;

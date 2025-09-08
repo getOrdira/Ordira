@@ -1,5 +1,5 @@
 // src/controllers/apiKey.controller.ts
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -8,7 +8,7 @@ import { ApiKeyService } from '../services/business/apiKey.service';
 import { BillingService } from '../services/external/billing.service';
 
 // Enhanced request interfaces
-interface ApiKeyRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface ApiKeyRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   params: {
     keyId?: string;
   };

@@ -9,7 +9,7 @@ import { ManufacturerService } from '../services/business/manufacturer.service';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 
 // Enhanced request interfaces
-interface AnalyticsRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface AnalyticsRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
   query: {
     timeframe?: '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
     groupBy?: 'hour' | 'day' | 'week' | 'month';
@@ -24,7 +24,7 @@ interface AnalyticsRequest extends AuthRequest, TenantRequest, ValidatedRequest 
   };
 }
 
-interface ManufacturerAnalyticsRequest extends ManufacturerAuthRequest, ValidatedRequest {
+interface ManufacturerAnalyticsRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
   params: {
     brandId?: string;
   };
