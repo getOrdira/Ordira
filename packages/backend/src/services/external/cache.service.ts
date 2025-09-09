@@ -30,11 +30,17 @@ export class CacheService {
   };
 
   constructor() {
+    // Debug Redis URL
+    console.log('🔍 Redis URL check:', process.env.REDIS_URL ? 'Found' : 'Not found');
+    
     // Only initialize Redis if REDIS_URL is provided
     if (!process.env.REDIS_URL) {
       console.log('⚠️ No REDIS_URL provided, Redis caching disabled');
       return;
     }
+    
+    console.log('✅ REDIS_URL found, initializing Redis connection...');
+    console.log('🔗 Redis URL:', process.env.REDIS_URL?.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
 
     // Use REDIS_URL if available, otherwise fall back to individual variables
     const redisConfig = process.env.REDIS_URL ? {
@@ -45,7 +51,8 @@ export class CacheService {
       connectTimeout: 10000,
       commandTimeout: 5000,
       family: 4,
-      enableReadyCheck: true
+      enableReadyCheck: true,
+      retryDelayOnFailover: 100
     } : {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
@@ -371,7 +378,50 @@ export class CacheService {
 }
 
 // Singleton instance
-export const cacheService = new CacheService();
+// Lazy initialization to ensure environment variables are loaded
+let _cacheService: CacheService | null = null;
+
+export const cacheService = {
+  get instance() {
+    if (!_cacheService) {
+      _cacheService = new CacheService();
+    }
+    return _cacheService;
+  },
+  
+  async get<T>(key: string, options: CacheOptions = {}): Promise<T | null> {
+    return (this.instance as CacheService).get<T>(key, options);
+  },
+  
+  async set<T>(key: string, value: T, options: CacheOptions = {}): Promise<boolean> {
+    return (this.instance as CacheService).set<T>(key, value, options);
+  },
+  
+  async delete(key: string, prefix?: string): Promise<boolean> {
+    return this.instance.delete(key, prefix);
+  },
+  
+  async healthCheck(): Promise<{ healthy: boolean; latency: number; error?: string }> {
+    return this.instance.healthCheck();
+  },
+  
+  async getStats(): Promise<CacheStats> {
+    return this.instance.getStats();
+  },
+  
+  async disconnect(): Promise<void> {
+    return this.instance.disconnect();
+  }
+} as {
+  instance: CacheService;
+  get<T>(key: string, options?: CacheOptions): Promise<T | null>;
+  set<T>(key: string, value: T, options?: CacheOptions): Promise<boolean>;
+  delete(key: string, prefix?: string): Promise<boolean>;
+  clear(pattern?: string, prefix?: string): Promise<number>;
+  healthCheck(): Promise<{ healthy: boolean; latency: number; error?: string }>;
+  getStats(): Promise<CacheStats>;
+  disconnect(): Promise<void>;
+};
 
 // Cache decorators for automatic caching
 export function Cacheable(options: CacheOptions = {}) {
