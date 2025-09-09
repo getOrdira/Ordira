@@ -106,8 +106,8 @@ interface ErrorWithStatus extends Error {
     
     // 🚀 Optimized MongoDB connection with performance enhancements
     await mongoose.connect(process.env.MONGODB_URI!, {
-      maxPoolSize: 20, // Increased pool size
-      minPoolSize: 5,  // Minimum connections
+      maxPoolSize: 10, // Reduced pool size for lower memory usage
+      minPoolSize: 2,  // Reduced minimum connections
       maxIdleTimeMS: 30000, // Close idle connections after 30s
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
@@ -145,7 +145,10 @@ interface ErrorWithStatus extends Error {
     // 🚀 Performance optimizations
     app.use(performanceMiddleware);
     app.use(responseTimeMiddleware);
-    app.use(memoryMonitoringMiddleware);
+    // Only enable memory monitoring in development
+    if (process.env.NODE_ENV === 'development') {
+      app.use(memoryMonitoringMiddleware);
+    }
     app.use(requestSizeMiddleware(10 * 1024 * 1024)); // 10MB limit
     app.use(queryOptimizationMiddleware);
 

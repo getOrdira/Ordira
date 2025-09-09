@@ -27,7 +27,9 @@ export function performanceMiddleware(
   req.requestId = requestId;
   
   // Add request ID to response headers
-  res.set('X-Request-ID', requestId);
+  if (!res.headersSent) {
+    res.set('X-Request-ID', requestId);
+  }
   
   // Track when response finishes
   res.on('finish', () => {
@@ -54,8 +56,10 @@ export function cacheMiddleware(ttl: number = 300, keyGenerator?: (req: Request)
       const cached = await cacheService.get(cacheKey, { ttl });
       
       if (cached !== null) {
-        res.set('X-Cache', 'HIT');
-        res.set('X-Cache-Key', cacheKey);
+        if (!res.headersSent) {
+          res.set('X-Cache', 'HIT');
+          res.set('X-Cache-Key', cacheKey);
+        }
         res.json(cached);
         return;
       }
@@ -75,8 +79,10 @@ export function cacheMiddleware(ttl: number = 300, keyGenerator?: (req: Request)
         if (res.statusCode === 200 && responseData) {
           // Cache successful responses
           await cacheService.set(cacheKey, responseData, { ttl });
-          res.set('X-Cache', 'MISS');
-          res.set('X-Cache-Key', cacheKey);
+          if (!res.headersSent) {
+            res.set('X-Cache', 'MISS');
+            res.set('X-Cache-Key', cacheKey);
+          }
         }
       });
       
@@ -96,7 +102,7 @@ export function compressionMiddleware(req: Request, res: Response, next: NextFun
   const originalSend = res.send;
   
   res.send = function(data: any) {
-    if (data && Buffer.byteLength(JSON.stringify(data), 'utf8') > 1024) {
+    if (data && Buffer.byteLength(JSON.stringify(data), 'utf8') > 1024 && !res.headersSent) {
       // Only compress responses larger than 1KB
       res.set('Content-Encoding', 'gzip');
     }
@@ -144,11 +150,15 @@ export function responseTimeMiddleware(req: Request, res: Response, next: NextFu
   
   res.on('finish', () => {
     const duration = Date.now() - start;
-    res.set('X-Response-Time', `${duration}ms`);
     
-    // Add performance warnings for slow responses
-    if (duration > 1000) {
-      res.set('X-Performance-Warning', 'Slow response detected');
+    // Only set headers if they haven't been sent yet
+    if (!res.headersSent) {
+      res.set('X-Response-Time', `${duration}ms`);
+      
+      // Add performance warnings for slow responses
+      if (duration > 1000) {
+        res.set('X-Performance-Warning', 'Slow response detected');
+      }
     }
   });
   
@@ -160,7 +170,7 @@ export function responseTimeMiddleware(req: Request, res: Response, next: NextFu
  */
 export function queryOptimizationMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Add query hints for common patterns
-  if (req.query.limit && parseInt(req.query.limit as string) > 100) {
+  if (req.query.limit && parseInt(req.query.limit as string) > 100 && !res.headersSent) {
     res.set('X-Query-Warning', 'Large result set requested');
   }
   
@@ -186,6 +196,10 @@ export function queryOptimizationMiddleware(req: Request, res: Response, next: N
   next();
 }
 
+// Memory monitoring throttling
+let lastMemoryWarning = 0;
+const MEMORY_WARNING_THROTTLE = 30000; // 30 seconds
+
 /**
  * Memory usage monitoring middleware
  */
@@ -193,12 +207,22 @@ export function memoryMonitoringMiddleware(req: Request, res: Response, next: Ne
   const memUsage = process.memoryUsage();
   const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
   const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+  const percentage = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
   
-  res.set('X-Memory-Usage', `${heapUsedMB}MB / ${heapTotalMB}MB`);
+  // Only set headers if they haven't been sent yet
+  if (!res.headersSent) {
+    res.set('X-Memory-Usage', `${heapUsedMB}MB / ${heapTotalMB}MB`);
+  }
   
-  // Add memory warning if usage is high
-  if (memUsage.heapUsed / memUsage.heapTotal > 0.8) {
-    res.set('X-Memory-Warning', 'High memory usage detected');
+  // Add memory warning if usage is very high (95%+) and throttle warnings
+  const now = Date.now();
+  if (percentage >= 95 && now - lastMemoryWarning > MEMORY_WARNING_THROTTLE) {
+    lastMemoryWarning = now;
+    console.warn(`⚠️ High memory usage detected: { heapUsed: ${heapUsedMB}, heapTotal: ${heapTotalMB}, percentage: ${percentage} }`);
+    
+    if (!res.headersSent) {
+      res.set('X-Memory-Warning', 'High memory usage detected');
+    }
   }
   
   next();

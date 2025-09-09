@@ -29,6 +29,7 @@ export interface QueryOptimization {
 export class DatabaseService {
   private connection: typeof mongoose;
   private queryCache = new Map<string, { result: any; timestamp: number; ttl: number }>();
+  private maxCacheSize = 100; // Limit cache size
 
   constructor() {
     this.connection = mongoose;
@@ -304,6 +305,16 @@ export class DatabaseService {
     }
 
     const result = await queryFn();
+    
+    // Manage cache size to prevent memory leaks
+    if (this.queryCache.size >= this.maxCacheSize) {
+      // Remove oldest entries (simple LRU)
+      const entries = Array.from(this.queryCache.entries());
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toRemove = entries.slice(0, Math.floor(this.maxCacheSize / 2));
+      toRemove.forEach(([key]) => this.queryCache.delete(key));
+    }
+    
     this.queryCache.set(key, {
       result,
       timestamp: Date.now(),

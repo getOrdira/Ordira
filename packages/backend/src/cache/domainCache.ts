@@ -8,7 +8,7 @@ let allowedDomains = new Set<string>();
  * Call this at startup (and periodically) to reload
  * all brand & manufacturer custom domains into memory.
  */
-export async function startDomainCachePolling(intervalMs = 5 * 60_000) {
+export async function startDomainCachePolling(intervalMs = 10 * 60_000) { // Increased to 10 minutes
   // initial load
   await reloadCache();
 
