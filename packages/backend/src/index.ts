@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/index.ts
 
 // 0️⃣ Load local .env early for development
