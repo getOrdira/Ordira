@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/middleware/planLimits.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.middleware';

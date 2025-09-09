@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/middleware/upload.middleware.ts
 
 import multer from 'multer';

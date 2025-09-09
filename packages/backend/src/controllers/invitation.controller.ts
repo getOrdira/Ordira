@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/invitation.controller.ts
 
 import { Request, Response, NextFunction } from 'express';

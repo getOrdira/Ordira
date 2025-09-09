@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/middleware/error.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';

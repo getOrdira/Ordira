@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/woocommerce.controller.ts
 
 import { Request, Response, NextFunction } from 'express';

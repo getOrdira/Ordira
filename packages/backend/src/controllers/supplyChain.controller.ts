@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/supplyChain.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';

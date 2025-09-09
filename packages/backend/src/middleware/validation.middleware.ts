@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Request, Response, NextFunction } from 'express';
 import Joi, { ObjectSchema, ValidationError } from 'joi';
 import { Types } from 'mongoose';

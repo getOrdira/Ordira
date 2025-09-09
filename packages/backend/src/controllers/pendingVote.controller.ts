@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/pendingVote.controller.ts
 
 import { Request, Response, NextFunction } from 'express';

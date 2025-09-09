@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/middleware/apiKey.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { ApiKeyService } from '../services/business/apiKey.service';

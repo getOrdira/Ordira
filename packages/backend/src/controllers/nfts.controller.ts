@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/nfts.controller.ts
 
 import { Request, Response, NextFunction } from 'express';

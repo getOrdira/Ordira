@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/manufacturer.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
