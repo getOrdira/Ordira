@@ -247,6 +247,11 @@ interface ErrorWithStatus extends Error {
       res.status(200).end();
     });
 
+    // Handle favicon.ico requests
+    app.get('/favicon.ico', (req, res) => {
+      res.status(204).end();
+    });
+
     // Health check endpoint with detailed status
     app.get('/health', async (req, res) => {
       try {

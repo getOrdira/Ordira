@@ -74,17 +74,19 @@ export class PerformanceService {
   }
 
   private setupMonitoring(): void {
-    // Monitor memory usage
-    setInterval(() => {
-      const memUsage = process.memoryUsage();
-      if (memUsage.heapUsed / memUsage.heapTotal > 0.9) {
-        console.warn('⚠️ High memory usage detected:', {
-          heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-          heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-          percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100)
-        });
-      }
-    }, 30000); // Check every 30 seconds
+    // Only monitor memory usage in development
+    if (process.env.NODE_ENV === 'development') {
+      setInterval(() => {
+        const memUsage = process.memoryUsage();
+        if (memUsage.heapUsed / memUsage.heapTotal > 0.9) {
+          console.warn('⚠️ High memory usage detected:', {
+            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+            percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100)
+          });
+        }
+      }, 30000); // Check every 30 seconds
+    }
 
     // Cleanup old metrics
     setInterval(() => {
