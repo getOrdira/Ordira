@@ -115,11 +115,13 @@ export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 1
     const contentLength = parseInt(Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || '0', 10);
     
     if (contentLength > maxSize) {
-      res.status(413).json({
-        error: 'Request entity too large',
-        maxSize: `${Math.round(maxSize / 1024 / 1024)}MB`,
-        actualSize: `${Math.round(contentLength / 1024 / 1024)}MB`
-      });
+      if (!res.headersSent) {
+        res.status(413).json({
+          error: 'Request entity too large',
+          maxSize: `${Math.round(maxSize / 1024 / 1024)}MB`,
+          actualSize: `${Math.round(contentLength / 1024 / 1024)}MB`
+        });
+      }
       return;
     }
     

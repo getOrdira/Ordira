@@ -30,6 +30,12 @@ export class CacheService {
   };
 
   constructor() {
+    // Only initialize Redis if REDIS_URL is provided
+    if (!process.env.REDIS_URL) {
+      console.log('⚠️ No REDIS_URL provided, Redis caching disabled');
+      return;
+    }
+
     // Use REDIS_URL if available, otherwise fall back to individual variables
     const redisConfig = process.env.REDIS_URL ? {
       url: process.env.REDIS_URL,
@@ -77,6 +83,8 @@ export class CacheService {
    * Get cached value with automatic deserialization
    */
   async get<T>(key: string, options: CacheOptions = {}): Promise<T | null> {
+    if (!this.redis) return null;
+    
     try {
       this.stats.operations++;
       const fullKey = this.buildKey(key, options.prefix);
@@ -106,6 +114,8 @@ export class CacheService {
    * Set cached value with automatic serialization
    */
   async set<T>(key: string, value: T, options: CacheOptions = {}): Promise<boolean> {
+    if (!this.redis) return false;
+    
     try {
       this.stats.operations++;
       const fullKey = this.buildKey(key, options.prefix);
@@ -322,6 +332,14 @@ export class CacheService {
    * Health check
    */
   async healthCheck(): Promise<{ healthy: boolean; latency: number; error?: string }> {
+    if (!this.redis) {
+      return { 
+        healthy: false, 
+        latency: 0, 
+        error: 'Redis not initialized - no REDIS_URL provided' 
+      };
+    }
+    
     const start = Date.now();
     try {
       await this.redis.ping();
