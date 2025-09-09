@@ -534,7 +534,8 @@ export function validateUploadOrigin(req: Request, res: Response, next: NextFunc
 
   const origin = req.get('Origin') || req.get('Referer');
   
-  if (!origin || !ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed))) {
+  const originStr = Array.isArray(origin) ? origin[0] : origin;
+  if (!originStr || !ALLOWED_ORIGINS.some(allowed => originStr.startsWith(allowed))) {
     return res.status(403).json({ 
       error: 'Upload not allowed from this origin',
       code: 'INVALID_ORIGIN'
@@ -550,7 +551,8 @@ export function validateUploadOrigin(req: Request, res: Response, next: NextFunc
 export function uploadRateLimit(req: Request, res: Response, next: NextFunction): void | Response {
   // This integrates with your main rate limiter
   // Check for upload-specific rate limits (e.g., MB per hour)
-  const uploadSize = parseInt(req.get('Content-Length') || '0');
+  const contentLengthHeader = req.get('Content-Length');
+  const uploadSize = parseInt(Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || '0');
   
   if (uploadSize > MAX_FILE_SIZE * MAX_FILES_PER_REQUEST) {
     return res.status(413).json({

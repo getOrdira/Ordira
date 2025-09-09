@@ -94,7 +94,8 @@ export function metricsMiddleware(
   activeConnections.inc();
   
   // Get request size
-  const requestSize = parseInt(req.get('content-length') || '0', 10);
+  const contentLength = req.get('content-length');
+  const requestSize = parseInt(Array.isArray(contentLength) ? contentLength[0] : contentLength || '0', 10);
   
   // Determine user type for labeling
   const getUserType = (): string => {

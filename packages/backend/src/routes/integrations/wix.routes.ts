@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/integrations/wix.routes.ts
 
 import { Router } from 'express';

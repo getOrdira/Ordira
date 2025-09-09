@@ -181,7 +181,8 @@ function generateRateLimitKey(req: Request): string {
   // Fall back to IP address for unauthenticated requests
   const forwardedFor = req.get('X-Forwarded-For');
   const realIp = req.get('X-Real-IP');
-  const ip = forwardedFor?.split(',')[0] || realIp || req.ip;
+  const forwardedForStr = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+  const ip = forwardedForStr?.split(',')[0] || realIp || req.ip;
   
   return `ip:${ip}`;
 }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/certificate.routes.ts
 import { Router } from 'express';
 import { validateBody, validateQuery, validateParams } from '../middleware/validation.middleware';

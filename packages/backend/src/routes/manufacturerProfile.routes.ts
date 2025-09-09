@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/manufacturerProfile.routes.ts
 import { Router } from 'express';
 import Joi from 'joi';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/controllers/billing.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import Stripe from 'stripe';

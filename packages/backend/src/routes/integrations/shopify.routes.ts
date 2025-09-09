@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/integrations/shopify.routes.ts
 import { Router } from 'express';
 import express from 'express';

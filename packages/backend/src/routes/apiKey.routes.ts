@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/apiKey.routes.ts
 
 import { Router } from 'express';

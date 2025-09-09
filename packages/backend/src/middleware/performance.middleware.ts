@@ -110,7 +110,8 @@ export function compressionMiddleware(req: Request, res: Response, next: NextFun
  */
 export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 10MB default
   return (req: Request, res: Response, next: NextFunction): void => {
-    const contentLength = parseInt(req.get('content-length') || '0', 10);
+    const contentLengthHeader = req.get('content-length');
+    const contentLength = parseInt(Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || '0', 10);
     
     if (contentLength > maxSize) {
       res.status(413).json({

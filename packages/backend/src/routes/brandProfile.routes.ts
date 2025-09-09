@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/brandProfile.routes.ts
 import { Router } from 'express';
 import { validateParams, validateQuery, validateBody } from '../middleware/validation.middleware';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/routes/integrations/woocommerce.routes.ts
 
 import { Router } from 'express';

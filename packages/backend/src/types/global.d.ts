@@ -17,6 +17,10 @@ declare global {
       file?: any;
       get: (name: string) => string | string[] | undefined;
       code?: any;
+      validatedBody?: any;
+      validatedQuery?: any;
+      validatedParams?: any;
+      validationErrors?: string[];
     }
     
     namespace Multer {
@@ -51,6 +55,33 @@ declare module 'express-serve-static-core' {
     file?: any;
     get: (name: string) => string | string[] | undefined;
     code?: any;
+    validatedBody?: any;
+    validatedQuery?: any;
+    validatedParams?: any;
+    validationErrors?: string[];
+  }
+}
+
+// Make all custom interfaces extend Express Request
+declare module 'express' {
+  interface Request {
+    params: any;
+    body: any;
+    query: any;
+    headers: any;
+    ip: string;
+    hostname: string;
+    path: string;
+    url: string;
+    method: string;
+    files?: any;
+    file?: any;
+    get: (name: string) => string | string[] | undefined;
+    code?: any;
+    validatedBody?: any;
+    validatedQuery?: any;
+    validatedParams?: any;
+    validationErrors?: string[];
   }
 }
 
