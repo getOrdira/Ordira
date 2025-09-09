@@ -33,6 +33,7 @@
     "noPropertyAccessFromIndexSignature": false,
     "exactOptionalPropertyTypes": false,
     "useUnknownInCatchVariables": false,
+    
     "noImplicitThis": false,
     "alwaysStrict": false,
     
