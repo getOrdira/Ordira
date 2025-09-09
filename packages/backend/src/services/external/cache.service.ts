@@ -42,30 +42,55 @@ export class CacheService {
     console.log('✅ REDIS_URL found, initializing Redis connection...');
     console.log('🔗 Redis URL:', process.env.REDIS_URL?.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
 
-    // Use REDIS_URL if available, otherwise fall back to individual variables
-    const redisConfig = process.env.REDIS_URL ? {
-      url: process.env.REDIS_URL,
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      keepAlive: 30000,
-      connectTimeout: 10000,
-      commandTimeout: 5000,
-      family: 4,
-      enableReadyCheck: true,
-      retryDelayOnFailover: 100
-    } : {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
-      db: parseInt(process.env.REDIS_DB || '0'),
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      keepAlive: 30000,
-      connectTimeout: 10000,
-      commandTimeout: 5000,
-      family: 4,
-      enableReadyCheck: true
-    };
+    // Parse REDIS_URL properly
+    let redisConfig;
+    if (process.env.REDIS_URL) {
+      try {
+        const url = new URL(process.env.REDIS_URL);
+        redisConfig = {
+          host: url.hostname,
+          port: parseInt(url.port) || 6379,
+          password: url.password || undefined,
+          db: url.pathname ? parseInt(url.pathname.slice(1)) || 0 : 0,
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+          keepAlive: 30000,
+          connectTimeout: 10000,
+          commandTimeout: 5000,
+          family: 4,
+          enableReadyCheck: true,
+          retryDelayOnFailover: 100
+        };
+        console.log('🔗 Parsed Redis config:', { host: redisConfig.host, port: redisConfig.port, db: redisConfig.db });
+      } catch (error) {
+        console.error('❌ Failed to parse REDIS_URL:', error);
+        redisConfig = {
+          host: 'localhost',
+          port: 6379,
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+          keepAlive: 30000,
+          connectTimeout: 10000,
+          commandTimeout: 5000,
+          family: 4,
+          enableReadyCheck: true
+        };
+      }
+    } else {
+      redisConfig = {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD,
+        db: parseInt(process.env.REDIS_DB || '0'),
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+        keepAlive: 30000,
+        connectTimeout: 10000,
+        commandTimeout: 5000,
+        family: 4,
+        enableReadyCheck: true
+      };
+    }
 
     this.redis = new Redis(redisConfig);
 
@@ -79,10 +104,19 @@ export class CacheService {
 
     this.redis.on('error', (error) => {
       console.error('❌ Redis error:', error);
+      // Don't crash the app on Redis errors
     });
 
     this.redis.on('ready', () => {
       console.log('🚀 Redis ready for operations');
+    });
+
+    this.redis.on('close', () => {
+      console.log('⚠️ Redis connection closed');
+    });
+
+    this.redis.on('reconnecting', () => {
+      console.log('🔄 Redis reconnecting...');
     });
   }
 
@@ -151,6 +185,8 @@ export class CacheService {
    * Delete cached value
    */
   async delete(key: string, prefix?: string): Promise<boolean> {
+    if (!this.redis) return false;
+    
     try {
       this.stats.operations++;
       const fullKey = this.buildKey(key, prefix);
@@ -166,6 +202,8 @@ export class CacheService {
    * Check if key exists
    */
   async exists(key: string, prefix?: string): Promise<boolean> {
+    if (!this.redis) return false;
+    
     try {
       const fullKey = this.buildKey(key, prefix);
       const result = await this.redis.exists(fullKey);
@@ -180,6 +218,8 @@ export class CacheService {
    * Get multiple values at once
    */
   async mget<T>(keys: string[], prefix?: string): Promise<(T | null)[]> {
+    if (!this.redis) return keys.map(() => null);
+    
     try {
       this.stats.operations++;
       const fullKeys = keys.map(key => this.buildKey(key, prefix));
@@ -207,6 +247,8 @@ export class CacheService {
    * Set multiple values at once
    */
   async mset<T>(keyValuePairs: Array<{ key: string; value: T; ttl?: number }>, prefix?: string): Promise<boolean> {
+    if (!this.redis) return false;
+    
     try {
       this.stats.operations++;
       const pipeline = this.redis.pipeline();
@@ -234,6 +276,8 @@ export class CacheService {
    * Increment a numeric value
    */
   async increment(key: string, amount: number = 1, options: CacheOptions = {}): Promise<number> {
+    if (!this.redis) return 0;
+    
     try {
       this.stats.operations++;
       const fullKey = this.buildKey(key, options.prefix);
@@ -254,6 +298,8 @@ export class CacheService {
    * Set expiration for existing key
    */
   async expire(key: string, ttl: number, prefix?: string): Promise<boolean> {
+    if (!this.redis) return false;
+    
     try {
       const fullKey = this.buildKey(key, prefix);
       const result = await this.redis.expire(fullKey, ttl);
@@ -268,6 +314,8 @@ export class CacheService {
    * Get all keys matching pattern
    */
   async keys(pattern: string, prefix?: string): Promise<string[]> {
+    if (!this.redis) return [];
+    
     try {
       const fullPattern = this.buildKey(pattern, prefix);
       return await this.redis.keys(fullPattern);
@@ -281,6 +329,8 @@ export class CacheService {
    * Clear all cache or pattern
    */
   async clear(pattern?: string, prefix?: string): Promise<number> {
+    if (!this.redis) return 0;
+    
     try {
       if (pattern) {
         const fullPattern = this.buildKey(pattern, prefix);
@@ -303,6 +353,17 @@ export class CacheService {
    * Get cache statistics
    */
   async getStats(): Promise<CacheStats> {
+    if (!this.redis) {
+      return {
+        hits: this.stats.hits,
+        misses: this.stats.misses,
+        hitRate: 0,
+        totalOperations: this.stats.operations,
+        memoryUsage: 'Redis not available',
+        connectedClients: 0
+      };
+    }
+    
     try {
       const info = await this.redis.info('memory');
       const clients = await this.redis.info('clients');
@@ -365,6 +426,8 @@ export class CacheService {
    * Close Redis connection
    */
   async disconnect(): Promise<void> {
+    if (!this.redis) return;
+    
     try {
       await this.redis.quit();
     } catch (error) {

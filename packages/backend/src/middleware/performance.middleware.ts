@@ -111,11 +111,17 @@ export function compressionMiddleware(req: Request, res: Response, next: NextFun
  */
 export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 10MB default
   return (req: Request, res: Response, next: NextFunction): void => {
+    // Skip if already processed or response sent
+    if ((req as any).__sizeChecked || res.headersSent) {
+      return next();
+    }
+    
     const contentLengthHeader = req.get('content-length');
     const contentLength = parseInt(Array.isArray(contentLengthHeader) ? contentLengthHeader[0] : contentLengthHeader || '0', 10);
     
     if (contentLength > maxSize) {
       if (!res.headersSent) {
+        (req as any).__sizeChecked = true;
         res.status(413).json({
           error: 'Request entity too large',
           maxSize: `${Math.round(maxSize / 1024 / 1024)}MB`,
@@ -125,6 +131,7 @@ export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 1
       return;
     }
     
+    (req as any).__sizeChecked = true;
     next();
   };
 }
