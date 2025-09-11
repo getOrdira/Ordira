@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import axios from 'axios';
 import { ApiError } from '@/lib/errors';
 import apiClient from '@/lib/api/client';
@@ -94,6 +95,7 @@ interface ManufacturerUser extends BaseUser {
 type User = BrandLikeUser | ManufacturerUser;
 
 interface UserProfile extends BaseUser {
+  role: UserOccupation; // Add missing role property
   preferences: {
     emailNotifications: boolean;
     smsNotifications: boolean;
@@ -174,6 +176,8 @@ interface UserInteraction {
     device?: 'desktop' | 'mobile' | 'tablet';
     location?: string;
     engagement?: number;
+    selectedProductId?: string;
+    platform?: string;
   };
   timestamp: string;
 }
@@ -339,34 +343,34 @@ const api = apiClient;
 const usersApi = {
   // Profile management
   getUserProfile: async (): Promise<UserProfile> => {
-    const response = await api.get('/users/profile');
-    return response.data.data;
+    const response = await api.get<UserProfile>('/users/profile');
+    return response;
   },
 
   updateUserProfile: async (data: UpdateUserProfileRequest): Promise<UserProfile> => {
-    const response = await api.put('/users/profile', data);
-    return response.data.data;
+    const response = await api.put<UserProfile>('/users/profile', data);
+    return response;
   },
 
   deleteUserAccount: async (reason?: string): Promise<{ success: boolean; message: string }> => {
-    const response = await api.delete('/users/profile', { data: { reason } });
-    return response.data;
+    const response = await api.delete<{ success: boolean; message: string }>('/users/profile', { data: { reason } });
+    return response;
   },
 
   // User management (Admin/Brand access)
   getUsers: async (params?: UserListQuery): Promise<UserListResponse> => {
-    const response = await api.get('/users', { params });
-    return response.data.data;
+    const response = await api.get<UserListResponse>('/users', { params });
+    return response;
   },
 
   getUserById: async (userId: string): Promise<User> => {
-    const response = await api.get(`/users/${userId}`);
-    return response.data.data;
+    const response = await api.get<User>(`/users/${userId}`);
+    return response;
   },
 
   updateUserStatus: async (userId: string, status: UserStatus, reason?: string): Promise<{ success: boolean; user: User }> => {
     const response = await api.put(`/users/${userId}/status`, { status, reason });
-    return response.data;
+    return response as { success: boolean; user: User };
   },
 
   // Voting functionality
@@ -377,7 +381,12 @@ const usersApi = {
     verificationHash?: string;
   }> => {
     const response = await api.post('/users/vote', data);
-    return response.data;
+    return response as {
+      success: boolean;
+      voteId: string;
+      vote: Vote;
+      verificationHash?: string;
+    };
   },
 
   checkVoteStatus: async (proposalId: string): Promise<{
@@ -387,7 +396,12 @@ const usersApi = {
     reason?: string;
   }> => {
     const response = await api.get(`/users/vote/status/${proposalId}`);
-    return response.data.data;
+    return response as {
+      hasVoted: boolean;
+      vote?: Vote;
+      canVote: boolean;
+      reason?: string;
+    };
   },
 
   getVotingHistory: async (params?: {
@@ -410,7 +424,16 @@ const usersApi = {
     };
   }> => {
     const response = await api.get('/users/voting-history', { params });
-    return response.data.data;
+    return response as {
+      votes: Vote[];
+      pagination: any;
+      analytics: {
+        totalVotes: number;
+        uniqueProposals: number;
+        averageResponseTime: number;
+        participationRate: number;
+      };
+    };
   },
 
   // Interaction tracking
@@ -420,7 +443,11 @@ const usersApi = {
     points?: number;
   }> => {
     const response = await api.post('/users/interaction', data);
-    return response.data;
+    return response as {
+      success: boolean;
+      interactionId: string;
+      points?: number;
+    };
   },
 
   getInteractionHistory: async (params?: {
@@ -435,7 +462,10 @@ const usersApi = {
     pagination: any;
   }> => {
     const response = await api.get('/users/interactions', { params });
-    return response.data.data;
+    return response as {
+      interactions: UserInteraction[];
+      pagination: any;
+    };
   },
 
   // Analytics and insights
@@ -444,7 +474,7 @@ const usersApi = {
     includeComparison?: boolean;
   }): Promise<UserAnalytics> => {
     const response = await api.get('/users/analytics', { params });
-    return response.data.data;
+    return response as UserAnalytics;
   },
 
   getUserInsights: async (): Promise<{
@@ -473,7 +503,31 @@ const usersApi = {
     };
   }> => {
     const response = await api.get('/users/insights');
-    return response.data.data;
+    return response as {
+      personalizedRecommendations: Array<{
+        type: 'product' | 'brand' | 'feature';
+        title: string;
+        description: string;
+        confidence: number;
+        actionUrl?: string;
+      }>;
+      engagementTips: Array<{
+        tip: string;
+        impact: 'low' | 'medium' | 'high';
+        difficulty: 'easy' | 'medium' | 'hard';
+      }>;
+      progressMetrics: {
+        votingStreak: number;
+        engagementGrowth: number;
+        achievementsUnlocked: number;
+        nextMilestone?: {
+          title: string;
+          description: string;
+          progress: number;
+          target: number;
+        };
+      };
+    };
   },
 
   // Notifications
@@ -489,28 +543,32 @@ const usersApi = {
     unreadCount: number;
   }> => {
     const response = await api.get('/users/notifications', { params });
-    return response.data.data;
+    return response as {
+      notifications: UserNotification[];
+      pagination: any;
+      unreadCount: number;
+    };
   },
 
   markNotificationRead: async (notificationId: string): Promise<{ success: boolean }> => {
     const response = await api.put(`/users/notifications/${notificationId}/read`);
-    return response.data;
+    return response as { success: boolean };
   },
 
   markAllNotificationsRead: async (): Promise<{ success: boolean; updatedCount: number }> => {
     const response = await api.put('/users/notifications/read-all');
-    return response.data;
+    return response as { success: boolean; updatedCount: number };
   },
 
   deleteNotification: async (notificationId: string): Promise<{ success: boolean }> => {
     const response = await api.delete(`/users/notifications/${notificationId}`);
-    return response.data;
+    return response as { success: boolean };
   },
 
   // Settings and preferences
   getUserSettings: async (): Promise<UserProfile['settings'] & UserProfile['preferences']> => {
     const response = await api.get('/users/settings');
-    return response.data.data;
+    return response as UserProfile['settings'] & UserProfile['preferences'];
   },
 
   updateUserSettings: async (settings: Partial<UserProfile['settings'] & UserProfile['preferences']>): Promise<{
@@ -518,7 +576,10 @@ const usersApi = {
     settings: UserProfile['settings'] & UserProfile['preferences'];
   }> => {
     const response = await api.put('/users/settings', settings);
-    return response.data;
+    return response as {
+      success: boolean;
+      settings: UserProfile['settings'] & UserProfile['preferences'];
+    };
   },
 
   updateNotificationSettings: async (preferences: Partial<UserProfile['preferences']>): Promise<{
@@ -526,7 +587,10 @@ const usersApi = {
     preferences: UserProfile['preferences'];
   }> => {
     const response = await api.put('/users/settings/notifications', preferences);
-    return response.data;
+    return response as {
+      success: boolean;
+      preferences: UserProfile['preferences'];
+    };
   },
 
   updatePrivacySettings: async (settings: {
@@ -537,7 +601,7 @@ const usersApi = {
     thirdPartySharing?: boolean;
   }): Promise<{ success: boolean; settings: any }> => {
     const response = await api.put('/users/settings/privacy', settings);
-    return response.data;
+    return response as { success: boolean; settings: any };
   },
 
   updateSecuritySettings: async (settings: {
@@ -547,7 +611,7 @@ const usersApi = {
     allowedIPs?: string[];
   }): Promise<{ success: boolean; settings: any }> => {
     const response = await api.put('/users/settings/security', settings);
-    return response.data;
+    return response as { success: boolean; settings: any };
   },
 
   // Security
@@ -557,7 +621,7 @@ const usersApi = {
     confirmPassword: string;
   }): Promise<{ success: boolean; message: string }> => {
     const response = await api.post('/users/settings/password', data);
-    return response.data;
+    return response as { success: boolean; message: string };
   },
 
   setupTwoFactor: async (): Promise<{
@@ -566,7 +630,11 @@ const usersApi = {
     backupCodes: string[];
   }> => {
     const response = await api.post('/users/settings/two-factor/setup');
-    return response.data;
+    return response as {
+      secret: string;
+      qrCode: string;
+      backupCodes: string[];
+    };
   },
 
   verifyTwoFactorSetup: async (code: string): Promise<{
@@ -574,22 +642,25 @@ const usersApi = {
     backupCodes: string[];
   }> => {
     const response = await api.post('/users/settings/two-factor/verify', { code });
-    return response.data;
+    return response as {
+      success: boolean;
+      backupCodes: string[];
+    };
   },
 
   disableTwoFactor: async (password: string, code: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.post('/users/settings/two-factor/disable', { password, code });
-    return response.data;
+    return response as { success: boolean; message: string };
   },
 
   getBackupCodes: async (): Promise<{ backupCodes: string[] }> => {
     const response = await api.get('/users/settings/two-factor/backup-codes');
-    return response.data;
+    return response as { backupCodes: string[] };
   },
 
   regenerateBackupCodes: async (): Promise<{ backupCodes: string[] }> => {
     const response = await api.post('/users/settings/two-factor/backup-codes/regenerate');
-    return response.data;
+    return response as { backupCodes: string[] };
   },
 
   // Activity and audit
@@ -604,7 +675,10 @@ const usersApi = {
     pagination: any;
   }> => {
     const response = await api.get('/users/activity', { params });
-    return response.data.data;
+    return response as {
+      activities: UserProfile['activityLog'];
+      pagination: any;
+    };
   },
 
   getLoginHistory: async (params?: { page?: number; limit?: number }): Promise<{
@@ -620,7 +694,18 @@ const usersApi = {
     pagination: any;
   }> => {
     const response = await api.get('/users/login-history', { params });
-    return response.data.data;
+    return response as {
+      logins: Array<{
+        id: string;
+        timestamp: string;
+        ipAddress: string;
+        userAgent: string;
+        location?: string;
+        success: boolean;
+        method: 'password' | 'two_factor' | 'backup_code';
+      }>;
+      pagination: any;
+    };
   },
 
   // Achievements and gamification
@@ -643,13 +728,30 @@ const usersApi = {
     };
   }> => {
     const response = await api.get('/users/achievements');
-    return response.data.data;
+    return response as {
+      achievements: UserProfile['achievements'];
+      available: Array<{
+        id: string;
+        title: string;
+        description: string;
+        iconUrl: string;
+        category: string;
+        progress: number;
+        target: number;
+        reward?: string;
+      }>;
+      stats: {
+        totalEarned: number;
+        totalAvailable: number;
+        categories: Record<string, number>;
+      };
+    };
   },
 
   // Data export and privacy
   exportUserData: async (): Promise<Blob> => {
     const response = await api.get('/users/export', { responseType: 'blob' });
-    return response.data;
+    return response as Blob;
   },
 
   requestDataDeletion: async (reason: string, confirmPassword: string): Promise<{
@@ -658,12 +760,16 @@ const usersApi = {
     scheduledDate: string;
   }> => {
     const response = await api.post('/users/request-deletion', { reason, confirmPassword });
-    return response.data;
+    return response as {
+      success: boolean;
+      deletionId: string;
+      scheduledDate: string;
+    };
   },
 
   cancelDataDeletion: async (deletionId: string, password: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.post('/users/cancel-deletion', { deletionId, password });
-    return response.data;
+    return response as { success: boolean; message: string };
   },
 };
 
@@ -734,7 +840,7 @@ export function useUsers(params?: UserListQuery, options?: { enabled?: boolean }
     queryFn: () => usersApi.getUsers(params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -824,7 +930,7 @@ export function useVotingHistory(
     queryFn: () => usersApi.getVotingHistory(params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -866,7 +972,7 @@ export function useInteractionHistory(
     queryFn: () => usersApi.getInteractionHistory(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -918,7 +1024,7 @@ export function useUserNotifications(
     queryFn: () => usersApi.getNotifications(params),
     enabled: options?.enabled ?? true,
     staleTime: 30 * 1000, // 30 seconds
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1168,7 +1274,7 @@ export function useActivityLog(
     queryFn: () => usersApi.getActivityLog(params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1184,7 +1290,7 @@ export function useLoginHistory(
     queryFn: () => usersApi.getLoginHistory(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1365,17 +1471,22 @@ export function useUserDashboard() {
 export function useRealtimeNotifications(enabled: boolean = false) {
   const queryClient = useQueryClient();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['user', 'notifications', 'realtime'],
     queryFn: () => usersApi.getNotifications({ limit: 10, isRead: false }),
     enabled,
     refetchInterval: enabled ? 30 * 1000 : false, // 30 seconds
     refetchIntervalInBackground: true,
-    onSuccess: (data) => {
-      // Update notifications cache
-      queryClient.setQueryData(['user', 'notifications'], data);
-    },
   });
+
+  // Update notifications cache when data changes
+  useEffect(() => {
+    if (query.data) {
+      queryClient.setQueryData(['user', 'notifications'], query.data);
+    }
+  }, [query.data, queryClient]);
+
+  return query;
 }
 
 /**
@@ -1393,12 +1504,12 @@ export function useUserPermissions() {
     
     // Feature access based on role - FIXED: Creators have same access as Brands
     canVote: !!profile, // All authenticated users can vote
-    canCreateProposals: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
-    canViewAnalytics: profile?.role === 'Brand' || profile?.role === 'Creator' || profile?.role === 'Manufacturer', // ✅ FIXED  
-    canManageProducts: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
-    canManageCertificates: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
-    canManageIntegrations: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
-    canManageDomains: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
+    canCreateProposals: profile?.role === 'Brand' || profile?.role === 'Creator',  
+    canViewAnalytics: profile?.role === 'Brand' || profile?.role === 'Creator' || profile?.role === 'Manufacturer',   
+    canManageProducts: profile?.role === 'Brand' || profile?.role === 'Creator',  
+    canManageCertificates: profile?.role === 'Brand' || profile?.role === 'Creator', 
+    canManageIntegrations: profile?.role === 'Brand' || profile?.role === 'Creator',  
+    canManageDomains: profile?.role === 'Brand' || profile?.role === 'Creator', 
     canViewOrders: profile?.role === 'Manufacturer',
     canCreateContent: profile?.role === 'Creator', // Creator-specific feature
     

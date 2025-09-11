@@ -1,3 +1,4 @@
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 
@@ -12,7 +13,12 @@ interface BaseAnalyticsQuery {
   metrics?: Array<'votes' | 'certificates' | 'connections' | 'revenue' | 'transactions' | 'engagement'>;
 }
 
-interface VotesAnalyticsQuery extends BaseAnalyticsQuery {
+interface VotesAnalyticsQuery {
+  startDate?: string;
+  endDate?: string;
+  timeframe?: '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
+  groupBy?: 'hour' | 'day' | 'week' | 'month';
+  format?: 'json' | 'csv' | 'xlsx';
   proposalId?: string;
   metrics?: Array<'total_votes' | 'participation_rate' | 'proposal_success_rate' | 'avg_response_time'>;
 }
@@ -326,23 +332,28 @@ export function useRealtimeAnalytics(enabled: boolean = false) {
 
   // This would integrate with your WebSocket or SSE setup
   // For now, we'll just periodically refetch
-  return useQuery({
+  const query = useQuery({
     queryKey: ['analytics', 'realtime'],
     queryFn: () => analyticsApi.getOverview({ timeframe: '24h' }),
     enabled,
     refetchInterval: enabled ? 30 * 1000 : false, // 30 seconds
     refetchIntervalInBackground: true,
-    onSuccess: (data) => {
-      // Update relevant cached data
-      queryClient.setQueryData(['analytics', 'overview'], data);
-    },
   });
+
+  // Update relevant cached data when data changes
+  React.useEffect(() => {
+    if (query.data) {
+      queryClient.setQueryData(['analytics', 'overview'], query.data);
+    }
+  }, [query.data, queryClient]);
+
+  return query;
 }
 
 /**
  * Analytics insights and recommendations
  */
-export function useAnalyticsInsights(timeframe: string = '30d') {
+export function useAnalyticsInsights(timeframe: '24h' | '7d' | '30d' | '90d' | '1y' | 'all' = '30d') {
   return useQuery({
     queryKey: ['analytics', 'insights', timeframe],
     queryFn: async () => {

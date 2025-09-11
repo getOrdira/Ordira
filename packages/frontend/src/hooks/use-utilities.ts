@@ -3,6 +3,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+// Notification types
+export interface Notification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+  category?: 'system' | 'user' | 'integration' | 'security';
+  duration?: number;
+  persistent?: boolean;
+  actions?: Array<{
+    label: string;
+    action: () => void;
+  }>;
+}
+
+export interface NotificationOptions {
+  duration?: number;
+  persistent?: boolean;
+  actions?: Array<{
+    label: string;
+    action: () => void;
+  }>;
+}
+
 /**
  * Hook for debouncing values
  */
@@ -356,7 +380,7 @@ export function useFormPersistence<T extends Record<string, any>>(
 /**
  * Hook for notification management
  */
-export function useNotifications() {
+export function useUtilitiesNotifications() {
   const [notifications, setNotifications] = useState<Array<{
     id: string;
     type: 'success' | 'error' | 'warning' | 'info';
@@ -437,3 +461,8 @@ export function useClickOutside<T extends HTMLElement>(
 
   return ref;
 }
+
+/**
+ * Alias for useUtilitiesNotifications for backward compatibility
+ */
+export const useNotifications = useUtilitiesNotifications;

@@ -751,7 +751,7 @@ export function useBrandOrders(
 /**
  * Get manufacturer analytics
  */
-export function useManufacturerAnalytics(
+export function useManufacturerAnalyticsHook(
   params?: {
     timeframe?: string;
     brandId?: string;

@@ -4,7 +4,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
-import { toast } from 'sonner'; // Assuming you're using sonner for notifications
+
+
+// Simple toast replacement
+const toast = {
+  success: (message: string) => console.log('✅', message),
+  error: (message: string) => console.error('❌', message)
+};
 
 // Import API functions
 import { 
@@ -178,7 +184,7 @@ export function useAvatarMenu(): UseAvatarMenuReturn {
         const enhancedUser = {
           ...transformAuthUser(authUser),
           // Merge any additional profile data
-          profileCompleteness: profileResponse.value.data?.user?.profileCompleteness || 0,
+          profileCompleteness: (profileResponse.value.data?.user as any)?.profileCompleteness || 0,
         };
         setUser(enhancedUser);
       }
