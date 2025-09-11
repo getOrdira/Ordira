@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { ApiError } from '@/lib/errors';
+import apiClient from '@/lib/api/client';
 
 // ===== TYPES =====
 
@@ -331,58 +333,64 @@ interface UserNotification {
 
 // ===== API FUNCTIONS =====
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Use the centralized API client
+const api = apiClient;
 
 const usersApi = {
   // Profile management
-  getUserProfile: (): Promise<UserProfile> =>
-    api.get('/users/profile').then(res => res.data.data || res.data),
+  getUserProfile: async (): Promise<UserProfile> => {
+    const response = await api.get('/users/profile');
+    return response.data.data;
+  },
 
-  updateUserProfile: (data: UpdateUserProfileRequest): Promise<UserProfile> =>
-    api.put('/users/profile', data).then(res => res.data.data || res.data),
+  updateUserProfile: async (data: UpdateUserProfileRequest): Promise<UserProfile> => {
+    const response = await api.put('/users/profile', data);
+    return response.data.data;
+  },
 
-  deleteUserAccount: (reason?: string): Promise<{ success: boolean; message: string }> =>
-    api.delete('/users/profile', { data: { reason } }).then(res => res.data),
+  deleteUserAccount: async (reason?: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete('/users/profile', { data: { reason } });
+    return response.data;
+  },
 
   // User management (Admin/Brand access)
-  getUsers: (params?: UserListQuery): Promise<UserListResponse> =>
-    api.get('/users', { params }).then(res => res.data),
+  getUsers: async (params?: UserListQuery): Promise<UserListResponse> => {
+    const response = await api.get('/users', { params });
+    return response.data.data;
+  },
 
-  getUserById: (userId: string): Promise<User> =>
-    api.get(`/users/${userId}`).then(res => res.data.data || res.data),
+  getUserById: async (userId: string): Promise<User> => {
+    const response = await api.get(`/users/${userId}`);
+    return response.data.data;
+  },
 
-  updateUserStatus: (userId: string, status: UserStatus, reason?: string): Promise<{ success: boolean; user: User }> =>
-    api.put(`/users/${userId}/status`, { status, reason }).then(res => res.data),
+  updateUserStatus: async (userId: string, status: UserStatus, reason?: string): Promise<{ success: boolean; user: User }> => {
+    const response = await api.put(`/users/${userId}/status`, { status, reason });
+    return response.data;
+  },
 
   // Voting functionality
-  submitVote: (data: SubmitVoteRequest): Promise<{
+  submitVote: async (data: SubmitVoteRequest): Promise<{
     success: boolean;
     voteId: string;
     vote: Vote;
     verificationHash?: string;
-  }> =>
-    api.post('/users/vote', data).then(res => res.data),
+  }> => {
+    const response = await api.post('/users/vote', data);
+    return response.data;
+  },
 
-  checkVoteStatus: (proposalId: string): Promise<{
+  checkVoteStatus: async (proposalId: string): Promise<{
     hasVoted: boolean;
     vote?: Vote;
     canVote: boolean;
     reason?: string;
-  }> =>
-    api.get(`/users/vote/status/${proposalId}`).then(res => res.data.data || res.data),
+  }> => {
+    const response = await api.get(`/users/vote/status/${proposalId}`);
+    return response.data.data;
+  },
 
-  getVotingHistory: (params?: {
+  getVotingHistory: async (params?: {
     page?: number;
     limit?: number;
     proposalId?: string;
@@ -400,18 +408,22 @@ const usersApi = {
       averageResponseTime: number;
       participationRate: number;
     };
-  }> =>
-    api.get('/users/voting-history', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/users/voting-history', { params });
+    return response.data.data;
+  },
 
   // Interaction tracking
-  recordInteraction: (data: RecordInteractionRequest): Promise<{
+  recordInteraction: async (data: RecordInteractionRequest): Promise<{
     success: boolean;
     interactionId: string;
     points?: number;
-  }> =>
-    api.post('/users/interaction', data).then(res => res.data),
+  }> => {
+    const response = await api.post('/users/interaction', data);
+    return response.data;
+  },
 
-  getInteractionHistory: (params?: {
+  getInteractionHistory: async (params?: {
     page?: number;
     limit?: number;
     type?: UserInteraction['type'];
@@ -421,17 +433,21 @@ const usersApi = {
   }): Promise<{
     interactions: UserInteraction[];
     pagination: any;
-  }> =>
-    api.get('/users/interactions', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/users/interactions', { params });
+    return response.data.data;
+  },
 
   // Analytics and insights
-  getUserAnalytics: (params?: {
+  getUserAnalytics: async (params?: {
     timeframe?: '7d' | '30d' | '90d' | '1y' | 'all';
     includeComparison?: boolean;
-  }): Promise<UserAnalytics> =>
-    api.get('/users/analytics', { params }).then(res => res.data),
+  }): Promise<UserAnalytics> => {
+    const response = await api.get('/users/analytics', { params });
+    return response.data.data;
+  },
 
-  getUserInsights: (): Promise<{
+  getUserInsights: async (): Promise<{
     personalizedRecommendations: Array<{
       type: 'product' | 'brand' | 'feature';
       title: string;
@@ -455,11 +471,13 @@ const usersApi = {
         target: number;
       };
     };
-  }> =>
-    api.get('/users/insights').then(res => res.data),
+  }> => {
+    const response = await api.get('/users/insights');
+    return response.data.data;
+  },
 
   // Notifications
-  getNotifications: (params?: {
+  getNotifications: async (params?: {
     page?: number;
     limit?: number;
     category?: UserNotification['category'];
@@ -469,83 +487,113 @@ const usersApi = {
     notifications: UserNotification[];
     pagination: any;
     unreadCount: number;
-  }> =>
-    api.get('/users/notifications', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/users/notifications', { params });
+    return response.data.data;
+  },
 
-  markNotificationRead: (notificationId: string): Promise<{ success: boolean }> =>
-    api.put(`/users/notifications/${notificationId}/read`).then(res => res.data),
+  markNotificationRead: async (notificationId: string): Promise<{ success: boolean }> => {
+    const response = await api.put(`/users/notifications/${notificationId}/read`);
+    return response.data;
+  },
 
-  markAllNotificationsRead: (): Promise<{ success: boolean; updatedCount: number }> =>
-    api.put('/users/notifications/read-all').then(res => res.data),
+  markAllNotificationsRead: async (): Promise<{ success: boolean; updatedCount: number }> => {
+    const response = await api.put('/users/notifications/read-all');
+    return response.data;
+  },
 
-  deleteNotification: (notificationId: string): Promise<{ success: boolean }> =>
-    api.delete(`/users/notifications/${notificationId}`).then(res => res.data),
+  deleteNotification: async (notificationId: string): Promise<{ success: boolean }> => {
+    const response = await api.delete(`/users/notifications/${notificationId}`);
+    return response.data;
+  },
 
   // Settings and preferences
-  getUserSettings: (): Promise<UserProfile['settings'] & UserProfile['preferences']> =>
-    api.get('/users/settings').then(res => res.data.data || res.data),
+  getUserSettings: async (): Promise<UserProfile['settings'] & UserProfile['preferences']> => {
+    const response = await api.get('/users/settings');
+    return response.data.data;
+  },
 
-  updateUserSettings: (settings: Partial<UserProfile['settings'] & UserProfile['preferences']>): Promise<{
+  updateUserSettings: async (settings: Partial<UserProfile['settings'] & UserProfile['preferences']>): Promise<{
     success: boolean;
     settings: UserProfile['settings'] & UserProfile['preferences'];
-  }> =>
-    api.put('/users/settings', settings).then(res => res.data),
+  }> => {
+    const response = await api.put('/users/settings', settings);
+    return response.data;
+  },
 
-  updateNotificationSettings: (preferences: Partial<UserProfile['preferences']>): Promise<{
+  updateNotificationSettings: async (preferences: Partial<UserProfile['preferences']>): Promise<{
     success: boolean;
     preferences: UserProfile['preferences'];
-  }> =>
-    api.put('/users/settings/notifications', preferences).then(res => res.data),
+  }> => {
+    const response = await api.put('/users/settings/notifications', preferences);
+    return response.data;
+  },
 
-  updatePrivacySettings: (settings: {
+  updatePrivacySettings: async (settings: {
     profileVisibility?: 'public' | 'private' | 'limited';
     showVotingHistory?: boolean;
     allowDataCollection?: boolean;
     marketingConsent?: boolean;
     thirdPartySharing?: boolean;
-  }): Promise<{ success: boolean; settings: any }> =>
-    api.put('/users/settings/privacy', settings).then(res => res.data),
+  }): Promise<{ success: boolean; settings: any }> => {
+    const response = await api.put('/users/settings/privacy', settings);
+    return response.data;
+  },
 
-  updateSecuritySettings: (settings: {
+  updateSecuritySettings: async (settings: {
     twoFactorEnabled?: boolean;
     loginAlerts?: boolean;
     sessionTimeout?: number;
     allowedIPs?: string[];
-  }): Promise<{ success: boolean; settings: any }> =>
-    api.put('/users/settings/security', settings).then(res => res.data),
+  }): Promise<{ success: boolean; settings: any }> => {
+    const response = await api.put('/users/settings/security', settings);
+    return response.data;
+  },
 
   // Security
-  changePassword: (data: {
+  changePassword: async (data: {
     currentPassword: string;
     newPassword: string;
     confirmPassword: string;
-  }): Promise<{ success: boolean; message: string }> =>
-    api.post('/users/settings/password', data).then(res => res.data),
+  }): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/users/settings/password', data);
+    return response.data;
+  },
 
-  setupTwoFactor: (): Promise<{
+  setupTwoFactor: async (): Promise<{
     secret: string;
     qrCode: string;
     backupCodes: string[];
-  }> =>
-    api.post('/users/settings/two-factor/setup').then(res => res.data),
+  }> => {
+    const response = await api.post('/users/settings/two-factor/setup');
+    return response.data;
+  },
 
-  verifyTwoFactorSetup: (code: string): Promise<{
+  verifyTwoFactorSetup: async (code: string): Promise<{
     success: boolean;
     backupCodes: string[];
-  }> =>
-    api.post('/users/settings/two-factor/verify', { code }).then(res => res.data),
+  }> => {
+    const response = await api.post('/users/settings/two-factor/verify', { code });
+    return response.data;
+  },
 
-  disableTwoFactor: (password: string, code: string): Promise<{ success: boolean; message: string }> =>
-    api.post('/users/settings/two-factor/disable', { password, code }).then(res => res.data),
+  disableTwoFactor: async (password: string, code: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/users/settings/two-factor/disable', { password, code });
+    return response.data;
+  },
 
-  getBackupCodes: (): Promise<{ backupCodes: string[] }> =>
-    api.get('/users/settings/two-factor/backup-codes').then(res => res.data),
+  getBackupCodes: async (): Promise<{ backupCodes: string[] }> => {
+    const response = await api.get('/users/settings/two-factor/backup-codes');
+    return response.data;
+  },
 
-  regenerateBackupCodes: (): Promise<{ backupCodes: string[] }> =>
-    api.post('/users/settings/two-factor/backup-codes/regenerate').then(res => res.data),
+  regenerateBackupCodes: async (): Promise<{ backupCodes: string[] }> => {
+    const response = await api.post('/users/settings/two-factor/backup-codes/regenerate');
+    return response.data;
+  },
 
   // Activity and audit
-  getActivityLog: (params?: {
+  getActivityLog: async (params?: {
     page?: number;
     limit?: number;
     action?: string;
@@ -554,10 +602,12 @@ const usersApi = {
   }): Promise<{
     activities: UserProfile['activityLog'];
     pagination: any;
-  }> =>
-    api.get('/users/activity', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/users/activity', { params });
+    return response.data.data;
+  },
 
-  getLoginHistory: (params?: { page?: number; limit?: number }): Promise<{
+  getLoginHistory: async (params?: { page?: number; limit?: number }): Promise<{
     logins: Array<{
       id: string;
       timestamp: string;
@@ -568,11 +618,13 @@ const usersApi = {
       method: 'password' | 'two_factor' | 'backup_code';
     }>;
     pagination: any;
-  }> =>
-    api.get('/users/login-history', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/users/login-history', { params });
+    return response.data.data;
+  },
 
   // Achievements and gamification
-  getAchievements: (): Promise<{
+  getAchievements: async (): Promise<{
     achievements: UserProfile['achievements'];
     available: Array<{
       id: string;
@@ -589,22 +641,30 @@ const usersApi = {
       totalAvailable: number;
       categories: Record<string, number>;
     };
-  }> =>
-    api.get('/users/achievements').then(res => res.data),
+  }> => {
+    const response = await api.get('/users/achievements');
+    return response.data.data;
+  },
 
   // Data export and privacy
-  exportUserData: (): Promise<Blob> =>
-    api.get('/users/export', { responseType: 'blob' }).then(res => res.data),
+  exportUserData: async (): Promise<Blob> => {
+    const response = await api.get('/users/export', { responseType: 'blob' });
+    return response.data;
+  },
 
-  requestDataDeletion: (reason: string, confirmPassword: string): Promise<{
+  requestDataDeletion: async (reason: string, confirmPassword: string): Promise<{
     success: boolean;
     deletionId: string;
     scheduledDate: string;
-  }> =>
-    api.post('/users/request-deletion', { reason, confirmPassword }).then(res => res.data),
+  }> => {
+    const response = await api.post('/users/request-deletion', { reason, confirmPassword });
+    return response.data;
+  },
 
-  cancelDataDeletion: (deletionId: string, password: string): Promise<{ success: boolean; message: string }> =>
-    api.post('/users/cancel-deletion', { deletionId, password }).then(res => res.data),
+  cancelDataDeletion: async (deletionId: string, password: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/users/cancel-deletion', { deletionId, password });
+    return response.data;
+  },
 };
 
 // ===== HOOKS =====
@@ -1209,7 +1269,7 @@ export function useUserStatus() {
     
     // Computed values
     isVerified: profile.data?.isEmailVerified ?? false,
-    occupation: profile.data?.occupation,
+    occupation: profile.data?.role,
     accountAge: profile.data ? Math.floor((Date.now() - new Date(profile.data.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0,
     
     // Engagement metrics
@@ -1326,21 +1386,21 @@ export function useUserPermissions() {
 
   return {
     // Role checks - FIXED: isBrandLike includes both Brand and Creator
-    isBrand: profile?.occupation === 'Brand',
-    isCreator: profile?.occupation === 'Creator', 
-    isBrandLike: profile?.occupation === 'Brand' || profile?.occupation === 'Creator', // ✅ NEW: Combined check
-    isManufacturer: profile?.occupation === 'Manufacturer',
+    isBrand: profile?.role === 'Brand',
+    isCreator: profile?.role === 'Creator', 
+    isBrandLike: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ NEW: Combined check
+    isManufacturer: profile?.role === 'Manufacturer',
     
     // Feature access based on role - FIXED: Creators have same access as Brands
     canVote: !!profile, // All authenticated users can vote
-    canCreateProposals: profile?.occupation === 'Brand' || profile?.occupation === 'Creator', // ✅ FIXED
-    canViewAnalytics: profile?.occupation === 'Brand' || profile?.occupation === 'Creator' || profile?.occupation === 'Manufacturer', // ✅ FIXED  
-    canManageProducts: profile?.occupation === 'Brand' || profile?.occupation === 'Creator', // ✅ FIXED
-    canManageCertificates: profile?.occupation === 'Brand' || profile?.occupation === 'Creator', // ✅ FIXED
-    canManageIntegrations: profile?.occupation === 'Brand' || profile?.occupation === 'Creator', // ✅ FIXED
-    canManageDomains: profile?.occupation === 'Brand' || profile?.occupation === 'Creator', // ✅ FIXED
-    canViewOrders: profile?.occupation === 'Manufacturer',
-    canCreateContent: profile?.occupation === 'Creator', // Creator-specific feature
+    canCreateProposals: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
+    canViewAnalytics: profile?.role === 'Brand' || profile?.role === 'Creator' || profile?.role === 'Manufacturer', // ✅ FIXED  
+    canManageProducts: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
+    canManageCertificates: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
+    canManageIntegrations: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
+    canManageDomains: profile?.role === 'Brand' || profile?.role === 'Creator', // ✅ FIXED
+    canViewOrders: profile?.role === 'Manufacturer',
+    canCreateContent: profile?.role === 'Creator', // Creator-specific feature
     
     // Admin-like permissions based on verification status
     isVerifiedUser: profile?.isEmailVerified ?? false,
@@ -1352,7 +1412,7 @@ export function useUserPermissions() {
       
       const baseRoutes = ['/dashboard', '/profile', '/settings', '/voting'];
       
-      switch (profile.occupation) {
+      switch (profile.role) {
         case 'Brand':
         case 'Creator': // ✅ FIXED: Same routes as Brand
           return [...baseRoutes, '/products', '/certificates', '/integrations', '/analytics', '/domains'];
@@ -1367,7 +1427,7 @@ export function useUserPermissions() {
     getDashboardPath: () => {
       if (!profile) return '/auth/login';
       
-      switch (profile.occupation) {
+      switch (profile.role) {
         case 'Brand':
         case 'Creator': // ✅ FIXED: Same dashboard
           return '/dashboard';
@@ -1389,10 +1449,10 @@ export function useUserPermissions() {
       if (!profile) return null;
       
       // Both Brand and Creator use 'brand' API endpoints
-      if (profile.occupation === 'Brand' || profile.occupation === 'Creator') {
+      if (profile.role === 'Brand' || profile.role === 'Creator') {
         return 'brand';
       }
-      if (profile.occupation === 'Manufacturer') {
+      if (profile.role === 'Manufacturer') {
         return 'manufacturer';
       }
       

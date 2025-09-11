@@ -3,7 +3,7 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { api } from './client';
 import { BrandSettings } from '@/lib/types/brand';
-import { ApiError } from '@/lib/types/common';
+import { ApiError } from '@/lib/errors';
 
 // Enhanced response interfaces matching backend controller responses
 export interface BrandProfileResponse {

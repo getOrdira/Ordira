@@ -1,7 +1,7 @@
 // src/lib/api/nfts.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
 export interface NftCertificate {
   _id: string;
@@ -147,9 +147,9 @@ export const deployNftContract = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/nfts/deploy', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to deploy NFT contract', error);
+    throw new ApiError('Failed to deploy NFT contract', 500);
   }
 };
 
@@ -167,9 +167,9 @@ export const getNftContracts = async (params?: {
     const response = await apiClient.get<{success: boolean; data: {contracts: NftContract[]}}>('/api/nfts/contracts', {
       params,
     });
-    return response.data.data.contracts;
+    return response.data.contracts;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT contracts', error);
+    throw new ApiError('Failed to fetch NFT contracts', 500);
   }
 };
 
@@ -190,9 +190,9 @@ export const mintNft = async (data: {
 }): Promise<NftCertificate> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {nft: NftCertificate}}>('/api/nfts/mint', data);
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to mint NFT', error);
+    throw new ApiError('Failed to mint NFT', 500);
   }
 };
 
@@ -208,9 +208,9 @@ export const mintSingleNft = async (data: {
 }): Promise<NftCertificate> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {nft: NftCertificate}}>('/api/nfts/mint/single', data);
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to mint single NFT', error);
+    throw new ApiError('Failed to mint single NFT', 500);
   }
 };
 
@@ -228,9 +228,9 @@ export const mintCertificateNft = async (data: {
 }): Promise<NftCertificate> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {certificate: NftCertificate}}>('/api/nfts/mint/certificate', data);
-    return response.data.data.certificate;
+    return response.data.certificate;
   } catch (error) {
-    throw new ApiError('Failed to mint certificate NFT', error);
+    throw new ApiError('Failed to mint certificate NFT', 500);
   }
 };
 
@@ -253,9 +253,9 @@ export const batchMintNfts = async (
       certificates,
       batchId,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to batch mint NFTs', error);
+    throw new ApiError('Failed to batch mint NFTs', 500);
   }
 };
 
@@ -272,9 +272,9 @@ export const airdropNfts = async (data: {
 }): Promise<BatchMintResponse> => {
   try {
     const response = await apiClient.post<BatchMintResponse>('/api/nfts/mint/airdrop', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to airdrop NFTs', error);
+    throw new ApiError('Failed to airdrop NFTs', 500);
   }
 };
 
@@ -290,9 +290,9 @@ export const createLazyMint = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/nfts/mint/lazy', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to create lazy mint', error);
+    throw new ApiError('Failed to create lazy mint', 500);
   }
 };
 
@@ -315,9 +315,9 @@ export const mintNftWithMedia = async (file: File, data: {
     const response = await apiClient.post<{success: boolean; data: {nft: NftCertificate}}>('/api/nfts/mint/with-media', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to mint NFT with media', error);
+    throw new ApiError('Failed to mint NFT with media', 500);
   }
 };
 
@@ -333,9 +333,9 @@ export const mintFromTemplate = async (data: {
 }): Promise<NftCertificate> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {nft: NftCertificate}}>('/api/nfts/mint/from-template', data);
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to mint NFT from template', error);
+    throw new ApiError('Failed to mint NFT from template', 500);
   }
 };
 
@@ -351,9 +351,9 @@ export const mintGenerativeNft = async (data: {
 }): Promise<NftCertificate> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {nft: NftCertificate}}>('/api/nfts/mint/generative', data);
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to mint generative NFT', error);
+    throw new ApiError('Failed to mint generative NFT', 500);
   }
 };
 
@@ -369,9 +369,9 @@ export const validateMintingParams = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/nfts/mint/validate', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to validate minting parameters', error);
+    throw new ApiError('Failed to validate minting parameters', 500);
   }
 };
 
@@ -382,9 +382,9 @@ export const validateMintingParams = async (data: {
 export const getMintingQuota = async (): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/nfts/mint/quota');
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch minting quota', error);
+    throw new ApiError('Failed to fetch minting quota', 500);
   }
 };
 
@@ -402,9 +402,9 @@ export const estimateMintingGas = async (params: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/nfts/mint/estimate-gas', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to estimate minting gas', error);
+    throw new ApiError('Failed to estimate minting gas', 500);
   }
 };
 
@@ -422,9 +422,9 @@ export const getMintingJobs = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/nfts/mint/jobs', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch minting jobs', error);
+    throw new ApiError('Failed to fetch minting jobs', 500);
   }
 };
 
@@ -436,9 +436,9 @@ export const getMintingJobs = async (params?: {
 export const getMintingJobStatus = async (jobId: string): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/mint/jobs/${jobId}`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch minting job status', error);
+    throw new ApiError('Failed to fetch minting job status', 500);
   }
 };
 
@@ -450,9 +450,9 @@ export const getMintingJobStatus = async (jobId: string): Promise<any> => {
 export const retryMintingJob = async (jobId: string): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>(`/api/nfts/mint/jobs/${jobId}/retry`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to retry minting job', error);
+    throw new ApiError('Failed to retry minting job', 500);
   }
 };
 
@@ -464,9 +464,9 @@ export const retryMintingJob = async (jobId: string): Promise<any> => {
 export const cancelMintingJob = async (jobId: string): Promise<any> => {
   try {
     const response = await apiClient.delete<{success: boolean; data: any}>(`/api/nfts/mint/jobs/${jobId}`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to cancel minting job', error);
+    throw new ApiError('Failed to cancel minting job', 500);
   }
 };
 
@@ -482,9 +482,9 @@ export const scheduleMinting = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/nfts/mint/schedule', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to schedule minting', error);
+    throw new ApiError('Failed to schedule minting', 500);
   }
 };
 
@@ -502,9 +502,9 @@ export const getMintingTemplates = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/nfts/mint/templates', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch minting templates', error);
+    throw new ApiError('Failed to fetch minting templates', 500);
   }
 };
 
@@ -521,9 +521,9 @@ export const createMintingTemplate = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/nfts/mint/templates', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to create minting template', error);
+    throw new ApiError('Failed to create minting template', 500);
   }
 };
 
@@ -541,9 +541,9 @@ export const getMintingAnalytics = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/nfts/mint/analytics', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch minting analytics', error);
+    throw new ApiError('Failed to fetch minting analytics', 500);
   }
 };
 
@@ -565,9 +565,9 @@ export const getNfts = async (params?: {
     const response = await apiClient.get<NftListResponse>('/api/nfts', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFTs', error);
+    throw new ApiError('Failed to fetch NFTs', 500);
   }
 };
 
@@ -579,9 +579,9 @@ export const getNfts = async (params?: {
 export const getNft = async (id: string): Promise<NftCertificate> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {nft: NftCertificate}}>(`/api/nfts/${id}`);
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT', error);
+    throw new ApiError('Failed to fetch NFT', 500);
   }
 };
 
@@ -599,9 +599,9 @@ export const getNftMetadata = async (id: string, params?: {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/metadata`, {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT metadata', error);
+    throw new ApiError('Failed to fetch NFT metadata', 500);
   }
 };
 
@@ -614,9 +614,9 @@ export const getNftMetadata = async (id: string, params?: {
 export const updateNftMetadata = async (id: string, metadata: any): Promise<NftCertificate> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {nft: NftCertificate}}>(`/api/nfts/${id}/metadata`, { metadata });
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to update NFT metadata', error);
+    throw new ApiError('Failed to update NFT metadata', 500);
   }
 };
 
@@ -628,9 +628,9 @@ export const updateNftMetadata = async (id: string, metadata: any): Promise<NftC
 export const refreshNftMetadata = async (id: string): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>(`/api/nfts/${id}/metadata/refresh`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to refresh NFT metadata', error);
+    throw new ApiError('Failed to refresh NFT metadata', 500);
   }
 };
 
@@ -642,9 +642,9 @@ export const refreshNftMetadata = async (id: string): Promise<any> => {
 export const getNftAttributes = async (id: string): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/attributes`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT attributes', error);
+    throw new ApiError('Failed to fetch NFT attributes', 500);
   }
 };
 
@@ -657,9 +657,9 @@ export const getNftAttributes = async (id: string): Promise<any> => {
 export const updateNftAttributes = async (id: string, attributes: any[]): Promise<any> => {
   try {
     const response = await apiClient.put<{success: boolean; data: any}>(`/api/nfts/${id}/attributes`, { attributes });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to update NFT attributes', error);
+    throw new ApiError('Failed to update NFT attributes', 500);
   }
 };
 
@@ -673,9 +673,9 @@ export const updateNftAttributes = async (id: string, attributes: any[]): Promis
 export const getNftOwnership = async (id: string): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/ownership`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT ownership', error);
+    throw new ApiError('Failed to fetch NFT ownership', 500);
   }
 };
 
@@ -687,9 +687,9 @@ export const getNftOwnership = async (id: string): Promise<any> => {
 export const getNftOwner = async (id: string): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/owner`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT owner', error);
+    throw new ApiError('Failed to fetch NFT owner', 500);
   }
 };
 
@@ -705,9 +705,9 @@ export const transferNft = async (id: string, data?: {
 }): Promise<NftCertificate> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {nft: NftCertificate}}>(`/api/nfts/${id}/transfer`, data);
-    return response.data.data.nft;
+    return response.data.nft;
   } catch (error) {
-    throw new ApiError('Failed to transfer NFT', error);
+    throw new ApiError('Failed to transfer NFT', 500);
   }
 };
 
@@ -724,9 +724,9 @@ export const transferNftGeneral = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/nfts/transfer', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to transfer NFT', error);
+    throw new ApiError('Failed to transfer NFT', 500);
   }
 };
 
@@ -743,9 +743,9 @@ export const batchTransferNfts = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>(`/api/nfts/transfer/batch`, data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to batch transfer NFTs', error);
+    throw new ApiError('Failed to batch transfer NFTs', 500);
   }
 };
 
@@ -762,9 +762,9 @@ export const scheduleNftTransfer = async (id: string, data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>(`/api/nfts/${id}/transfer/schedule`, data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to schedule NFT transfer', error);
+    throw new ApiError('Failed to schedule NFT transfer', 500);
   }
 };
 
@@ -782,9 +782,9 @@ export const estimateTransferGas = async (id: string, params: {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/transfer/estimate-gas`, {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to estimate transfer gas', error);
+    throw new ApiError('Failed to estimate transfer gas', 500);
   }
 };
 
@@ -802,9 +802,9 @@ export const getTransferHistory = async (id: string, params?: {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/transfer-history`, {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch transfer history', error);
+    throw new ApiError('Failed to fetch transfer history', 500);
   }
 };
 
@@ -821,9 +821,9 @@ export const verifyNft = async (tokenId: string, contractAddress?: string): Prom
     const response = await apiClient.get<{success: boolean; data: VerificationResult}>(`/api/nfts/verify/${tokenId}`, {
       params: { contractAddress },
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to verify NFT', error);
+    throw new ApiError('Failed to verify NFT', 500);
   }
 };
 
@@ -835,9 +835,9 @@ export const verifyNft = async (tokenId: string, contractAddress?: string): Prom
 export const getNftVerification = async (id: string): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/verification`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT verification', error);
+    throw new ApiError('Failed to fetch NFT verification', 500);
   }
 };
 
@@ -858,9 +858,9 @@ export const getNftAnalytics = async (params?: {
     const response = await apiClient.get<{success: boolean; data: NftAnalytics}>('/api/nfts/analytics', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT analytics', error);
+    throw new ApiError('Failed to fetch NFT analytics', 500);
   }
 };
 
@@ -878,9 +878,9 @@ export const getNftAnalyticsById = async (id: string, params?: {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/nfts/${id}/analytics`, {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch NFT analytics', error);
+    throw new ApiError('Failed to fetch NFT analytics', 500);
   }
 };
 
@@ -901,9 +901,9 @@ export const getCertificates = async (params?: {
     const response = await apiClient.get<{success: boolean; data: {certificates: NftCertificate[]}}>('/api/nfts/certificates', {
       params,
     });
-    return response.data.data.certificates;
+    return response.data.certificates;
   } catch (error) {
-    throw new ApiError('Failed to fetch certificates', error);
+    throw new ApiError('Failed to fetch certificates', 500);
   }
 };
 
@@ -921,9 +921,9 @@ export const burnNft = async (tokenId: string, data: {
     const response = await apiClient.delete<{success: boolean; data: any}>(`/api/nfts/${tokenId}`, {
       data,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to burn NFT', error);
+    throw new ApiError('Failed to burn NFT', 500);
   }
 };
 

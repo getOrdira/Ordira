@@ -1,8 +1,9 @@
 // src/lib/api/billing.ts
 
 import { api } from './client';
-import { ApiError, TimeRange } from '@/lib/types/common';
-import { Billing, BillingAnalytics, BulkOperationResponse } from '@/lib/types/brand';
+import { ApiError } from '@/lib/errors';
+import { TimeRange } from '@/lib/types/common';
+import { Billing, BillingAnalytics, BulkOperationResponse } from '@/lib/types/billing';
 
 // Enhanced response interfaces matching backend controller responses
 export interface CheckoutSessionResponse {
@@ -11,7 +12,7 @@ export interface CheckoutSessionResponse {
   planDetails: {
     selectedPlan: string;
     planFeatures: any;
-    isUpgrade: boolean;
+    isUpgrade: boolean; 
     isDowngrade: boolean;
     upgradeFrom?: string;
   };

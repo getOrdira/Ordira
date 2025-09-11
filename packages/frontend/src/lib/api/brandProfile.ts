@@ -1,13 +1,9 @@
 // src/lib/api/brandProfile.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
-// Type definitions aligned with backend business.model.ts and brandAccount.controller.ts
-// Routes from /api/brand/account/profile (not /api/brand-profile)
-// Controller: brandAccount.controller.ts handles getBrandProfile, updateBrandProfile
-// Service: brandAccount.service.ts for profile management
-// Business Model: business.model.ts contains actual profile fields
+
 
 export interface BrandProfile {
   // Core business fields from business.model.ts
@@ -64,9 +60,9 @@ export interface BrandProfileResponse {
 export const getBrandProfile = async (): Promise<BrandProfileResponse> => {
   try {
     const response = await apiClient.get<BrandProfileResponse>('/api/brand/account/profile');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch brand profile', error);
+    throw new ApiError('Failed to fetch brand profile', 500);
   }
 };
 
@@ -82,8 +78,8 @@ export const getBrandProfile = async (): Promise<BrandProfileResponse> => {
 export const updateBrandProfile = async (data: Partial<BrandProfile>): Promise<BrandProfileResponse> => {
   try {
     const response = await apiClient.put<BrandProfileResponse>('/api/brand/account/profile', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update brand profile', error);
+    throw new ApiError('Failed to update brand profile', 500);
   }
 };

@@ -1,7 +1,7 @@
 // src/lib/api/user.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
 export interface User {
   _id: string;
@@ -149,9 +149,9 @@ export interface VoteStatusResponse {
 export const getUserProfile = async (): Promise<UserProfileResponse> => {
   try {
     const response = await apiClient.get<UserProfileResponse>('/api/users/profile');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch user profile', error);
+    throw new ApiError('Failed to fetch user profile', 500);
   }
 };
 
@@ -163,9 +163,9 @@ export const getUserProfile = async (): Promise<UserProfileResponse> => {
 export const updateUserProfile = async (data: Partial<UserProfile>): Promise<UserProfileResponse> => {
   try {
     const response = await apiClient.put<UserProfileResponse>('/api/users/profile', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update user profile', error);
+    throw new ApiError('Failed to update user profile', 500);
   }
 };
 
@@ -176,9 +176,9 @@ export const updateUserProfile = async (data: Partial<UserProfile>): Promise<Use
 export const deleteUserAccount = async (): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{success: boolean; data: any}>('/api/users/profile');
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to delete user account', error);
+    throw new ApiError('Failed to delete user account', 500);
   }
 };
 
@@ -196,11 +196,11 @@ export const uploadAvatar = async (file: File): Promise<{ success: boolean; avat
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return {
-      success: response.data.success,
-      avatarUrl: response.data.data.avatarUrl,
+      success: response.success,
+      avatarUrl: response.data.avatarUrl,
     };
   } catch (error) {
-    throw new ApiError('Failed to upload avatar', error);
+    throw new ApiError('Failed to upload avatar', 500);
   }
 };
 
@@ -211,9 +211,9 @@ export const uploadAvatar = async (file: File): Promise<{ success: boolean; avat
 export const removeAvatar = async (): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{success: boolean; data: any}>('/api/users/profile/avatar');
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to remove avatar', error);
+    throw new ApiError('Failed to remove avatar', 500);
   }
 };
 
@@ -249,9 +249,9 @@ export const getVotingHistory = async (params?: {
     }>('/api/users/voting-history', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch voting history', error);
+    throw new ApiError('Failed to fetch voting history', 500);
   }
 };
 
@@ -269,9 +269,9 @@ export const getUserActivity = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/users/profile/activity', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch user activity', error);
+    throw new ApiError('Failed to fetch user activity', 500);
   }
 };
 
@@ -282,9 +282,9 @@ export const getUserActivity = async (params?: {
 export const getUserStats = async (): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/users/profile/stats');
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch user stats', error);
+    throw new ApiError('Failed to fetch user stats', 500);
   }
 };
 
@@ -303,9 +303,9 @@ export const submitVote = async (data: {
 }): Promise<VoteSubmissionResponse> => {
   try {
     const response = await apiClient.post<VoteSubmissionResponse>('/api/users/vote', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to submit vote', error);
+    throw new ApiError('Failed to submit vote', 500);
   }
 };
 
@@ -317,9 +317,9 @@ export const submitVote = async (data: {
 export const checkVoteStatus = async (proposalId: string): Promise<VoteStatusResponse> => {
   try {
     const response = await apiClient.get<VoteStatusResponse>(`/api/users/vote/status/${proposalId}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to check vote status', error);
+    throw new ApiError('Failed to check vote status', 500);
   }
 };
 
@@ -336,9 +336,9 @@ export const recordInteraction = async (data: {
 }): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/users/interaction', data);
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to record interaction', error);
+    throw new ApiError('Failed to record interaction', 500);
   }
 };
 
@@ -351,9 +351,9 @@ export const recordInteraction = async (data: {
 export const getUserSettings = async (): Promise<UserSettings> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {settings: UserSettings}}>('/api/users/settings');
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to fetch user settings', error);
+    throw new ApiError('Failed to fetch user settings', 500);
   }
 };
 
@@ -365,9 +365,9 @@ export const getUserSettings = async (): Promise<UserSettings> => {
 export const updateUserSettings = async (settings: Partial<UserSettings>): Promise<UserSettings> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {settings: UserSettings}}>('/api/users/settings', settings);
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to update user settings', error);
+    throw new ApiError('Failed to update user settings', 500);
   }
 };
 
@@ -378,9 +378,9 @@ export const updateUserSettings = async (settings: Partial<UserSettings>): Promi
 export const getNotificationSettings = async (): Promise<UserSettings['notifications']> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {settings: UserSettings['notifications']}}>('/api/users/settings/notifications');
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to fetch notification settings', error);
+    throw new ApiError('Failed to fetch notification settings', 500);
   }
 };
 
@@ -392,9 +392,9 @@ export const getNotificationSettings = async (): Promise<UserSettings['notificat
 export const updateNotificationSettings = async (settings: Partial<UserSettings['notifications']>): Promise<UserSettings['notifications']> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {settings: UserSettings['notifications']}}>('/api/users/settings/notifications', settings);
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to update notification settings', error);
+    throw new ApiError('Failed to update notification settings', 500);
   }
 };
 
@@ -405,9 +405,9 @@ export const updateNotificationSettings = async (settings: Partial<UserSettings[
 export const getPrivacySettings = async (): Promise<UserSettings['privacy']> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {settings: UserSettings['privacy']}}>('/api/users/settings/privacy');
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to fetch privacy settings', error);
+    throw new ApiError('Failed to fetch privacy settings', 500);
   }
 };
 
@@ -419,9 +419,9 @@ export const getPrivacySettings = async (): Promise<UserSettings['privacy']> => 
 export const updatePrivacySettings = async (settings: Partial<UserSettings['privacy']>): Promise<UserSettings['privacy']> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {settings: UserSettings['privacy']}}>('/api/users/settings/privacy', settings);
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to update privacy settings', error);
+    throw new ApiError('Failed to update privacy settings', 500);
   }
 };
 
@@ -432,9 +432,9 @@ export const updatePrivacySettings = async (settings: Partial<UserSettings['priv
 export const getVotingPreferences = async (): Promise<UserSettings['voting']> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {settings: UserSettings['voting']}}>('/api/users/settings/voting-preferences');
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to fetch voting preferences', error);
+    throw new ApiError('Failed to fetch voting preferences', 500);
   }
 };
 
@@ -446,9 +446,9 @@ export const getVotingPreferences = async (): Promise<UserSettings['voting']> =>
 export const updateVotingPreferences = async (preferences: Partial<UserSettings['voting']>): Promise<UserSettings['voting']> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {settings: UserSettings['voting']}}>('/api/users/settings/voting-preferences', preferences);
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to update voting preferences', error);
+    throw new ApiError('Failed to update voting preferences', 500);
   }
 };
 
@@ -476,9 +476,9 @@ export const getUsers = async (params?: {
     const response = await apiClient.get<UserListResponse>('/api/users', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch users', error);
+    throw new ApiError('Failed to fetch users', 500);
   }
 };
 
@@ -490,9 +490,9 @@ export const getUsers = async (params?: {
 export const getUser = async (id: string): Promise<UserProfileResponse> => {
   try {
     const response = await apiClient.get<UserProfileResponse>(`/api/users/${id}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch user', error);
+    throw new ApiError('Failed to fetch user', 500);
   }
 };
 
@@ -505,9 +505,9 @@ export const getUser = async (id: string): Promise<UserProfileResponse> => {
 export const updateUser = async (id: string, data: Partial<User>): Promise<UserProfileResponse> => {
   try {
     const response = await apiClient.patch<UserProfileResponse>(`/api/users/${id}`, data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update user', error);
+    throw new ApiError('Failed to update user', 500);
   }
 };
 
@@ -519,9 +519,9 @@ export const updateUser = async (id: string, data: Partial<User>): Promise<UserP
 export const deleteUser = async (id: string): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{success: boolean; data: any}>(`/api/users/${id}`);
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to delete user', error);
+    throw new ApiError('Failed to delete user', 500);
   }
 };
 

@@ -13,16 +13,12 @@ import {
   SetupTwoFactorData,
   VerifyTwoFactorData,
   AccountRecoveryData,
-  ResendVerificationData,
   AuthResponse,
-  EnhancedAuthResponse,
-  VerificationResult,
   TokenRefreshResponse,
-  ActiveSessionsResponse,
-  SecuritySettings,
-  ApiError,
-  ApiResponse
+  SecuritySettings
 } from '@/lib/types/auth';
+import { ApiResponse } from '@/lib/types/common';
+import { ApiError } from '@/lib/errors';
 import { AnyUser } from '@/lib/types/user';
 import { setTokens, getRefreshToken, clearTokens } from '@/lib/auth/session';
 
@@ -38,11 +34,11 @@ export const authApi = {
    * Register a new customer/user account
    * POST /auth/register/user
    */
-  registerUser: async (data: RegisterUserData): Promise<EnhancedAuthResponse> => {
+  registerUser: async (data: RegisterUserData): Promise<AuthResponse> => {
     try {
-      const response = await api.post<ApiResponse<EnhancedAuthResponse>>('/auth/register/user', data);
+      const response = await api.post<ApiResponse<AuthResponse>>('/auth/register/user', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Registration failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Registration failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -59,7 +55,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<AuthResponse>>('/auth/login/user', credentials);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Login failed', statusCode: response.statusCode || 401 });
+        throw new ApiError(response.message || 'Login failed', 401);
       }
       // Store tokens if successful
       if (response.data?.token && response.data?.refreshToken) {
@@ -76,11 +72,11 @@ export const authApi = {
    * Verify user email address
    * POST /auth/verify/user
    */
-  verifyUser: async (data: EmailVerificationData): Promise<VerificationResult> => {
+  verifyUser: async (data: EmailVerificationData): Promise<void> => {
     try {
-      const response = await api.post<ApiResponse<VerificationResult>>('/auth/verify/user', data);
+      const response = await api.post<ApiResponse<void>>('/auth/verify/user', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Verification failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Verification failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -93,7 +89,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<{ available: boolean }>>('/auth/check-email-availability', { email });
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Email check failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Email check failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -106,14 +102,14 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<{ valid: boolean; user?: AnyUser }>>('/auth/validate-token', { token });
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Token validation failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Token validation failed', 400);
       }
       return response.data!;
     } catch (error) {
       console.error('Token validation error:', error);
       throw error;
     }
-  }
+  },
 
   // ===== BUSINESS AUTHENTICATION =====
   
@@ -121,11 +117,11 @@ export const authApi = {
    * Register a new business/brand account
    * POST /auth/register/business
    */
-  registerBusiness: async (data: RegisterBusinessData): Promise<EnhancedAuthResponse> => {
+  registerBusiness: async (data: RegisterBusinessData): Promise<AuthResponse> => {
     try {
-      const response = await api.post<ApiResponse<EnhancedAuthResponse>>('/auth/register/business', data);
+      const response = await api.post<ApiResponse<AuthResponse>>('/auth/register/business', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Registration failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Registration failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -142,7 +138,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<AuthResponse>>('/auth/login/business', credentials);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Login failed', statusCode: response.statusCode || 401 });
+        throw new ApiError(response.message || 'Login failed', 401);
       }
       // Store tokens if successful
       if (response.data?.token && response.data?.refreshToken) {
@@ -159,11 +155,11 @@ export const authApi = {
    * Verify business email address
    * POST /auth/verify/business
    */
-  verifyBusiness: async (data: EmailVerificationData): Promise<VerificationResult> => {
+  verifyBusiness: async (data: EmailVerificationData): Promise<void> => {
     try {
-      const response = await api.post<ApiResponse<VerificationResult>>('/auth/verify/business', data);
+      const response = await api.post<ApiResponse<void>>('/auth/verify/business', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Verification failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Verification failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -178,11 +174,11 @@ export const authApi = {
    * Register a new manufacturer account
    * POST /manufacturer/auth/register
    */
-  registerManufacturer: async (data: RegisterManufacturerData): Promise<EnhancedAuthResponse> => {
+  registerManufacturer: async (data: RegisterManufacturerData): Promise<AuthResponse> => {
     try {
-      const response = await api.post<ApiResponse<EnhancedAuthResponse>>('/manufacturer/auth/register', data);
+      const response = await api.post<ApiResponse<AuthResponse>>('/manufacturer/auth/register', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Registration failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Registration failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -199,7 +195,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<AuthResponse>>('/manufacturer/auth/login', credentials);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Login failed', statusCode: response.statusCode || 401 });
+        throw new ApiError(response.message || 'Login failed', 401);
       }
       // Store tokens if successful
       if (response.data?.token && response.data?.refreshToken) {
@@ -216,11 +212,11 @@ export const authApi = {
    * Verify manufacturer email address
    * POST /manufacturer/auth/verify-email
    */
-  verifyManufacturer: async (data: EmailVerificationData): Promise<VerificationResult> => {
+  verifyManufacturer: async (data: EmailVerificationData): Promise<void> => {
     try {
-      const response = await api.post<ApiResponse<VerificationResult>>('/manufacturer/auth/verify-email', data);
+      const response = await api.post<ApiResponse<void>>('/manufacturer/auth/verify-email', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Verification failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Verification failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -239,7 +235,7 @@ export const authApi = {
     try {
       const response = await api.get<ApiResponse<AnyUser>>('/auth/me');
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Failed to fetch user', statusCode: response.statusCode || 401 });
+        throw new ApiError(response.message || 'Failed to fetch user', 401);
       }
       return response.data!;
     } catch (error) {
@@ -273,7 +269,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/logout-all');
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Failed to logout all sessions', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Failed to logout all sessions', 400);
       }
       clearTokens();
     } catch (error) {
@@ -290,7 +286,7 @@ export const authApi = {
   refreshToken: async (): Promise<TokenRefreshResponse> => {
     const refreshTokenValue = getRefreshToken();
     if (!refreshTokenValue) {
-      throw new ApiError({ message: 'No refresh token available', statusCode: 401 });
+      throw new ApiError('No refresh token available', 401);
     }
 
     try {
@@ -298,7 +294,7 @@ export const authApi = {
         refreshToken: refreshTokenValue
       });
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Token refresh failed', statusCode: response.statusCode || 401 });
+        throw new ApiError(response.message || 'Token refresh failed', 401);
       }
       // Store new tokens
       if (response.data?.token && response.data?.refreshToken) {
@@ -322,7 +318,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/forgot-password', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Forgot password request failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Forgot password request failed', 400);
       }
     } catch (error) {
       console.error('Forgot password error:', error);
@@ -338,7 +334,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/reset-password', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Password reset failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Password reset failed', 400);
       }
     } catch (error) {
       console.error('Reset password error:', error);
@@ -354,7 +350,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/change-password', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Password change failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Password change failed', 400);
       }
     } catch (error) {
       console.error('Change password error:', error);
@@ -368,11 +364,11 @@ export const authApi = {
    * Resend email verification code
    * POST /auth/resend-verification
    */
-  resendVerification: async (data?: ResendVerificationData): Promise<void> => {
+  resendVerification: async (data?: EmailVerificationData): Promise<void> => {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/resend-verification', data || {});
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Resend verification failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Resend verification failed', 400);
       }
     } catch (error) {
       console.error('Resend verification error:', error);
@@ -398,7 +394,7 @@ export const authApi = {
         backupCodes?: string[];
       }>>('/auth/setup-2fa', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || '2FA setup failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || '2FA setup failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -415,7 +411,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<{ verified: boolean }>>('/auth/verify-2fa', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || '2FA verification failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || '2FA verification failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -432,7 +428,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/disable-2fa', { password });
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Disable 2FA failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Disable 2FA failed', 400);
       }
     } catch (error) {
       console.error('Disable 2FA error:', error);
@@ -446,11 +442,11 @@ export const authApi = {
    * Get all active sessions
    * GET /auth/sessions
    */
-  getActiveSessions: async (): Promise<ActiveSessionsResponse> => {
+  getActiveSessions: async (): Promise<any[]> => {
     try {
-      const response = await api.get<ApiResponse<ActiveSessionsResponse>>('/auth/sessions');
+      const response = await api.get<ApiResponse<any[]>>('/auth/sessions');
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Failed to fetch sessions', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Failed to fetch sessions', 400);
       }
       return response.data!;
     } catch (error) {
@@ -467,7 +463,7 @@ export const authApi = {
     try {
       const response = await api.delete<ApiResponse<void>>(`/auth/sessions/${sessionId}`);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Session revocation failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Session revocation failed', 400);
       }
     } catch (error) {
       console.error('Revoke session error:', error);
@@ -483,7 +479,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/sessions/revoke-all');
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Revoke all sessions failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Revoke all sessions failed', 400);
       }
       clearTokens(); // Clear local tokens as all sessions are revoked
     } catch (error) {
@@ -501,7 +497,7 @@ export const authApi = {
     try {
       const response = await api.get<ApiResponse<{ sessionId: string; expiresAt: string; lastActivity: string }>>('/auth/session-info');
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Failed to fetch session info', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Failed to fetch session info', 400);
       }
       return response.data!;
     } catch (error) {
@@ -520,7 +516,7 @@ export const authApi = {
     try {
       const response = await api.post<ApiResponse<void>>('/auth/account-recovery', data);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Account recovery request failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Account recovery request failed', 400);
       }
     } catch (error) {
       console.error('Account recovery request error:', error);
@@ -538,7 +534,7 @@ export const authApi = {
     try {
       const response = await api.get<ApiResponse<SecuritySettings>>('/auth/security');
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Failed to fetch security settings', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Failed to fetch security settings', 400);
       }
       return response.data!;
     } catch (error) {
@@ -555,7 +551,7 @@ export const authApi = {
     try {
       const response = await api.put<ApiResponse<SecuritySettings>>('/auth/security', settings);
       if (!response.success) {
-        throw new ApiError({ message: response.message || 'Security settings update failed', statusCode: response.statusCode || 400 });
+        throw new ApiError(response.message || 'Security settings update failed', 400);
       }
       return response.data!;
     } catch (error) {
@@ -628,15 +624,15 @@ export const authHelpers = {
     /**
      * Register based on data type detection - FIXED: Creators use business registration
      */
-    smartRegister: async (data: RegisterUserData | RegisterBusinessData | RegisterManufacturerData): Promise<EnhancedAuthResponse> => {
+    smartRegister: async (data: RegisterUserData | RegisterBusinessData | RegisterManufacturerData): Promise<AuthResponse> => {
       try {
         if (isRegisterManufacturerData(data)) {
-          return await authApi.registerManufacturer(data);
+          return await authApi.registerManufacturer(data as RegisterManufacturerData);
         } else if (isRegisterBusinessData(data)) {
           // ✅ FIXED: Both Brand and Creator use business registration
-          return await authApi.registerBusiness(data);
+          return await authApi.registerBusiness(data as RegisterBusinessData);
         } else if (isRegisterUserData(data)) {
-          return await authApi.registerUser(data);
+          return await authApi.registerUser(data as RegisterUserData);
         } else {
           throw new Error('Invalid registration data type');
         }
@@ -649,7 +645,7 @@ export const authHelpers = {
     /**
      * Verify email based on account type - FIXED: Creators use business verification
      */
-    smartVerify: async (data: EmailVerificationData & { accountType?: 'user' | 'business' | 'manufacturer' | 'Brand' | 'Creator' }): Promise<VerificationResult> => {
+    smartVerify: async (data: EmailVerificationData & { accountType?: 'user' | 'business' | 'manufacturer' | 'Brand' | 'Creator' }): Promise<void> => {
       try {
         const { accountType, ...verificationData } = data;
         
@@ -702,12 +698,12 @@ export const authHelpers = {
      * Get redirect path after successful login - FIXED: Creators go to same dashboard
      */
     getPostLoginRedirect: (user: AnyUser): string => {
-      switch (user.occupation) {
-        case 'Brand':
-        case 'Creator':
+      switch (user.role) {
+        case 'brand':
           return '/dashboard';
-        case 'Manufacturer':
+        case 'manufacturer':
           return '/manufacturer/dashboard';
+        case 'customer':
         default:
           return '/dashboard';
       }
@@ -725,22 +721,16 @@ export const authHelpers = {
         return true;
       }
   
-      // Brand-like routes (Brand AND Creator access) - FIXED
+      // Brand routes
       const brandRoutes = ['/voting', '/certificates', '/products', '/domains', '/integrations'];
       if (brandRoutes.some(brandRoute => route.startsWith(brandRoute))) {
-        return user.occupation === 'Brand' || user.occupation === 'Creator'; // ✅ FIXED
+        return user.role === 'brand';
       }
   
       // Manufacturer-only routes
       const manufacturerRoutes = ['/manufacturer', '/orders', '/production'];
       if (manufacturerRoutes.some(mfgRoute => route.startsWith(mfgRoute))) {
-        return user.occupation === 'Manufacturer';
-      }
-  
-      // Creator-specific routes (optional)
-      const creatorSpecificRoutes = ['/creator', '/content-studio', '/creator-tools'];
-      if (creatorSpecificRoutes.some(creatorRoute => route.startsWith(creatorRoute))) {
-        return user.occupation === 'Creator';
+        return user.role === 'manufacturer';
       }
   
       return true;
@@ -783,11 +773,11 @@ export const authHelpers = {
   // Type guards for authentication data - FIXED to handle Creator as Brand
   export const isRegisterBusinessData = (data: any): boolean => {
     return data && (data.businessName || data.businessAddress) && 
-           (data.occupation === 'Brand' || data.occupation === 'Creator'); // ✅ FIXED
+           (data.role === 'Brand' || data.role === 'Creator'); // ✅ FIXED
   };
   
   export const isRegisterManufacturerData = (data: any): boolean => {
-    return data && data.industry && data.occupation === 'Manufacturer';
+    return data && data.industry && data.role === 'Manufacturer';
   };
   
   export const isRegisterUserData = (data: any): boolean => {

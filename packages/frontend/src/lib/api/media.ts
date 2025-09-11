@@ -1,7 +1,7 @@
 // src/lib/api/media.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
 export interface Media {
   _id: string;
@@ -82,9 +82,9 @@ export const getMediaList = async (params?: {
     const response = await apiClient.get<MediaListResponse>('/api/media', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch media list', error);
+    throw new ApiError('Failed to fetch media list', 500);
   }
 };
 
@@ -96,9 +96,9 @@ export const getMediaList = async (params?: {
 export const getMedia = async (id: string): Promise<MediaDetailsResponse> => {
   try {
     const response = await apiClient.get<MediaDetailsResponse>(`/api/media/${id}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch media', error);
+    throw new ApiError('Failed to fetch media', 500);
   }
 };
 
@@ -113,9 +113,9 @@ export const getMediaMetadata = async (id: string, includeAnalytics?: boolean): 
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/media/${id}/metadata`, {
       params: { includeAnalytics },
     });
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch media metadata', error);
+    throw new ApiError('Failed to fetch media metadata', 500);
   }
 };
 
@@ -134,9 +134,9 @@ export const getMediaAnalytics = async (id: string, params?: {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/media/${id}/analytics`, {
       params,
     });
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch media analytics', error);
+    throw new ApiError('Failed to fetch media analytics', 500);
   }
 };
 
@@ -157,9 +157,9 @@ export const uploadMedia = async (file: File, metadata?: any): Promise<MediaUplo
     const response = await apiClient.post<MediaUploadResponse>('/api/media/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to upload media', error);
+    throw new ApiError('Failed to upload media', 500);
   }
 };
 
@@ -182,9 +182,9 @@ export const uploadMultipleMedia = async (files: File[], metadata?: any): Promis
     const response = await apiClient.post<MediaUploadResponse>('/api/media/upload/batch', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to upload multiple media', error);
+    throw new ApiError('Failed to upload multiple media', 500);
   }
 };
 
@@ -197,9 +197,9 @@ export const uploadMultipleMedia = async (files: File[], metadata?: any): Promis
 export const updateMediaMetadata = async (id: string, data: Partial<Media>): Promise<Media> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {media: Media}}>(`/api/media/${id}`, data);
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to update media metadata', error);
+    throw new ApiError('Failed to update media metadata', 500);
   }
 };
 
@@ -212,9 +212,9 @@ export const updateMediaMetadata = async (id: string, data: Partial<Media>): Pro
 export const updateMediaTitle = async (id: string, title: string): Promise<Media> => {
   try {
     const response = await apiClient.patch<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/title`, { title });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to update media title', error);
+    throw new ApiError('Failed to update media title', 500);
   }
 };
 
@@ -227,9 +227,9 @@ export const updateMediaTitle = async (id: string, title: string): Promise<Media
 export const updateMediaDescription = async (id: string, description: string): Promise<Media> => {
   try {
     const response = await apiClient.patch<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/description`, { description });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to update media description', error);
+    throw new ApiError('Failed to update media description', 500);
   }
 };
 
@@ -242,9 +242,9 @@ export const updateMediaDescription = async (id: string, description: string): P
 export const updateMediaTags = async (id: string, tags: string[]): Promise<Media> => {
   try {
     const response = await apiClient.patch<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/tags`, { tags });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to update media tags', error);
+    throw new ApiError('Failed to update media tags', 500);
   }
 };
 
@@ -257,9 +257,9 @@ export const updateMediaTags = async (id: string, tags: string[]): Promise<Media
 export const addMediaTags = async (id: string, tags: string[]): Promise<Media> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/tags/add`, { tags });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to add media tags', error);
+    throw new ApiError('Failed to add media tags', 500);
   }
 };
 
@@ -272,9 +272,9 @@ export const addMediaTags = async (id: string, tags: string[]): Promise<Media> =
 export const removeMediaTags = async (id: string, tags: string[]): Promise<Media> => {
   try {
     const response = await apiClient.post<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/tags/remove`, { tags });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to remove media tags', error);
+    throw new ApiError('Failed to remove media tags', 500);
   }
 };
 
@@ -287,9 +287,9 @@ export const removeMediaTags = async (id: string, tags: string[]): Promise<Media
 export const updateMediaCategory = async (id: string, category: 'profile' | 'product' | 'banner' | 'certificate' | 'document'): Promise<Media> => {
   try {
     const response = await apiClient.patch<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/category`, { category });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to update media category', error);
+    throw new ApiError('Failed to update media category', 500);
   }
 };
 
@@ -302,9 +302,9 @@ export const updateMediaCategory = async (id: string, category: 'profile' | 'pro
 export const updateMediaVisibility = async (id: string, isPublic: boolean): Promise<Media> => {
   try {
     const response = await apiClient.patch<{success: boolean; data: {media: Media}}>(`/api/media/${id}/update/visibility`, { isPublic });
-    return response.data.data.media;
+    return response.data.media;
   } catch (error) {
-    throw new ApiError('Failed to update media visibility', error);
+    throw new ApiError('Failed to update media visibility', 500);
   }
 };
 
@@ -322,9 +322,9 @@ export const getMediaByCategory = async (
     const response = await apiClient.get<MediaListResponse>(`/api/media/category/${category}`, {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch media by category', error);
+    throw new ApiError('Failed to fetch media by category', 500);
   }
 };
 
@@ -335,12 +335,12 @@ export const getMediaByCategory = async (
  */
 export const downloadMedia = async (id: string): Promise<Blob> => {
   try {
-    const response = await apiClient.get(`/api/media/${id}/download`, {
+    const response = await apiClient.get<Blob>(`/api/media/${id}/download`, {
       responseType: 'blob',
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to download media', error);
+    throw new ApiError('Failed to download media', 500);
   }
 };
 
@@ -365,9 +365,9 @@ export const searchMedia = async (
         ...filters,
       },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to search media', error);
+    throw new ApiError('Failed to search media', 500);
   }
 };
 
@@ -381,9 +381,9 @@ export const getRecentMedia = async (limit?: number): Promise<MediaListResponse>
     const response = await apiClient.get<MediaListResponse>('/api/media/recent', {
       params: { limit },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch recent media', error);
+    throw new ApiError('Failed to fetch recent media', 500);
   }
 };
 
@@ -394,9 +394,9 @@ export const getRecentMedia = async (limit?: number): Promise<MediaListResponse>
 export const getStorageAnalytics = async (): Promise<StorageAnalytics> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {storage: StorageAnalytics}}>('/api/media/analytics/storage');
-    return response.data.data.storage;
+    return response.data.storage;
   } catch (error) {
-    throw new ApiError('Failed to fetch storage analytics', error);
+    throw new ApiError('Failed to fetch storage analytics', 500);
   }
 };
 
@@ -408,9 +408,9 @@ export const getStorageAnalytics = async (): Promise<StorageAnalytics> => {
 export const deleteMedia = async (id: string): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{success: boolean; data: {deleted: boolean; mediaId: string}}>(`/api/media/${id}`);
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to delete media', error);
+    throw new ApiError('Failed to delete media', 500);
   }
 };
 
@@ -425,11 +425,11 @@ export const bulkDeleteMedia = async (mediaIds: string[]): Promise<{ success: bo
       data: { mediaIds },
     });
     return {
-      success: response.data.success,
-      deleted: response.data.data.deleted,
-      failed: response.data.data.failed,
+      success: response.success,
+      deleted: response.data.deleted,
+      failed: response.data.failed,
     };
   } catch (error) {
-    throw new ApiError('Failed to bulk delete media', error);
+    throw new ApiError('Failed to bulk delete media', 500);
   }
 };

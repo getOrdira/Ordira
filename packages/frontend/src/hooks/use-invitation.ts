@@ -2,8 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
-import { api } from '@/lib/api/client';
-import { ApiError } from '@/lib/types/common';
+import apiClient from '@/lib/api/client';
+import { ApiError } from '@/lib/errors';
 
 // Types aligned with backend responses
 interface Invitation {
@@ -172,37 +172,37 @@ interface ConnectionsResponse {
 const invitationApi = {
   // GET /api/invitations - Get invitation overview
   getOverview: async (): Promise<InvitationOverviewResponse> => {
-    return api.get<InvitationOverviewResponse>('/api/invitations');
+    return apiClient.get<InvitationOverviewResponse>('/api/invitations');
   },
 
   // GET /api/invitations/brand - List invitations for brand
   getBrandInvitations: async (): Promise<InvitationListResponse> => {
-    return api.get<InvitationListResponse>('/api/invitations/brand');
+    return apiClient.get<InvitationListResponse>('/api/invitations/brand');
   },
 
   // GET /api/invitations/manufacturer - List invitations for manufacturer
   getManufacturerInvitations: async (): Promise<InvitationListResponse> => {
-    return api.get<InvitationListResponse>('/api/invitations/manufacturer');
+    return apiClient.get<InvitationListResponse>('/api/invitations/manufacturer');
   },
 
   // GET /api/invitations/:inviteId - Get invitation details
   getInvitationById: async (inviteId: string): Promise<InvitationDetailsResponse> => {
-    return api.get<InvitationDetailsResponse>(`/api/invitations/${inviteId}`);
+    return apiClient.get<InvitationDetailsResponse>(`/api/invitations/${inviteId}`);
   },
 
   // POST /api/invitations/brand - Send invitation as brand
   sendInvitation: async (data: SendInvitationRequest): Promise<{ success: boolean; data: { invitation: any } }> => {
-    return api.post<{ success: boolean; data: { invitation: any } }>('/api/invitations/brand', data);
+    return apiClient.post<{ success: boolean; data: { invitation: any } }>('/api/invitations/brand', data);
   },
 
   // POST /api/invitations/manufacturer/:inviteId/respond - Respond to invitation as manufacturer
   respondToInvitation: async (inviteId: string, data: RespondToInvitationRequest): Promise<{ success: boolean; data: { invitation: any; action: string } }> => {
-    return api.post<{ success: boolean; data: { invitation: any; action: string } }>(`/api/invitations/manufacturer/${inviteId}/respond`, data);
+    return apiClient.post<{ success: boolean; data: { invitation: any; action: string } }>(`/api/invitations/manufacturer/${inviteId}/respond`, data);
   },
 
   // DELETE /api/invitations/:inviteId - Cancel/delete invitation
   deleteInvitation: async (inviteId: string): Promise<{ success: boolean }> => {
-    return api.delete<{ success: boolean }>(`/api/invitations/${inviteId}`);
+    return apiClient.delete<{ success: boolean }>(`/api/invitations/${inviteId}`);
   },
 
   // GET /api/invitations/stats - Get invitation statistics
@@ -211,12 +211,12 @@ const invitationApi = {
     if (params?.timeframe) queryParams.set('timeframe', params.timeframe.toString());
     if (params?.breakdown) queryParams.set('breakdown', params.breakdown);
     
-    return api.get<InvitationStatsResponse>(`/api/invitations/stats?${queryParams.toString()}`);
+    return apiClient.get<InvitationStatsResponse>(`/api/invitations/stats?${queryParams.toString()}`);
   },
 
   // GET /api/invitations/connections - Get connections overview
   getConnections: async (): Promise<ConnectionsResponse> => {
-    return api.get<ConnectionsResponse>('/api/invitations/connections');
+    return apiClient.get<ConnectionsResponse>('/api/invitations/connections');
   },
 };
 

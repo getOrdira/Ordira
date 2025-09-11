@@ -1,7 +1,7 @@
 // src/lib/api/notifications.ts
 
-import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import apiClient from './client'; 
+import { ApiError } from '@/lib/errors'; 
 
 // Backend-aligned notification interface matching INotification model
 export interface Notification {
@@ -226,9 +226,9 @@ export const getNotifications = async (params?: NotificationFilters): Promise<No
     const response = await apiClient.get<NotificationListResponse>('/api/notifications', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch notifications', error);
+    throw new ApiError('Failed to fetch notifications', 500);
   }
 };
 
@@ -240,9 +240,9 @@ export const getNotifications = async (params?: NotificationFilters): Promise<No
 export const getNotification = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.get<NotificationDetailsResponse>(`/api/notifications/${id}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch notification', error);
+    throw new ApiError('Failed to fetch notification', 500);
   }
 };
 
@@ -254,9 +254,9 @@ export const getNotification = async (id: string): Promise<NotificationDetailsRe
 export const getNotificationsByType = async (type: string): Promise<NotificationListResponse> => {
   try {
     const response = await apiClient.get<NotificationListResponse>(`/api/notifications/type/${type}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch notifications by type', error);
+    throw new ApiError('Failed to fetch notifications by type', 500);
   }
 };
 
@@ -268,9 +268,9 @@ export const getNotificationsByType = async (type: string): Promise<Notification
 export const getNotificationsByCategory = async (category: Notification['category']): Promise<NotificationListResponse> => {
   try {
     const response = await apiClient.get<NotificationListResponse>(`/api/notifications/category/${category}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch notifications by category', error);
+    throw new ApiError('Failed to fetch notifications by category', 500);
   }
 };
 
@@ -296,9 +296,9 @@ export const createNotification = async (data: {
 }): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.post<NotificationDetailsResponse>('/api/notifications', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to create notification', error);
+    throw new ApiError('Failed to create notification', 500);
   }
 };
 
@@ -310,9 +310,9 @@ export const createNotification = async (data: {
 export const markAsRead = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.put<NotificationDetailsResponse>(`/api/notifications/${id}/read`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to mark notification as read', error);
+    throw new ApiError('Failed to mark notification as read', 500);
   }
 };
 
@@ -324,9 +324,9 @@ export const markAsRead = async (id: string): Promise<NotificationDetailsRespons
 export const markAsUnread = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.put<NotificationDetailsResponse>(`/api/notifications/${id}/unread`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to mark notification as unread', error);
+    throw new ApiError('Failed to mark notification as unread', 500);
   }
 };
 
@@ -350,13 +350,13 @@ export const markAllAsRead = async (): Promise<{
       }
     }>('/api/notifications/read-all');
     return {
-      success: response.data.success,
-      markedCount: response.data.data.markedCount,
-      stats: response.data.data.stats,
-      updatedStats: response.data.data.updatedStats,
+      success: response.success,
+      markedCount: response.data.markedCount,
+      stats: response.data.stats,
+      updatedStats: response.data.updatedStats,
     };
   } catch (error) {
-    throw new ApiError('Failed to mark all notifications as read', error);
+    throw new ApiError('Failed to mark all notifications as read', 500);
   }
 };
 
@@ -368,9 +368,9 @@ export const markAllAsRead = async (): Promise<{
 export const archiveNotification = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.put<NotificationDetailsResponse>(`/api/notifications/${id}/archive`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to archive notification', error);
+    throw new ApiError('Failed to archive notification', 500);
   }
 };
 
@@ -382,9 +382,9 @@ export const archiveNotification = async (id: string): Promise<NotificationDetai
 export const unarchiveNotification = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.put<NotificationDetailsResponse>(`/api/notifications/${id}/unarchive`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to unarchive notification', error);
+    throw new ApiError('Failed to unarchive notification', 500);
   }
 };
 
@@ -396,9 +396,9 @@ export const unarchiveNotification = async (id: string): Promise<NotificationDet
 export const markAsViewed = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.put<NotificationDetailsResponse>(`/api/notifications/${id}/view`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to mark notification as viewed', error);
+    throw new ApiError('Failed to mark notification as viewed', 500);
   }
 };
 
@@ -410,9 +410,9 @@ export const markAsViewed = async (id: string): Promise<NotificationDetailsRespo
 export const markAsClicked = async (id: string): Promise<NotificationDetailsResponse> => {
   try {
     const response = await apiClient.put<NotificationDetailsResponse>(`/api/notifications/${id}/click`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to mark notification as clicked', error);
+    throw new ApiError('Failed to mark notification as clicked', 500);
   }
 };
 
@@ -435,12 +435,12 @@ export const deleteNotification = async (id: string): Promise<{
       }
     }>(`/api/notifications/${id}`);
     return { 
-      success: response.data.success,
-      deleted: response.data.data.deleted,
-      notificationId: response.data.data.notificationId,
+      success: response.success,
+      deleted: response.data.deleted,
+      notificationId: response.data.notificationId,
     };
   } catch (error) {
-    throw new ApiError('Failed to delete notification', error);
+    throw new ApiError('Failed to delete notification', 500);
   }
 };
 
@@ -459,9 +459,9 @@ export const bulkNotificationAction = async (
       notificationIds,
       action,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to perform bulk notification action', error);
+    throw new ApiError('Failed to perform bulk notification action', 500);
   }
 };
 
@@ -490,11 +490,11 @@ export const bulkDeleteNotifications = async (notificationIds: string[]): Promis
       data: { notificationIds },
     });
     return {
-      success: response.data.success,
-      ...response.data.data,
+      success: response.success,
+      ...response.data,
     };
   } catch (error) {
-    throw new ApiError('Failed to bulk delete notifications', error);
+    throw new ApiError('Failed to bulk delete notifications', 500);
   }
 };
 
@@ -505,9 +505,9 @@ export const bulkDeleteNotifications = async (notificationIds: string[]): Promis
 export const getUnreadCount = async (): Promise<UnreadCountResponse> => {
   try {
     const response = await apiClient.get<UnreadCountResponse>('/api/notifications/unread/count');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch unread count', error);
+    throw new ApiError('Failed to fetch unread count', 500);
   }
 };
 
@@ -527,9 +527,9 @@ export const getNotificationStats = async (filters?: {
       success: boolean;
       data: NotificationListResponse['data']['stats'];
     }>('/api/notifications/stats', { params: filters });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch notification stats', error);
+    throw new ApiError('Failed to fetch notification stats', 500);
   }
 };
 
@@ -545,9 +545,9 @@ export const getNotificationSettings = async (): Promise<NotificationSettings> =
         settings: NotificationSettings;
       }
     }>('/api/notifications/settings');
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to fetch notification settings', error);
+    throw new ApiError('Failed to fetch notification settings', 500);
   }
 };
 
@@ -564,9 +564,9 @@ export const updateNotificationSettings = async (settings: Partial<NotificationS
         settings: NotificationSettings;
       }
     }>('/api/notifications/settings', settings);
-    return response.data.data.settings;
+    return response.data.settings;
   } catch (error) {
-    throw new ApiError('Failed to update notification settings', error);
+    throw new ApiError('Failed to update notification settings', 500);
   }
 };
 
@@ -591,12 +591,12 @@ export const cleanupOldNotifications = async (daysToKeep?: number): Promise<{
       params: { daysToKeep },
     });
     return {
-      success: response.data.success,
-      cleaned: response.data.data.cleaned,
-      summary: response.data.data.summary,
+      success: response.success,
+      cleaned: response.data.cleaned,
+      summary: response.data.summary,
     };
   } catch (error) {
-    throw new ApiError('Failed to cleanup old notifications', error);
+    throw new ApiError('Failed to cleanup old notifications', 500);
   }
 };
 
@@ -615,8 +615,8 @@ export const sendTestNotification = async (
       type, 
       sendEmail 
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to send test notification', error);
+    throw new ApiError('Failed to send test notification', 500);
   }
 };

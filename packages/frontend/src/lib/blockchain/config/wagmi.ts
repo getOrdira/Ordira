@@ -9,7 +9,7 @@ import {
   trustWallet,
   injectedWallet,
 } from '@rainbow-me/rainbowkit/wallets';
-import { base, baseSepolia, mainnet, polygon, supportedChains, defaultChain } from './chains';
+import { base, baseSepolia, mainnet, supportedChains, defaultChain } from './chains';
 
 // Environment variables
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!;
@@ -56,7 +56,7 @@ const rpcUrls = {
   [base.id]: process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org',
   [baseSepolia.id]: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
   [mainnet.id]: process.env.NEXT_PUBLIC_ETHEREUM_RPC_URL || 'https://cloudflare-eth.com',
-  [polygon.id]: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-rpc.com',
+
 };
 
 // Create wagmi configuration
@@ -67,7 +67,7 @@ export const wagmiConfig = createConfig({
     [base.id]: http(rpcUrls[base.id]),
     [baseSepolia.id]: http(rpcUrls[baseSepolia.id]),
     [mainnet.id]: http(rpcUrls[mainnet.id]),
-    [polygon.id]: http(rpcUrls[polygon.id]),
+    
   },
   ssr: true, // Enable server-side rendering support
 });
@@ -176,7 +176,7 @@ export const networkSwitchConfig = {
   // Allowed networks for specific features
   allowedNetworksFor: {
     // Token balance checking (can use any supported network)
-    tokenBalance: [base.id, baseSepolia.id, mainnet.id, polygon.id],
+    tokenBalance: [base.id, baseSepolia.id, mainnet.id],
     
     // Certificate operations (only on primary networks)
     certificates: [base.id, baseSepolia.id],
@@ -185,7 +185,7 @@ export const networkSwitchConfig = {
     voting: [base.id, baseSepolia.id],
     
     // Wallet verification (any supported network)
-    walletVerification: [base.id, baseSepolia.id, mainnet.id, polygon.id],
+    walletVerification: [base.id, baseSepolia.id, mainnet.id],
   },
 } as const;
 

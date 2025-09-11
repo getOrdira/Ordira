@@ -1,7 +1,7 @@
 // src/lib/api/brand-settings.ts
 
 import { api } from './client';
-import { ApiError } from '@/lib/types/common';
+import { ApiError } from '@/lib/errors';
 
 // Enhanced response interfaces matching backend controller responses
 export interface BrandSettingsResponse {
@@ -885,7 +885,7 @@ export const connectIntegration = async (type: 'shopify' | 'woocommerce' | 'wix'
     case 'wix':
       return brandSettingsApi.connectWixIntegration(data);
     default:
-      throw new ApiError('Invalid integration type', { statusCode: 400 });
+      throw new ApiError('Invalid integration type', 400);
   }
 };
 

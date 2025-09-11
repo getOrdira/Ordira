@@ -2,7 +2,7 @@
 
 import { useQuery, UseQueryResult, useMutation, UseMutationResult } from '@tanstack/react-query';
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
 // Type definitions aligned with backend
 export interface Proposal {
@@ -128,9 +128,9 @@ export const deployVotingContract = async (contractData: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/votes/deploy', contractData);
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to deploy voting contract', error);
+    throw new ApiError('Failed to deploy voting contract', 500);
   }
 };
 
@@ -150,9 +150,9 @@ export const createProposal = async (data: {
 }): Promise<ProposalDetailResponse> => {
   try {
     const response = await apiClient.post<ProposalDetailResponse>('/api/votes/proposals', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to create proposal', error);
+    throw new ApiError('Failed to create proposal', 500);
   }
 };
 
@@ -172,9 +172,9 @@ export const getProposals = async (params?: {
     const response = await apiClient.get<ProposalsResponse>('/api/votes/proposals', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch proposals', error);
+    throw new ApiError('Failed to fetch proposals', 500);
   }
 };
 
@@ -186,9 +186,9 @@ export const getProposals = async (params?: {
 export const getProposalDetails = async (proposalId: string): Promise<ProposalDetailResponse> => {
   try {
     const response = await apiClient.get<ProposalDetailResponse>(`/api/votes/proposals/${proposalId}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch proposal details', error);
+    throw new ApiError('Failed to fetch proposal details', 500);
   }
 };
 
@@ -200,9 +200,9 @@ export const getProposalDetails = async (proposalId: string): Promise<ProposalDe
 export const getProposalResults = async (proposalId: string): Promise<ProposalResultsResponse> => {
   try {
     const response = await apiClient.get<ProposalResultsResponse>(`/api/votes/proposals/${proposalId}/results`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch proposal results', error);
+    throw new ApiError('Failed to fetch proposal results', 500);
   }
 };
 
@@ -223,9 +223,9 @@ export const submitVotes = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/votes', data);
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to submit votes', error);
+    throw new ApiError('Failed to submit votes', 500);
   }
 };
 
@@ -245,9 +245,9 @@ export const getVotes = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/votes', {
       params,
     });
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch votes', error);
+    throw new ApiError('Failed to fetch votes', 500);
   }
 };
 
@@ -265,9 +265,9 @@ export const getMyVotes = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/votes/my-votes', {
       params,
     });
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch my votes', error);
+    throw new ApiError('Failed to fetch my votes', 500);
   }
 };
 
@@ -287,9 +287,9 @@ export const getVotingStats = async (params?: {
     const response = await apiClient.get<VotingStatsResponse>('/api/votes/stats', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch voting stats', error);
+    throw new ApiError('Failed to fetch voting stats', 500);
   }
 };
 
@@ -307,9 +307,9 @@ export const getVotingAnalytics = async (params?: {
     const response = await apiClient.get<VotingAnalyticsResponse>('/api/votes/analytics', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch voting analytics', error);
+    throw new ApiError('Failed to fetch voting analytics', 500);
   }
 };
 
@@ -322,9 +322,9 @@ export const getVotingAnalytics = async (params?: {
 export const forceSubmitPendingVotes = async (): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/votes/force-submit');
-    return response.data.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to force submit pending votes', error);
+    throw new ApiError('Failed to force submit pending votes', 500);
   }
 };
 
@@ -367,7 +367,7 @@ export const useSubmitVotes = (): UseMutationResult<any, ApiError, CreateVoteDat
         vote: payload.vote,
         reason: payload.reason,
       });
-      return response.data;
+      return response;
     },
     onError: (error: ApiError) => {
       console.error('Vote submission error:', error);
@@ -384,7 +384,7 @@ export const useVoteStatus = (proposalId: string): UseQueryResult<boolean, ApiEr
     queryKey: ['voteStatus', proposalId],
     queryFn: async () => {
       const response = await apiClient.get<{success: boolean; data: {voteStatus: {hasVoted: boolean}}}>(`/api/users/vote/status/${proposalId}`);
-      return response.data.data.voteStatus.hasVoted;
+      return response.data.voteStatus.hasVoted;
     },
     staleTime: 1 * 60 * 1000, // 1 minute
     retry: (failureCount: number, error: ApiError) => error.statusCode >= 500 && failureCount < 3,
@@ -410,7 +410,7 @@ export async function fetchProposals(businessId: string, params?: {
 /**
  * Submits user votes using user API endpoint.
  */
-export async function submitUserVotes(payload: CreateVoteData): Promise<any> => {
+export async function submitUserVotes(payload: CreateVoteData): Promise<any> {
   const response = await apiClient.post<{success: boolean; data: any}>('/api/users/vote', {
     proposalId: payload.proposalId,
     selectedProducts: payload.selectedProducts,
@@ -423,7 +423,7 @@ export async function submitUserVotes(payload: CreateVoteData): Promise<any> => 
 /**
  * Checks user vote status using user API endpoint.
  */
-export async function checkUserVoteStatus(proposalId: string): Promise<boolean> => {
+export async function checkUserVoteStatus(proposalId: string): Promise<boolean> {
   const response = await apiClient.get<{success: boolean; data: {voteStatus: {hasVoted: boolean}}}>(`/api/users/vote/status/${proposalId}`);
-  return response.data.data.voteStatus.hasVoted;
+  return response.data.voteStatus.hasVoted;
 }

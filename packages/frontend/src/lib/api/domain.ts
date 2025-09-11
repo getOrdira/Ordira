@@ -1,7 +1,7 @@
 // src/lib/api/domain.ts
 
-import { api } from './client';
-import { ApiError } from '@/lib/types/common';
+import apiClient from './client';
+import { ApiError } from '@/lib/errors';
 
 // Enhanced response interfaces matching backend controller responses
 export interface DomainMappingResponse {
@@ -264,7 +264,7 @@ export const domainApi = {
       if (params?.status) queryParams.set('status', params.status);
       if (params?.includeHealth) queryParams.set('includeHealth', String(params.includeHealth));
 
-      const response = await api.get<{
+      const response = await apiClient.get<{
         mappings: DomainMapping[];
         summary: {
           total: number;
@@ -290,7 +290,7 @@ export const domainApi = {
    */
   getDomainMapping: async (id: string): Promise<DomainMappingResponse> => {
     try {
-      const response = await api.get<DomainMappingResponse>(`/api/domain-mappings/${id}`);
+      const response = await apiClient.get<DomainMappingResponse>(`/api/domain-mappings/${id}`);
       return response;
     } catch (error) {
       console.error('Get domain mapping error:', error);
@@ -312,7 +312,7 @@ export const domainApi = {
     mappingMetadata?: DomainMapping['mappingMetadata'];
   }): Promise<DomainMappingResponse> => {
     try {
-      const response = await api.post<DomainMappingResponse>('/api/domain-mappings', data);
+      const response = await apiClient.post<DomainMappingResponse>('/api/domain-mappings', data);
       return response;
     } catch (error) {
       console.error('Create domain mapping error:', error);
@@ -328,7 +328,7 @@ export const domainApi = {
     updateMetadata?: DomainMapping['updateMetadata'];
   }): Promise<DomainMapping> => {
     try {
-      const response = await api.patch<DomainMapping>(`/api/domain-mappings/${id}`, data);
+      const response = await apiClient.patch<DomainMapping>(`/api/domain-mappings/${id}`, data);
       return response;
     } catch (error) {
       console.error('Update domain mapping error:', error);
@@ -350,7 +350,7 @@ export const domainApi = {
     };
   }> => {
     try {
-      const response = await api.delete<{
+      const response = await apiClient.delete<{
         success: boolean;
         deleted: DomainMapping;
         cleanup: {
@@ -376,7 +376,7 @@ export const domainApi = {
    */
   verifyDomain: async (id: string, verificationMethod: 'dns' | 'file' | 'email' = 'dns'): Promise<DomainVerificationResponse> => {
     try {
-      const response = await api.post<DomainVerificationResponse>(`/api/domain-mappings/${id}/verify`, {
+      const response = await apiClient.post<DomainVerificationResponse>(`/api/domain-mappings/${id}/verify`, {
         verificationMethod
       });
       return response;
@@ -396,7 +396,7 @@ export const domainApi = {
     instructions: string[];
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         token: string;
         verificationMethod: string;
         instructions: string[];
@@ -423,7 +423,7 @@ export const domainApi = {
     nextSteps: string[];
   }> => {
     try {
-      const response = await api.get<{
+      const response = await apiClient.get<{
         verified: boolean;
         status: string;
         checks: {
@@ -463,7 +463,7 @@ export const domainApi = {
     };
   }> => {
     try {
-      const response = await api.get<{
+      const response = await apiClient.get<{
         certificates: Array<{
           domain: string;
           issuer: string;
@@ -500,7 +500,7 @@ export const domainApi = {
     };
   }): Promise<DomainMapping> => {
     try {
-      const response = await api.put<DomainMapping>('/api/brand-settings/domain-mapping/ssl', data);
+      const response = await apiClient.put<DomainMapping>('/api/brand-settings/domain-mapping/ssl', data);
       return response;
     } catch (error) {
       console.error('Update SSL config error:', error);
@@ -514,7 +514,7 @@ export const domainApi = {
    */
   renewCertificate: async (domainId: string): Promise<CertificateRenewalResponse> => {
     try {
-      const response = await api.post<CertificateRenewalResponse>('/api/brand-settings/domain-mapping/ssl/renew', {
+      const response = await apiClient.post<CertificateRenewalResponse>('/api/brand-settings/domain-mapping/ssl/renew', {
         domainId
       });
       return response;
@@ -534,7 +534,7 @@ export const domainApi = {
     affectedDomains: string[];
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         success: boolean;
         forceHttps: boolean;
         affectedDomains: string[];
@@ -571,7 +571,7 @@ export const domainApi = {
       const queryParams = new URLSearchParams();
       if (domain) queryParams.set('domain', domain);
 
-      const response = await api.get<{
+      const response = await apiClient.get<{
         instructions: Array<{
           type: string;
           name: string;
@@ -611,7 +611,7 @@ export const domainApi = {
     estimatedPropagationTime?: number;
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         valid: boolean;
         records: Array<{
           type: string;
@@ -642,7 +642,7 @@ export const domainApi = {
       const queryParams = new URLSearchParams();
       if (domainId) queryParams.set('domainId', domainId);
 
-      const response = await api.get<DomainHealthResponse>(
+      const response = await apiClient.get<DomainHealthResponse>(
         `/api/brand-settings/domain-mapping/health?${queryParams.toString()}`
       );
       return response;
@@ -678,7 +678,7 @@ export const domainApi = {
     recommendations: string[];
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         success: boolean;
         tests: {
           dnsResolution: {
@@ -714,7 +714,7 @@ export const domainApi = {
    */
   getDomainAnalytics: async (domainId: string, timeframe = '7d'): Promise<DomainAnalyticsResponse> => {
     try {
-      const response = await api.get<DomainAnalyticsResponse>(
+      const response = await apiClient.get<DomainAnalyticsResponse>(
         `/api/domain-mappings/${domainId}/analytics?timeframe=${timeframe}`
       );
       return response;
@@ -738,7 +738,7 @@ export const domainApi = {
     metrics: DomainMapping['performanceMetrics'];
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         success: boolean;
         metrics: DomainMapping['performanceMetrics'];
       }>(`/api/domain-mappings/${id}/record-metrics`, { metrics });
@@ -758,7 +758,7 @@ export const domainApi = {
     lastAccessedAt: string;
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         requestCount: number;
         lastAccessedAt: string;
       }>(`/api/domain-mappings/${id}/increment-request`, {});
@@ -801,7 +801,7 @@ export const domainApi = {
       if (params?.limit) queryParams.set('limit', String(params.limit));
       if (params?.offset) queryParams.set('offset', String(params.offset));
 
-      const response = await api.get<{
+      const response = await apiClient.get<{
         history: Array<{
           id: string;
           domain: string;
@@ -843,7 +843,7 @@ export const domainApi = {
     };
   }> => {
     try {
-      const response = await api.post<{
+      const response = await apiClient.post<{
         success: boolean;
         rolledBack: DomainMapping;
         previousConfig: any;

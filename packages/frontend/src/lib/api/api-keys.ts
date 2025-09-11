@@ -1,7 +1,7 @@
 // src/lib/api/api-keys.ts
 
-import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import apiClient from './client'; 
+import { ApiError } from '@/lib/errors'; 
 
 const BASE_PATH = '/api/brand/api-keys';
 
@@ -64,9 +64,9 @@ export const getApiKeys = async (businessId?: string): Promise<ApiKey[]> => {
     const response = await apiClient.get<ApiKey[]>('/api/brand/api-keys', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch API keys', error);
+    throw new ApiError('Failed to fetch API keys', 500);
   }
 };
 
@@ -78,9 +78,9 @@ export const getApiKeys = async (businessId?: string): Promise<ApiKey[]> => {
 export const getApiKey = async (keyId: string): Promise<ApiKey> => {
   try {
     const response = await apiClient.get<ApiKey>(`/api/brand/api-keys/${keyId}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch API key', error);
+    throw new ApiError('Failed to fetch API key', 500);
   }
 };
 
@@ -101,9 +101,9 @@ export const createApiKey = async (data: {
 }): Promise<CreateApiKeyResponse> => {
   try {
     const response = await apiClient.post<CreateApiKeyResponse>(`${BASE_PATH}`, data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to create API key', error);
+    throw new ApiError('Failed to create API key', 500);
   }
 };
 
@@ -126,9 +126,9 @@ export const updateApiKey = async (keyId: string, data: {
 }): Promise<ApiKey> => {
   try {
     const response = await apiClient.patch<ApiKey>(`${BASE_PATH}`, data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update API key', error);
+    throw new ApiError('Failed to update API key', 500);
   }
 };
 
@@ -144,8 +144,8 @@ export const revokeApiKey = async (keyId: string, reason?: string): Promise<ApiK
     const response = await apiClient.delete<ApiKey>(`/api/brand/api-keys/${keyId}`, {
       data: { reason },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to revoke API key', error);
+    throw new ApiError('Failed to revoke API key', 500);
   }
 };

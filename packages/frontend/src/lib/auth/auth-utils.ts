@@ -10,7 +10,7 @@ export const roleUtils = {
    */
   hasRole(user: AnyUser | null, role: string): boolean {
     if (!user) return false;
-    return user.occupation === role;
+    return user.role === role;
   },
 
   /**
@@ -18,7 +18,7 @@ export const roleUtils = {
    */
   hasAnyRole(user: AnyUser | null, roles: string[]): boolean {
     if (!user) return false;
-    return roles.includes(user.occupation);
+    return roles.includes(user.role);
   },
 
   /**
@@ -81,7 +81,7 @@ export const routeProtection = {
   getDefaultRedirectPath(user: AnyUser | null): string {
     if (!user) return '/auth/login';
     
-    switch (user.occupation) {
+    switch (user.role) {
       case 'Brand':
       case 'Creator': // ✅ FIXED: Same dashboard as Brand
         return '/dashboard';

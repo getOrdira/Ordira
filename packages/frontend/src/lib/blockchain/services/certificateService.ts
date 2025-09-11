@@ -1,5 +1,5 @@
 // src/lib/blockchain/services/certificateService.ts
-import { apiClient } from '@/lib/api/client';
+import apiClient from '@/lib/api/client';
 import { readContract, readContracts, waitForTransactionReceipt } from 'viem/actions';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { getContractAddress, getContractABI } from '../config/contracts';

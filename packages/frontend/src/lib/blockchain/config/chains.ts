@@ -59,27 +59,9 @@ export const mainnet = {
   testnet: false,
 } as const satisfies Chain;
 
-export const polygon = {
-  id: 137,
-  name: 'Polygon',
-  network: 'polygon',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'MATIC',
-    symbol: 'MATIC',
-  },
-  rpcUrls: {
-    public: { http: ['https://polygon-rpc.com'] },
-    default: { http: ['https://polygon-rpc.com'] },
-  },
-  blockExplorers: {
-    default: { name: 'PolygonScan', url: 'https://polygonscan.com' },
-  },
-  testnet: false,
-} as const satisfies Chain;
 
 // Array of all supported chains
-export const supportedChains = [base, baseSepolia, mainnet, polygon] as const;
+export const supportedChains = [base, baseSepolia, mainnet] as const;
 
 // Default chain based on environment
 export const defaultChain = process.env.NODE_ENV === 'development' ? baseSepolia : base;
@@ -124,19 +106,6 @@ export const chainConfig = {
     gasMultiplier: 1.3, // Higher gas buffer for mainnet
     blockTime: 12, // ~12 seconds per block
     confirmations: 3, // More confirmations for security
-  },
-  [polygon.id]: {
-    name: 'Polygon',
-    shortName: 'polygon',
-    explorerUrl: 'https://polygonscan.com',
-    explorerApiUrl: 'https://api.polygonscan.com/api',
-    rpcUrl: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-rpc.com',
-    currency: 'MATIC',
-    isTestnet: false,
-    isSupported: true, // For future expansion
-    gasMultiplier: 1.2,
-    blockTime: 2,
-    confirmations: 5, // More confirmations for Polygon
   },
 } as const;
 
@@ -184,5 +153,4 @@ export const networkHealthUrls = {
   [base.id]: 'https://mainnet.base.org',
   [baseSepolia.id]: 'https://sepolia.base.org', 
   [mainnet.id]: 'https://cloudflare-eth.com',
-  [polygon.id]: 'https://polygon-rpc.com',
 } as const;

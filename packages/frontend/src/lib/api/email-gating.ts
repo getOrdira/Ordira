@@ -1,7 +1,6 @@
 // src/lib/api/email-gating.ts
 
 import { api } from './client';
-import { ApiError } from '@/lib/types/common';
 
 // Enhanced response interfaces matching backend controller responses
 export interface EmailGatingSettingsResponse {

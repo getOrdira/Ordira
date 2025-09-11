@@ -1,7 +1,7 @@
 // src/lib/api/invitation.ts
 
-import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import apiClient from './client'; 
+import { ApiError } from '@/lib/errors'; 
 
 export interface Invitation {
   _id: string;
@@ -60,9 +60,9 @@ export interface InvitationOverviewResponse {
 export const getInvitationOverview = async (): Promise<InvitationOverviewResponse> => {
   try {
     const response = await apiClient.get<InvitationOverviewResponse>('/api/invitations');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch invitation overview', error);
+    throw new ApiError('Failed to fetch invitation overview', 500);
   }
 };
 
@@ -81,9 +81,9 @@ export const sendInvitation = async (data: {
 }): Promise<SendInvitationResponse> => {
   try {
     const response = await apiClient.post<SendInvitationResponse>('/api/invitations/brand', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to send invitation', error);
+    throw new ApiError('Failed to send invitation', 500);
   }
 };
 
@@ -97,9 +97,9 @@ export const getBrandInvitations = async (status?: Invitation['status']): Promis
     const response = await apiClient.get<{success: boolean; data: {invitations: Invitation[]}}>('/api/invitations/brand', {
       params: { status },
     });
-    return response.data.data.invitations;
+    return response.data.invitations;
   } catch (error) {
-    throw new ApiError('Failed to fetch brand invitations', error);
+    throw new ApiError('Failed to fetch brand invitations', 500);
   }
 };
 
@@ -111,9 +111,9 @@ export const getBrandInvitations = async (status?: Invitation['status']): Promis
 export const getBrandInvitationById = async (inviteId: string): Promise<Invitation> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {invitation: Invitation}}>(`/api/invitations/brand/${inviteId}`);
-    return response.data.data.invitation;
+    return response.data.invitation;
   } catch (error) {
-    throw new ApiError('Failed to fetch brand invitation by ID', error);
+    throw new ApiError('Failed to fetch brand invitation by ID', 500);
   }
 };
 
@@ -130,9 +130,9 @@ export const updateInvitation = async (inviteId: string, data: {
 }): Promise<Invitation> => {
   try {
     const response = await apiClient.put<{success: boolean; data: {invitation: Invitation}}>(`/api/invitations/brand/${inviteId}`, data);
-    return response.data.data.invitation;
+    return response.data.invitation;
   } catch (error) {
-    throw new ApiError('Failed to update invitation', error);
+    throw new ApiError('Failed to update invitation', 500);
   }
 };
 
@@ -144,9 +144,9 @@ export const updateInvitation = async (inviteId: string, data: {
 export const deleteInvitation = async (inviteId: string): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{ success: boolean }>(`/api/invitations/brand/${inviteId}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to delete invitation', error);
+    throw new ApiError('Failed to delete invitation', 500);
   }
 };
 
@@ -162,9 +162,9 @@ export const getManufacturerInvitations = async (status?: Invitation['status']):
     const response = await apiClient.get<{success: boolean; data: {invitations: Invitation[]}}>('/api/invitations/manufacturer', {
       params: { status },
     });
-    return response.data.data.invitations;
+    return response.data.invitations;
   } catch (error) {
-    throw new ApiError('Failed to fetch manufacturer invitations', error);
+    throw new ApiError('Failed to fetch manufacturer invitations', 500);
   }
 };
 
@@ -176,9 +176,9 @@ export const getManufacturerInvitations = async (status?: Invitation['status']):
 export const getManufacturerInvitationById = async (inviteId: string): Promise<Invitation> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {invitation: Invitation}}>(`/api/invitations/manufacturer/${inviteId}`);
-    return response.data.data.invitation;
+    return response.data.invitation;
   } catch (error) {
-    throw new ApiError('Failed to fetch manufacturer invitation by ID', error);
+    throw new ApiError('Failed to fetch manufacturer invitation by ID', 500);
   }
 };
 
@@ -195,9 +195,9 @@ export const respondToInvitation = async (inviteId: string, accept: boolean, not
       accept,
       note 
     });
-    return response.data.data.invitation;
+    return response.data.invitation;
   } catch (error) {
-    throw new ApiError('Failed to respond to invitation', error);
+    throw new ApiError('Failed to respond to invitation', 500);
   }
 };
 
@@ -219,9 +219,9 @@ export const submitCounterOffer = async (inviteId: string, counterOffer: {
       counterOffer,
       note
     });
-    return response.data.data.invitation;
+    return response.data.invitation;
   } catch (error) {
-    throw new ApiError('Failed to submit counter-offer', error);
+    throw new ApiError('Failed to submit counter-offer', 500);
   }
 };
 
@@ -240,9 +240,9 @@ export const getManufacturerInvitationAnalytics = async (params?: {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/invitations/manufacturer/analytics', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch manufacturer invitation analytics', error);
+    throw new ApiError('Failed to fetch manufacturer invitation analytics', 500);
   }
 };
 
@@ -256,9 +256,9 @@ export const getManufacturerInvitationAnalytics = async (params?: {
 export const getInvitationByCode = async (inviteId: string): Promise<Invitation> => {
   try {
     const response = await apiClient.get<{success: boolean; data: {invitation: Invitation}}>(`/api/invitations/${inviteId}`);
-    return response.data.data.invitation;
+    return response.data.invitation;
   } catch (error) {
-    throw new ApiError('Failed to fetch invitation by ID', error);
+    throw new ApiError('Failed to fetch invitation by ID', 500);
   }
 };
 
@@ -270,9 +270,9 @@ export const getInvitationByCode = async (inviteId: string): Promise<Invitation>
 export const disconnectPartner = async (partnerId: string): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{ success: boolean }>(`/api/invitations/disconnect/${partnerId}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to disconnect partner', error);
+    throw new ApiError('Failed to disconnect partner', 500);
   }
 };
 
@@ -283,9 +283,9 @@ export const disconnectPartner = async (partnerId: string): Promise<{ success: b
 export const getInvitationNotificationPreferences = async (): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/invitations/notifications');
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch invitation notification preferences', error);
+    throw new ApiError('Failed to fetch invitation notification preferences', 500);
   }
 };
 
@@ -303,9 +303,9 @@ export const updateInvitationNotificationPreferences = async (preferences: {
 }): Promise<any> => {
   try {
     const response = await apiClient.put<{success: boolean; data: any}>('/api/invitations/notifications', preferences);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to update invitation notification preferences', error);
+    throw new ApiError('Failed to update invitation notification preferences', 500);
   }
 };
 

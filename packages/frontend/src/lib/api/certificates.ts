@@ -1,7 +1,7 @@
 // src/lib/api/certificates.ts
 
 import { api } from './client';
-import { ApiError } from '@/lib/types/common';
+import { ApiError } from '@/lib/errors';
 
 // Enhanced interfaces matching backend controller responses
 export interface Certificate {

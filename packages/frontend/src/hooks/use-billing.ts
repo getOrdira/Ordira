@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { ApiError } from '@/lib/errors';
+import apiClient from '@/lib/api/client';
 
 // ===== TYPES =====
 
@@ -189,49 +191,55 @@ interface CancelSubscriptionRequest {
 
 // ===== API FUNCTIONS =====
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Use the centralized API client
+const api = apiClient;
 
 const billingApi = {
   // Subscription management
-  getCurrentSubscription: (): Promise<Subscription> =>
-    api.get('/billing/subscription/current').then(res => res.data),
+  getCurrentSubscription: async (): Promise<Subscription> => {
+    const response = await api.get('/billing/subscription/current');
+    return response.data.data;
+  },
 
-  changePlan: (data: ChangePlanRequest): Promise<{ success: boolean; message: string }> =>
-    api.post('/billing/subscription/change-plan', data).then(res => res.data),
+  changePlan: async (data: ChangePlanRequest): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/billing/subscription/change-plan', data);
+    return response.data;
+  },
 
-  cancelSubscription: (data: CancelSubscriptionRequest): Promise<{ success: boolean; message: string }> =>
-    api.post('/billing/subscription/cancel', data).then(res => res.data),
+  cancelSubscription: async (data: CancelSubscriptionRequest): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/billing/subscription/cancel', data);
+    return response.data;
+  },
 
   // Checkout and billing
-  createCheckoutSession: (data: CheckoutSessionRequest): Promise<{ sessionUrl: string; sessionId: string }> =>
-    api.post('/billing/checkout/create-session', data).then(res => res.data),
+  createCheckoutSession: async (data: CheckoutSessionRequest): Promise<{ sessionUrl: string; sessionId: string }> => {
+    const response = await api.post('/billing/checkout/create-session', data);
+    return response.data.data;
+  },
 
-  getAvailablePlans: (): Promise<PlanComparison> =>
-    api.get('/billing/plans').then(res => res.data),
+  getAvailablePlans: async (): Promise<PlanComparison> => {
+    const response = await api.get('/billing/plans');
+    return response.data.data;
+  },
 
   // Payment methods
-  getPaymentMethods: (): Promise<{ paymentMethods: PaymentMethod[] }> =>
-    api.get('/billing/payment-methods').then(res => res.data),
+  getPaymentMethods: async (): Promise<{ paymentMethods: PaymentMethod[] }> => {
+    const response = await api.get('/billing/payment-methods');
+    return response.data.data;
+  },
 
-  updatePaymentMethod: (data: PaymentMethodUpdate): Promise<{ success: boolean; message: string }> =>
-    api.post('/billing/payment-methods/update', data).then(res => res.data),
+  updatePaymentMethod: async (data: PaymentMethodUpdate): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/billing/payment-methods/update', data);
+    return response.data;
+  },
 
-  deletePaymentMethod: (paymentMethodId: string): Promise<{ success: boolean; message: string }> =>
-    api.delete(`/billing/payment-methods/${paymentMethodId}`).then(res => res.data),
+  deletePaymentMethod: async (paymentMethodId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/billing/payment-methods/${paymentMethodId}`);
+    return response.data;
+  },
 
   // Invoices
-  getInvoices: (params?: {
+  getInvoices: async (params?: {
     page?: number;
     limit?: number;
     status?: string;
@@ -239,38 +247,52 @@ const billingApi = {
     dateTo?: string;
     sortBy?: 'created' | 'amount' | 'dueDate';
     sortOrder?: 'asc' | 'desc';
-  }): Promise<InvoiceListResponse> =>
-    api.get('/billing/invoices', { params }).then(res => res.data),
+  }): Promise<InvoiceListResponse> => {
+    const response = await api.get('/billing/invoices', { params });
+    return response.data.data;
+  },
 
-  getInvoiceById: (invoiceId: string): Promise<Invoice & { lineItems: any[]; paymentHistory: any[] }> =>
-    api.get(`/billing/invoices/${invoiceId}`).then(res => res.data),
+  getInvoiceById: async (invoiceId: string): Promise<Invoice & { lineItems: any[]; paymentHistory: any[] }> => {
+    const response = await api.get(`/billing/invoices/${invoiceId}`);
+    return response.data.data;
+  },
 
-  downloadInvoice: (invoiceId: string): Promise<Blob> =>
-    api.get(`/billing/invoices/${invoiceId}/download`, { responseType: 'blob' }).then(res => res.data),
+  downloadInvoice: async (invoiceId: string): Promise<Blob> => {
+    const response = await api.get(`/billing/invoices/${invoiceId}/download`, { responseType: 'blob' });
+    return response.data;
+  },
 
-  resendInvoice: (invoiceId: string, email?: string): Promise<{ success: boolean; message: string }> =>
-    api.post('/billing/invoices/actions', { action: 'send', invoiceId, email }).then(res => res.data),
+  resendInvoice: async (invoiceId: string, email?: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/billing/invoices/actions', { action: 'send', invoiceId, email });
+    return response.data;
+  },
 
   // Usage and analytics
-  getUsageStats: (params?: {
+  getUsageStats: async (params?: {
     period?: '7d' | '30d' | '90d' | '1y';
     includeProjections?: boolean;
     includeRecommendations?: boolean;
     detailedBreakdown?: boolean;
-  }): Promise<UsageStats> =>
-    api.get('/billing/usage', { params }).then(res => res.data),
+  }): Promise<UsageStats> => {
+    const response = await api.get('/billing/usage', { params });
+    return response.data.data;
+  },
 
-  resetUsageCounters: (resetType: 'votes' | 'certificates' | 'all'): Promise<{ success: boolean; message: string }> =>
-    api.post('/billing/usage/actions', { action: 'reset_counters', resetType }).then(res => res.data),
+  resetUsageCounters: async (resetType: 'votes' | 'certificates' | 'all'): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/billing/usage/actions', { action: 'reset_counters', resetType });
+    return response.data;
+  },
 
-  exportUsageData: (params: {
+  exportUsageData: async (params: {
     exportFormat: 'csv' | 'json' | 'xlsx';
     exportTimeframe?: '30d' | '90d' | '1y';
-  }): Promise<Blob> =>
-    api.post('/billing/usage/actions', { 
+  }): Promise<Blob> => {
+    const response = await api.post('/billing/usage/actions', { 
       action: 'export_data', 
       ...params 
-    }, { responseType: 'blob' }).then(res => res.data),
+    }, { responseType: 'blob' });
+    return response.data;
+  },
 };
 
 // ===== HOOKS =====
@@ -709,7 +731,11 @@ export function useBillingAlerts() {
     enabled: !!(subscription.data || usage.data),
     staleTime: 1 * 60 * 1000, // 1 minute
   });
-}subscription'] });
+  
+  const changePlanMutation = useMutation({
+    mutationFn: changePlan,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['billing', 'subscription'] });
       queryClient.invalidateQueries({ queryKey: ['billing', 'usage'] });
       queryClient.invalidateQueries({ queryKey: ['billing', 'plans'] });
     },

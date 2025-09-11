@@ -1,13 +1,7 @@
 // src/lib/api/manufacturerDiscovery.ts
 
-import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
-
-// Type definitions aligned with backend manufacturerProfile.controller.ts and manufacturerProfile.service.ts
-// Routes from /api/manufacturer-profiles/* (for brand discovery of manufacturers)
-// Controller: manufacturerProfile.controller.ts handles listManufacturerProfiles, getManufacturerProfile, advancedManufacturerSearch
-// Service: manufacturerProfile.service.ts for manufacturer discovery and search functionality
-// Note: This is different from /api/manufacturer/profile which is for manufacturer's own profile management
+import apiClient from './client'; 
+import { ApiError } from '@/lib/errors'; 
 
 export interface ManufacturerSearchResult {
   id: string;
@@ -192,9 +186,9 @@ export const listManufacturers = async (filters?: SearchFilters): Promise<Manufa
     const response = await apiClient.get<ManufacturerListResponse>('/api/manufacturer-profiles', {
       params: filters,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to list manufacturers', error);
+    throw new ApiError('Failed to list manufacturers', 500);
   }
 };
 
@@ -211,9 +205,9 @@ export const searchManufacturers = async (filters: SearchFilters): Promise<Manuf
     const response = await apiClient.get<ManufacturerListResponse>('/api/manufacturer-profiles/search', {
       params: filters,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to search manufacturers', error);
+    throw new ApiError('Failed to search manufacturers', 500);
   }
 };
 
@@ -229,9 +223,9 @@ export const searchManufacturers = async (filters: SearchFilters): Promise<Manuf
 export const advancedSearchManufacturers = async (criteria: AdvancedSearchCriteria): Promise<AdvancedSearchResponse> => {
   try {
     const response = await apiClient.post<AdvancedSearchResponse>('/api/manufacturer-profiles/search', criteria);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to perform advanced search', error);
+    throw new ApiError('Failed to perform advanced search', 500);
   }
 };
 
@@ -246,9 +240,9 @@ export const advancedSearchManufacturers = async (criteria: AdvancedSearchCriter
 export const getManufacturerDetail = async (id: string): Promise<ManufacturerDetailResponse> => {
   try {
     const response = await apiClient.get<ManufacturerDetailResponse>(`/api/manufacturer-profiles/${id}`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get manufacturer details', error);
+    throw new ApiError('Failed to get manufacturer details', 500);
   }
 };
 
@@ -269,9 +263,9 @@ export const getFeaturedManufacturers = async (params?: {
     const response = await apiClient.get<FeaturedManufacturersResponse>('/api/manufacturer-profiles/featured', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get featured manufacturers', error);
+    throw new ApiError('Failed to get featured manufacturers', 500);
   }
 };
 
@@ -292,9 +286,9 @@ export const getManufacturersByIndustry = async (
     const response = await apiClient.get<ManufacturerListResponse>(`/api/manufacturer-profiles/industry/${industry}`, {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get manufacturers by industry', error);
+    throw new ApiError('Failed to get manufacturers by industry', 500);
   }
 };
 
@@ -320,9 +314,9 @@ export const getManufacturersByLocation = async (
     const response = await apiClient.get<ManufacturerListResponse>(`/api/manufacturer-profiles/location/${country}`, {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get manufacturers by location', error);
+    throw new ApiError('Failed to get manufacturers by location', 500);
   }
 };
 
@@ -344,9 +338,9 @@ export const getCertifiedManufacturers = async (params?: {
     const response = await apiClient.get<ManufacturerListResponse>('/api/manufacturer-profiles/certified', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get certified manufacturers', error);
+    throw new ApiError('Failed to get certified manufacturers', 500);
   }
 };
 
@@ -367,9 +361,9 @@ export const getTrendingManufacturers = async (params?: {
     const response = await apiClient.get<ManufacturerListResponse>('/api/manufacturer-profiles/trending', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get trending manufacturers', error);
+    throw new ApiError('Failed to get trending manufacturers', 500);
   }
 };
 
@@ -391,9 +385,9 @@ export const getTopRatedManufacturers = async (params?: {
     const response = await apiClient.get<ManufacturerListResponse>('/api/manufacturer-profiles/top-rated', {
       params,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get top-rated manufacturers', error);
+    throw new ApiError('Failed to get top-rated manufacturers', 500);
   }
 };
 
@@ -417,9 +411,9 @@ export const getManufacturersByMOQ = async (
         ...params,
       },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get manufacturers by MOQ', error);
+    throw new ApiError('Failed to get manufacturers by MOQ', 500);
   }
 };
 
@@ -447,9 +441,9 @@ export const getSearchFilters = async (): Promise<{
       moqRanges: Array<{ label: string; min?: number; max?: number }>;
       sortOptions: Array<{ value: string; label: string }>;
     }>('/api/manufacturer-profiles/filters');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get search filters', error);
+    throw new ApiError('Failed to get search filters', 500);
   }
 };
 
@@ -469,9 +463,9 @@ export const saveSearch = async (searchData: {
 }): Promise<{ success: boolean; searchId: string; name: string }> => {
   try {
     const response = await apiClient.post<{ success: boolean; searchId: string; name: string }>('/api/manufacturer-profiles/save-search', searchData);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to save search', error);
+    throw new ApiError('Failed to save search', 500);
   }
 };
 
@@ -499,9 +493,9 @@ export const getSavedSearches = async (): Promise<Array<{
       lastUsed?: Date;
       resultCount?: number;
     }>>('/api/manufacturer-profiles/saved-searches');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to get saved searches', error);
+    throw new ApiError('Failed to get saved searches', 500);
   }
 };
 
@@ -516,9 +510,9 @@ export const getSavedSearches = async (): Promise<Array<{
 export const runSavedSearch = async (searchId: string): Promise<ManufacturerListResponse> => {
   try {
     const response = await apiClient.get<ManufacturerListResponse>(`/api/manufacturer-profiles/saved-searches/${searchId}/run`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to run saved search', error);
+    throw new ApiError('Failed to run saved search', 500);
   }
 };
 

@@ -8,7 +8,7 @@ import {
   useSwitchChain,
   useConnectors 
 } from 'wagmi';
-import { apiClient } from '@/lib/api/client';
+import apiClient from '@/lib/api/client';
 import { defaultChain, isChainSupported, getChainConfig } from '../config/chains';
 import { blockchainFeatureFlags } from '../config/wagmi';
 import type { Address } from 'viem';

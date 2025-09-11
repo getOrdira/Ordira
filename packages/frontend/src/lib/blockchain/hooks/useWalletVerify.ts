@@ -1,7 +1,7 @@
 // src/lib/blockchain/hooks/useWalletVerify.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSignMessage } from 'wagmi';
-import { apiClient } from '@/lib/api/client';
+import apiClient from '@/lib/api/client';
 import type { Address } from 'viem';
 
 // Types

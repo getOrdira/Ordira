@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { BrandUser } from '@/lib/types/user';
+import { VerificationBadge } from '@/components/ui/data-display/status-badge';
 import {
   BarChart3,
   Certificate,
@@ -13,7 +14,6 @@ import {
   FileText,
   Home,
   LifeBuoy,
-  LogOut,
   Package,
   Settings,
   Share2,
@@ -21,7 +21,8 @@ import {
   Vote,
   Zap,
   Building2,
-  CreditCard
+  CreditCard,
+  ChevronDown
 } from 'lucide-react';
 
 // Define the structure for a navigation link
@@ -33,7 +34,7 @@ interface NavLink {
   children?: NavLink[];
 }
 
-// Define navigation sections for better organization
+// Define navigation sections for better organization - aligned with your backend routes
 const navigationSections = {
   main: [
     { href: '/brand/dashboard', label: 'Dashboard', icon: Home },
@@ -47,7 +48,7 @@ const navigationSections = {
       label: 'Analytics', 
       icon: BarChart3,
       children: [
-        { href: '/brand/analytics/certificates', label: 'Certificates', icon: FileText },
+        { href: '/brand/analytics/certificates', label: 'Certificates', icon: Certificate },
         { href: '/brand/analytics/votes', label: 'Votes', icon: Vote },
         { href: '/brand/analytics/engagement', label: 'Engagement', icon: Users },
         { href: '/brand/analytics/products', label: 'Products', icon: Package },
@@ -107,54 +108,62 @@ export function SidebarBrand({ user }: SidebarBrandProps) {
         {hasChildren ? (
           <button
             onClick={() => toggleSection(link.href)}
-            className={`flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+            className={`flex items-center justify-between w-full px-3 py-2.5 text-sm font-satoshi-medium rounded-xl transition-all duration-200 group ${
               level > 0 ? 'ml-6' : ''
             } ${
               active
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                ? 'bg-[var(--ordira-primary)] text-white shadow-lg shadow-[var(--ordira-primary)]/25'
+                : 'text-gray-600 hover:bg-[var(--ordira-primary)]/10 hover:text-[var(--ordira-primary)]'
             }`}
           >
             <div className="flex items-center">
-              <link.icon className={`${collapsed ? 'w-5 h-5' : 'w-4 h-4 mr-3'}`} />
-              {!collapsed && link.label}
-              {link.badge && !collapsed && (
-                <span className="ml-auto px-2 py-0.5 text-xs bg-indigo-100 text-indigo-600 rounded-full">
-                  {link.badge}
-                </span>
+              <link.icon className={`${collapsed ? 'w-5 h-5' : 'w-5 h-5 mr-3'} transition-all duration-200`} />
+              {!collapsed && (
+                <>
+                  <span>{link.label}</span>
+                  {link.badge && (
+                    <span className="ml-auto px-2 py-0.5 text-xs bg-[var(--ordira-primary)]/10 text-[var(--ordira-primary)] rounded-full font-satoshi-bold">
+                      {link.badge}
+                    </span>
+                  )}
+                </>
               )}
             </div>
             {!collapsed && (
-              <ChevronRight 
-                className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+              <ChevronDown 
+                className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
               />
             )}
           </button>
         ) : (
           <Link
             href={link.href}
-            className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+            className={`flex items-center px-3 py-2.5 text-sm font-satoshi-medium rounded-xl transition-all duration-200 group ${
               level > 0 ? 'ml-6' : ''
             } ${
               active
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                ? 'bg-[var(--ordira-primary)] text-white shadow-lg shadow-[var(--ordira-primary)]/25'
+                : 'text-gray-600 hover:bg-[var(--ordira-primary)]/10 hover:text-[var(--ordira-primary)]'
             }`}
             title={collapsed ? link.label : undefined}
           >
-            <link.icon className={`${collapsed ? 'w-5 h-5' : 'w-4 h-4 mr-3'}`} />
-            {!collapsed && link.label}
-            {link.badge && !collapsed && (
-              <span className="ml-auto px-2 py-0.5 text-xs bg-indigo-100 text-indigo-600 rounded-full">
-                {link.badge}
-              </span>
+            <link.icon className={`${collapsed ? 'w-5 h-5' : 'w-5 h-5 mr-3'} transition-all duration-200`} />
+            {!collapsed && (
+              <>
+                <span>{link.label}</span>
+                {link.badge && (
+                  <span className="ml-auto px-2 py-0.5 text-xs bg-[var(--ordira-primary)]/10 text-[var(--ordira-primary)] rounded-full font-satoshi-bold">
+                    {link.badge}
+                  </span>
+                )}
+              </>
             )}
           </Link>
         )}
         
         {/* Render children if expanded and not collapsed */}
         {hasChildren && isExpanded && !collapsed && (
-          <div className="mt-1 space-y-1">
+          <div className="mt-1 space-y-1 ml-3">
             {link.children?.map(child => renderNavLink(child, level + 1))}
           </div>
         )}
@@ -167,20 +176,20 @@ export function SidebarBrand({ user }: SidebarBrandProps) {
       collapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Logo & Collapse Button */}
-      <div className="flex items-center justify-between p-4">
+      <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <div className={`flex items-center ${collapsed ? 'justify-center' : ''}`}>
           <div className="flex items-center">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 bg-[var(--ordira-primary)] rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-white font-satoshi-bold text-lg">O</span>
             </div>
             {!collapsed && (
-              <span className="ml-2 text-xl font-bold text-gray-800">Ordira</span>
+              <span className="ml-3 text-xl font-satoshi-bold text-gray-900">Ordira</span>
             )}
           </div>
         </div>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
@@ -193,17 +202,44 @@ export function SidebarBrand({ user }: SidebarBrandProps) {
 
       {/* User Info */}
       {!collapsed && (
-        <div className="px-4 pb-4">
-          <div className="p-3 bg-gray-50 rounded-lg">
+        <div className="px-4 py-4 border-b border-gray-100">
+          <div className="p-3 bg-gradient-to-r from-[var(--ordira-primary)]/5 to-[var(--ordira-primary-dark)]/5 rounded-xl border border-[var(--ordira-primary)]/10">
             <div className="flex items-center">
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-indigo-600" />
+              <div className="relative">
+                <div className="w-10 h-10 bg-[var(--ordira-primary)]/10 rounded-xl flex items-center justify-center">
+                  {user.profilePictureUrl ? (
+                    <img
+                      src={user.profilePictureUrl}
+                      alt="Profile"
+                      className="w-10 h-10 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <Building2 className="w-5 h-5 text-[var(--ordira-primary)]" />
+                  )}
+                </div>
+                
+                {/* Verification badge */}
+                {user.isVerified && (
+                  <div className="absolute -bottom-1 -right-1">
+                    <VerificationBadge
+                      isVerified={true}
+                      userType="brand"
+                      size="sm"
+                      hideWhenUnverified={false}
+                    />
+                  </div>
+                )}
               </div>
+              
               <div className="ml-3 min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-satoshi-bold text-gray-900 truncate">
                   {user.businessName || 'Brand Account'}
                 </p>
-                <p className="text-xs text-gray-500 truncate">
+                <p className="text-xs text-gray-500 truncate font-satoshi-regular">
+                  {user.plan && (
+                    <span className="capitalize">{user.plan}</span>
+                  )}
+                  {user.plan && ' • '}
                   {user.email}
                 </p>
               </div>
@@ -213,46 +249,52 @@ export function SidebarBrand({ user }: SidebarBrandProps) {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 pb-4 space-y-6 overflow-y-auto">
+      <nav className="flex-1 px-4 pb-4 space-y-6 overflow-y-auto scrollbar-thin">
         {/* Main Navigation */}
-        <div className="space-y-1">
+        <div className="space-y-2">
           {!collapsed && (
-            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <p className="px-3 text-xs font-satoshi-bold text-gray-400 uppercase tracking-wider">
               Main
             </p>
           )}
-          {navigationSections.main.map(link => renderNavLink(link))}
+          <div className="space-y-1">
+            {navigationSections.main.map(link => renderNavLink(link))}
+          </div>
         </div>
 
         {/* Analytics Section */}
-        <div className="space-y-1">
+        <div className="space-y-2">
           {!collapsed && (
-            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <p className="px-3 text-xs font-satoshi-bold text-gray-400 uppercase tracking-wider">
               Analytics
             </p>
           )}
-          {navigationSections.analytics.map(link => renderNavLink(link))}
+          <div className="space-y-1">
+            {navigationSections.analytics.map(link => renderNavLink(link))}
+          </div>
         </div>
 
         {/* Settings Section */}
-        <div className="space-y-1">
+        <div className="space-y-2">
           {!collapsed && (
-            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <p className="px-3 text-xs font-satoshi-bold text-gray-400 uppercase tracking-wider">
               Settings
             </p>
           )}
-          {navigationSections.settings.map(link => renderNavLink(link))}
+          <div className="space-y-1">
+            {navigationSections.settings.map(link => renderNavLink(link))}
+          </div>
         </div>
       </nav>
 
       {/* Footer */}
-      <div className="p-4 space-y-1 border-t border-gray-200">
+      <div className="p-4 space-y-1 border-t border-gray-100">
         <Link
           href="/docs"
-          className="flex items-center px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+          className="flex items-center px-3 py-2.5 text-sm font-satoshi-medium text-gray-600 rounded-xl hover:bg-[var(--ordira-primary)]/10 hover:text-[var(--ordira-primary)] transition-all duration-200"
           title={collapsed ? 'Help & Documentation' : undefined}
         >
-          <LifeBuoy className={`${collapsed ? 'w-5 h-5' : 'w-4 h-4 mr-3'}`} />
+          <LifeBuoy className={`${collapsed ? 'w-5 h-5' : 'w-5 h-5 mr-3'}`} />
           {!collapsed && 'Help & Docs'}
         </Link>
       </div>

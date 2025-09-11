@@ -40,10 +40,10 @@ export default function BrandLayout({
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-[var(--background-secondary)]">
         <div className="text-center">
-          <div className="w-8 h-8 mx-auto mb-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="w-8 h-8 mx-auto mb-4 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-[var(--body-color)] font-satoshi">Loading...</p>
         </div>
       </div>
     );
@@ -55,7 +55,7 @@ export default function BrandLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-[var(--background-secondary)] overflow-hidden">
       {/* Sidebar Navigation */}
       <SidebarBrand user={user} />
 

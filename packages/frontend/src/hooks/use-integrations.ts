@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { ApiError } from '@/lib/errors';
+import apiClient from '@/lib/api/client';
 
 // ===== TYPES =====
 
@@ -251,133 +253,181 @@ interface BulkOperationRequest {
 
 // ===== API FUNCTIONS =====
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Use the centralized API client
+const api = apiClient;
 
 const integrationsApi = {
   // Overview and general
-  getIntegrationsOverview: (): Promise<IntegrationsOverview> =>
-    api.get('/integrations').then(res => res.data),
+  getIntegrationsOverview: async (): Promise<IntegrationsOverview> => {
+    const response = await api.get('/integrations');
+    return response.data.data;
+  },
 
-  getIntegrationHealth: (platform: IntegrationPlatform): Promise<{ score: number; status: string; issues: string[] }> =>
-    api.get(`/integrations/${platform}/health`).then(res => res.data),
+  getIntegrationHealth: async (platform: IntegrationPlatform): Promise<{ score: number; status: string; issues: string[] }> => {
+    const response = await api.get(`/integrations/${platform}/health`);
+    return response.data.data;
+  },
 
   // Shopify Integration
-  connectShopify: (data: ConnectShopifyRequest): Promise<{ authUrl: string; state: string }> =>
-    api.post('/integrations/shopify/connect', data).then(res => res.data),
+  connectShopify: async (data: ConnectShopifyRequest): Promise<{ authUrl: string; state: string }> => {
+    const response = await api.post('/integrations/shopify/connect', data);
+    return response.data.data;
+  },
 
-  getShopifyIntegration: (): Promise<ShopifyIntegration> =>
-    api.get('/integrations/shopify').then(res => res.data),
+  getShopifyIntegration: async (): Promise<ShopifyIntegration> => {
+    const response = await api.get('/integrations/shopify');
+    return response.data.data;
+  },
 
-  disconnectShopify: (): Promise<{ success: boolean; message: string }> =>
-    api.delete('/integrations/shopify').then(res => res.data),
+  disconnectShopify: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete('/integrations/shopify');
+    return response.data;
+  },
 
-  getShopifyProducts: (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
+  getShopifyProducts: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
     products: Product[];
     pagination: any;
-  }> =>
-    api.get('/integrations/shopify/products', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/shopify/products', { params });
+    return response.data.data;
+  },
 
-  getShopifyOrders: (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
+  getShopifyOrders: async (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
     orders: Order[];
     pagination: any;
-  }> =>
-    api.get('/integrations/shopify/orders', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/shopify/orders', { params });
+    return response.data.data;
+  },
 
-  syncShopifyProducts: (productIds?: string[]): Promise<{ success: boolean; results: any }> =>
-    api.post('/integrations/shopify/products/sync', { productIds }).then(res => res.data),
+  syncShopifyProducts: async (productIds?: string[]): Promise<{ success: boolean; results: any }> => {
+    const response = await api.post('/integrations/shopify/products/sync', { productIds });
+    return response.data;
+  },
 
-  createShopifyOrderCertificates: (orderId: string): Promise<{ success: boolean; certificates: string[] }> =>
-    api.post(`/integrations/shopify/orders/${orderId}/certificates`).then(res => res.data),
+  createShopifyOrderCertificates: async (orderId: string): Promise<{ success: boolean; certificates: string[] }> => {
+    const response = await api.post(`/integrations/shopify/orders/${orderId}/certificates`);
+    return response.data;
+  },
 
-  getShopifyAnalytics: (params?: { timeframe?: string; metrics?: string[] }): Promise<any> =>
-    api.get('/integrations/shopify/analytics', { params }).then(res => res.data),
+  getShopifyAnalytics: async (params?: { timeframe?: string; metrics?: string[] }): Promise<any> => {
+    const response = await api.get('/integrations/shopify/analytics', { params });
+    return response.data.data;
+  },
 
   // WooCommerce Integration
-  connectWooCommerce: (data: ConnectWooCommerceRequest): Promise<{ success: boolean; integration: WooCommerceIntegration }> =>
-    api.post('/integrations/woocommerce/connect', data).then(res => res.data),
+  connectWooCommerce: async (data: ConnectWooCommerceRequest): Promise<{ success: boolean; integration: WooCommerceIntegration }> => {
+    const response = await api.post('/integrations/woocommerce/connect', data);
+    return response.data;
+  },
 
-  getWooCommerceIntegration: (): Promise<WooCommerceIntegration> =>
-    api.get('/integrations/woocommerce').then(res => res.data),
+  getWooCommerceIntegration: async (): Promise<WooCommerceIntegration> => {
+    const response = await api.get('/integrations/woocommerce');
+    return response.data.data;
+  },
 
-  disconnectWooCommerce: (): Promise<{ success: boolean; message: string }> =>
-    api.delete('/integrations/woocommerce').then(res => res.data),
+  disconnectWooCommerce: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete('/integrations/woocommerce');
+    return response.data;
+  },
 
-  getWooCommerceProducts: (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
+  getWooCommerceProducts: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
     products: Product[];
     pagination: any;
-  }> =>
-    api.get('/integrations/woocommerce/products', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/woocommerce/products', { params });
+    return response.data.data;
+  },
 
-  getWooCommerceOrders: (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
+  getWooCommerceOrders: async (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
     orders: Order[];
     pagination: any;
-  }> =>
-    api.get('/integrations/woocommerce/orders', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/woocommerce/orders', { params });
+    return response.data.data;
+  },
 
-  getWooCommercePluginStatus: (): Promise<{ installed: boolean; version?: string; compatible: boolean }> =>
-    api.get('/integrations/woocommerce/plugin-status').then(res => res.data),
+  getWooCommercePluginStatus: async (): Promise<{ installed: boolean; version?: string; compatible: boolean }> => {
+    const response = await api.get('/integrations/woocommerce/plugin-status');
+    return response.data.data;
+  },
 
-  getWooCommerceSystemStatus: (): Promise<{ system: any; diagnostics: any }> =>
-    api.get('/integrations/woocommerce/system-status').then(res => res.data),
+  getWooCommerceSystemStatus: async (): Promise<{ system: any; diagnostics: any }> => {
+    const response = await api.get('/integrations/woocommerce/system-status');
+    return response.data.data;
+  },
 
   // Wix Integration
-  connectWix: (data: ConnectWixRequest): Promise<{ authUrl: string; state: string }> =>
-    api.post('/integrations/wix/connect', data).then(res => res.data),
+  connectWix: async (data: ConnectWixRequest): Promise<{ authUrl: string; state: string }> => {
+    const response = await api.post('/integrations/wix/connect', data);
+    return response.data.data;
+  },
 
-  getWixIntegration: (): Promise<WixIntegration> =>
-    api.get('/integrations/wix').then(res => res.data),
+  getWixIntegration: async (): Promise<WixIntegration> => {
+    const response = await api.get('/integrations/wix');
+    return response.data.data;
+  },
 
-  disconnectWix: (): Promise<{ success: boolean; message: string }> =>
-    api.delete('/integrations/wix').then(res => res.data),
+  disconnectWix: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete('/integrations/wix');
+    return response.data;
+  },
 
-  getWixProducts: (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
+  getWixProducts: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
     products: Product[];
     pagination: any;
-  }> =>
-    api.get('/integrations/wix/products', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/wix/products', { params });
+    return response.data.data;
+  },
 
-  getWixOrders: (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
+  getWixOrders: async (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
     orders: Order[];
     pagination: any;
-  }> =>
-    api.get('/integrations/wix/orders', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/wix/orders', { params });
+    return response.data.data;
+  },
 
-  getWixAppStatus: (): Promise<{ installed: boolean; permissions: string[]; lastUpdated?: string }> =>
-    api.get('/integrations/wix/app-status').then(res => res.data),
+  getWixAppStatus: async (): Promise<{ installed: boolean; permissions: string[]; lastUpdated?: string }> => {
+    const response = await api.get('/integrations/wix/app-status');
+    return response.data.data;
+  },
 
   // Webhooks management
-  getWebhooksOverview: (): Promise<{ endpoints: WebhookEndpoint[]; recentDeliveries: WebhookDelivery[] }> =>
-    api.get('/integrations/webhooks').then(res => res.data),
+  getWebhooksOverview: async (): Promise<{ endpoints: WebhookEndpoint[]; recentDeliveries: WebhookDelivery[] }> => {
+    const response = await api.get('/integrations/webhooks');
+    return response.data.data;
+  },
 
-  getWebhookEndpoints: (params?: { platform?: IntegrationPlatform; status?: WebhookStatus }): Promise<{
+  getWebhookEndpoints: async (params?: { platform?: IntegrationPlatform; status?: WebhookStatus }): Promise<{
     endpoints: WebhookEndpoint[];
-  }> =>
-    api.get('/integrations/webhooks/endpoints', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/webhooks/endpoints', { params });
+    return response.data.data;
+  },
 
-  createWebhookEndpoint: (data: { url: string; events: string[]; platform: IntegrationPlatform; secret?: string }): Promise<WebhookEndpoint> =>
-    api.post('/integrations/webhooks/endpoints', data).then(res => res.data),
+  createWebhookEndpoint: async (data: { url: string; events: string[]; platform: IntegrationPlatform; secret?: string }): Promise<WebhookEndpoint> => {
+    const response = await api.post('/integrations/webhooks/endpoints', data);
+    return response.data.data;
+  },
 
-  updateWebhookEndpoint: (endpointId: string, data: { url?: string; events?: string[]; secret?: string }): Promise<WebhookEndpoint> =>
-    api.put(`/integrations/webhooks/endpoints/${endpointId}`, data).then(res => res.data),
+  updateWebhookEndpoint: async (endpointId: string, data: { url?: string; events?: string[]; secret?: string }): Promise<WebhookEndpoint> => {
+    const response = await api.put(`/integrations/webhooks/endpoints/${endpointId}`, data);
+    return response.data.data;
+  },
 
-  deleteWebhookEndpoint: (endpointId: string): Promise<{ success: boolean; message: string }> =>
-    api.delete(`/integrations/webhooks/endpoints/${endpointId}`).then(res => res.data),
+  deleteWebhookEndpoint: async (endpointId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/integrations/webhooks/endpoints/${endpointId}`);
+    return response.data;
+  },
 
-  testWebhookEndpoint: (endpointId: string, eventType: string): Promise<{ success: boolean; delivery: WebhookDelivery }> =>
-    api.post(`/integrations/webhooks/endpoints/${endpointId}/test`, { eventType }).then(res => res.data),
+  testWebhookEndpoint: async (endpointId: string, eventType: string): Promise<{ success: boolean; delivery: WebhookDelivery }> => {
+    const response = await api.post(`/integrations/webhooks/endpoints/${endpointId}/test`, { eventType });
+    return response.data;
+  },
 
-  getWebhookDeliveries: (params?: { 
+  getWebhookDeliveries: async (params?: { 
     endpointId?: string; 
     status?: string; 
     page?: number; 
@@ -385,58 +435,78 @@ const integrationsApi = {
   }): Promise<{
     deliveries: WebhookDelivery[];
     pagination: any;
-  }> =>
-    api.get('/integrations/webhooks/deliveries', { params }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/webhooks/deliveries', { params });
+    return response.data.data;
+  },
 
-  retryWebhookDelivery: (deliveryId: string): Promise<{ success: boolean; delivery: WebhookDelivery }> =>
-    api.post(`/integrations/webhooks/deliveries/${deliveryId}/retry`).then(res => res.data),
+  retryWebhookDelivery: async (deliveryId: string): Promise<{ success: boolean; delivery: WebhookDelivery }> => {
+    const response = await api.post(`/integrations/webhooks/deliveries/${deliveryId}/retry`);
+    return response.data;
+  },
 
   // Certificate mapping
-  getCertificateMapping: (platform: IntegrationPlatform): Promise<{ mappings: CertificateMapping[] }> =>
-    api.get(`/integrations/${platform}/certificate-mapping`).then(res => res.data),
+  getCertificateMapping: async (platform: IntegrationPlatform): Promise<{ mappings: CertificateMapping[] }> => {
+    const response = await api.get(`/integrations/${platform}/certificate-mapping`);
+    return response.data.data;
+  },
 
-  updateCertificateMapping: (platform: IntegrationPlatform, mappings: CertificateMapping[]): Promise<{ success: boolean; mappings: CertificateMapping[] }> =>
-    api.put(`/integrations/${platform}/certificate-mapping`, { mappings }).then(res => res.data),
+  updateCertificateMapping: async (platform: IntegrationPlatform, mappings: CertificateMapping[]): Promise<{ success: boolean; mappings: CertificateMapping[] }> => {
+    const response = await api.put(`/integrations/${platform}/certificate-mapping`, { mappings });
+    return response.data;
+  },
 
-  testCertificateRules: (platform: IntegrationPlatform, productId: string, rules: any): Promise<{ success: boolean; result: any }> =>
-    api.post(`/integrations/${platform}/certificate-rules/test`, { productId, rules }).then(res => res.data),
+  testCertificateRules: async (platform: IntegrationPlatform, productId: string, rules: any): Promise<{ success: boolean; result: any }> => {
+    const response = await api.post(`/integrations/${platform}/certificate-rules/test`, { productId, rules });
+    return response.data;
+  },
 
   // Sync operations
-  getSyncHistory: (platform?: IntegrationPlatform, params?: { page?: number; limit?: number; type?: string }): Promise<{
+  getSyncHistory: async (platform?: IntegrationPlatform, params?: { page?: number; limit?: number; type?: string }): Promise<{
     history: SyncHistory[];
     pagination: any;
-  }> =>
-    api.get('/integrations/sync/history', { params: { platform, ...params } }).then(res => res.data),
+  }> => {
+    const response = await api.get('/integrations/sync/history', { params: { platform, ...params } });
+    return response.data.data;
+  },
 
-  triggerBulkOperation: (platform: IntegrationPlatform, operation: BulkOperationRequest): Promise<{
+  triggerBulkOperation: async (platform: IntegrationPlatform, operation: BulkOperationRequest): Promise<{
     success: boolean;
     operationId: string;
     estimatedDuration: string;
-  }> =>
-    api.post(`/integrations/${platform}/bulk-operations`, operation).then(res => res.data),
+  }> => {
+    const response = await api.post(`/integrations/${platform}/bulk-operations`, operation);
+    return response.data;
+  },
 
-  getBulkOperationStatus: (platform: IntegrationPlatform, operationId: string): Promise<{
+  getBulkOperationStatus: async (platform: IntegrationPlatform, operationId: string): Promise<{
     id: string;
     status: 'running' | 'completed' | 'failed';
     progress: number;
     results?: any;
-  }> =>
-    api.get(`/integrations/${platform}/bulk-operations/${operationId}/status`).then(res => res.data),
+  }> => {
+    const response = await api.get(`/integrations/${platform}/bulk-operations/${operationId}/status`);
+    return response.data.data;
+  },
 
   // Setup guides and troubleshooting
-  getSetupGuide: (platform: IntegrationPlatform): Promise<{
+  getSetupGuide: async (platform: IntegrationPlatform): Promise<{
     steps: Array<{ title: string; description: string; completed: boolean; }>;
     requirements: string[];
     estimatedTime: string;
-  }> =>
-    api.get(`/integrations/${platform}/setup-guide`).then(res => res.data),
+  }> => {
+    const response = await api.get(`/integrations/${platform}/setup-guide`);
+    return response.data.data;
+  },
 
-  getTroubleshootingInfo: (platform: IntegrationPlatform): Promise<{
+  getTroubleshootingInfo: async (platform: IntegrationPlatform): Promise<{
     commonIssues: Array<{ issue: string; solution: string; }>;
     diagnostics: any;
     supportResources: Array<{ title: string; url: string; }>;
-  }> =>
-    api.get(`/integrations/${platform}/troubleshooting`).then(res => res.data),
+  }> => {
+    const response = await api.get(`/integrations/${platform}/troubleshooting`);
+    return response.data.data;
+  },
 };
 
 // ===== HOOKS =====

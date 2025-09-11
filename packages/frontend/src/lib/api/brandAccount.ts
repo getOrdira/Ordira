@@ -1,7 +1,7 @@
 // src/lib/api/brandAccount.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; 
 
 export interface BrandAccount {
   lastLoginAt?: Date;
@@ -75,9 +75,9 @@ export interface ActivityLog {
 export const getBrandProfile = async (): Promise<BrandProfileResponse> => {
   try {
     const response = await apiClient.get<BrandProfileResponse>('/api/brand/account/profile');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch brand profile', error);
+    throw new ApiError('Failed to fetch brand profile', 500);
   }
 };
 
@@ -100,9 +100,9 @@ export const updateBrandProfile = async (data: {
 }): Promise<BrandProfileResponse> => {
   try {
     const response = await apiClient.put<BrandProfileResponse>('/api/brand/account/profile', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update brand profile', error);
+    throw new ApiError('Failed to update brand profile', 500);
   }
 };
 
@@ -121,11 +121,11 @@ export const uploadProfilePicture = async (file: File): Promise<{ success: boole
     });
     
     return {
-      success: response.data.success,
-      profilePictureUrl: response.data.data.profilePictureUrl,
+      success: response.success,
+      profilePictureUrl: response.data.profilePictureUrl,
     };
   } catch (error) {
-    throw new ApiError('Failed to upload profile picture', error);
+    throw new ApiError('Failed to upload profile picture', 500);
   }
 };
 
@@ -136,9 +136,9 @@ export const uploadProfilePicture = async (file: File): Promise<{ success: boole
 export const removeProfilePicture = async (): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{success: boolean}>('/api/brand/account/profile-picture');
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to remove profile picture', error);
+    throw new ApiError('Failed to remove profile picture', 500);
   }
 };
 
@@ -149,9 +149,9 @@ export const removeProfilePicture = async (): Promise<{ success: boolean }> => {
 export const getVerificationStatus = async (): Promise<VerificationStatus> => {
   try {
     const response = await apiClient.get<VerificationStatus>('/api/brand/account/verification');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch verification status', error);
+    throw new ApiError('Failed to fetch verification status', 500);
   }
 };
 
@@ -194,9 +194,9 @@ export const submitVerification = async (
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to submit verification', error);
+    throw new ApiError('Failed to submit verification', 500);
   }
 };
 
@@ -216,9 +216,9 @@ export const getActivityLog = async (params?: {
     const response = await apiClient.get<{success: boolean; data: ActivityLog}>('/api/brand/account/activity', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch activity log', error);
+    throw new ApiError('Failed to fetch activity log', 500);
   }
 };
 
@@ -234,9 +234,9 @@ export const changePassword = async (currentPassword: string, newPassword: strin
       currentPassword,
       newPassword,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to change password', error);
+    throw new ApiError('Failed to change password', 500);
   }
 };
 
@@ -248,9 +248,9 @@ export const changePassword = async (currentPassword: string, newPassword: strin
 export const requestPasswordReset = async (email?: string): Promise<{ success: boolean; message: string }> => {
   try {
     const response = await apiClient.post<{success: boolean; message: string}>('/api/brand/account/request-reset', { email });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to request password reset', error);
+    throw new ApiError('Failed to request password reset', 500);
   }
 };
 
@@ -266,9 +266,9 @@ export const completePasswordReset = async (token: string, newPassword: string):
       token,
       newPassword,
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to complete password reset', error);
+    throw new ApiError('Failed to complete password reset', 500);
   }
 };
 
@@ -285,9 +285,9 @@ export const deactivateAccount = async (data: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>('/api/brand/account/deactivate', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to deactivate account', error);
+    throw new ApiError('Failed to deactivate account', 500);
   }
 };
 
@@ -302,9 +302,9 @@ export const reactivateAccount = async (data: {
 }): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.post<{success: boolean}>('/api/brand/account/reactivate', data);
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to reactivate account', error);
+    throw new ApiError('Failed to reactivate account', 500);
   }
 };
 
@@ -315,9 +315,9 @@ export const reactivateAccount = async (data: {
 export const getSecuritySettings = async (): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>('/api/brand/account/security');
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch security settings', error);
+    throw new ApiError('Failed to fetch security settings', 500);
   }
 };
 
@@ -334,9 +334,9 @@ export const updateSecuritySettings = async (settings: {
 }): Promise<any> => {
   try {
     const response = await apiClient.put<{success: boolean; data: any}>('/api/brand/account/security', settings);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to update security settings', error);
+    throw new ApiError('Failed to update security settings', 500);
   }
 };
 

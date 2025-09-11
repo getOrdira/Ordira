@@ -1,7 +1,7 @@
 // src/lib/api/manufacturerAccount.ts
 
-import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import apiClient from './client'; 
+import { ApiError } from '@/lib/errors'; 
 
 export interface ManufacturerAccount {
   lastLoginAt?: Date;
@@ -62,9 +62,9 @@ export interface ActivityLog {
 export const getManufacturerProfile = async (): Promise<ManufacturerProfileResponse> => {
   try {
     const response = await apiClient.get<ManufacturerProfileResponse>('/api/manufacturer-account');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch manufacturer profile', error);
+    throw new ApiError('Failed to fetch manufacturer profile', 500);
   }
 };
 
@@ -76,9 +76,9 @@ export const getManufacturerProfile = async (): Promise<ManufacturerProfileRespo
 export const updateManufacturerProfile = async (data: Partial<ManufacturerAccount>): Promise<ManufacturerProfileResponse> => {
   try {
     const response = await apiClient.put<ManufacturerProfileResponse>('/api/manufacturer-account', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update manufacturer profile', error);
+    throw new ApiError('Failed to update manufacturer profile', 500);
   }
 };
 
@@ -92,9 +92,9 @@ export const deleteManufacturerAccount = async (confirmPassword: string): Promis
     const response = await apiClient.delete<{success: boolean}>('/api/manufacturer-account', {
       data: { confirmPassword },
     });
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to delete manufacturer account', error);
+    throw new ApiError('Failed to delete manufacturer account', 500);
   }
 };
 
@@ -113,11 +113,11 @@ export const uploadProfilePicture = async (file: File): Promise<{ success: boole
     });
     
     return {
-      success: response.data.success,
-      profilePictureUrl: response.data.data.profilePictureUrl,
+      success: response.success,
+      profilePictureUrl: response.data.profilePictureUrl,
     };
   } catch (error) {
-    throw new ApiError('Failed to upload profile picture', error);
+    throw new ApiError('Failed to upload profile picture', 500);
   }
 };
 
@@ -128,9 +128,9 @@ export const uploadProfilePicture = async (file: File): Promise<{ success: boole
 export const getVerificationStatus = async (): Promise<VerificationStatus> => {
   try {
     const response = await apiClient.get<{success: boolean; data: VerificationStatus}>('/api/manufacturer-account/verification');
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch verification status', error);
+    throw new ApiError('Failed to fetch verification status', 500);
   }
 };
 
@@ -156,9 +156,9 @@ export const submitVerificationDocuments = async (files: File[], notes?: string)
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to submit verification documents', error);
+    throw new ApiError('Failed to submit verification documents', 500);
   }
 };
 
@@ -178,9 +178,9 @@ export const getActivityLog = async (params?: {
     const response = await apiClient.get<{success: boolean; data: ActivityLog}>('/api/manufacturer-account/activity', {
       params,
     });
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch activity log', error);
+    throw new ApiError('Failed to fetch activity log', 500);
   }
 };
 
@@ -196,9 +196,9 @@ export const changePassword = async (currentPassword: string, newPassword: strin
       currentPassword,
       newPassword,
     });
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to change password', error);
+    throw new ApiError('Failed to change password', 500);
   }
 };
 
@@ -210,9 +210,9 @@ export const changePassword = async (currentPassword: string, newPassword: strin
 export const requestPasswordReset = async (email?: string): Promise<{ success: boolean; message: string }> => {
   try {
     const response = await apiClient.post<{success: boolean; message: string}>('/api/manufacturer-account/reset-password', { email });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to request password reset', error);
+    throw new ApiError('Failed to request password reset', 500);
   }
 };
 
@@ -228,9 +228,9 @@ export const completePasswordReset = async (code: string, newPassword: string): 
       code,
       newPassword,
     });
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to complete password reset', error);
+    throw new ApiError('Failed to complete password reset', 500);
   }
 };
 
@@ -241,8 +241,8 @@ export const completePasswordReset = async (code: string, newPassword: string): 
 export const resetLoginAttempts = async (): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.post<{success: boolean}>('/api/manufacturer-account/reset-attempts');
-    return { success: response.data.success };
+    return { success: response.success };
   } catch (error) {
-    throw new ApiError('Failed to reset login attempts', error);
+    throw new ApiError('Failed to reset login attempts', 500);
   }
 };

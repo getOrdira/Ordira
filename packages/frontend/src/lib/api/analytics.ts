@@ -1,7 +1,7 @@
 // src/lib/api/analytics.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
 // Exact response types based on model aggregates and assumed controller responses
 export interface AnalyticsOverview {
@@ -82,9 +82,9 @@ export const getAnalyticsOverview = async (businessId?: string): Promise<Analyti
     const response = await apiClient.get<AnalyticsOverview>('/api/analytics', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch analytics overview', error);
+    throw new ApiError('Failed to fetch analytics overview', 500);
   }
 };
 
@@ -98,9 +98,9 @@ export const getVoteAnalytics = async (businessId?: string): Promise<VoteAnalyti
     const response = await apiClient.get<VoteAnalytics>('/api/analytics/votes', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch vote analytics', error);
+    throw new ApiError('Failed to fetch vote analytics', 500);
   }
 };
 
@@ -114,9 +114,9 @@ export const getCertificateAnalytics = async (businessId?: string): Promise<Cert
     const response = await apiClient.get<CertificateAnalytics>('/api/analytics/certificates', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch certificate analytics', error);
+    throw new ApiError('Failed to fetch certificate analytics', 500);
   }
 };
 
@@ -130,9 +130,9 @@ export const getProductAnalytics = async (businessId?: string): Promise<ProductA
     const response = await apiClient.get<ProductAnalytics>('/api/analytics/products', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch product analytics', error);
+    throw new ApiError('Failed to fetch product analytics', 500);
   }
 };
 
@@ -146,9 +146,9 @@ export const getRevenueAnalytics = async (businessId?: string): Promise<RevenueA
       const response = await apiClient.get<RevenueAnalytics>('/api/analytics/revenue', {
         params: { businessId },
       });
-      return response.data;
+      return response;
     } catch (error) {
-      throw new ApiError('Failed to fetch revenue analytics', error);
+      throw new ApiError('Failed to fetch revenue analytics', 500);
     }
 };
 
@@ -162,9 +162,9 @@ export const getEngagementAnalytics = async (businessId?: string): Promise<Engag
     const response = await apiClient.get<EngagementAnalytics>('/api/analytics/engagement', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch engagement analytics', error);
+    throw new ApiError('Failed to fetch engagement analytics', 500);
   }
 };
 
@@ -178,8 +178,8 @@ export const getTransactionAnalytics = async (businessId?: string): Promise<Tran
     const response = await apiClient.get<TransactionAnalytics>('/api/analytics/transactions', {
       params: { businessId },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch transaction analytics', error);
+    throw new ApiError('Failed to fetch transaction analytics', 500);
   }
 };

@@ -1,13 +1,8 @@
 // src/lib/api/manufacturerProfile.ts
 
-import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import apiClient from './client';
+import { ApiError } from '@/lib/errors'; 
 
-// Type definitions aligned with backend manufacturer.model.ts and manufacturerAccount.controller.ts
-// Routes from /api/manufacturer/profile (not /api/manufacturer-profile)
-// Controller: manufacturerAccount.controller.ts handles getManufacturerProfile, updateManufacturerProfile
-// Service: manufacturerAccount.service.ts for profile management
-// Model: manufacturer.model.ts contains actual profile fields
 
 export interface ManufacturerProfile {
   // Core manufacturer fields from manufacturer.model.ts
@@ -98,9 +93,9 @@ export interface ManufacturerProfileResponse {
 export const getManufacturerProfile = async (): Promise<ManufacturerProfileResponse> => {
   try {
     const response = await apiClient.get<ManufacturerProfileResponse>('/api/manufacturer/profile');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch manufacturer profile', error);
+    throw new ApiError('Failed to fetch manufacturer profile', 500);
   }
 };
 
@@ -116,8 +111,8 @@ export const getManufacturerProfile = async (): Promise<ManufacturerProfileRespo
 export const updateManufacturerProfile = async (data: Partial<ManufacturerProfile>): Promise<ManufacturerProfileResponse> => {
   try {
     const response = await apiClient.put<ManufacturerProfileResponse>('/api/manufacturer/profile', data);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to update manufacturer profile', error);
+    throw new ApiError('Failed to update manufacturer profile', 500);
   }
 };

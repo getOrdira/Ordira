@@ -1,7 +1,7 @@
 // src/lib/api/manufacturer.ts
 
 import apiClient from './client'; // Base Axios client with auth interceptors
-import { ApiError } from '@/lib/types/common'; // Shared error type from common types
+import { ApiError } from '@/lib/errors'; // Shared error type from common types
 
 export interface Manufacturer {
   _id: string;
@@ -132,9 +132,9 @@ export const searchManufacturers = async (
         ...filters,
       },
     });
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to search manufacturers', error);
+    throw new ApiError('Failed to search manufacturers', 500);
   }
 };
 
@@ -145,9 +145,9 @@ export const searchManufacturers = async (
 export const getManufacturerProfile = async (): Promise<ManufacturerProfile> => {
   try {
     const response = await apiClient.get<{success: boolean; data: ManufacturerProfile}>('/api/manufacturer/profile');
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch manufacturer profile', error);
+    throw new ApiError('Failed to fetch manufacturer profile', 500);
   }
 };
 
@@ -159,9 +159,9 @@ export const getManufacturerProfile = async (): Promise<ManufacturerProfile> => 
 export const updateManufacturerProfile = async (data: Partial<ManufacturerProfile>): Promise<ManufacturerProfile> => {
   try {
     const response = await apiClient.put<{success: boolean; data: ManufacturerProfile}>('/api/manufacturer/profile', data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to update manufacturer profile', error);
+    throw new ApiError('Failed to update manufacturer profile', 500);
   }
 };
 
@@ -172,9 +172,9 @@ export const updateManufacturerProfile = async (data: Partial<ManufacturerProfil
 export const getDashboardSummary = async (): Promise<DashboardSummary> => {
   try {
     const response = await apiClient.get<DashboardSummary>('/api/manufacturer/dashboard');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to fetch dashboard summary', error);
+    throw new ApiError('Failed to fetch dashboard summary', 500);
   }
 };
 
@@ -185,9 +185,9 @@ export const getDashboardSummary = async (): Promise<DashboardSummary> => {
 export const refreshToken = async (): Promise<TokenRefreshResponse> => {
   try {
     const response = await apiClient.post<TokenRefreshResponse>('/api/manufacturer/refresh');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to refresh token', error);
+    throw new ApiError('Failed to refresh token', 500);
   }
 };
 
@@ -198,9 +198,9 @@ export const refreshToken = async (): Promise<TokenRefreshResponse> => {
 export const logout = async (): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.post<{ success: boolean }>('/api/manufacturer/logout');
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to logout', error);
+    throw new ApiError('Failed to logout', 500);
   }
 };
 
@@ -218,9 +218,9 @@ export const getConnectedBrands = async (params?: {
     const response = await apiClient.get<{success: boolean; data: {brands: BrandConnection[]}}>('/api/manufacturer/brands', {
       params,
     });
-    return response.data.data.brands;
+    return response.data.brands;
   } catch (error) {
-    throw new ApiError('Failed to fetch connected brands', error);
+    throw new ApiError('Failed to fetch connected brands', 500);
   }
 };
 
@@ -232,9 +232,9 @@ export const getConnectedBrands = async (params?: {
 export const getConnectionStatus = async (brandId: string): Promise<any> => {
   try {
     const response = await apiClient.get<{success: boolean; data: any}>(`/api/manufacturer/brands/${brandId}/connection-status`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to get connection status', error);
+    throw new ApiError('Failed to get connection status', 500);
   }
 };
 
@@ -250,9 +250,9 @@ export const connectToBrand = async (brandId: string, data?: {
 }): Promise<any> => {
   try {
     const response = await apiClient.post<{success: boolean; data: any}>(`/api/manufacturer/brands/${brandId}/connect`, data);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to connect to brand', error);
+    throw new ApiError('Failed to connect to brand', 500);
   }
 };
 
@@ -264,9 +264,9 @@ export const connectToBrand = async (brandId: string, data?: {
 export const disconnectFromBrand = async (brandId: string): Promise<{ success: boolean }> => {
   try {
     const response = await apiClient.delete<{ success: boolean }>(`/api/manufacturer/brands/${brandId}/disconnect`);
-    return response.data;
+    return response;
   } catch (error) {
-    throw new ApiError('Failed to disconnect from brand', error);
+    throw new ApiError('Failed to disconnect from brand', 500);
   }
 };
 
@@ -279,9 +279,9 @@ export const disconnectFromBrand = async (brandId: string): Promise<{ success: b
 export const getSharedAnalytics = async (brandId: string): Promise<SharedAnalytics> => {
   try {
     const response = await apiClient.get<{success: boolean; data: SharedAnalytics}>(`/api/manufacturer/brands/${brandId}/analytics`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch shared analytics', error);
+    throw new ApiError('Failed to fetch shared analytics', 500);
   }
 };
 
@@ -293,9 +293,9 @@ export const getSharedAnalytics = async (brandId: string): Promise<SharedAnalyti
 export const getSharedProducts = async (brandId: string): Promise<Array<{ productId: string; title: string; description: string; votes: number; status: string }>> => {
   try {
     const response = await apiClient.get<{success: boolean; data: Array<{ productId: string; title: string; description: string; votes: number; status: string }>}>(`/api/manufacturer/brands/${brandId}/products`);
-    return response.data.data;
+    return response.data;
   } catch (error) {
-    throw new ApiError('Failed to fetch shared products', error);
+    throw new ApiError('Failed to fetch shared products', 500);
   }
 };
 

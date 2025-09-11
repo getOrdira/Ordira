@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import axios from 'axios';
+import { ApiError } from '@/lib/errors';
+import apiClient from '@/lib/api/client';
 
 // ===== TYPES =====
 
@@ -284,150 +286,190 @@ interface UpdateProfileRequest {
 
 // ===== API FUNCTIONS =====
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('manufacturerToken') || localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Use the centralized API client
+const api = apiClient;
 
 const manufacturerApi = {
   // Profile management
-  getProfile: (): Promise<ManufacturerProfile> =>
-    api.get('/manufacturer/profile').then(res => res.data.data.profile),
+  getProfile: async (): Promise<ManufacturerProfile> => {
+    const response = await api.get('/manufacturer/profile');
+    return response.data.data.profile;
+  },
 
-  updateProfile: (data: UpdateProfileRequest): Promise<ManufacturerProfile> =>
-    api.put('/manufacturer/profile', data).then(res => res.data.data.profile),
+  updateProfile: async (data: UpdateProfileRequest): Promise<ManufacturerProfile> => {
+    const response = await api.put('/manufacturer/profile', data);
+    return response.data.data.profile;
+  },
 
-  getDashboard: (): Promise<DashboardSummary> =>
-    api.get('/manufacturer/dashboard').then(res => res.data.data),
+  getDashboard: async (): Promise<DashboardSummary> => {
+    const response = await api.get('/manufacturer/dashboard');
+    return response.data.data;
+  },
 
   // Brand connections
-  getConnectedBrands: (params?: { page?: number; limit?: number; status?: string }): Promise<{
+  getConnectedBrands: async (params?: { page?: number; limit?: number; status?: string }): Promise<{
     brands: ConnectedBrand[];
     pagination: any;
     connectionStats: any;
-  }> =>
-    api.get('/manufacturer/brands', { params }).then(res => res.data.data),
+  }> => {
+    const response = await api.get('/manufacturer/brands', { params });
+    return response.data.data;
+  },
 
-  searchBrands: (params?: BrandSearchQuery): Promise<BrandSearchResult> =>
-    api.get('/manufacturer/search', { params }).then(res => res.data),
+  searchBrands: async (params?: BrandSearchQuery): Promise<BrandSearchResult> => {
+    const response = await api.get('/manufacturer/search', { params });
+    return response.data.data;
+  },
 
-  getConnectionStatus: (brandId: string): Promise<{
+  getConnectionStatus: async (brandId: string): Promise<{
     status: ConnectionStatus;
     hasActiveRequest: boolean;
     requestId?: string;
     connectedAt?: string;
     expiresAt?: string;
-  }> =>
-    api.get(`/manufacturer/brands/${brandId}/connection-status`).then(res => res.data.data),
+  }> => {
+    const response = await api.get(`/manufacturer/brands/${brandId}/connection-status`);
+    return response.data.data;
+  },
 
-  canConnectToBrand: (brandId: string): Promise<{
+  canConnectToBrand: async (brandId: string): Promise<{
     canConnect: boolean;
     reasons?: string[];
     requirements?: string[];
-  }> =>
-    api.get(`/manufacturer/brands/${brandId}/can-connect`).then(res => res.data.data),
+  }> => {
+    const response = await api.get(`/manufacturer/brands/${brandId}/can-connect`);
+    return response.data.data;
+  },
 
-  createConnectionRequest: (data: CreateConnectionRequest): Promise<ConnectionRequest> =>
-    api.post(`/manufacturer/brands/${data.brandId}/connect`, data).then(res => res.data.data),
+  createConnectionRequest: async (data: CreateConnectionRequest): Promise<ConnectionRequest> => {
+    const response = await api.post(`/manufacturer/brands/${data.brandId}/connect`, data);
+    return response.data.data;
+  },
 
-  getConnectionRequests: (params?: { status?: string; page?: number; limit?: number }): Promise<{
+  getConnectionRequests: async (params?: { status?: string; page?: number; limit?: number }): Promise<{
     requests: ConnectionRequest[];
     pagination: any;
-  }> =>
-    api.get('/manufacturer/connection-requests', { params }).then(res => res.data.data),
+  }> => {
+    const response = await api.get('/manufacturer/connection-requests', { params });
+    return response.data.data;
+  },
 
-  respondToConnectionRequest: (requestId: string, response: 'accept' | 'reject', message?: string): Promise<{
+  respondToConnectionRequest: async (requestId: string, response: 'accept' | 'reject', message?: string): Promise<{
     success: boolean;
     connection?: ConnectedBrand;
-  }> =>
-    api.put(`/manufacturer/connection-requests/${requestId}/respond`, { response, message }).then(res => res.data),
+  }> => {
+    const apiResponse = await api.put(`/manufacturer/connection-requests/${requestId}/respond`, { response, message });
+    return apiResponse.data;
+  },
 
-  disconnectFromBrand: (brandId: string, reason?: string): Promise<{ success: boolean; message: string }> =>
-    api.delete(`/manufacturer/brands/${brandId}/disconnect`, { data: { reason } }).then(res => res.data),
+  disconnectFromBrand: async (brandId: string, reason?: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/manufacturer/brands/${brandId}/disconnect`, { data: { reason } });
+    return response.data;
+  },
 
   // Brand-specific data
-  getBrandAnalytics: (brandId: string, params?: { timeframe?: string; metrics?: string[] }): Promise<any> =>
-    api.get(`/manufacturer/brands/${brandId}/analytics`, { params }).then(res => res.data.data),
+  getBrandAnalytics: async (brandId: string, params?: { timeframe?: string; metrics?: string[] }): Promise<any> => {
+    const response = await api.get(`/manufacturer/brands/${brandId}/analytics`, { params });
+    return response.data.data;
+  },
 
-  getBrandResults: (brandSettingsId: string, params?: { timeframe?: string }): Promise<any> =>
-    api.get(`/manufacturer/brands/${brandSettingsId}/results`, { params }).then(res => res.data.data),
+  getBrandResults: async (brandSettingsId: string, params?: { timeframe?: string }): Promise<any> => {
+    const response = await api.get(`/manufacturer/brands/${brandSettingsId}/results`, { params });
+    return response.data.data;
+  },
 
-  getBrandOrders: (brandId: string, params?: { page?: number; limit?: number; status?: string }): Promise<{
+  getBrandOrders: async (brandId: string, params?: { page?: number; limit?: number; status?: string }): Promise<{
     orders: any[];
     pagination: any;
-  }> =>
-    api.get(`/manufacturer/brands/${brandId}/orders`, { params }).then(res => res.data.data),
+  }> => {
+    const response = await api.get(`/manufacturer/brands/${brandId}/orders`, { params });
+    return response.data.data;
+  },
 
-  getBrandProducts: (brandId: string, params?: { page?: number; limit?: number; category?: string }): Promise<{
+  getBrandProducts: async (brandId: string, params?: { page?: number; limit?: number; category?: string }): Promise<{
     products: any[];
     pagination: any;
-  }> =>
-    api.get(`/manufacturer/brands/${brandId}/products`, { params }).then(res => res.data.data),
+  }> => {
+    const response = await api.get(`/manufacturer/brands/${brandId}/products`, { params });
+    return response.data.data;
+  },
 
-  getBrandCertificates: (brandId: string, params?: { page?: number; limit?: number; status?: string }): Promise<{
+  getBrandCertificates: async (brandId: string, params?: { page?: number; limit?: number; status?: string }): Promise<{
     certificates: any[];
     pagination: any;
-  }> =>
-    api.get(`/manufacturer/brands/${brandId}/certificates`, { params }).then(res => res.data.data),
+  }> => {
+    const response = await api.get(`/manufacturer/brands/${brandId}/certificates`, { params });
+    return response.data.data;
+  },
 
   // Analytics
-  getManufacturerAnalytics: (params?: {
+  getManufacturerAnalytics: async (params?: {
     timeframe?: string;
     brandId?: string;
     metrics?: string[];
     includeProductDemand?: boolean;
     includeMarketInsights?: boolean;
-  }): Promise<ManufacturerAnalytics> =>
-    api.get('/analytics/manufacturer', { params }).then(res => res.data),
+  }): Promise<ManufacturerAnalytics> => {
+    const response = await api.get('/analytics/manufacturer', { params });
+    return response.data.data;
+  },
 
   // Authentication
-  refreshToken: (): Promise<{ token: string; manufacturer: ManufacturerProfile }> =>
-    api.post('/manufacturer/refresh').then(res => res.data.data),
+  refreshToken: async (): Promise<{ token: string; manufacturer: ManufacturerProfile }> => {
+    const response = await api.post('/manufacturer/refresh');
+    return response.data.data;
+  },
 
-  logout: (): Promise<{ success: boolean; message: string }> =>
-    api.post('/manufacturer/logout').then(res => res.data),
+  logout: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/manufacturer/logout');
+    return response.data;
+  },
 
   // Portfolio management
-  addPortfolioItem: (data: {
+  addPortfolioItem: async (data: {
     title: string;
     description: string;
     category: string;
     images?: string[];
     tags?: string[];
-  }): Promise<{ success: boolean; item: any }> =>
-    api.post('/manufacturer/profile/portfolio', data).then(res => res.data),
+  }): Promise<{ success: boolean; item: any }> => {
+    const response = await api.post('/manufacturer/profile/portfolio', data);
+    return response.data;
+  },
 
-  updatePortfolioItem: (itemId: string, data: any): Promise<{ success: boolean; item: any }> =>
-    api.put(`/manufacturer/profile/portfolio/${itemId}`, data).then(res => res.data),
+  updatePortfolioItem: async (itemId: string, data: any): Promise<{ success: boolean; item: any }> => {
+    const response = await api.put(`/manufacturer/profile/portfolio/${itemId}`, data);
+    return response.data;
+  },
 
-  removePortfolioItem: (itemId: string): Promise<{ success: boolean; message: string }> =>
-    api.delete(`/manufacturer/profile/portfolio/${itemId}`).then(res => res.data),
+  removePortfolioItem: async (itemId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/manufacturer/profile/portfolio/${itemId}`);
+    return response.data;
+  },
 
   // Certifications
-  addCertification: (data: {
+  addCertification: async (data: {
     name: string;
     issuedBy: string;
     validUntil?: string;
     documentUrl?: string;
-  }): Promise<{ success: boolean; certification: any }> =>
-    api.post('/manufacturer/profile/certifications', data).then(res => res.data),
+  }): Promise<{ success: boolean; certification: any }> => {
+    const response = await api.post('/manufacturer/profile/certifications', data);
+    return response.data;
+  },
 
-  updateCertification: (certId: string, data: any): Promise<{ success: boolean; certification: any }> =>
-    api.put(`/manufacturer/profile/certifications/${certId}`, data).then(res => res.data),
+  updateCertification: async (certId: string, data: any): Promise<{ success: boolean; certification: any }> => {
+    const response = await api.put(`/manufacturer/profile/certifications/${certId}`, data);
+    return response.data;
+  },
 
-  removeCertification: (certId: string): Promise<{ success: boolean; message: string }> =>
-    api.delete(`/manufacturer/profile/certifications/${certId}`).then(res => res.data),
+  removeCertification: async (certId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/manufacturer/profile/certifications/${certId}`);
+    return response.data;
+  },
 
   // Business verification
-  submitVerificationRequest: (data: {
+  submitVerificationRequest: async (data: {
     businessDocuments: string[];
     certifications: string[];
     references: Array<{
@@ -436,17 +478,21 @@ const manufacturerApi = {
       email: string;
       relationship: string;
     }>;
-  }): Promise<{ success: boolean; verificationId: string }> =>
-    api.post('/manufacturer/profile/verification/submit', data).then(res => res.data),
+  }): Promise<{ success: boolean; verificationId: string }> => {
+    const response = await api.post('/manufacturer/profile/verification/submit', data);
+    return response.data;
+  },
 
-  getVerificationStatus: (): Promise<{
+  getVerificationStatus: async (): Promise<{
     status: VerificationStatus;
     submittedAt?: string;
     reviewedAt?: string;
     feedback?: string;
     requirements?: string[];
-  }> =>
-    api.get('/manufacturer/profile/verification/status').then(res => res.data.data),
+  }> => {
+    const response = await api.get('/manufacturer/profile/verification/status');
+    return response.data.data;
+  },
 };
 
 // ===== HOOKS =====

@@ -1,6 +1,6 @@
 // src/lib/blockchain/config/contracts.ts
 import { Address } from 'viem';
-import { base, baseSepolia, mainnet, polygon } from './chains';
+import { base, baseSepolia, mainnet } from './chains';
 
 // Contract address mapping per chain
 export const contractAddresses = {
@@ -31,14 +31,6 @@ export const contractAddresses = {
     relayerWallet: '0x0000000000000000000000000000000000000000' as Address, // Not used
   },
   
-  // Polygon (for future expansion)
-  [polygon.id]: {
-    certificateNFT: '0x0000000000000000000000000000000000000000' as Address, // Not deployed
-    votingContract: '0x0000000000000000000000000000000000000000' as Address, // Not deployed
-    votingFactory: '0x0000000000000000000000000000000000000000' as Address, // Not deployed
-    tokenContract: (process.env.NEXT_PUBLIC_TOKEN_CONTRACT_POLYGON || '0x0000000000000000000000000000000000000000') as Address,
-    relayerWallet: '0x0000000000000000000000000000000000000000' as Address, // Not used
-  },
 } as const;
 
 // Contract ABI definitions (simplified for key functions)

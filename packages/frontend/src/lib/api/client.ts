@@ -2,13 +2,14 @@
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { getToken, getRefreshToken, setTokens, clearTokens } from '@/lib/auth/session';
-import { ApiError } from '@/lib/types/common';
+import { ApiError } from '@/lib/errors';
 
 // Extended request config for retry logic
 interface RetryableAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
   retryCount?: number;
   _retryDelay?: number;
+  metadata?: { startTime: number };
 }
 
 // Rate limiting tracking
@@ -45,7 +46,7 @@ class ApiClient {
   private setupInterceptors(): void {
     // Request interceptor for auth, logging, and request preparation
     this.instance.interceptors.request.use(
-      (config: InternalAxiosRequestConfig) => {
+      (config: RetryableAxiosRequestConfig) => {
         // Add authentication token
         const token = getToken();
         if (token) {
@@ -81,7 +82,8 @@ class ApiClient {
       (response) => {
         // Log response timing in development
         if (process.env.NODE_ENV === 'development') {
-          const duration = Date.now() - (response.config.metadata?.startTime || 0);
+          const config = response.config as RetryableAxiosRequestConfig;
+          const duration = Date.now() - (config.metadata?.startTime || 0);
           console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${duration}ms`);
         }
 
@@ -157,7 +159,7 @@ class ApiClient {
         refreshToken,
       });
 
-      const { token, refreshToken: newRefreshToken } = response;
+      const { token, refreshToken: newRefreshToken } = response as any;
       
       // Store new tokens
       setTokens(token, newRefreshToken);
@@ -234,23 +236,15 @@ class ApiClient {
     const rateLimitHeaders = error.response?.headers;
     const isRateLimited = error.response?.status === 429;
 
-    const apiError: ApiError = {
-      statusCode: error.response?.status || 500,
-      message: (error.response?.data as any)?.message || error.message || 'An unexpected error occurred',
-      code: (error.response?.data as any)?.code || 'UNKNOWN_ERROR',
-      ...(isRateLimited && {
-        rateLimitInfo: {
-          limit: parseInt(rateLimitHeaders?.['x-ratelimit-limit'] || '0', 10),
-          remaining: parseInt(rateLimitHeaders?.['x-ratelimit-remaining'] || '0', 10),
-          resetTime: rateLimitHeaders?.['x-ratelimit-reset'] || '',
-        },
-      }),
-    };
+    const apiError = new ApiError(
+      (error.response?.data as any)?.message || error.message || 'An unexpected error occurred',
+      error.response?.status || 500
+    );
 
     // Add retry info if this was a retried request
     const config = error.config as RetryableAxiosRequestConfig;
     if (config?.retryCount) {
-      apiError.retryInfo = {
+      (apiError as any).retryInfo = {
         attemptNumber: config.retryCount,
         totalDelay: config._retryDelay || 0,
         lastError: error.code || 'UNKNOWN',
@@ -283,23 +277,23 @@ class ApiClient {
   // ===== PUBLIC API METHODS =====
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.get<T>(url, config);
+    return this.instance.get<T>(url, config) as Promise<T>;
   }
 
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.post<T>(url, data, config);
+    return this.instance.post<T>(url, data, config) as Promise<T>;
   }
 
   async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.put<T>(url, data, config);
+    return this.instance.put<T>(url, data, config) as Promise<T>;
   }
 
   async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.patch<T>(url, data, config);
+    return this.instance.patch<T>(url, data, config) as Promise<T>;
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.instance.delete<T>(url, config);
+    return this.instance.delete<T>(url, config) as Promise<T>;
   }
 
   async postFormData<T>(url: string, formData: FormData, config?: AxiosRequestConfig): Promise<T> {
@@ -309,7 +303,7 @@ class ApiClient {
         'Content-Type': 'multipart/form-data',
         ...config?.headers,
       },
-    });
+    }) as Promise<T>;
   }
 
   // ===== UTILITY METHODS =====
@@ -361,7 +355,7 @@ class ApiClient {
       return {
         healthy: true,
         latency,
-        version: response.version,
+        version: (response as any).version,
       };
     } catch (error) {
       return {
@@ -638,7 +632,7 @@ export const recoverFromError = async (error: ApiError): Promise<boolean> => {
   // Try to recover from common errors
   if (error.statusCode === 429) {
     // Rate limited - wait for reset
-    const resetTime = error.rateLimitInfo?.resetTime;
+    const resetTime = (error as any).rateLimitInfo?.resetTime;
     if (resetTime) {
       const waitTime = new Date(resetTime).getTime() - Date.now();
       if (waitTime > 0 && waitTime < 60000) { // Wait max 1 minute
@@ -653,7 +647,7 @@ export const recoverFromError = async (error: ApiError): Promise<boolean> => {
     try {
       const refreshToken = getRefreshToken();
       if (refreshToken) {
-        const response = await api.post('/auth/refresh', { refreshToken });
+        const response = await api.post('/auth/refresh', { refreshToken }) as any;
         setTokens(response.token, response.refreshToken);
         return true;
       }
