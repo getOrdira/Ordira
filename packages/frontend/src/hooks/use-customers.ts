@@ -1,8 +1,17 @@
 // src/hooks/use-customers.ts
 
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
-import { AllowedCustomer, CustomerListResponse, CustomerAnalyticsResponse } from '@/lib/types/allowed-customers';
-import * as emailGatingApi from '@/lib/api/email-gating';
+import { AllowedCustomer } from '@/lib/types/allowed-customers';
+import { CustomerListResponse, Customer } from '@/lib/api/customers';
+
+interface CustomerAnalyticsResponse {
+  data: {
+    analytics: any;
+    insights: any;
+    recommendations: string[];
+  };
+}
+import * as customersApi from '@/lib/api/customers';
 import { ApiError } from '@/lib/errors';
 
 interface UseCustomersOptions {
@@ -19,8 +28,8 @@ interface UseCustomersOptions {
 
 interface UseCustomersReturn {
   // Data
-  customers: AllowedCustomer[];
-  customer: AllowedCustomer | null;
+  customers: Customer[];
+  customer: Customer | null;
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
@@ -42,20 +51,20 @@ interface UseCustomersReturn {
   };
   
   // Actions
-  addCustomer: UseMutationResult<{ success: boolean; customer: AllowedCustomer; message: string }, ApiError, {
+  addCustomer: UseMutationResult<Customer, ApiError, {
     email: string;
     firstName?: string;
     lastName?: string;
+    phone?: string;
+    company?: string;
     tags?: string[];
-    vipStatus?: boolean;
-    externalCustomerId?: string;
-    notes?: string;
+    customFields?: Record<string, any>;
   }>;
-  updateCustomer: UseMutationResult<{ success: boolean; customer: AllowedCustomer; changes: string[] }, ApiError, { id: string; data: Partial<AllowedCustomer> }>;
-  deleteCustomer: UseMutationResult<{ success: boolean; deleted: boolean; customerId: string; deletedAt: string; impact: any; warning: string }, ApiError, string>;
-  grantAccess: UseMutationResult<{ success: boolean; customer: AllowedCustomer; granted: any; impact: string }, ApiError, string>;
-  revokeAccess: UseMutationResult<{ success: boolean; customer: AllowedCustomer; revocation: any; impact: any }, ApiError, { customerId: string; reason?: string }>;
-  restoreAccess: UseMutationResult<{ success: boolean; customer: AllowedCustomer; restoration: any; impact: string }, ApiError, string>;
+  updateCustomer: UseMutationResult<Customer, ApiError, { id: string; data: Partial<Customer> }>;
+  deleteCustomer: UseMutationResult<{ success: boolean }, ApiError, string>;
+  grantAccess: UseMutationResult<{ success: boolean; customer: Customer; granted: any; impact: string }, ApiError, { customerId: string; reason?: string }>;
+  revokeAccess: UseMutationResult<{ success: boolean; customer: Customer; revocation: any; impact: any }, ApiError, { customerId: string; reason?: string }>;
+  restoreAccess: UseMutationResult<{ success: boolean; customer: Customer; restoration: any; impact: string }, ApiError, string>;
   
   // Bulk operations
   bulkAddCustomers: UseMutationResult<any, ApiError, Array<{
@@ -106,7 +115,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
     refetch,
   } = useQuery<CustomerListResponse, ApiError>({
     queryKey: ['customers', 'list', { source, hasAccess, isActive, vipStatus, search, page, limit, sortBy, sortOrder }],
-    queryFn: () => emailGatingApi.getCustomers({
+    queryFn: () => customersApi.customersApi.getCustomers({
       source,
       hasAccess,
       isActive,
@@ -123,7 +132,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Add customer mutation
   const addCustomer = useMutation({
-    mutationFn: emailGatingApi.addCustomer,
+    mutationFn: customersApi.customersApi.addCustomer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -131,7 +140,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Update customer mutation
   const updateCustomer = useMutation({
-    mutationFn: ({ id, data }) => emailGatingApi.updateCustomer(id, data),
+    mutationFn: ({ id, data }) => customersApi.customersApi.updateCustomer(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -139,7 +148,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Delete customer mutation
   const deleteCustomer = useMutation({
-    mutationFn: emailGatingApi.deleteCustomer,
+    mutationFn: customersApi.customersApi.removeCustomer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -147,7 +156,8 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Grant access mutation
   const grantAccess = useMutation({
-    mutationFn: emailGatingApi.grantAccess,
+    mutationFn: ({ customerId, reason }: { customerId: string; reason?: string }) =>
+      customersApi.customersApi.grantAccess(customerId, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -155,7 +165,8 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Revoke access mutation
   const revokeAccess = useMutation({
-    mutationFn: ({ customerId, reason }) => emailGatingApi.revokeAccess(customerId, reason),
+    mutationFn: ({ customerId, reason }: { customerId: string; reason?: string }) =>
+      customersApi.customersApi.revokeAccess(customerId, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -163,7 +174,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Restore access mutation
   const restoreAccess = useMutation({
-    mutationFn: emailGatingApi.restoreAccess,
+    mutationFn: (customerId: string) => customersApi.customersApi.restoreAccess(customerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -171,7 +182,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Bulk add customers mutation
   const bulkAddCustomers = useMutation({
-    mutationFn: emailGatingApi.bulkAddCustomers,
+    mutationFn: customersApi.customersApi.bulkAddCustomers,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -179,7 +190,11 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Bulk update access mutation
   const bulkUpdateAccess = useMutation({
-    mutationFn: emailGatingApi.bulkUpdateAccess,
+    mutationFn: (data: {
+      customerIds: string[];
+      action: 'grant' | 'revoke' | 'restore';
+      reason?: string;
+    }) => customersApi.customersApi.bulkUpdateAccess(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -187,7 +202,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Sync from Shopify mutation
   const syncFromShopify = useMutation({
-    mutationFn: emailGatingApi.syncFromShopify,
+    mutationFn: () => customersApi.customersApi.syncCustomers('shopify'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -195,7 +210,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Sync from WooCommerce mutation
   const syncFromWooCommerce = useMutation({
-    mutationFn: emailGatingApi.syncFromWooCommerce,
+    mutationFn: () => customersApi.customersApi.syncCustomers('woocommerce'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -203,7 +218,7 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
 
   // Sync from source mutation
   const syncFromSource = useMutation({
-    mutationFn: emailGatingApi.syncFromSource,
+    mutationFn: (source: 'shopify' | 'woocommerce') => customersApi.customersApi.syncCustomers(source),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', 'list'] });
     },
@@ -215,22 +230,22 @@ export function useCustomers(options: UseCustomersOptions = {}): UseCustomersRet
   };
 
   return {
-    customers: customersData?.data?.customers || [],
+    customers: customersData?.customers || [],
     customer: null, // Will be set by useCustomer hook
     isLoading,
     isError,
     error,
     pagination: {
-      page: customersData?.data?.pagination?.page || 1,
-      limit: customersData?.data?.pagination?.limit || 20,
-      total: customersData?.data?.pagination?.total || 0,
-      totalPages: customersData?.data?.pagination?.totalPages || 0,
+      page: customersData?.pagination?.page || 1,
+      limit: customersData?.pagination?.limit || 20,
+      total: customersData?.pagination?.total || 0,
+      totalPages: customersData?.pagination?.totalPages || 0,
     },
     summary: {
-      total: customersData?.data?.summary?.total || 0,
-      active: customersData?.data?.summary?.active || 0,
-      vip: customersData?.data?.summary?.vip || 0,
-      totalVotes: customersData?.data?.summary?.totalVotes || 0,
+      total: customersData?.analytics?.totalCustomers || 0,
+      active: customersData?.analytics?.activeCustomers || 0,
+      vip: customersData?.analytics?.vipCustomers || 0,
+      totalVotes: customersData?.analytics?.averageVotesPerCustomer || 0,
     },
     addCustomer,
     updateCustomer,
@@ -268,9 +283,9 @@ export function useCustomer({ email, enabled = true }: UseCustomerOptions): UseC
     isError,
     error,
     refetch,
-  } = useQuery<{ success: boolean; customer: AllowedCustomer | null; found: boolean }, ApiError>({
+  } = useQuery<{ success: boolean; customer: Customer | null; found: boolean }, ApiError>({
     queryKey: ['customers', 'detail', email],
-    queryFn: () => emailGatingApi.getCustomerByEmail(email),
+    queryFn: () => customersApi.customersApi.getCustomerByEmail(email),
     enabled: enabled && !!email,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -304,7 +319,7 @@ export function useCustomerAnalytics(options: { timeRange?: string; includeTimel
     refetch,
   } = useQuery<CustomerAnalyticsResponse, ApiError>({
     queryKey: ['customers', 'analytics', options],
-    queryFn: () => emailGatingApi.getAnalytics(options),
+    queryFn: () => customersApi.customersApi.getAnalytics(options),
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });
@@ -340,13 +355,13 @@ export function useEmailGatingSettings(): UseEmailGatingSettingsReturn {
     refetch,
   } = useQuery({
     queryKey: ['email-gating', 'settings'],
-    queryFn: emailGatingApi.getSettings,
+    queryFn: customersApi.customersApi.getSettings,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   const updateSettings = useMutation({
-    mutationFn: emailGatingApi.updateSettings,
+    mutationFn: customersApi.customersApi.updateSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-gating', 'settings'] });
     },

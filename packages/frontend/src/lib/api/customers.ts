@@ -295,5 +295,257 @@ export const customersApi = {
       console.error('Update customer status error:', error);
       throw error;
     }
+  },
+
+  // ===== ACCESS CONTROL FUNCTIONS =====
+
+  /**
+   * Grant access to customer
+   * POST /api/brand/customers/:id/access/grant
+   */
+  grantAccess: async (customerId: string, reason?: string): Promise<{
+    success: boolean;
+    customer: Customer;
+    granted: {
+      timestamp: string;
+      reason?: string;
+      grantedBy: string;
+    };
+    impact: string;
+  }> => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        customer: Customer;
+        granted: {
+          timestamp: string;
+          reason?: string;
+          grantedBy: string;
+        };
+        impact: string;
+      }>(`/api/brand/customers/${customerId}/access/grant`, { reason });
+      return response;
+    } catch (error) {
+      console.error('Grant customer access error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Revoke access from customer
+   * POST /api/brand/customers/:id/access/revoke
+   */
+  revokeAccess: async (customerId: string, reason?: string): Promise<{
+    success: boolean;
+    customer: Customer;
+    revocation: {
+      timestamp: string;
+      reason?: string;
+      revokedBy: string;
+    };
+    impact: {
+      votesAffected: number;
+      accessHistory: any[];
+    };
+  }> => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        customer: Customer;
+        revocation: {
+          timestamp: string;
+          reason?: string;
+          revokedBy: string;
+        };
+        impact: {
+          votesAffected: number;
+          accessHistory: any[];
+        };
+      }>(`/api/brand/customers/${customerId}/access/revoke`, { reason });
+      return response;
+    } catch (error) {
+      console.error('Revoke customer access error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Restore access to customer
+   * POST /api/brand/customers/:id/access/restore
+   */
+  restoreAccess: async (customerId: string): Promise<{
+    success: boolean;
+    customer: Customer;
+    restoration: {
+      timestamp: string;
+      restoredBy: string;
+    };
+    impact: string;
+  }> => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        customer: Customer;
+        restoration: {
+          timestamp: string;
+          restoredBy: string;
+        };
+        impact: string;
+      }>(`/api/brand/customers/${customerId}/access/restore`);
+      return response;
+    } catch (error) {
+      console.error('Restore customer access error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Bulk update customer access
+   * POST /api/brand/customers/access/bulk
+   */
+  bulkUpdateAccess: async (data: {
+    customerIds: string[];
+    action: 'grant' | 'revoke' | 'restore';
+    reason?: string;
+  }): Promise<{
+    success: boolean;
+    processed: number;
+    results: Array<{
+      customerId: string;
+      success: boolean;
+      error?: string;
+    }>;
+  }> => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        processed: number;
+        results: Array<{
+          customerId: string;
+          success: boolean;
+          error?: string;
+        }>;
+      }>('/api/brand/customers/access/bulk', data);
+      return response;
+    } catch (error) {
+      console.error('Bulk update customer access error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get customer access history
+   * GET /api/brand/customers/:id/access/history
+   */
+  getCustomerAccessHistory: async (customerId: string): Promise<Array<{
+    action: 'granted' | 'revoked' | 'restored';
+    timestamp: string;
+    reason?: string;
+    performedBy: string;
+  }>> => {
+    try {
+      const response = await api.get<Array<{
+        action: 'granted' | 'revoked' | 'restored';
+        timestamp: string;
+        reason?: string;
+        performedBy: string;
+      }>>(`/api/brand/customers/${customerId}/access/history`);
+      return response;
+    } catch (error) {
+      console.error('Get customer access history error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get customer by email
+   * GET /api/brand/customers/email/:email
+   */
+  getCustomerByEmail: async (email: string): Promise<{
+    success: boolean;
+    customer: Customer | null;
+    found: boolean;
+  }> => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        customer: Customer | null;
+        found: boolean;
+      }>(`/api/brand/customers/email/${email}`);
+      return response;
+    } catch (error) {
+      console.error('Get customer by email error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get customer analytics
+   * GET /api/brand/customers/analytics
+   */
+  getAnalytics: async (options?: { timeRange?: string; includeTimeline?: boolean }): Promise<{
+    data: {
+      analytics: any;
+      insights: any;
+      recommendations: string[];
+    };
+  }> => {
+    try {
+      const response = await api.get<{
+        data: {
+          analytics: any;
+          insights: any;
+          recommendations: string[];
+        };
+      }>('/api/brand/customers/analytics', { params: options });
+      return response;
+    } catch (error) {
+      console.error('Get customer analytics error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get email gating settings
+   * GET /api/brand/email-gating/settings
+   */
+  getSettings: async (): Promise<{
+    data: {
+      settings: any;
+    };
+  }> => {
+    try {
+      const response = await api.get<{
+        data: {
+          settings: any;
+        };
+      }>('/api/brand/email-gating/settings');
+      return response;
+    } catch (error) {
+      console.error('Get email gating settings error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update email gating settings
+   * PATCH /api/brand/email-gating/settings
+   */
+  updateSettings: async (settings: any): Promise<{
+    data: {
+      settings: any;
+    };
+  }> => {
+    try {
+      const response = await api.patch<{
+        data: {
+          settings: any;
+        };
+      }>('/api/brand/email-gating/settings', settings);
+      return response;
+    } catch (error) {
+      console.error('Update email gating settings error:', error);
+      throw error;
+    }
   }
 };

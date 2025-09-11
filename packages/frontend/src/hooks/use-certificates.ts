@@ -293,7 +293,7 @@ export function useCertificates(params?: CertificateListQuery, options?: { enabl
     queryFn: () => certificatesApi.getCertificates(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -308,6 +308,7 @@ export function useInfiniteCertificates(
     queryKey: ['certificates', 'infinite', baseParams],
     queryFn: ({ pageParam = 1 }) => certificatesApi.getCertificates({ ...baseParams, page: pageParam }),
     enabled: options?.enabled ?? true,
+    initialPageParam: 1,
     getNextPageParam: (lastPage) => 
       lastPage.pagination.hasNext ? lastPage.pagination.page + 1 : undefined,
     staleTime: 2 * 60 * 1000, // 2 minutes
