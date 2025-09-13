@@ -547,5 +547,51 @@ export const customersApi = {
       console.error('Update email gating settings error:', error);
       throw error;
     }
+  },
+
+  /**
+   * Bulk add customers
+   * POST /api/brand/customers/bulk
+   */
+  bulkAddCustomers: async (customers: Array<{
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    company?: string;
+    tags?: string[];
+    customFields?: Record<string, any>;
+  }>): Promise<{
+    success: boolean;
+    processed: number;
+    created: number;
+    updated: number;
+    failed: number;
+    results: Array<{
+      email: string;
+      success: boolean;
+      customerId?: string;
+      error?: string;
+    }>;
+  }> => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        processed: number;
+        created: number;
+        updated: number;
+        failed: number;
+        results: Array<{
+          email: string;
+          success: boolean;
+          customerId?: string;
+          error?: string;
+        }>;
+      }>('/api/brand/customers/bulk', { customers });
+      return response;
+    } catch (error) {
+      console.error('Bulk add customers error:', error);
+      throw error;
+    }
   }
 };

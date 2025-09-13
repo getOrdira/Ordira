@@ -150,9 +150,9 @@ export function useMediaQuery(query: string): boolean {
  */
 export function useIntersectionObserver(
   options: IntersectionObserverInit = {}
-): [React.RefObject<HTMLElement>, boolean] {
+): [React.RefObject<HTMLElement | null>, boolean] {
   const [isIntersecting, setIsIntersecting] = useState(false);
-  const targetRef = useRef<HTMLElement>(null);
+  const targetRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const element = targetRef.current;
@@ -439,8 +439,8 @@ export function useUtilitiesNotifications() {
  */
 export function useClickOutside<T extends HTMLElement>(
   handler: () => void
-): React.RefObject<T> {
-  const ref = useRef<T>(null);
+): React.RefObject<T | null> {
+  const ref = useRef<T | null>(null);
 
   useEffect(() => {
     const listener = (event: MouseEvent | TouchEvent) => {

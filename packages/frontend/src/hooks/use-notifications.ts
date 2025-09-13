@@ -44,7 +44,7 @@ export interface NotificationAction {
 }
 
 // UI-optimized notification interface
-export interface UINotification extends Omit<BackendNotification, 'createdAt' | 'updatedAt'> {
+export interface UINotification extends Omit<BackendNotification, 'createdAt' | 'updatedAt' | 'category' | 'priority' | 'deliveryStatus' | 'read' | '_id'> {
   id: string; // Transformed from _id
   time: string; // Formatted relative time
   read: boolean; // Mapped from isRead
@@ -174,7 +174,7 @@ export function useNotifications(): UseNotificationsReturn {
       type: backendNotification.type,
       message: backendNotification.message,
       time: formatTime(timeDiff),
-      read: backendNotification.isRead,
+      read: backendNotification.isRead ?? false,
       sender: extractSender(backendNotification.details),
       
       // Map backend fields properly
@@ -431,7 +431,7 @@ export function useNotifications(): UseNotificationsReturn {
         ...prev,
         total: Math.max(0, prev.total - 1),
         unread: deletedNotification?.read ? prev.unread : Math.max(0, prev.unread - 1),
-        hasUnread: prev.unread > 1 || (prev.unread === 1 && deletedNotification?.read),
+        hasUnread: (prev.unread > 1) || (prev.unread === 1 && !deletedNotification?.read),
       }));
       
     } catch (err) {

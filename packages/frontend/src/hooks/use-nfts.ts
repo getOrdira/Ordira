@@ -689,7 +689,7 @@ export function useNfts(params?: NftListQuery, options?: { enabled?: boolean }) 
     queryFn: () => nftsApi.getNfts(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -702,9 +702,10 @@ export function useInfiniteNfts(
 ) {
   return useInfiniteQuery({
     queryKey: ['nfts', 'infinite', baseParams],
-    queryFn: ({ pageParam = 1 }) => nftsApi.getNfts({ ...baseParams, page: pageParam }),
+    queryFn: ({ pageParam = 1 }) => nftsApi.getNfts({ ...baseParams, page: pageParam as number }),
     enabled: options?.enabled ?? true,
-    getNextPageParam: (lastPage) => 
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: any) => 
       lastPage.pagination.hasNext ? lastPage.pagination.page + 1 : undefined,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
@@ -879,7 +880,7 @@ export function useNftTransactions(
     queryFn: () => nftsApi.getTransactions(nftId!, params),
     enabled: (options?.enabled ?? true) && !!nftId,
     staleTime: 30 * 1000, // 30 seconds
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1034,7 +1035,7 @@ export function useUtilityRedemptionHistory(
     queryFn: () => nftsApi.getUtilityRedemptionHistory(nftId!, utilityId!, params),
     enabled: (options?.enabled ?? true) && !!nftId && !!utilityId,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1212,7 +1213,7 @@ export function useNftCollections(
     queryFn: () => nftsApi.getCollections(params),
     enabled: options?.enabled ?? true,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1284,7 +1285,7 @@ export function useCollectionNfts(
     queryFn: () => nftsApi.getCollectionNfts(collectionId!, params),
     enabled: (options?.enabled ?? true) && !!collectionId,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -1436,21 +1437,22 @@ export function useNftPortfolioOverview(
     queryFn: async () => {
       if (!nfts.data?.nfts) return null;
 
+      const nftsList = nfts.data.nfts;
       const portfolio = {
-        totalNfts: nfts.data.nfts.length,
-        totalValue: nfts.data.nfts.reduce((sum, nft) => sum + (nft.pricing.currentPrice || 0), 0),
-        collections: [...new Set(nfts.data.nfts.map(nft => nft.collection?.name).filter(Boolean))].length,
-        networks: [...new Set(nfts.data.nfts.map(nft => nft.network))],
-        topPerformers: nfts.data.nfts
-          .sort((a, b) => (b.pricing.currentPrice || 0) - (a.pricing.currentPrice || 0))
+        totalNfts: nftsList.length,
+        totalValue: nftsList.reduce((sum: number, nft: any) => sum + (nft.pricing.currentPrice || 0), 0),
+        collections: [...new Set(nftsList.map((nft: any) => nft.collection?.name).filter(Boolean))].length,
+        networks: [...new Set(nftsList.map((nft: any) => nft.network))],
+        topPerformers: nftsList
+          .sort((a: any, b: any) => (b.pricing.currentPrice || 0) - (a.pricing.currentPrice || 0))
           .slice(0, 5),
-        recentActivity: nfts.data.nfts
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        recentActivity: nftsList
+          .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
           .slice(0, 10),
         utilities: {
-          total: nfts.data.nfts.reduce((sum, nft) => sum + nft.utilities.length, 0),
-          active: nfts.data.nfts.reduce((sum, nft) => 
-            sum + nft.utilities.filter(u => u.status === 'active').length, 0
+          total: nftsList.reduce((sum: number, nft: any) => sum + nft.utilities.length, 0),
+          active: nftsList.reduce((sum: number, nft: any) => 
+            sum + nft.utilities.filter((u: any) => u.status === 'active').length, 0
           ),
         },
       };

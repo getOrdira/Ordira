@@ -52,11 +52,11 @@ export function useSession(): UseSessionReturn {
       if (!token) {
         throw new Error('No authentication token');
       }
-      return authApi.getUserProfile();
+      return authApi.authApi.getCurrentUser();
     },
     retry: (failureCount, error) => {
       // Don't retry on 401 errors
-      if (error?.statusCode === 401) {
+      if ((error as any)?.statusCode === 401) {
         return false;
       }
       return failureCount < 3;

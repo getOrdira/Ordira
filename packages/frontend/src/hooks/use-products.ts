@@ -1,14 +1,14 @@
 // src/hooks/use-products.ts
 
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
-import { Product, ProductListResponse, ProductDetailResponse, CreateProductRequest, UpdateProductRequest } from '@/lib/types/products';
+import { Product, CreateProductRequest, UpdateProductRequest } from '@/lib/types/products';
 import * as productsApi from '@/lib/api/products';
 import { ApiError } from '@/lib/errors';
 
 interface UseProductsOptions {
   businessId?: string;
   manufacturerId?: string;
-  status?: 'draft' | 'active' | 'archived';
+  status?: 'draft' | 'proposed' | 'in_production' | 'manufactured';
   category?: string;
   search?: string;
   page?: number;
@@ -19,8 +19,8 @@ interface UseProductsOptions {
 
 interface UseProductsReturn {
   // Data
-  products: Product[];
-  product: Product | null;
+  products: productsApi.Product[];
+  product: productsApi.Product | null;
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
@@ -36,11 +36,11 @@ interface UseProductsReturn {
   };
   
   // Actions
-  createProduct: UseMutationResult<Product, ApiError, CreateProductRequest>;
-  updateProduct: UseMutationResult<Product, ApiError, { id: string; data: UpdateProductRequest }>;
+  createProduct: UseMutationResult<productsApi.ProductDetailResponse, ApiError, CreateProductRequest>;
+  updateProduct: UseMutationResult<productsApi.ProductDetailResponse, ApiError, { id: string; data: UpdateProductRequest }>;
   deleteProduct: UseMutationResult<{ success: boolean }, ApiError, string>;
-  archiveProduct: UseMutationResult<Product, ApiError, string>;
-  unarchiveProduct: UseMutationResult<Product, ApiError, string>;
+  archiveProduct: UseMutationResult<productsApi.ProductDetailResponse, ApiError, string>;
+  unarchiveProduct: UseMutationResult<productsApi.ProductDetailResponse, ApiError, string>;
   
   // Refetch functions
   refetch: () => void;
@@ -69,11 +69,10 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
     isError,
     error,
     refetch,
-  } = useQuery<ProductListResponse, ApiError>({
+  } = useQuery<productsApi.ProductListResponse, ApiError>({
     queryKey: ['products', 'list', { businessId, manufacturerId, status, category, search, page, limit, sortBy, sortOrder }],
     queryFn: () => productsApi.getProducts({
-      business: businessId,
-      manufacturer: manufacturerId,
+      business: businessId,  
       status,
       category,
       search,
@@ -87,7 +86,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
   });
 
   // Create product mutation
-  const createProduct = useMutation<Product, ApiError, CreateProductRequest>({
+  const createProduct = useMutation<productsApi.ProductDetailResponse, ApiError, CreateProductRequest>({
     mutationFn: productsApi.createProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', 'list'] });
@@ -95,11 +94,11 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
   });
 
   // Update product mutation
-  const updateProduct = useMutation<Product, ApiError, { id: string; data: UpdateProductRequest }>({
-    mutationFn: ({ id, data }) => productsApi.updateProduct(id, data),
+  const updateProduct = useMutation<productsApi.ProductDetailResponse, ApiError, { id: string; data: UpdateProductRequest }>({
+    mutationFn: ({ id, data }) => productsApi.updateProduct(id, data as any),
     onSuccess: (updatedProduct) => {
       queryClient.invalidateQueries({ queryKey: ['products', 'list'] });
-      queryClient.setQueryData(['products', 'detail', updatedProduct._id], updatedProduct);
+      queryClient.setQueryData(['products', 'detail', (updatedProduct as any)._id], updatedProduct);
     },
   });
 
@@ -112,16 +111,16 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
   });
 
   // Archive product mutation
-  const archiveProduct = useMutation<Product, ApiError, string>({
-    mutationFn: (id) => productsApi.updateProduct(id, { status: 'archived' }),
+  const archiveProduct = useMutation<productsApi.ProductDetailResponse, ApiError, string>({
+    mutationFn: (id) => productsApi.updateProduct(id, { status: 'manufactured' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', 'list'] });
     },
   });
 
   // Unarchive product mutation
-  const unarchiveProduct = useMutation<Product, ApiError, string>({
-    mutationFn: (id) => productsApi.updateProduct(id, { status: 'active' }),
+  const unarchiveProduct = useMutation<productsApi.ProductDetailResponse, ApiError, string>({
+    mutationFn: (id) => productsApi.updateProduct(id, { status: 'proposed' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', 'list'] });
     },
@@ -140,7 +139,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
     error,
     pagination: {
       page: productsData?.pagination?.page || 1,
-      limit: productsData?.limit || 20,
+      limit: productsData?.pagination?.limit || 20,
       total: productsData?.pagination?.total || 0,
       totalPages: productsData?.pagination?.totalPages || 0,
       hasNext: productsData?.pagination?.hasNext || false,
@@ -162,7 +161,7 @@ interface UseProductOptions {
 }
 
 interface UseProductReturn {
-  product: Product | null;
+  product: productsApi.ProductDetailResponse | null;
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
@@ -176,7 +175,7 @@ export function useProduct({ id, enabled = true }: UseProductOptions): UseProduc
     isError,
     error,
     refetch,
-  } = useQuery<Product, ApiError>({
+  } = useQuery<productsApi.ProductDetailResponse, ApiError>({
     queryKey: ['products', 'detail', id],
     queryFn: () => productsApi.getProduct(id),
     enabled: enabled && !!id,
@@ -208,7 +207,7 @@ export function useProductCategories(): UseProductCategoriesReturn {
     isError,
     error,
     refetch,
-  } = useQuery<string[], ApiError>({
+  } = useQuery<productsApi.ProductCategoriesResponse, ApiError>({
     queryKey: ['products', 'categories'],
     queryFn: productsApi.getProductCategories,
     staleTime: 30 * 60 * 1000, // 30 minutes
@@ -216,7 +215,7 @@ export function useProductCategories(): UseProductCategoriesReturn {
   });
 
   return {
-    categories: categories || [],
+    categories: categories?.categories || [],
     isLoading,
     isError,
     error,
@@ -225,7 +224,7 @@ export function useProductCategories(): UseProductCategoriesReturn {
 }
 
 interface UseFeaturedProductsReturn {
-  products: Product[];
+  products: productsApi.Product[];
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
@@ -239,15 +238,15 @@ export function useFeaturedProducts(): UseFeaturedProductsReturn {
     isError,
     error,
     refetch,
-  } = useQuery<Product[], ApiError>({
+  } = useQuery<productsApi.FeaturedProductsResponse, ApiError>({
     queryKey: ['products', 'featured'],
-    queryFn: productsApi.getFeaturedProducts,
+    queryFn: () => productsApi.getFeaturedProducts(),
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });
 
   return {
-    products: featuredData || [],
+    products: (featuredData as any) || [],
     isLoading,
     isError,
     error,
@@ -262,7 +261,7 @@ interface UseProductSearchOptions {
 }
 
 interface UseProductSearchReturn {
-  products: Product[];
+  products: productsApi.Product[];
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
@@ -276,7 +275,7 @@ export function useProductSearch({ query, category, enabled = true }: UseProduct
     isError,
     error,
     refetch,
-  } = useQuery<Product[], ApiError>({
+  } = useQuery<productsApi.ProductSearchResponse, ApiError>({
     queryKey: ['products', 'search', { query, category }],
     queryFn: () => productsApi.searchProducts({ query, category }),
     enabled: enabled && !!query,
@@ -285,7 +284,7 @@ export function useProductSearch({ query, category, enabled = true }: UseProduct
   });
 
   return {
-    products: searchData || [],
+    products: (searchData as any) || [],
     isLoading,
     isError,
     error,

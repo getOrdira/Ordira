@@ -15,7 +15,7 @@ export * from './use-supply-chain';
 export * from './use-web3';
 
 // UI state hooks
-export * from './use-notifications';
+export { useNotifications as useNotificationsHook } from './use-notifications';
 
 // Brand/Manufacturer specific hooks
 export * from './use-brand-hooks';

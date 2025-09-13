@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React from 'react';
 import axios from 'axios';
 import { ApiError } from '@/lib/errors';
 import apiClient from '@/lib/api/client';
@@ -260,28 +261,28 @@ const integrationsApi = {
   // Overview and general
   getIntegrationsOverview: async (): Promise<IntegrationsOverview> => {
     const response = await api.get('/integrations');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getIntegrationHealth: async (platform: IntegrationPlatform): Promise<{ score: number; status: string; issues: string[] }> => {
     const response = await api.get(`/integrations/${platform}/health`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Shopify Integration
   connectShopify: async (data: ConnectShopifyRequest): Promise<{ authUrl: string; state: string }> => {
     const response = await api.post('/integrations/shopify/connect', data);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getShopifyIntegration: async (): Promise<ShopifyIntegration> => {
     const response = await api.get('/integrations/shopify');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   disconnectShopify: async (): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete('/integrations/shopify');
-    return response.data;
+    return (response as any).data;
   },
 
   getShopifyProducts: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
@@ -289,7 +290,7 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/shopify/products', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getShopifyOrders: async (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
@@ -297,38 +298,38 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/shopify/orders', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   syncShopifyProducts: async (productIds?: string[]): Promise<{ success: boolean; results: any }> => {
     const response = await api.post('/integrations/shopify/products/sync', { productIds });
-    return response.data;
+    return (response as any).data;
   },
 
   createShopifyOrderCertificates: async (orderId: string): Promise<{ success: boolean; certificates: string[] }> => {
     const response = await api.post(`/integrations/shopify/orders/${orderId}/certificates`);
-    return response.data;
+    return (response as any).data;
   },
 
   getShopifyAnalytics: async (params?: { timeframe?: string; metrics?: string[] }): Promise<any> => {
     const response = await api.get('/integrations/shopify/analytics', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // WooCommerce Integration
   connectWooCommerce: async (data: ConnectWooCommerceRequest): Promise<{ success: boolean; integration: WooCommerceIntegration }> => {
     const response = await api.post('/integrations/woocommerce/connect', data);
-    return response.data;
+    return (response as any).data;
   },
 
   getWooCommerceIntegration: async (): Promise<WooCommerceIntegration> => {
     const response = await api.get('/integrations/woocommerce');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   disconnectWooCommerce: async (): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete('/integrations/woocommerce');
-    return response.data;
+    return (response as any).data;
   },
 
   getWooCommerceProducts: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
@@ -336,7 +337,7 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/woocommerce/products', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWooCommerceOrders: async (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
@@ -344,33 +345,33 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/woocommerce/orders', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWooCommercePluginStatus: async (): Promise<{ installed: boolean; version?: string; compatible: boolean }> => {
     const response = await api.get('/integrations/woocommerce/plugin-status');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWooCommerceSystemStatus: async (): Promise<{ system: any; diagnostics: any }> => {
     const response = await api.get('/integrations/woocommerce/system-status');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Wix Integration
   connectWix: async (data: ConnectWixRequest): Promise<{ authUrl: string; state: string }> => {
     const response = await api.post('/integrations/wix/connect', data);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWixIntegration: async (): Promise<WixIntegration> => {
     const response = await api.get('/integrations/wix');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   disconnectWix: async (): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete('/integrations/wix');
-    return response.data;
+    return (response as any).data;
   },
 
   getWixProducts: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<{
@@ -378,7 +379,7 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/wix/products', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWixOrders: async (params?: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }): Promise<{
@@ -386,45 +387,45 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/wix/orders', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWixAppStatus: async (): Promise<{ installed: boolean; permissions: string[]; lastUpdated?: string }> => {
     const response = await api.get('/integrations/wix/app-status');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Webhooks management
   getWebhooksOverview: async (): Promise<{ endpoints: WebhookEndpoint[]; recentDeliveries: WebhookDelivery[] }> => {
     const response = await api.get('/integrations/webhooks');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getWebhookEndpoints: async (params?: { platform?: IntegrationPlatform; status?: WebhookStatus }): Promise<{
     endpoints: WebhookEndpoint[];
   }> => {
     const response = await api.get('/integrations/webhooks/endpoints', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   createWebhookEndpoint: async (data: { url: string; events: string[]; platform: IntegrationPlatform; secret?: string }): Promise<WebhookEndpoint> => {
     const response = await api.post('/integrations/webhooks/endpoints', data);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   updateWebhookEndpoint: async (endpointId: string, data: { url?: string; events?: string[]; secret?: string }): Promise<WebhookEndpoint> => {
     const response = await api.put(`/integrations/webhooks/endpoints/${endpointId}`, data);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   deleteWebhookEndpoint: async (endpointId: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/integrations/webhooks/endpoints/${endpointId}`);
-    return response.data;
+    return (response as any).data;
   },
 
   testWebhookEndpoint: async (endpointId: string, eventType: string): Promise<{ success: boolean; delivery: WebhookDelivery }> => {
     const response = await api.post(`/integrations/webhooks/endpoints/${endpointId}/test`, { eventType });
-    return response.data;
+    return (response as any).data;
   },
 
   getWebhookDeliveries: async (params?: { 
@@ -437,28 +438,28 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/webhooks/deliveries', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   retryWebhookDelivery: async (deliveryId: string): Promise<{ success: boolean; delivery: WebhookDelivery }> => {
     const response = await api.post(`/integrations/webhooks/deliveries/${deliveryId}/retry`);
-    return response.data;
+    return (response as any).data;
   },
 
   // Certificate mapping
   getCertificateMapping: async (platform: IntegrationPlatform): Promise<{ mappings: CertificateMapping[] }> => {
     const response = await api.get(`/integrations/${platform}/certificate-mapping`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   updateCertificateMapping: async (platform: IntegrationPlatform, mappings: CertificateMapping[]): Promise<{ success: boolean; mappings: CertificateMapping[] }> => {
     const response = await api.put(`/integrations/${platform}/certificate-mapping`, { mappings });
-    return response.data;
+    return (response as any).data;
   },
 
   testCertificateRules: async (platform: IntegrationPlatform, productId: string, rules: any): Promise<{ success: boolean; result: any }> => {
     const response = await api.post(`/integrations/${platform}/certificate-rules/test`, { productId, rules });
-    return response.data;
+    return (response as any).data;
   },
 
   // Sync operations
@@ -467,7 +468,7 @@ const integrationsApi = {
     pagination: any;
   }> => {
     const response = await api.get('/integrations/sync/history', { params: { platform, ...params } });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   triggerBulkOperation: async (platform: IntegrationPlatform, operation: BulkOperationRequest): Promise<{
@@ -476,7 +477,7 @@ const integrationsApi = {
     estimatedDuration: string;
   }> => {
     const response = await api.post(`/integrations/${platform}/bulk-operations`, operation);
-    return response.data;
+    return (response as any).data;
   },
 
   getBulkOperationStatus: async (platform: IntegrationPlatform, operationId: string): Promise<{
@@ -486,7 +487,7 @@ const integrationsApi = {
     results?: any;
   }> => {
     const response = await api.get(`/integrations/${platform}/bulk-operations/${operationId}/status`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Setup guides and troubleshooting
@@ -496,7 +497,7 @@ const integrationsApi = {
     estimatedTime: string;
   }> => {
     const response = await api.get(`/integrations/${platform}/setup-guide`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getTroubleshootingInfo: async (platform: IntegrationPlatform): Promise<{
@@ -505,7 +506,7 @@ const integrationsApi = {
     supportResources: Array<{ title: string; url: string; }>;
   }> => {
     const response = await api.get(`/integrations/${platform}/troubleshooting`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 };
 
@@ -588,7 +589,7 @@ export function useShopifyProducts(
     queryFn: () => integrationsApi.getShopifyProducts(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -601,7 +602,7 @@ export function useShopifyOrders(
     queryFn: () => integrationsApi.getShopifyOrders(params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -670,7 +671,7 @@ export function useWooCommerceProducts(
     queryFn: () => integrationsApi.getWooCommerceProducts(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -734,7 +735,7 @@ export function useWixProducts(
     queryFn: () => integrationsApi.getWixProducts(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -809,7 +810,7 @@ export function useWebhookDeliveries(
     queryFn: () => integrationsApi.getWebhookDeliveries(params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -880,7 +881,7 @@ export function useSyncHistory(
     queryFn: () => integrationsApi.getSyncHistory(platform, params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -911,7 +912,7 @@ export function useBulkOperationStatus(
     enabled: (options?.enabled ?? true) && !!operationId,
     refetchInterval: (data) => {
       // Poll while operation is running
-      return data?.status === 'running' ? 2000 : false;
+      return (data as any)?.status === 'running' ? 2000 : false;
     },
     staleTime: 0, // Always fresh for running operations
   });
@@ -944,19 +945,24 @@ export function useTroubleshootingInfo(platform: IntegrationPlatform, options?: 
 export function useRealtimeIntegrationsStatus(enabled: boolean = false) {
   const queryClient = useQueryClient();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['integrations', 'realtime'],
     queryFn: integrationsApi.getIntegrationsOverview,
     enabled,
     refetchInterval: enabled ? 30 * 1000 : false, // 30 seconds
     refetchIntervalInBackground: true,
-    onSuccess: (data) => {
-      // Update individual integration caches
-      data.integrations.forEach(integration => {
+  });
+
+  // Update individual integration caches when data changes
+  React.useEffect(() => {
+    if (query.data) {
+      query.data.integrations.forEach((integration: any) => {
         queryClient.setQueryData(['integrations', integration.platform], integration);
       });
-    },
-  });
+    }
+  }, [query.data, queryClient]);
+
+  return query;
 }
 
 /**
@@ -967,7 +973,7 @@ export function useIntegrationInsights(platform?: IntegrationPlatform, timeframe
     queryKey: ['integrations', 'insights', platform, timeframe],
     queryFn: async () => {
       const overview = await integrationsApi.getIntegrationsOverview();
-      const insights = [];
+      const insights: any[] = [];
 
       // Analyze each integration
       overview.integrations.forEach(integration => {

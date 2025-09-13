@@ -3,218 +3,247 @@
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { 
   SupplyChainEvent, 
-  SupplyChainEventListResponse, 
-  SupplyChainEventDetailResponse,
+  SupplyChainContract,
+  SupplyChainEndpoint,
+  SupplyChainProduct,
+  SupplyChainLocation,
+  TrackingData,
+  RateLimitInfo,
   CreateSupplyChainEventRequest,
   UpdateSupplyChainEventRequest,
-  SupplyChainAnalyticsResponse
+  QRCodeScanRequest,
+  BatchQRCodeRequest,
+  CreateLocationRequest,
+  ContractDeploymentRequest,
+  CreateEndpointRequest,
+  RegisterProductRequest
 } from '@/lib/types/supply-chain';
-import * as supplyChainApi from '@/lib/api/supply-chain';
+import { supplyChainApi } from '../lib/api/supply-chain';
 import { ApiError } from '@/lib/errors';
 
-interface UseSupplyChainEventsOptions {
-  businessId?: string;
-  manufacturerId?: string;
-  productId?: string;
-  eventType?: string;
-  status?: 'pending' | 'in_progress' | 'completed' | 'failed';
-  dateFrom?: string;
-  dateTo?: string;
+// ===== CONTRACT MANAGEMENT HOOKS =====
+
+interface UseSupplyChainContractReturn {
+  contract: SupplyChainContract | null;
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+  deployContract: UseMutationResult<{ contractAddress: string; txHash: string; blockNumber: number; gasUsed: string; deploymentCost: string }, ApiError, ContractDeploymentRequest>;
+}
+
+export function useSupplyChainContract(): UseSupplyChainContractReturn {
+  const queryClient = useQueryClient();
+
+  const {
+    data: contract,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<SupplyChainContract, ApiError>({
+    queryKey: ['supply-chain', 'contract'],
+    queryFn: supplyChainApi.getContract,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  const deployContract = useMutation<{ contractAddress: string; txHash: string; blockNumber: number; gasUsed: string; deploymentCost: string }, ApiError, ContractDeploymentRequest>({
+    mutationFn: supplyChainApi.deployContract,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'contract'] });
+    },
+  });
+
+  return {
+    contract: contract || null,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    deployContract,
+  };
+}
+
+// ===== ENDPOINT MANAGEMENT HOOKS =====
+
+interface UseSupplyChainEndpointsReturn {
+  endpoints: SupplyChainEndpoint[];
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+  createEndpoint: UseMutationResult<SupplyChainEndpoint, ApiError, CreateEndpointRequest>;
+}
+
+export function useSupplyChainEndpoints(): UseSupplyChainEndpointsReturn {
+  const queryClient = useQueryClient();
+
+  const {
+    data: endpoints = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<SupplyChainEndpoint[], ApiError>({
+    queryKey: ['supply-chain', 'endpoints'],
+    queryFn: supplyChainApi.getEndpoints,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  const createEndpoint = useMutation<SupplyChainEndpoint, ApiError, CreateEndpointRequest>({
+    mutationFn: supplyChainApi.createEndpoint,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'endpoints'] });
+    },
+  });
+
+  return {
+    endpoints,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    createEndpoint,
+  };
+}
+
+// ===== PRODUCT MANAGEMENT HOOKS =====
+
+interface UseSupplyChainProductsOptions {
   page?: number;
   limit?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+  productId?: string;
+  eventType?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+interface UseSupplyChainProductsReturn {
+  products: SupplyChainProduct[];
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+  registerProduct: UseMutationResult<SupplyChainProduct, ApiError, RegisterProductRequest>;
+}
+
+export function useSupplyChainProducts(options: UseSupplyChainProductsOptions = {}): UseSupplyChainProductsReturn {
+  const queryClient = useQueryClient();
+
+  const {
+    data: products = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<SupplyChainProduct[], ApiError>({
+    queryKey: ['supply-chain', 'products', options],
+    queryFn: () => supplyChainApi.getProducts(options),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const registerProduct = useMutation<SupplyChainProduct, ApiError, RegisterProductRequest>({
+    mutationFn: supplyChainApi.registerProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'products'] });
+    },
+  });
+
+  return {
+    products,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    registerProduct,
+  };
+}
+
+// ===== EVENT MANAGEMENT HOOKS =====
+
+interface UseSupplyChainEventsOptions {
+  productId: string;
+  page?: number;
+  limit?: number;
+  eventType?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 interface UseSupplyChainEventsReturn {
-  // Data
   events: SupplyChainEvent[];
-  event: SupplyChainEvent | null;
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
-  
-  // Pagination
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-  
-  // Analytics
-  analytics: {
-    totalEvents: number;
-    completedEvents: number;
-    pendingEvents: number;
-    failedEvents: number;
-    averageProcessingTime: number;
-  };
-  
-  // Actions
-  createEvent: UseMutationResult<SupplyChainEvent, ApiError, CreateSupplyChainEventRequest>;
-  updateEvent: UseMutationResult<SupplyChainEvent, ApiError, { id: string; data: UpdateSupplyChainEventRequest }>;
-  deleteEvent: UseMutationResult<{ success: boolean }, ApiError, string>;
-  processEvent: UseMutationResult<SupplyChainEvent, ApiError, string>;
-  retryEvent: UseMutationResult<SupplyChainEvent, ApiError, string>;
-  
-  // Refetch functions
   refetch: () => void;
-  refetchEvent: (id: string) => void;
+  logEvent: UseMutationResult<SupplyChainEvent, ApiError, CreateSupplyChainEventRequest>;
 }
 
-export function useSupplyChainEvents(options: UseSupplyChainEventsOptions = {}): UseSupplyChainEventsReturn {
+export function useSupplyChainEvents({ productId, ...options }: UseSupplyChainEventsOptions): UseSupplyChainEventsReturn {
   const queryClient = useQueryClient();
-  
-  const {
-    businessId,
-    manufacturerId,
-    productId,
-    eventType,
-    status,
-    dateFrom,
-    dateTo,
-    page = 1,
-    limit = 20,
-    sortBy = 'createdAt',
-    sortOrder = 'desc',
-  } = options;
 
-  // Fetch supply chain events list
   const {
-    data: eventsData,
+    data: events = [],
     isLoading,
     isError,
     error,
     refetch,
-  } = useQuery<SupplyChainEventListResponse, ApiError>({
-    queryKey: ['supply-chain', 'events', 'list', { businessId, manufacturerId, productId, eventType, status, dateFrom, dateTo, page, limit, sortBy, sortOrder }],
-    queryFn: () => supplyChainApi.getSupplyChainEvents({
-      business: businessId,
-      manufacturer: manufacturerId,
-      product: productId,
-      eventType,
-      status,
-      dateFrom,
-      dateTo,
-      page,
-      limit,
-      sortBy,
-      sortOrder,
-    }),
+  } = useQuery<SupplyChainEvent[], ApiError>({
+    queryKey: ['supply-chain', 'events', productId, options],
+    queryFn: () => supplyChainApi.getProductEvents(productId, options),
+    enabled: !!productId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Create event mutation
-  const createEvent = useMutation<SupplyChainEvent, ApiError, CreateSupplyChainEventRequest>({
-    mutationFn: supplyChainApi.createSupplyChainEvent,
+  const logEvent = useMutation<SupplyChainEvent, ApiError, CreateSupplyChainEventRequest>({
+    mutationFn: (data) => supplyChainApi.logEvent(productId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', 'list'] });
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', productId] });
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'tracking', productId] });
     },
   });
-
-  // Update event mutation
-  const updateEvent = useMutation<SupplyChainEvent, ApiError, { id: string; data: UpdateSupplyChainEventRequest }>({
-    mutationFn: ({ id, data }) => supplyChainApi.updateSupplyChainEvent(id, data),
-    onSuccess: (updatedEvent) => {
-      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', 'list'] });
-      queryClient.setQueryData(['supply-chain', 'events', 'detail', updatedEvent._id], updatedEvent);
-    },
-  });
-
-  // Delete event mutation
-  const deleteEvent = useMutation<{ success: boolean }, ApiError, string>({
-    mutationFn: supplyChainApi.deleteSupplyChainEvent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', 'list'] });
-    },
-  });
-
-  // Process event mutation
-  const processEvent = useMutation<SupplyChainEvent, ApiError, string>({
-    mutationFn: supplyChainApi.processSupplyChainEvent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', 'list'] });
-    },
-  });
-
-  // Retry event mutation
-  const retryEvent = useMutation<SupplyChainEvent, ApiError, string>({
-    mutationFn: supplyChainApi.retrySupplyChainEvent,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', 'list'] });
-    },
-  });
-
-  // Refetch specific event
-  const refetchEvent = (id: string) => {
-    queryClient.invalidateQueries({ queryKey: ['supply-chain', 'events', 'detail', id] });
-  };
 
   return {
-    events: eventsData?.events || [],
-    event: null, // Will be set by useSupplyChainEvent hook
+    events,
     isLoading,
     isError,
     error,
-    pagination: {
-      page: eventsData?.pagination?.page || 1,
-      limit: eventsData?.limit || 20,
-      total: eventsData?.pagination?.total || 0,
-      totalPages: eventsData?.pagination?.totalPages || 0,
-      hasNext: eventsData?.pagination?.hasNext || false,
-      hasPrev: eventsData?.pagination?.hasPrev || false,
-    },
-    analytics: {
-      totalEvents: eventsData?.analytics?.totalEvents || 0,
-      completedEvents: eventsData?.analytics?.completedEvents || 0,
-      pendingEvents: eventsData?.analytics?.pendingEvents || 0,
-      failedEvents: eventsData?.analytics?.failedEvents || 0,
-      averageProcessingTime: eventsData?.analytics?.averageProcessingTime || 0,
-    },
-    createEvent,
-    updateEvent,
-    deleteEvent,
-    processEvent,
-    retryEvent,
     refetch,
-    refetchEvent,
+    logEvent,
   };
 }
 
-interface UseSupplyChainEventOptions {
-  id: string;
-  enabled?: boolean;
-}
+// ===== TRACKING HOOKS =====
 
-interface UseSupplyChainEventReturn {
-  event: SupplyChainEvent | null;
+interface UseSupplyChainTrackingReturn {
+  trackingData: TrackingData | null;
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
   refetch: () => void;
 }
 
-export function useSupplyChainEvent({ id, enabled = true }: UseSupplyChainEventOptions): UseSupplyChainEventReturn {
+export function useSupplyChainTracking(productId: string): UseSupplyChainTrackingReturn {
   const {
-    data: eventData,
+    data: trackingData,
     isLoading,
     isError,
     error,
     refetch,
-  } = useQuery<SupplyChainEventDetailResponse, ApiError>({
-    queryKey: ['supply-chain', 'events', 'detail', id],
-    queryFn: () => supplyChainApi.getSupplyChainEvent(id),
-    enabled: enabled && !!id,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+  } = useQuery<TrackingData, ApiError>({
+    queryKey: ['supply-chain', 'tracking', productId],
+    queryFn: () => supplyChainApi.getTrackingData(productId),
+    enabled: !!productId,
+    staleTime: 1 * 60 * 1000, // 1 minute
     gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   return {
-    event: eventData?.event || null,
+    trackingData: trackingData || null,
     isLoading,
     isError,
     error,
@@ -222,61 +251,346 @@ export function useSupplyChainEvent({ id, enabled = true }: UseSupplyChainEventO
   };
 }
 
-interface UseSupplyChainAnalyticsReturn {
-  analytics: SupplyChainAnalyticsResponse | null;
-  isLoading: boolean;
-  isError: boolean;
-  error: ApiError | null;
-  refetch: () => void;
-}
-
-export function useSupplyChainAnalytics(options: {
-  businessId?: string;
-  manufacturerId?: string;
-  productId?: string;
-  dateFrom?: string;
-  dateTo?: string;
-} = {}): UseSupplyChainAnalyticsReturn {
-  const {
-    data: analyticsData,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery<SupplyChainAnalyticsResponse, ApiError>({
-    queryKey: ['supply-chain', 'analytics', options],
-    queryFn: () => supplyChainApi.getSupplyChainAnalytics(options),
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
-  });
-
-  return {
-    analytics: analyticsData || null,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  };
-}
+// ===== QR CODE HOOKS =====
 
 interface UseQRCodeScanReturn {
-  scanQRCode: UseMutationResult<any, ApiError, { qrCodeData: string; productId?: string }>;
+  scanQRCode: UseMutationResult<{
+    success: boolean;
+    event: SupplyChainEvent;
+    product: { id: string; name: string; qrCodeGenerated: boolean };
+    rateLimits: any;
+  }, ApiError, QRCodeScanRequest>;
   isLoading: boolean;
   error: ApiError | null;
 }
 
 export function useQRCodeScan(): UseQRCodeScanReturn {
-  const {
-    mutate: scanQRCode,
-    isLoading,
-    error,
-  } = useMutation({
-    mutationFn: ({ qrCodeData, productId }) => supplyChainApi.scanQRCode(qrCodeData, productId),
+  const scanQRCode = useMutation<{
+    success: boolean;
+    event: SupplyChainEvent;
+    product: { id: string; name: string; qrCodeGenerated: boolean };
+    rateLimits: any;
+  }, ApiError, QRCodeScanRequest>({
+    mutationFn: supplyChainApi.scanQRCode,
   });
 
   return {
     scanQRCode,
+    isLoading: scanQRCode.isPending,
+    error: scanQRCode.error as ApiError | null,
+  };
+}
+
+interface UseBatchQRCodeReturn {
+  generateBatchQrCodes: UseMutationResult<{
+    batch: {
+      id: string;
+      name: string;
+      description: string;
+      productCount: number;
+      status: string;
+      createdAt: Date;
+    };
+    qrCode: {
+      data: string;
+      imageUrl: string;
+      batchId: string;
+      isActive: boolean;
+      generatedAt: Date;
+    };
+    products: Array<{
+      id: string;
+      title: string;
+      category: string;
+      price: number;
+      batchQrLinked: boolean;
+    }>;
+    batchMetadata: any;
+    rateLimits: any;
+  }, ApiError, BatchQRCodeRequest>;
+  isLoading: boolean;
+  error: ApiError | null;
+}
+
+export function useBatchQRCode(): UseBatchQRCodeReturn {
+  const generateBatchQrCodes = useMutation<{
+    batch: {
+      id: string;
+      name: string;
+      description: string;
+      productCount: number;
+      status: string;
+      createdAt: Date;
+    };
+    qrCode: {
+      data: string;
+      imageUrl: string;
+      batchId: string;
+      isActive: boolean;
+      generatedAt: Date;
+    };
+    products: Array<{
+      id: string;
+      title: string;
+      category: string;
+      price: number;
+      batchQrLinked: boolean;
+    }>;
+    batchMetadata: any;
+    rateLimits: any;
+  }, ApiError, BatchQRCodeRequest>({
+    mutationFn: supplyChainApi.generateBatchQrCodes,
+  });
+
+  return {
+    generateBatchQrCodes,
+    isLoading: generateBatchQrCodes.isPending,
+    error: generateBatchQrCodes.error as ApiError | null,
+  };
+}
+
+// ===== LOCATION MANAGEMENT HOOKS =====
+
+interface UseSupplyChainLocationsOptions {
+  eventType?: string;
+  locationType?: string;
+  active?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+interface UseSupplyChainLocationsReturn {
+  locations: SupplyChainLocation[];
+  count: number;
+  filters: any;
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+  createLocation: UseMutationResult<SupplyChainLocation, ApiError, CreateLocationRequest>;
+  updateLocation: UseMutationResult<SupplyChainLocation, ApiError, { id: string; data: Partial<SupplyChainLocation> }>;
+  deleteLocation: UseMutationResult<{ success: boolean; message: string }, ApiError, string>;
+}
+
+export function useSupplyChainLocations(options: UseSupplyChainLocationsOptions = {}): UseSupplyChainLocationsReturn {
+  const queryClient = useQueryClient();
+
+  const {
+    data: locationsData,
     isLoading,
+    isError,
     error,
+    refetch,
+  } = useQuery<{
+    data: SupplyChainLocation[];
+    count: number;
+    filters: any;
+  }, ApiError>({
+    queryKey: ['supply-chain', 'locations', options],
+    queryFn: () => supplyChainApi.getLocations(options),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  const createLocation = useMutation<SupplyChainLocation, ApiError, CreateLocationRequest>({
+    mutationFn: supplyChainApi.createLocation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'locations'] });
+    },
+  });
+
+  const updateLocation = useMutation<SupplyChainLocation, ApiError, { id: string; data: Partial<SupplyChainLocation> }>({
+    mutationFn: ({ id, data }) => supplyChainApi.updateLocation(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'locations'] });
+    },
+  });
+
+  const deleteLocation = useMutation<{ success: boolean; message: string }, ApiError, string>({
+    mutationFn: supplyChainApi.deleteLocation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supply-chain', 'locations'] });
+    },
+  });
+
+  return {
+    locations: locationsData?.data || [],
+    count: locationsData?.count || 0,
+    filters: locationsData?.filters || {},
+    isLoading,
+    isError,
+    error,
+    refetch,
+    createLocation,
+    updateLocation,
+    deleteLocation,
+  };
+}
+
+interface UseSupplyChainLocationReturn {
+  location: SupplyChainLocation | null;
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+}
+
+export function useSupplyChainLocation(id: string): UseSupplyChainLocationReturn {
+  const {
+    data: location,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<SupplyChainLocation, ApiError>({
+    queryKey: ['supply-chain', 'locations', id],
+    queryFn: () => supplyChainApi.getLocation(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  return {
+    location: location || null,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  };
+}
+
+interface UseNearbyLocationsOptions {
+  lat: string;
+  lng: string;
+  radius?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface UseNearbyLocationsReturn {
+  locations: SupplyChainLocation[];
+  count: number;
+  searchParams: {
+    coordinates: { lat: number; lng: number };
+    radiusKm: number;
+  };
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+}
+
+export function useNearbyLocations(options: UseNearbyLocationsOptions): UseNearbyLocationsReturn {
+  const {
+    data: nearbyData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<{
+    data: SupplyChainLocation[];
+    count: number;
+    searchParams: {
+      coordinates: { lat: number; lng: number };
+      radiusKm: number;
+    };
+  }, ApiError>({
+    queryKey: ['supply-chain', 'locations', 'nearby', options],
+    queryFn: () => supplyChainApi.getNearbyLocations(options),
+    enabled: !!(options.lat && options.lng),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  return {
+    locations: nearbyData?.data || [],
+    count: nearbyData?.count || 0,
+    searchParams: nearbyData?.searchParams || { coordinates: { lat: 0, lng: 0 }, radiusKm: 0 },
+    isLoading,
+    isError,
+    error,
+    refetch,
+  };
+}
+
+interface UseLocationStatsReturn {
+  stats: {
+    summary: {
+      total: number;
+      active: number;
+      inactive: number;
+      totalEvents: number;
+    };
+    byType: Record<string, { count: number; events: number; active: number }>;
+    generatedAt: Date;
+  } | null;
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+}
+
+export function useLocationStats(): UseLocationStatsReturn {
+  const {
+    data: stats,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<{
+    summary: {
+      total: number;
+      active: number;
+      inactive: number;
+      totalEvents: number;
+    };
+    byType: Record<string, { count: number; events: number; active: number }>;
+    generatedAt: Date;
+  }, ApiError>({
+    queryKey: ['supply-chain', 'locations', 'stats'],
+    queryFn: supplyChainApi.getLocationStats,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  return {
+    stats: stats || null,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  };
+}
+
+// ===== RATE LIMITS HOOK =====
+
+interface UseRateLimitInfoReturn {
+  rateLimitInfo: RateLimitInfo | null;
+  isLoading: boolean;
+  isError: boolean;
+  error: ApiError | null;
+  refetch: () => void;
+}
+
+export function useRateLimitInfo(): UseRateLimitInfoReturn {
+  const {
+    data: rateLimitInfo,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<RateLimitInfo, ApiError>({
+    queryKey: ['supply-chain', 'rate-limits'],
+    queryFn: supplyChainApi.getRateLimitInfo,
+    staleTime: 1 * 60 * 1000, // 1 minute
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  return {
+    rateLimitInfo: rateLimitInfo || null,
+    isLoading,
+    isError,
+    error,
+    refetch,
   };
 }

@@ -11,6 +11,12 @@ import { ApiResponse, PaginatedResponse, TimeRange } from './common';
 export type SupplyChainEventType = 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
 
 /**
+ * Location type for supply chain tracking
+ * Based on backend Location model
+ */
+export type LocationType = 'factory' | 'warehouse' | 'distribution_center' | 'retail_store' | 'custom';
+
+/**
  * Coordinates interface
  * Based on backend ISupplyChainEvent model eventData coordinates field
  */
@@ -29,6 +35,9 @@ export interface EventData {
   temperature?: number; // For cold chain
   humidity?: number;
   qualityMetrics?: Record<string, any>;
+  notes?: string;
+  scannedAt?: string;
+  qrCodeData?: string;
 }
 
 /**
@@ -56,16 +65,144 @@ export interface SupplyChainEvent {
 }
 
 /**
+ * Supply chain contract interface
+ * Based on backend contract deployment response
+ */
+export interface SupplyChainContract {
+  contractAddress: string;
+  stats: {
+    totalEvents: number;
+    totalProducts: number;
+    totalEndpoints: number;
+    lastEventAt?: Date;
+  };
+  deployedAt: Date;
+}
+
+/**
+ * Supply chain endpoint interface
+ * Based on backend smart contract Endpoint struct
+ */
+export interface SupplyChainEndpoint {
+  id: number;
+  name: string;
+  eventType: SupplyChainEventType;
+  location: string;
+  isActive: boolean;
+  eventCount: number;
+  createdAt: number;
+}
+
+/**
+ * Supply chain product interface
+ * Based on backend smart contract Product struct
+ */
+export interface SupplyChainProduct {
+  id: number;
+  productId: string;
+  name: string;
+  description: string;
+  totalEvents: number;
+  createdAt: number;
+  isActive: boolean;
+}
+
+/**
+ * Supply chain location interface
+ * Based on backend Location model
+ */
+export interface SupplyChainLocation {
+  _id: string;
+  name: string;
+  description?: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  postalCode?: string;
+  coordinates: Coordinates;
+  locationType: LocationType;
+  capabilities?: string[];
+  allowedEventTypes: SupplyChainEventType[];
+  contactInfo?: {
+    phone?: string;
+    email?: string;
+    contactPerson?: string;
+  };
+  environmentalConditions?: {
+    temperatureRange?: { min: number; max: number };
+    humidityRange?: { min: number; max: number };
+    specialRequirements?: string[];
+  };
+  isActive: boolean;
+  eventCount: number;
+  manufacturer: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Tracking data interface
+ * Based on backend getTrackingData response
+ */
+export interface TrackingData {
+  productId: string;
+  totalEvents: number;
+  lastEvent: SupplyChainEvent | null;
+  timeline: Array<{
+    eventType: SupplyChainEventType;
+    timestamp: Date;
+    location?: string;
+    txHash?: string;
+  }>;
+  completionPercentage: number;
+}
+
+/**
+ * Rate limit information interface
+ * Based on backend getRateLimitInfo response
+ */
+export interface RateLimitInfo {
+  plan: string;
+  limits: {
+    eventsPerMinute: number;
+    eventsPerHour: number;
+    eventsPerDay: number;
+    cooldownPeriod: number;
+    burstAllowance: number;
+  };
+  currentUsage: {
+    minute: number;
+    hour: number;
+    day: number;
+    cooldownRemaining: number;
+  };
+  remaining: {
+    minute: number;
+    hour: number;
+    day: number;
+  };
+  utilization: {
+    minute: number;
+    hour: number;
+    day: number;
+  };
+  nextReset: {
+    minute: Date;
+    hour: Date;
+    day: Date;
+  };
+  canLogEvent: boolean;
+}
+
+/**
  * Supply chain event creation request
  * For creating new supply chain events
  */
 export interface CreateSupplyChainEventRequest {
-  product: string;
-  certificate?: string;
-  manufacturer: string;
+  productId: string;
   eventType: SupplyChainEventType;
-  eventData: EventData;
-  logToBlockchain?: boolean;
+  eventData?: EventData;
 }
 
 /**
@@ -75,7 +212,90 @@ export interface CreateSupplyChainEventRequest {
 export interface UpdateSupplyChainEventRequest {
   eventType?: SupplyChainEventType;
   eventData?: EventData;
-  logToBlockchain?: boolean;
+}
+
+/**
+ * QR code scan request
+ * Based on backend qrScanSchema
+ */
+export interface QRCodeScanRequest {
+  qrCodeData: string;
+  eventType: SupplyChainEventType;
+  eventData?: EventData;
+}
+
+/**
+ * Batch QR code generation request
+ * Based on backend batchQrCodeSchema
+ */
+export interface BatchQRCodeRequest {
+  productIds: string[];
+  batchName?: string;
+  batchDescription?: string;
+  batchMetadata?: {
+    batchSize?: number;
+    productionDate?: Date;
+    qualityGrade?: 'A' | 'B' | 'C' | 'Premium' | 'Standard' | 'Economy';
+    shippingMethod?: string;
+    destination?: string;
+    specialInstructions?: string;
+  };
+}
+
+/**
+ * Location creation request
+ * Based on backend locationSchema
+ */
+export interface CreateLocationRequest {
+  name: string;
+  description?: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  postalCode?: string;
+  coordinates: Coordinates;
+  locationType: LocationType;
+  capabilities?: string[];
+  allowedEventTypes: SupplyChainEventType[];
+  contactInfo?: {
+    phone?: string;
+    email?: string;
+    contactPerson?: string;
+  };
+  environmentalConditions?: {
+    temperatureRange?: { min: number; max: number };
+    humidityRange?: { min: number; max: number };
+    specialRequirements?: string[];
+  };
+}
+
+/**
+ * Contract deployment request
+ * Based on backend contractDeploymentSchema
+ */
+export interface ContractDeploymentRequest {
+  manufacturerName: string;
+}
+
+/**
+ * Endpoint creation request
+ * Based on backend endpointSchema
+ */
+export interface CreateEndpointRequest {
+  name: string;
+  eventType: SupplyChainEventType;
+  location: string;
+}
+
+/**
+ * Product registration request
+ * Based on backend productSchema
+ */
+export interface RegisterProductRequest {
+  productId: string;
+  name: string;
+  description?: string;
 }
 
 /**
@@ -365,19 +585,19 @@ export const eventDataSchema = Joi.object({
   coordinates: coordinatesSchema.optional(),
   temperature: Joi.number().min(-50).max(100).optional(),
   humidity: Joi.number().min(0).max(100).optional(),
-  qualityMetrics: Joi.object().optional()
+  qualityMetrics: Joi.object().optional(),
+  notes: Joi.string().max(1000).optional(),
+  scannedAt: Joi.string().optional(),
+  qrCodeData: Joi.string().optional()
 });
 
 /**
  * Create supply chain event request validation schema
  */
 export const createSupplyChainEventRequestSchema = Joi.object({
-  product: commonSchemas.mongoId.required(),
-  certificate: commonSchemas.mongoId.optional(),
-  manufacturer: commonSchemas.mongoId.required(),
+  productId: Joi.string().min(1).max(50).pattern(/^[a-zA-Z0-9\-_]+$/).required(),
   eventType: supplyChainEventTypeSchema.required(),
-  eventData: eventDataSchema.required(),
-  logToBlockchain: Joi.boolean().default(false)
+  eventData: eventDataSchema.optional()
 });
 
 /**
@@ -385,8 +605,91 @@ export const createSupplyChainEventRequestSchema = Joi.object({
  */
 export const updateSupplyChainEventRequestSchema = Joi.object({
   eventType: supplyChainEventTypeSchema.optional(),
-  eventData: eventDataSchema.optional(),
-  logToBlockchain: Joi.boolean().optional()
+  eventData: eventDataSchema.optional()
+});
+
+/**
+ * QR code scan request validation schema
+ */
+export const qrCodeScanRequestSchema = Joi.object({
+  qrCodeData: Joi.string().min(10).required(),
+  eventType: supplyChainEventTypeSchema.required(),
+  eventData: eventDataSchema.optional()
+});
+
+/**
+ * Batch QR code request validation schema
+ */
+export const batchQRCodeRequestSchema = Joi.object({
+  productIds: Joi.array().items(Joi.string().pattern(/^[a-zA-Z0-9\-_]+$/)).min(1).max(50).required(),
+  batchName: Joi.string().min(2).max(100).optional(),
+  batchDescription: Joi.string().max(500).optional(),
+  batchMetadata: Joi.object({
+    batchSize: Joi.number().integer().min(1).max(1000).optional(),
+    productionDate: Joi.date().iso().optional(),
+    qualityGrade: Joi.string().valid('A', 'B', 'C', 'Premium', 'Standard', 'Economy').optional(),
+    shippingMethod: Joi.string().max(50).optional(),
+    destination: Joi.string().max(100).optional(),
+    specialInstructions: Joi.string().max(1000).optional()
+  }).optional()
+});
+
+/**
+ * Location creation request validation schema
+ */
+export const createLocationRequestSchema = Joi.object({
+  name: Joi.string().min(2).max(100).required(),
+  description: Joi.string().max(500).optional(),
+  address: Joi.string().min(5).max(200).required(),
+  city: Joi.string().min(2).max(100).required(),
+  state: Joi.string().min(2).max(100).required(),
+  country: Joi.string().min(2).max(100).required(),
+  postalCode: Joi.string().max(20).optional(),
+  coordinates: coordinatesSchema.required(),
+  locationType: Joi.string().valid('factory', 'warehouse', 'distribution_center', 'retail_store', 'custom').required(),
+  capabilities: Joi.array().items(Joi.string()).optional(),
+  allowedEventTypes: Joi.array().items(supplyChainEventTypeSchema).min(1).required(),
+  contactInfo: Joi.object({
+    phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).optional(),
+    email: Joi.string().email().optional(),
+    contactPerson: Joi.string().max(100).optional()
+  }).optional(),
+  environmentalConditions: Joi.object({
+    temperatureRange: Joi.object({
+      min: Joi.number().min(-50).max(100).required(),
+      max: Joi.number().min(-50).max(100).required()
+    }).optional(),
+    humidityRange: Joi.object({
+      min: Joi.number().min(0).max(100).required(),
+      max: Joi.number().min(0).max(100).required()
+    }).optional(),
+    specialRequirements: Joi.array().items(Joi.string()).optional()
+  }).optional()
+});
+
+/**
+ * Contract deployment request validation schema
+ */
+export const contractDeploymentRequestSchema = Joi.object({
+  manufacturerName: Joi.string().min(2).max(100).pattern(/^[a-zA-Z0-9\s\-&.,()]+$/).required()
+});
+
+/**
+ * Endpoint creation request validation schema
+ */
+export const createEndpointRequestSchema = Joi.object({
+  name: Joi.string().min(2).max(100).required(),
+  eventType: supplyChainEventTypeSchema.required(),
+  location: Joi.string().min(2).max(200).required()
+});
+
+/**
+ * Product registration request validation schema
+ */
+export const registerProductRequestSchema = Joi.object({
+  productId: Joi.string().min(1).max(50).pattern(/^[a-zA-Z0-9\-_]+$/).required(),
+  name: Joi.string().min(2).max(100).required(),
+  description: Joi.string().max(500).optional()
 });
 
 /**
@@ -409,64 +712,6 @@ export const supplyChainEventQuerySchema = Joi.object({
 });
 
 /**
- * Batch create supply chain event request validation schema
- */
-export const batchCreateSupplyChainEventRequestSchema = Joi.object({
-  events: Joi.array().items(
-    Joi.object({
-      product: commonSchemas.mongoId.required(),
-      certificate: commonSchemas.mongoId.optional(),
-      manufacturer: commonSchemas.mongoId.required(),
-      eventType: supplyChainEventTypeSchema.required(),
-      eventData: eventDataSchema.required()
-    })
-  ).min(1).max(100).required(),
-  batchOptions: Joi.object({
-    logToBlockchain: Joi.boolean().default(false),
-    generateQrCodes: Joi.boolean().default(true)
-  }).optional()
-});
-
-/**
- * Supply chain settings validation schema
- */
-export const supplyChainSettingsSchema = Joi.object({
-  blockchain: Joi.object({
-    enabled: Joi.boolean().default(true),
-    autoLog: Joi.boolean().default(false),
-    requiredEvents: Joi.array().items(supplyChainEventTypeSchema).optional()
-  }).required(),
-  qrCodes: Joi.object({
-    enabled: Joi.boolean().default(true),
-    autoGenerate: Joi.boolean().default(true),
-    baseUrl: commonSchemas.url.required()
-  }).required(),
-  analytics: Joi.object({
-    trackViews: Joi.boolean().default(true),
-    trackQualityMetrics: Joi.boolean().default(true),
-    retentionDays: Joi.number().min(30).max(3650).default(365)
-  }).required(),
-  notifications: Joi.object({
-    eventCreated: Joi.boolean().default(true),
-    blockchainLogged: Joi.boolean().default(true),
-    qrCodeGenerated: Joi.boolean().default(true),
-    emailNotifications: Joi.boolean().default(true),
-    inAppNotifications: Joi.boolean().default(true)
-  }).required()
-});
-
-/**
- * Supply chain template validation schema
- */
-export const supplyChainTemplateSchema = Joi.object({
-  name: Joi.string().min(1).max(100).required(),
-  description: Joi.string().max(500).optional(),
-  eventType: supplyChainEventTypeSchema.required(),
-  defaultEventData: eventDataSchema.required(),
-  isActive: Joi.boolean().default(true)
-});
-
-/**
  * Export all supply chain validation schemas
  */
 export const supplyChainValidationSchemas = {
@@ -475,8 +720,11 @@ export const supplyChainValidationSchemas = {
   eventData: eventDataSchema,
   createSupplyChainEventRequest: createSupplyChainEventRequestSchema,
   updateSupplyChainEventRequest: updateSupplyChainEventRequestSchema,
-  supplyChainEventQuery: supplyChainEventQuerySchema,
-  batchCreateSupplyChainEventRequest: batchCreateSupplyChainEventRequestSchema,
-  supplyChainSettings: supplyChainSettingsSchema,
-  supplyChainTemplate: supplyChainTemplateSchema
+  qrCodeScanRequest: qrCodeScanRequestSchema,
+  batchQRCodeRequest: batchQRCodeRequestSchema,
+  createLocationRequest: createLocationRequestSchema,
+  contractDeploymentRequest: contractDeploymentRequestSchema,
+  createEndpointRequest: createEndpointRequestSchema,
+  registerProductRequest: registerProductRequestSchema,
+  supplyChainEventQuery: supplyChainEventQuerySchema
 };

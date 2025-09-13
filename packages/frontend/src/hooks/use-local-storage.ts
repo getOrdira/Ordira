@@ -152,7 +152,7 @@ export function useLocalStorageMulti<T extends Record<string, any>>(
         window.localStorage.setItem(key as string, JSON.stringify(value));
       }
     } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
+      console.error(`Error setting localStorage key "${String(key)}":`, error);
       setError(error as Error);
     } finally {
       setIsLoading(false);
@@ -193,7 +193,7 @@ export function useLocalStorageMulti<T extends Record<string, any>>(
         window.localStorage.removeItem(key as string);
       }
     } catch (error) {
-      console.error(`Error removing localStorage key "${key}":`, error);
+      console.error(`Error removing localStorage key "${String(key)}":`, error);
       setError(error as Error);
     } finally {
       setIsLoading(false);

@@ -293,17 +293,17 @@ const manufacturerApi = {
   // Profile management
   getProfile: async (): Promise<ManufacturerProfile> => {
     const response = await api.get('/manufacturer/profile');
-    return response.data.data.profile;
+    return (response as any).data.data.profile;
   },
 
   updateProfile: async (data: UpdateProfileRequest): Promise<ManufacturerProfile> => {
     const response = await api.put('/manufacturer/profile', data);
-    return response.data.data.profile;
+    return (response as any).data.data.profile;
   },
 
   getDashboard: async (): Promise<DashboardSummary> => {
     const response = await api.get('/manufacturer/dashboard');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Brand connections
@@ -313,12 +313,12 @@ const manufacturerApi = {
     connectionStats: any;
   }> => {
     const response = await api.get('/manufacturer/brands', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   searchBrands: async (params?: BrandSearchQuery): Promise<BrandSearchResult> => {
     const response = await api.get('/manufacturer/search', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getConnectionStatus: async (brandId: string): Promise<{
@@ -329,7 +329,7 @@ const manufacturerApi = {
     expiresAt?: string;
   }> => {
     const response = await api.get(`/manufacturer/brands/${brandId}/connection-status`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   canConnectToBrand: async (brandId: string): Promise<{
@@ -338,12 +338,12 @@ const manufacturerApi = {
     requirements?: string[];
   }> => {
     const response = await api.get(`/manufacturer/brands/${brandId}/can-connect`);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   createConnectionRequest: async (data: CreateConnectionRequest): Promise<ConnectionRequest> => {
     const response = await api.post(`/manufacturer/brands/${data.brandId}/connect`, data);
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getConnectionRequests: async (params?: { status?: string; page?: number; limit?: number }): Promise<{
@@ -351,7 +351,7 @@ const manufacturerApi = {
     pagination: any;
   }> => {
     const response = await api.get('/manufacturer/connection-requests', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   respondToConnectionRequest: async (requestId: string, response: 'accept' | 'reject', message?: string): Promise<{
@@ -359,23 +359,23 @@ const manufacturerApi = {
     connection?: ConnectedBrand;
   }> => {
     const apiResponse = await api.put(`/manufacturer/connection-requests/${requestId}/respond`, { response, message });
-    return apiResponse.data;
+    return (apiResponse as any).data;
   },
 
   disconnectFromBrand: async (brandId: string, reason?: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/manufacturer/brands/${brandId}/disconnect`, { data: { reason } });
-    return response.data;
+    return (response as any).data;
   },
 
   // Brand-specific data
   getBrandAnalytics: async (brandId: string, params?: { timeframe?: string; metrics?: string[] }): Promise<any> => {
     const response = await api.get(`/manufacturer/brands/${brandId}/analytics`, { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getBrandResults: async (brandSettingsId: string, params?: { timeframe?: string }): Promise<any> => {
     const response = await api.get(`/manufacturer/brands/${brandSettingsId}/results`, { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getBrandOrders: async (brandId: string, params?: { page?: number; limit?: number; status?: string }): Promise<{
@@ -383,7 +383,7 @@ const manufacturerApi = {
     pagination: any;
   }> => {
     const response = await api.get(`/manufacturer/brands/${brandId}/orders`, { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getBrandProducts: async (brandId: string, params?: { page?: number; limit?: number; category?: string }): Promise<{
@@ -391,7 +391,7 @@ const manufacturerApi = {
     pagination: any;
   }> => {
     const response = await api.get(`/manufacturer/brands/${brandId}/products`, { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   getBrandCertificates: async (brandId: string, params?: { page?: number; limit?: number; status?: string }): Promise<{
@@ -399,7 +399,7 @@ const manufacturerApi = {
     pagination: any;
   }> => {
     const response = await api.get(`/manufacturer/brands/${brandId}/certificates`, { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Analytics
@@ -411,18 +411,18 @@ const manufacturerApi = {
     includeMarketInsights?: boolean;
   }): Promise<ManufacturerAnalytics> => {
     const response = await api.get('/analytics/manufacturer', { params });
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   // Authentication
   refreshToken: async (): Promise<{ token: string; manufacturer: ManufacturerProfile }> => {
     const response = await api.post('/manufacturer/refresh');
-    return response.data.data;
+    return (response as any).data.data;
   },
 
   logout: async (): Promise<{ success: boolean; message: string }> => {
     const response = await api.post('/manufacturer/logout');
-    return response.data;
+    return (response as any).data;
   },
 
   // Portfolio management
@@ -434,17 +434,17 @@ const manufacturerApi = {
     tags?: string[];
   }): Promise<{ success: boolean; item: any }> => {
     const response = await api.post('/manufacturer/profile/portfolio', data);
-    return response.data;
+    return (response as any).data;
   },
 
   updatePortfolioItem: async (itemId: string, data: any): Promise<{ success: boolean; item: any }> => {
     const response = await api.put(`/manufacturer/profile/portfolio/${itemId}`, data);
-    return response.data;
+    return (response as any).data;
   },
 
   removePortfolioItem: async (itemId: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/manufacturer/profile/portfolio/${itemId}`);
-    return response.data;
+    return (response as any).data;
   },
 
   // Certifications
@@ -455,17 +455,17 @@ const manufacturerApi = {
     documentUrl?: string;
   }): Promise<{ success: boolean; certification: any }> => {
     const response = await api.post('/manufacturer/profile/certifications', data);
-    return response.data;
+    return (response as any).data;
   },
 
   updateCertification: async (certId: string, data: any): Promise<{ success: boolean; certification: any }> => {
     const response = await api.put(`/manufacturer/profile/certifications/${certId}`, data);
-    return response.data;
+    return (response as any).data;
   },
 
   removeCertification: async (certId: string): Promise<{ success: boolean; message: string }> => {
     const response = await api.delete(`/manufacturer/profile/certifications/${certId}`);
-    return response.data;
+    return (response as any).data;
   },
 
   // Business verification
@@ -480,7 +480,7 @@ const manufacturerApi = {
     }>;
   }): Promise<{ success: boolean; verificationId: string }> => {
     const response = await api.post('/manufacturer/profile/verification/submit', data);
-    return response.data;
+    return (response as any).data;
   },
 
   getVerificationStatus: async (): Promise<{
@@ -491,7 +491,7 @@ const manufacturerApi = {
     requirements?: string[];
   }> => {
     const response = await api.get('/manufacturer/profile/verification/status');
-    return response.data.data;
+    return (response as any).data.data;
   },
 };
 
@@ -557,7 +557,7 @@ export function useConnectedBrands(
     queryFn: () => manufacturerApi.getConnectedBrands(params),
     enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -573,7 +573,7 @@ export function useSearchBrands(
     queryFn: () => manufacturerApi.searchBrands(params),
     enabled: options?.enabled ?? true,
     staleTime: 30 * 1000, // 30 seconds
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -586,9 +586,10 @@ export function useInfiniteSearchBrands(
 ) {
   return useInfiniteQuery({
     queryKey: ['manufacturer', 'search', 'brands', 'infinite', baseParams],
-    queryFn: ({ pageParam = 1 }) => manufacturerApi.searchBrands({ ...baseParams, page: pageParam }),
+    queryFn: ({ pageParam = 1 }) => manufacturerApi.searchBrands({ ...baseParams, page: pageParam as number }),
     enabled: options?.enabled ?? true,
-    getNextPageParam: (lastPage) => 
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: any) => 
       lastPage.pagination.hasNext ? lastPage.pagination.page + 1 : undefined,
     staleTime: 30 * 1000, // 30 seconds
   });
@@ -650,7 +651,7 @@ export function useConnectionRequests(
     queryFn: () => manufacturerApi.getConnectionRequests(params),
     enabled: options?.enabled ?? true,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -744,7 +745,7 @@ export function useBrandOrders(
     queryFn: () => manufacturerApi.getBrandOrders(brandId!, params),
     enabled: (options?.enabled ?? true) && !!brandId,
     staleTime: 1 * 60 * 1000, // 1 minute
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -962,7 +963,7 @@ export function useManufacturerStatus() {
     profileComplete: (profile.data?.profileCompleteness || 0) >= 90,
     hasActiveConnections: (profile.data?.activeConnections || 0) > 0,
     needsAttention: [
-      ...(profile.data?.profileCompleteness < 80 ? ['Complete your profile'] : []),
+      ...((profile.data?.profileCompleteness || 0) < 80 ? ['Complete your profile'] : []),
       ...(profile.data?.isVerified !== 'verified' ? ['Verify your business'] : []),
       ...(dashboard.data?.notifications?.filter(n => n.actionRequired) || []).map(n => n.message),
     ],

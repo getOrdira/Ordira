@@ -128,7 +128,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
   const maxTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastCallTimeRef = useRef<number>(0);
   const lastInvokeTimeRef = useRef<number>(0);
-  const argsRef = useRef<Parameters<T>>();
+  const argsRef = useRef<Parameters<T> | undefined>(undefined);
 
   const debouncedCallback = useCallback((...args: Parameters<T>) => {
     argsRef.current = args;
@@ -165,7 +165,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
     // Regular debounce timeout
     timeoutRef.current = setTimeout(() => {
       if (trailing && argsRef.current) {
-        callback(...argsRef.current);
+        callback(...(argsRef.current as Parameters<T>));
         lastInvokeTimeRef.current = Date.now();
       }
     }, delay);
@@ -174,7 +174,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
     if (maxWait) {
       maxTimeoutRef.current = setTimeout(() => {
         if (argsRef.current) {
-          callback(...argsRef.current);
+          callback(...(argsRef.current as Parameters<T>));
           lastInvokeTimeRef.current = Date.now();
         }
       }, maxWait);

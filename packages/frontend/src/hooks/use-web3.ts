@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { config } from '@/lib/config';
-import { useAuth } from './use-auth';
-import { useNotifications } from './use-notifications';
+import { useNotifications } from './use-utilities';
 
 interface Web3State {
   isConnected: boolean;
@@ -147,6 +146,7 @@ export function useWeb3() {
       // If network doesn't exist, add it
       if (switchError.code === 4902) {
         try {
+          const ethereum = (window as any).ethereum;
           const baseNetwork = config.web3.networks[config.web3.chainId];
           
           await ethereum.request({
@@ -465,9 +465,9 @@ export function useTransactionStatus(txHash?: string) {
       };
     },
     enabled: !!txHash,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Stop refetching once we have a final status
-      return data?.status === 'pending' ? 2000 : false;
+      return query.state.data?.status === 'pending' ? 2000 : false;
     }
   });
 }

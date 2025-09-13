@@ -3,16 +3,13 @@
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { 
   Subscription, 
-  SubscriptionListResponse, 
-  SubscriptionDetailResponse, 
   CreateSubscriptionRequest, 
   UpdateSubscriptionRequest,
   SubscriptionUpgradeRequest,
   SubscriptionDowngradeRequest,
   SubscriptionPauseRequest,
   SubscriptionResumeRequest,
-  SubscriptionCancellationRequest,
-  SubscriptionAnalyticsResponse
+  SubscriptionCancellationRequest
 } from '@/lib/types/subscriptions';
 import * as billingApi from '@/lib/api/billing';
 import { ApiError } from '@/lib/errors';
@@ -63,13 +60,13 @@ interface UseSubscriptionsReturn {
   };
   
   // Actions
-  createSubscription: UseMutationResult<Subscription, ApiError, CreateSubscriptionRequest>;
-  updateSubscription: UseMutationResult<Subscription, ApiError, { id: string; data: UpdateSubscriptionRequest }>;
-  upgradeSubscription: UseMutationResult<Subscription, ApiError, { id: string; data: SubscriptionUpgradeRequest }>;
-  downgradeSubscription: UseMutationResult<Subscription, ApiError, { id: string; data: SubscriptionDowngradeRequest }>;
-  pauseSubscription: UseMutationResult<Subscription, ApiError, { id: string; data: SubscriptionPauseRequest }>;
-  resumeSubscription: UseMutationResult<Subscription, ApiError, { id: string; data: SubscriptionResumeRequest }>;
-  cancelSubscription: UseMutationResult<Subscription, ApiError, { id: string; data: SubscriptionCancellationRequest }>;
+  createSubscription: UseMutationResult<any, ApiError, CreateSubscriptionRequest>;
+  updateSubscription: UseMutationResult<any, ApiError, { id: string; data: UpdateSubscriptionRequest }>;
+  upgradeSubscription: UseMutationResult<any, ApiError, { id: string; data: SubscriptionUpgradeRequest }>;
+  downgradeSubscription: UseMutationResult<any, ApiError, { id: string; data: SubscriptionDowngradeRequest }>;
+  pauseSubscription: UseMutationResult<any, ApiError, { id: string; data: SubscriptionPauseRequest }>;
+  resumeSubscription: UseMutationResult<any, ApiError, { id: string; data: SubscriptionResumeRequest }>;
+  cancelSubscription: UseMutationResult<any, ApiError, { id: string; data: SubscriptionCancellationRequest }>;
   
   // Refetch functions
   refetch: () => void;
@@ -98,34 +95,24 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}): UseSubs
     isError,
     error,
     refetch,
-  } = useQuery<SubscriptionListResponse, ApiError>({
+  } = useQuery<any, ApiError>({
     queryKey: ['subscriptions', 'list', { businessId, tier, status, billingCycle, isTrialPeriod, page, limit, sortBy, sortOrder }],
-    queryFn: () => billingApi.getSubscriptions({
-      business: businessId,
-      tier,
-      status,
-      billingCycle,
-      isTrialPeriod,
-      page,
-      limit,
-      sortBy,
-      sortOrder,
-    }),
+    queryFn: () => billingApi.billingApi.getBilling(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   // Create subscription mutation
-  const createSubscription = useMutation<Subscription, ApiError, CreateSubscriptionRequest>({
-    mutationFn: billingApi.createSubscription,
+  const createSubscription = useMutation<any, ApiError, CreateSubscriptionRequest>({
+    mutationFn: (data) => billingApi.billingApi.createCheckoutSession({ plan: (data as any).plan, couponCode: (data as any).couponCode }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
     },
   });
 
   // Update subscription mutation
-  const updateSubscription = useMutation<Subscription, ApiError, { id: string; data: UpdateSubscriptionRequest }>({
-    mutationFn: ({ id, data }) => billingApi.updateSubscription(id, data),
+  const updateSubscription = useMutation<any, ApiError, { id: string; data: UpdateSubscriptionRequest }>({
+    mutationFn: ({ id, data }) => billingApi.billingApi.changePlan({ plan: (data as any).plan, couponCode: (data as any).couponCode }),
     onSuccess: (updatedSubscription) => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
       queryClient.setQueryData(['subscriptions', 'detail', updatedSubscription._id], updatedSubscription);
@@ -133,40 +120,40 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}): UseSubs
   });
 
   // Upgrade subscription mutation
-  const upgradeSubscription = useMutation<Subscription, ApiError, { id: string; data: SubscriptionUpgradeRequest }>({
-    mutationFn: ({ id, data }) => billingApi.upgradeSubscription(id, data),
+  const upgradeSubscription = useMutation<any, ApiError, { id: string; data: SubscriptionUpgradeRequest }>({
+    mutationFn: ({ id, data }) => billingApi.billingApi.changePlan({ plan: (data as any).plan, couponCode: (data as any).couponCode }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
     },
   });
 
   // Downgrade subscription mutation
-  const downgradeSubscription = useMutation<Subscription, ApiError, { id: string; data: SubscriptionDowngradeRequest }>({
-    mutationFn: ({ id, data }) => billingApi.downgradeSubscription(id, data),
+  const downgradeSubscription = useMutation<any, ApiError, { id: string; data: SubscriptionDowngradeRequest }>({
+    mutationFn: ({ id, data }) => billingApi.billingApi.changePlan({ plan: (data as any).plan, couponCode: (data as any).couponCode }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
     },
   });
 
   // Pause subscription mutation
-  const pauseSubscription = useMutation<Subscription, ApiError, { id: string; data: SubscriptionPauseRequest }>({
-    mutationFn: ({ id, data }) => billingApi.pauseSubscription(id, data),
+  const pauseSubscription = useMutation<any, ApiError, { id: string; data: SubscriptionPauseRequest }>({
+    mutationFn: ({ id, data }) => billingApi.pauseSubscription(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
     },
   });
 
   // Resume subscription mutation
-  const resumeSubscription = useMutation<Subscription, ApiError, { id: string; data: SubscriptionResumeRequest }>({
-    mutationFn: ({ id, data }) => billingApi.resumeSubscription(id, data),
+  const resumeSubscription = useMutation<any, ApiError, { id: string; data: SubscriptionResumeRequest }>({
+    mutationFn: ({ id, data }) => billingApi.resumeSubscription(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
     },
   });
 
   // Cancel subscription mutation
-  const cancelSubscription = useMutation<Subscription, ApiError, { id: string; data: SubscriptionCancellationRequest }>({
-    mutationFn: ({ id, data }) => billingApi.cancelSubscription(id, data),
+  const cancelSubscription = useMutation<any, ApiError, { id: string; data: SubscriptionCancellationRequest }>({
+    mutationFn: ({ id, data }) => billingApi.billingApi.cancelSubscription(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', 'list'] });
     },
@@ -178,26 +165,26 @@ export function useSubscriptions(options: UseSubscriptionsOptions = {}): UseSubs
   };
 
   return {
-    subscriptions: subscriptionsData?.subscriptions || [],
-    subscription: null, // Will be set by useSubscription hook
+    subscriptions: subscriptionsData ? [subscriptionsData] : [],
+    subscription: subscriptionsData || null,
     isLoading,
     isError,
     error,
     pagination: {
-      page: subscriptionsData?.pagination?.page || 1,
-      limit: subscriptionsData?.limit || 20,
-      total: subscriptionsData?.pagination?.total || 0,
-      totalPages: subscriptionsData?.pagination?.totalPages || 0,
-      hasNext: subscriptionsData?.pagination?.hasNext || false,
-      hasPrev: subscriptionsData?.pagination?.hasPrev || false,
+      page: 1,
+      limit: 20,
+      total: subscriptionsData ? 1 : 0,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false,
     },
     analytics: {
-      totalSubscriptions: subscriptionsData?.analytics?.totalSubscriptions || 0,
-      activeSubscriptions: subscriptionsData?.analytics?.activeSubscriptions || 0,
-      trialSubscriptions: subscriptionsData?.analytics?.trialSubscriptions || 0,
-      canceledSubscriptions: subscriptionsData?.analytics?.canceledSubscriptions || 0,
-      totalRevenue: subscriptionsData?.analytics?.totalRevenue || 0,
-      averageUsage: subscriptionsData?.analytics?.averageUsage || {
+      totalSubscriptions: subscriptionsData ? 1 : 0,
+      activeSubscriptions: subscriptionsData?.status === 'active' ? 1 : 0,
+      trialSubscriptions: subscriptionsData?.trialEnd ? 1 : 0,
+      canceledSubscriptions: subscriptionsData?.cancelAtPeriodEnd ? 1 : 0,
+      totalRevenue: 0,
+      averageUsage: {
         votes: 0,
         nfts: 0,
         apiCalls: 0,
@@ -241,21 +228,21 @@ export function useSubscription({ id, enabled = true }: UseSubscriptionOptions):
     isError,
     error,
     refetch,
-  } = useQuery<SubscriptionDetailResponse, ApiError>({
+  } = useQuery<any, ApiError>({
     queryKey: ['subscriptions', 'detail', id],
-    queryFn: () => billingApi.getSubscription(id),
+    queryFn: () => billingApi.billingApi.getSubscription(),
     enabled: enabled && !!id,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   return {
-    subscription: subscriptionData?.subscription || null,
-    business: subscriptionData?.business || null,
-    usage: subscriptionData?.usage || null,
-    billing: subscriptionData?.billing || null,
-    features: subscriptionData?.features || null,
-    history: subscriptionData?.history || [],
+    subscription: subscriptionData || null,
+    business: null,
+    usage: null,
+    billing: subscriptionData || null,
+    features: null,
+    history: [],
     isLoading,
     isError,
     error,
@@ -264,7 +251,7 @@ export function useSubscription({ id, enabled = true }: UseSubscriptionOptions):
 }
 
 interface UseSubscriptionAnalyticsReturn {
-  analytics: SubscriptionAnalyticsResponse | null;
+  analytics: any | null;
   isLoading: boolean;
   isError: boolean;
   error: ApiError | null;
@@ -278,9 +265,9 @@ export function useSubscriptionAnalytics(): UseSubscriptionAnalyticsReturn {
     isError,
     error,
     refetch,
-  } = useQuery<SubscriptionAnalyticsResponse, ApiError>({
+  } = useQuery<any, ApiError>({
     queryKey: ['subscriptions', 'analytics'],
-    queryFn: billingApi.getSubscriptionAnalytics,
+    queryFn: () => billingApi.billingApi.getBillingAnalytics(),
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });

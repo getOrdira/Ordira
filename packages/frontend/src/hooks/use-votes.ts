@@ -46,7 +46,7 @@ export function useProposal(proposalId: string, options: UseVotesOptions = {}) {
 
   return useQuery({
     queryKey: ['proposal', proposalId],
-    queryFn: () => votesApi.getProposal(proposalId),
+    queryFn: () => votesApi.getProposalDetails(proposalId),
     enabled: enabled && !!proposalId,
     staleTime: 1 * 60 * 1000, // 1 minute
   });
@@ -79,23 +79,20 @@ export function useProductSelection() {
         error: null
       });
 
-      // Step 1: Validate selection (maps to backend validation middleware)
-      const validationResult = await votesApi.validateProductSelection(data);
-      if (!validationResult.valid) {
-        throw new Error(validationResult.errors?.join(', ') || 'Invalid selection');
+      // Step 1: Basic validation
+      if (!data.proposalId || !data.selectedProductIds?.length) {
+        throw new Error('Invalid selection data');
       }
 
       setSubmissionState(prev => ({ ...prev, currentStep: 'submitting' }));
 
       // Step 2: Submit selection (maps to /api/users/vote POST endpoint)
-      const result = await votesApi.submitProductSelection(data);
+      const result = await votesApi.submitUserVotes(data);
 
       setSubmissionState(prev => ({ ...prev, currentStep: 'verifying' }));
 
-      // Step 3: Verify if blockchain integration is enabled
-      if (result.requiresVerification) {
-        await votesApi.verifyVoteSubmission(result.voteId);
-      }
+      // Step 3: Basic verification (no blockchain integration for now)
+      // Future: Add blockchain verification if needed
 
       setSubmissionState(prev => ({ ...prev, currentStep: 'complete' }));
 
@@ -191,7 +188,11 @@ export function useVoteAnalytics(filters?: {
 }) {
   return useQuery({
     queryKey: ['vote-analytics', filters],
-    queryFn: () => votesApi.getVoteAnalytics(filters),
+    queryFn: () => votesApi.getVotingAnalytics({
+      startDate: filters?.timeRange?.start,
+      endDate: filters?.timeRange?.end,
+      breakdown: 'daily'
+    }),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -203,7 +204,7 @@ export function useVoteAnalytics(filters?: {
 export function useVotingStatistics(businessId?: string) {
   return useQuery({
     queryKey: ['voting-statistics', businessId],
-    queryFn: () => votesApi.getVotingStatistics(businessId),
+    queryFn: () => votesApi.getVotingStats({ proposalId: businessId }),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }
@@ -216,8 +217,11 @@ export function useUserVotingRecords(filters?: VotingFilters) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['user-voting-history', user?.id, filters],
-    queryFn: () => votesApi.getUserVotingRecords(filters),
+    queryKey: ['user-voting-history', user?._id, filters],
+    queryFn: () => votesApi.getMyVotes({
+      page: 1,
+      limit: 20
+    }),
     enabled: !!user,
     staleTime: 1 * 60 * 1000, // 1 minute
   });
@@ -238,16 +242,16 @@ export function useCanVote(proposalId: string) {
   } | null>(null);
 
   const { data: voteStatus } = useQuery({
-    queryKey: ['vote-status', proposalId, user?.id],
-    queryFn: () => votesApi.checkVotingEligibility(proposalId, user?.id),
+    queryKey: ['vote-status', proposalId, user?._id],
+    queryFn: () => votesApi.checkUserVoteStatus(proposalId),
     enabled: !!user && !!proposalId,
     refetchInterval: 30 * 1000, // 30 seconds
     staleTime: 15 * 1000, // 15 seconds
   });
 
   useEffect(() => {
-    if (voteStatus) {
-      setCanVote(voteStatus);
+    if (typeof voteStatus === 'boolean') {
+      setCanVote({ canVote: !voteStatus, hasVoted: voteStatus });
     } else if (!user) {
       setCanVote({ canVote: false, reason: 'Authentication required' });
     }
@@ -260,8 +264,8 @@ export function useCanVote(proposalId: string) {
     }
 
     try {
-      const eligibility = await votesApi.checkVotingEligibility(proposalId, user.id);
-      setCanVote(eligibility);
+      const eligibility = await votesApi.checkUserVoteStatus(proposalId);
+      setCanVote({ canVote: !eligibility, hasVoted: eligibility });
     } catch (error) {
       console.error('Failed to check voting eligibility:', error);
       setCanVote({ canVote: false, reason: 'Unable to verify eligibility' });
@@ -331,7 +335,21 @@ export function useCreateProposal() {
       maxSelectionsPerVoter: number;
       minSelectionsPerVoter?: number;
     }) => {
-      return votesApi.createProposal(data);
+      return votesApi.createProposal({
+        title: data.title,
+        description: data.description,
+        category: 'product_selection',
+        votingOptions: data.productIds.map((id, index) => ({
+          id: `option_${index}`,
+          text: `Product ${id}`,
+          description: `Product selection option ${index + 1}`
+        })),
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        maxVotesPerUser: data.maxSelectionsPerVoter,
+        minVotesPerUser: data.minSelectionsPerVoter,
+        isPublic: true
+      });
     },
     onSuccess: (newProposal) => {
       queryClient.invalidateQueries({ queryKey: ['proposals'] });
@@ -339,7 +357,7 @@ export function useCreateProposal() {
       addNotification({
         type: 'success',
         title: 'Proposal Created',
-        message: `Product selection proposal "${newProposal.title}" has been created successfully.`,
+        message: `Product selection proposal "${newProposal.data?.proposal?.title || 'New Proposal'}" has been created successfully.`,
         category: 'product_selection'
       });
     },
@@ -465,7 +483,7 @@ export function useExportVotes() {
 export function useVotingLeaderboard(businessId?: string, timeframe: string = '30d') {
   return useQuery({
     queryKey: ['voting-leaderboard', businessId, timeframe],
-    queryFn: () => votesApi.getVotingLeaderboard(businessId, timeframe),
+    queryFn: () => votesApi.getVotingLeaderboard(businessId!, timeframe),
     enabled: !!businessId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -478,7 +496,7 @@ export function useVotingLeaderboard(businessId?: string, timeframe: string = '3
 export function useCustomerVotingPreferences(businessId?: string) {
   return useQuery({
     queryKey: ['customer-voting-preferences', businessId],
-    queryFn: () => votesApi.getCustomerVotingPreferences(businessId),
+    queryFn: () => votesApi.getCustomerVotingPreferences(businessId!),
     enabled: !!businessId,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
