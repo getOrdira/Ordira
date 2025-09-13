@@ -197,7 +197,9 @@ export const decodeToken = (token: string | null): TokenPayload | null => {
   if (!token) return null;
 
   try {
-    return jwtDecode<TokenPayload>(token);
+    // Decode JWT token using jwt-decode library
+    const payload = jwtDecode<TokenPayload>(token);
+    return payload;
   } catch (error) {
     console.error('Invalid token format:', error);
     return null;

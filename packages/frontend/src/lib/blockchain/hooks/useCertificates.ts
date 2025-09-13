@@ -142,7 +142,7 @@ export function useCertificatesOwnedByWallet(walletAddress?: Address) {
     address: certificateContract,
     abi: getContractABI('certificateNFT'),
     functionName: 'tokenURI',
-    args: [tokenIdResult.result as bigint],
+    args: [tokenIdResult.result as unknown as bigint],
   }));
 
   const { data: tokenUris } = useReadContracts({

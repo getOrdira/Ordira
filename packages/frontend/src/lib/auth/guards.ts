@@ -48,10 +48,10 @@ export const useRoleGuard = (
       if (strict) {
         hasAccess = allowedRoles.includes(user.role);
       } else {
-        // Role hierarchy: admin > brand > manufacturer > customer
+        // Role hierarchy: brand > creator > manufacturer > customer
         const roleHierarchy: Record<UserRole, number> = {
-          'admin': 4,
-          'brand': 3,
+          'brand': 4,
+          'creator': 3,
           'manufacturer': 2,
           'customer': 1
         };
@@ -65,11 +65,9 @@ export const useRoleGuard = (
         let fallback = redirectPath;
         if (!fallback) {
           switch (user.role) {
-            case 'admin':
-              fallback = '/admin/dashboard';
-              break;
             case 'brand':
-              fallback = '/brand/dashboard';
+            case 'creator':
+              fallback = '/dashboard';
               break;
             case 'manufacturer':
               fallback = '/manufacturer/dashboard';
@@ -104,11 +102,6 @@ export const useVerificationGuard = (requirePhoneVerification = false): void => 
     if (!isLoading && isAuthenticated && user) {
       if (!user.isEmailVerified) {
         router.push('/auth/verify-email');
-        return;
-      }
-      
-      if (requirePhoneVerification && !user.isPhoneVerified) {
-        router.push('/auth/verify-phone');
         return;
       }
     }
@@ -153,11 +146,9 @@ export const useGuestGuard = (): void => {
     if (!isLoading && isAuthenticated && user) {
       // Redirect to appropriate dashboard based on role
       switch (user.role) {
-        case 'admin':
-          router.push('/admin/dashboard');
-          break;
         case 'brand':
-          router.push('/brand/dashboard');
+        case 'creator':
+          router.push('/dashboard');
           break;
         case 'manufacturer':
           router.push('/manufacturer/dashboard');
@@ -230,8 +221,8 @@ export const hasRoleLevel = (minimumRole: UserRole): boolean => {
   if (!user) return false;
 
   const roleHierarchy: Record<UserRole, number> = {
-    'admin': 4,
-    'brand': 3,
+    'brand': 4,
+    'creator': 3,
     'manufacturer': 2,
     'customer': 1
   };
@@ -262,7 +253,7 @@ export const isUserVerified = (requirePhone = false): boolean => {
   if (!user) return false;
   
   if (!user.isEmailVerified) return false;
-  if (requirePhone && !user.isPhoneVerified) return false;
+  
   
   return true;
 };
@@ -277,10 +268,9 @@ export const getDashboardPath = (role?: UserRole): string => {
   const targetRole = role || user?.role;
 
   switch (targetRole) {
-    case 'admin':
-      return '/admin/dashboard';
     case 'brand':
-      return '/brand/dashboard';
+    case 'creator':
+      return '/dashboard';
     case 'manufacturer':
       return '/manufacturer/dashboard';
     case 'customer':
@@ -333,15 +323,6 @@ export const useMultiGuard = (conditions: {
         hasAccess: false,
         redirectPath: '/auth/verify-email',
         reason: 'email_verification_required'
-      };
-    }
-
-    // Check phone verification
-    if (conditions.requirePhone && !user.isPhoneVerified) {
-      return {
-        hasAccess: false,
-        redirectPath: '/auth/verify-phone',
-        reason: 'phone_verification_required'
       };
     }
 

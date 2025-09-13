@@ -214,25 +214,26 @@ export const contractConfig = {
     name: 'Platform Token',
     description: 'ERC20 token for platform benefits and discounts',
     abi: tokenContractABI,
-    deployedChains: [base.id, baseSepolia.id, mainnet.id, polygon.id],
+    deployedChains: [base.id, baseSepolia.id, mainnet.id],
   },
 } as const;
 
 // Helper functions
-export function getContractAddress(chainId: number, contractName: keyof typeof contractAddresses[number]) {
-  return contractAddresses[chainId as keyof typeof contractAddresses]?.[contractName];
+export function getContractAddress(chainId: number, contractName: keyof typeof contractAddresses[8453]) {
+  const chainConfig = contractAddresses[chainId as keyof typeof contractAddresses];
+  return chainConfig?.[contractName];
 }
 
 export function getContractABI(contractName: keyof typeof contractConfig) {
   return contractConfig[contractName].abi;
 }
 
-export function isContractDeployed(chainId: number, contractName: keyof typeof contractAddresses[number]): boolean {
+export function isContractDeployed(chainId: number, contractName: keyof typeof contractAddresses[8453]): boolean {
   const address = getContractAddress(chainId, contractName);
   return address !== '0x0000000000000000000000000000000000000000';
 }
 
-export function getDeployedChains(contractName: keyof typeof contractConfig): number[] {
+export function getDeployedChains(contractName: keyof typeof contractConfig): readonly number[] {
   return contractConfig[contractName].deployedChains;
 }
 

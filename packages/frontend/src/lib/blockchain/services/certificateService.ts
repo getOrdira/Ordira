@@ -1,6 +1,6 @@
 // src/lib/blockchain/services/certificateService.ts
 import apiClient from '@/lib/api/client';
-import { readContract, readContracts, waitForTransactionReceipt } from 'viem/actions';
+import { readContract, waitForTransactionReceipt } from 'viem/actions';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { getContractAddress, getContractABI } from '../config/contracts';
 import { getChainConfig, primaryChain } from '../config/chains';
@@ -136,7 +136,7 @@ class CertificateService {
     const url = queryString ? `/certificates?${queryString}` : '/certificates';
     
     const response = await apiClient.get<CertificateNFT[]>(url);
-    return response.data;
+    return response;
   }
 
   /**
@@ -145,7 +145,7 @@ class CertificateService {
   async getCertificate(certificateId: string, includeBlockchain = true): Promise<CertificateNFT> {
     const params = includeBlockchain ? '?includeBlockchainData=true' : '';
     const response = await apiClient.get<CertificateNFT>(`/certificates/${certificateId}${params}`);
-    return response.data;
+    return response;
   }
 
   /**
@@ -153,7 +153,7 @@ class CertificateService {
    */
   async mintCertificate(mintRequest: CertificateMintRequest): Promise<CertificateMintResponse> {
     const response = await apiClient.post<CertificateMintResponse>('/certificates/mint', mintRequest);
-    return response.data;
+    return response;
   }
 
   /**
@@ -161,7 +161,7 @@ class CertificateService {
    */
   async requestTransfer(transferRequest: CertificateTransferRequest): Promise<CertificateTransferResponse> {
     const response = await apiClient.post<CertificateTransferResponse>('/certificates/transfer', transferRequest);
-    return response.data;
+    return response;
   }
 
   /**
@@ -177,10 +177,19 @@ class CertificateService {
     estimatedGas?: string;
     requiredWalletVerification?: boolean;
   }> {
-    const response = await apiClient.post('/certificates/transfer/check-eligibility', {
+    const response = await apiClient.post<{
+      eligible: boolean;
+      eligibleCertificates: string[];
+      ineligibleCertificates: Array<{
+        id: string;
+        reason: string;
+      }>;
+      estimatedGas?: string;
+      requiredWalletVerification?: boolean;
+    }>('/certificates/transfer/check-eligibility', {
       certificateIds,
     });
-    return response.data;
+    return response;
   }
 
   /**
@@ -190,7 +199,7 @@ class CertificateService {
     const response = await apiClient.get<CertificateBlockchainData>(
       `/certificates/${certificateId}/blockchain-status`
     );
-    return response.data;
+    return response;
   }
 
   /**
@@ -208,10 +217,19 @@ class CertificateService {
     }>;
     totalTransfers: number;
   }> {
-    const response = await apiClient.get(
-      `/certificates/${certificateId}/blockchain-status/transfer-history`
-    );
-    return response.data;
+    const response = await apiClient.get<{
+      transfers: Array<{
+        from: Address;
+        to: Address;
+        txHash: string;
+        blockNumber: number;
+        timestamp: number;
+        gasUsed?: string;
+        status: 'success' | 'failed';
+      }>;
+      totalTransfers: number;
+    }>(`/certificates/${certificateId}/blockchain-status/transfer-history`);
+    return response;
   }
 
   /**
@@ -221,8 +239,11 @@ class CertificateService {
     success: boolean;
     message: string;
   }> {
-    const response = await apiClient.post(`/certificates/${certificateId}/blockchain-status/refresh`);
-    return response.data;
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+    }>(`/certificates/${certificateId}/blockchain-status/refresh`);
+    return response;
   }
 
   /**
@@ -239,8 +260,18 @@ class CertificateService {
     transferSuccessRate: number;
     averageTransferTime: number;
   }> {
-    const response = await apiClient.get('/certificates/stats');
-    return response.data;
+    const response = await apiClient.get<{
+      total: number;
+      minted: number;
+      pending: number;
+      failed: number;
+      transferred: number;
+      inRelayerWallet: number;
+      monthlyMinted: number;
+      transferSuccessRate: number;
+      averageTransferTime: number;
+    }>('/certificates/stats');
+    return response;
   }
 
   // ======================
@@ -325,23 +356,47 @@ class CertificateService {
         args: [walletAddress, BigInt(index)],
       }));
 
-      const tokenIds = await readContracts(this.publicClient, {
-        contracts: tokenQueries,
-      });
+      const tokenIds = await Promise.all(
+        tokenQueries.map(async (query) => {
+          try {
+            const result = await readContract(this.publicClient, {
+              address: query.address,
+              abi: query.abi,
+              functionName: query.functionName as any,
+              args: query.args as unknown as readonly [Address, bigint],
+            });
+            return { status: 'success' as const, result };
+          } catch {
+            return { status: 'error' as const, result: null };
+          }
+        })
+      );
 
       // Get token URIs for metadata
       const uriQueries = tokenIds
-        .filter(result => result.status === 'success')
-        .map((result) => ({
+        .filter((result: any) => result.status === 'success')
+        .map((result: any) => ({
           address: contractAddress,
           abi: getContractABI('certificateNFT'),
           functionName: 'tokenURI',
           args: [result.result as bigint],
         }));
 
-      const tokenUris = await readContracts(this.publicClient, {
-        contracts: uriQueries,
-      });
+      const tokenUris = await Promise.all(
+        uriQueries.map(async (query) => {
+          try {
+            const result = await readContract(this.publicClient, {
+              address: query.address,
+              abi: query.abi,
+              functionName: query.functionName as any,
+              args: query.args as unknown as readonly [bigint],
+            });
+            return { status: 'success' as const, result };
+          } catch {
+            return { status: 'error' as const, result: null };
+          }
+        })
+      );
 
       // Build certificate objects
       const certificates: CertificateNFT[] = [];
@@ -366,7 +421,7 @@ class CertificateService {
           }
           
           certificates.push({
-            tokenId: tokenIdResult.result!.toString(),
+            tokenId: (tokenIdResult.result as unknown as bigint).toString(),
             contractAddress: contractAddress,
             owner: walletAddress,
             tokenUri: uriResult.result as string,

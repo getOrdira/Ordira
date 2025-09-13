@@ -1,6 +1,6 @@
 // src/lib/blockchain/services/tokenService.ts
 import apiClient from '@/lib/api/client';
-import { readContract, readContracts } from 'viem/actions';
+import { readContract } from 'viem/actions';
 import { createPublicClient, http, formatUnits, parseUnits } from 'viem';
 import { getContractAddress, getContractABI } from '../config/contracts';
 import { supportedChains, getChainConfig } from '../config/chains';
@@ -104,7 +104,7 @@ class TokenService {
    */
   async checkTokenDiscount(walletAddress: Address): Promise<TokenDiscount> {
     const response = await apiClient.get<TokenDiscount>(`/brands/wallet/discounts?walletAddress=${walletAddress}`);
-    return response.data;
+    return response;
   }
 
   /**
@@ -112,7 +112,7 @@ class TokenService {
    */
   async applyTokenDiscount(discountRequest: ApplyDiscountRequest): Promise<ApplyDiscountResponse> {
     const response = await apiClient.post<ApplyDiscountResponse>('/brands/wallet/discounts/apply', discountRequest);
-    return response.data;
+    return response;
   }
 
   /**
@@ -125,8 +125,14 @@ class TokenService {
     chainId: number;
     maxDiscountAmount?: string;
   }> {
-    const response = await apiClient.get('/brands/wallet/discounts/config');
-    return response.data;
+    const response = await apiClient.get<{
+      minimumBalance: string;
+      discountPercentage: number;
+      tokenSymbol: string;
+      chainId: number;
+      maxDiscountAmount?: string;
+    }>('/brands/wallet/discounts/config');
+    return response;
   }
 
   /**
@@ -136,7 +142,7 @@ class TokenService {
     const response = await apiClient.get<TokenBalanceHistory>(
       `/brands/wallet/balance/history?walletAddress=${walletAddress}&days=${days}`
     );
-    return response.data;
+    return response;
   }
 
   /**
@@ -146,7 +152,7 @@ class TokenService {
     const response = await apiClient.get<TokenPrice>(
       `/tokens/price?address=${tokenAddress}&chainId=${chainId}`
     );
-    return response.data;
+    return response;
   }
 
   // ======================
@@ -163,42 +169,36 @@ class TokenService {
     }
 
     try {
-      const [name, symbol, decimals, totalSupply] = await readContracts(publicClient, {
-        contracts: [
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'name',
-          },
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'symbol',
-          },
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'decimals',
-          },
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'totalSupply',
-          },
-        ],
-      });
+      const [name, symbol, decimals, totalSupply] = await Promise.all([
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'name',
+        }).catch(() => null),
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'symbol',
+        }).catch(() => null),
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'decimals',
+        }).catch(() => null),
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'totalSupply' as any,
+        }).catch(() => null),
+      ]);
 
-      if (
-        name.status === 'success' &&
-        symbol.status === 'success' &&
-        decimals.status === 'success'
-      ) {
+      if (name && symbol && decimals) {
         return {
           address: tokenAddress,
-          name: name.result as string,
-          symbol: symbol.result as string,
-          decimals: decimals.result as number,
-          totalSupply: totalSupply.status === 'success' ? totalSupply.result as bigint : undefined,
+          name: name as string,
+          symbol: symbol as string,
+          decimals: decimals as number,
+          totalSupply: totalSupply as unknown as bigint | undefined,
           chainId,
         };
       }
@@ -220,39 +220,33 @@ class TokenService {
     }
 
     try {
-      const [balance, decimals, symbol] = await readContracts(publicClient, {
-        contracts: [
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'balanceOf',
-            args: [walletAddress],
-          },
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'decimals',
-          },
-          {
-            address: tokenAddress,
-            abi: getContractABI('tokenContract'),
-            functionName: 'symbol',
-          },
-        ],
-      });
+      const [balance, decimals, symbol] = await Promise.all([
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'balanceOf',
+          args: [walletAddress],
+        }).catch(() => null),
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'decimals',
+        }).catch(() => null),
+        readContract(publicClient, {
+          address: tokenAddress,
+          abi: getContractABI('tokenContract'),
+          functionName: 'symbol',
+        }).catch(() => null),
+      ]);
 
-      if (
-        balance.status === 'success' &&
-        decimals.status === 'success' &&
-        symbol.status === 'success'
-      ) {
-        const balanceAmount = balance.result as bigint;
-        const tokenDecimals = decimals.result as number;
+      if (balance && decimals && symbol) {
+        const balanceAmount = balance as bigint;
+        const tokenDecimals = decimals as number;
         const formatted = formatUnits(balanceAmount, tokenDecimals);
 
         return {
           address: tokenAddress,
-          symbol: symbol.result as string,
+          symbol: symbol as string,
           decimals: tokenDecimals,
           balance: balanceAmount,
           formatted,

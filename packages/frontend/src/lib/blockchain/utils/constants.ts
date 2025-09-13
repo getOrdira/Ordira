@@ -29,7 +29,6 @@ export const BLOCK_EXPLORERS = {
   [CHAIN_IDS.BASE]: 'https://basescan.org',
   [CHAIN_IDS.BASE_SEPOLIA]: 'https://sepolia.basescan.org',
   [CHAIN_IDS.ETHEREUM]: 'https://etherscan.io',
-  [CHAIN_IDS.POLYGON]: 'https://polygonscan.com',
 } as const;
 
 // Primary chain for certificate operations
@@ -113,22 +112,22 @@ export const DISCOUNT_TIERS = {
 // Discount tier configurations
 export const DISCOUNT_TIER_CONFIG = {
   [DISCOUNT_TIERS.BRONZE]: {
-    minimumBalance: '100', // 100 tokens
+    minimumBalance: '100000', // 100k tokens
     discountPercentage: 5,
     color: '#CD7F32',
   },
   [DISCOUNT_TIERS.SILVER]: {
-    minimumBalance: '500', // 500 tokens
+    minimumBalance: '250000', // 250k tokens
     discountPercentage: 10,
     color: '#C0C0C0',
   },
   [DISCOUNT_TIERS.GOLD]: {
-    minimumBalance: '1000', // 1000 tokens
+    minimumBalance: '500000', // 500k tokens
     discountPercentage: 15,
     color: '#FFD700',
   },
   [DISCOUNT_TIERS.PLATINUM]: {
-    minimumBalance: '5000', // 5000 tokens
+    minimumBalance: '1000000', // 1 million tokens
     discountPercentage: 25,
     color: '#E5E4E2',
   },

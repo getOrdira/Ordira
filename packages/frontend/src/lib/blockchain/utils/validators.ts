@@ -246,7 +246,7 @@ export function validateSufficientBalance(
  * Validate chain ID is supported
  */
 export function validateChainId(chainId: number): ValidationResult {
-  const supportedChainIds = Object.values(CHAIN_IDS);
+  const supportedChainIds = Object.values(CHAIN_IDS) as number[];
   
   if (!supportedChainIds.includes(chainId)) {
     return {
@@ -320,7 +320,7 @@ export function validateCertificateId(certificateId: string): ValidationResult {
  * Validate token ID format
  */
 export function validateTokenId(tokenId: string | bigint): ValidationResult {
-  if (!tokenId && tokenId !== 0) {
+  if (!tokenId && tokenId !== 0n) {
     return {
       isValid: false,
       error: 'Token ID is required',

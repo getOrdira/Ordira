@@ -122,7 +122,7 @@ class WalletService {
    */
   async connectWallet(request: ConnectWalletRequest): Promise<ConnectWalletResponse> {
     const response = await apiClient.post<ConnectWalletResponse>('/brands/wallet/connect', request);
-    return response.data;
+    return response;
   }
 
   /**
@@ -134,7 +134,7 @@ class WalletService {
       : '/brands/wallet';
     
     const response = await apiClient.get<WalletOverview>(url);
-    return response.data;
+    return response;
   }
 
   /**
@@ -142,8 +142,8 @@ class WalletService {
    */
   async disconnectWallet(removeFromBackend = true): Promise<{ success: boolean }> {
     if (removeFromBackend) {
-      const response = await apiClient.delete('/brands/wallet/disconnect');
-      return response.data;
+      const response = await apiClient.delete<{ success: boolean }>('/brands/wallet/disconnect');
+      return response;
     }
     return { success: true };
   }
@@ -159,10 +159,15 @@ class WalletService {
     connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
     networkLatency?: number;
   }> {
-    const response = await apiClient.get(
-      `/brands/wallet/health?address=${walletAddress}&chainId=${chainId}`
-    );
-    return response.data;
+    const response = await apiClient.get<{
+      isHealthy: boolean;
+      issues: string[];
+      recommendations: string[];
+      lastChecked: string;
+      connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
+      networkLatency?: number;
+    }>(`/brands/wallet/health?address=${walletAddress}&chainId=${chainId}`);
+    return response;
   }
 
   // ======================
@@ -176,7 +181,7 @@ class WalletService {
     const response = await apiClient.post<WalletVerificationChallenge>('/brands/wallet/verify/challenge', {
       walletAddress,
     });
-    return response.data;
+    return response;
   }
 
   /**
@@ -184,7 +189,7 @@ class WalletService {
    */
   async verifyWallet(request: WalletVerificationRequest): Promise<WalletVerificationResponse> {
     const response = await apiClient.post<WalletVerificationResponse>('/brands/wallet/verify', request);
-    return response.data;
+    return response;
   }
 
   /**
@@ -203,8 +208,20 @@ class WalletService {
       error?: string;
     };
   }> {
-    const response = await apiClient.get(`/brands/wallet/verify/status?address=${walletAddress}`);
-    return response.data;
+    const response = await apiClient.get<{
+      isVerified: boolean;
+      verifiedAt?: string;
+      verificationTxHash?: string;
+      expiresAt?: string;
+      requiresReverification: boolean;
+      verificationMethod: 'signature' | 'transaction' | 'none';
+      lastAttempt?: {
+        timestamp: string;
+        status: 'success' | 'failed' | 'pending';
+        error?: string;
+      };
+    }>(`/brands/wallet/verify/status?address=${walletAddress}`);
+    return response;
   }
 
   /**
@@ -214,11 +231,14 @@ class WalletService {
     success: boolean;
     message: string;
   }> {
-    const response = await apiClient.post('/brands/wallet/verify/revoke', {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+    }>('/brands/wallet/verify/revoke', {
       walletAddress,
       reason,
     });
-    return response.data;
+    return response;
   }
 
   /**
@@ -239,8 +259,22 @@ class WalletService {
     lastSuccessfulVerification?: string;
     securityScore: number;
   }> {
-    const response = await apiClient.get(`/brands/wallet/verify/history?address=${walletAddress}`);
-    return response.data;
+    const response = await apiClient.get<{
+      verifications: Array<{
+        id: string;
+        timestamp: string;
+        status: 'success' | 'failed' | 'expired';
+        method: 'signature' | 'transaction';
+        txHash?: string;
+        expiresAt?: string;
+        ipAddress?: string;
+        userAgent?: string;
+      }>;
+      totalVerifications: number;
+      lastSuccessfulVerification?: string;
+      securityScore: number;
+    }>(`/brands/wallet/verify/history?address=${walletAddress}`);
+    return response;
   }
 
   // ======================
@@ -317,7 +351,7 @@ This signature is only valid for wallet verification on ${domain}.`;
    */
   async getSecuritySettings(): Promise<WalletSecuritySettings> {
     const response = await apiClient.get<WalletSecuritySettings>('/brands/wallet/security');
-    return response.data;
+    return response;
   }
 
   /**
@@ -327,8 +361,11 @@ This signature is only valid for wallet verification on ${domain}.`;
     success: boolean;
     message: string;
   }> {
-    const response = await apiClient.put('/brands/wallet/security', settings);
-    return response.data;
+    const response = await apiClient.put<{
+      success: boolean;
+      message: string;
+    }>('/brands/wallet/security', settings);
+    return response;
   }
 
   /**
@@ -340,10 +377,15 @@ This signature is only valid for wallet verification on ${domain}.`;
     downloadUrl: string;
     expiresAt: string;
   }> {
-    const response = await apiClient.post('/brands/wallet/security/backup', {
+    const response = await apiClient.post<{
+      success: boolean;
+      backupId: string;
+      downloadUrl: string;
+      expiresAt: string;
+    }>('/brands/wallet/security/backup', {
       type: backupType,
     });
-    return response.data;
+    return response;
   }
 
   // ======================
@@ -357,7 +399,7 @@ This signature is only valid for wallet verification on ${domain}.`;
     const response = await apiClient.get<WalletAnalytics>(
       `/brands/wallet/analytics?timeRange=${timeRange}`
     );
-    return response.data;
+    return response;
   }
 
   // ======================
@@ -400,7 +442,7 @@ This signature is only valid for wallet verification on ${domain}.`;
       return {
         chainId: chain.id,
         name: config?.name || chain.name,
-        shortName: config?.shortName || chain.network,
+        shortName: config?.shortName || chain.name.toLowerCase(),
         currency: config?.currency || chain.nativeCurrency.symbol,
         isTestnet: config?.isTestnet || false,
       };

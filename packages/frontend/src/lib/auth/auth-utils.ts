@@ -35,9 +35,9 @@ export const roleUtils = {
    */
   getRoleDisplayName(role: string): string {
     const roleNames: Record<string, string> = {
-      'Brand': 'Brand Owner',
-      'Creator': 'Content Creator',
-      'Manufacturer': 'Manufacturer',
+      'brand': 'Brand Owner',
+      'creator': 'Content Creator',
+      'manufacturer': 'Manufacturer',
     };
     return roleNames[role] || role;
   },
@@ -46,28 +46,28 @@ export const roleUtils = {
    * Check if user is brand owner (INCLUDES Creators)
    */
   isBrand(user: AnyUser | null): boolean {
-    return this.hasAnyRole(user, ['Brand', 'Creator']); // ✅ FIXED: Creators included
+    return this.hasAnyRole(user, ['brand', 'creator']); // ✅ Creators included
   },
 
   /**
    * Check if user is manufacturer
    */
   isManufacturer(user: AnyUser | null): boolean {
-    return this.hasRole(user, 'Manufacturer');
+    return this.hasRole(user, 'manufacturer');
   },
 
   /**
    * Check if user is creator
    */
   isCreator(user: AnyUser | null): boolean {
-    return this.hasRole(user, 'Creator');
+    return this.hasRole(user, 'creator');
   },
 
   /**
    * Check if user is brand-like (Brand OR Creator) - NEW helper
    */
   isBrandLike(user: AnyUser | null): boolean {
-    return this.hasAnyRole(user, ['Brand', 'Creator']);
+    return this.hasAnyRole(user, ['brand', 'creator']);
   },
 };
 
@@ -82,10 +82,10 @@ export const routeProtection = {
     if (!user) return '/auth/login';
     
     switch (user.role) {
-      case 'Brand':
-      case 'Creator': // ✅ FIXED: Same dashboard as Brand
+      case 'brand':
+      case 'creator': // ✅ Creators get same dashboard as brands
         return '/dashboard';
-      case 'Manufacturer':
+      case 'manufacturer':
         return '/manufacturer/dashboard';
       default:
         return '/dashboard';
@@ -104,10 +104,10 @@ export const routeProtection = {
       return true;
     }
 
-    // Brand-like routes (Brand AND Creator access) - FIXED
+    // Brand-like routes (Brand AND Creator access)
     const brandRoutes = ['/voting', '/certificates', '/products', '/domains', '/integrations'];
     if (brandRoutes.some(brandRoute => route.startsWith(brandRoute))) {
-      return roleUtils.isBrandLike(user); // ✅ FIXED: Includes both Brand and Creator
+      return roleUtils.isBrandLike(user); // ✅ Includes both Brand and Creator
     }
 
     // Manufacturer-only routes
@@ -116,11 +116,6 @@ export const routeProtection = {
       return roleUtils.isManufacturer(user);
     }
 
-    // Creator-specific routes (optional - for creator-specific features)
-    const creatorSpecificRoutes = ['/creator', '/content-studio', '/creator-tools'];
-    if (creatorSpecificRoutes.some(creatorRoute => route.startsWith(creatorRoute))) {
-      return roleUtils.isCreator(user);
-    }
 
     // Default to allowing access
     return true;
@@ -142,16 +137,16 @@ export const routeProtection = {
   /**
    * Get appropriate auth API methods based on user type
    */
-  getAuthMethods(userType: 'Brand' | 'Creator' | 'Manufacturer') {
+  getAuthMethods(userType: 'brand' | 'creator' | 'manufacturer') {
     switch (userType) {
-      case 'Brand':
-      case 'Creator': // ✅ Both use business auth methods
+      case 'brand':
+      case 'creator': // ✅ Both use business auth methods
         return {
           register: 'registerBusiness',
           login: 'loginBusiness', 
           verify: 'verifyBusiness'
         };
-      case 'Manufacturer':
+      case 'manufacturer':
         return {
           register: 'registerManufacturer',
           login: 'loginManufacturer',
@@ -301,11 +296,11 @@ export const sessionUtils = {
  */
 export const isRegisterBusinessData = (data: any): boolean => {
   return data && (data.businessName || data.businessAddress) && 
-         (data.occupation === 'Brand' || data.occupation === 'Creator'); // ✅ FIXED
+         (data.occupation === 'brand' || data.occupation === 'creator'); // ✅ Both use business registration
 };
 
 export const isRegisterManufacturerData = (data: any): boolean => {
-  return data && data.industry && data.occupation === 'Manufacturer';
+  return data && data.industry && data.occupation === 'manufacturer';
 };
 
 export const isRegisterUserData = (data: any): boolean => {

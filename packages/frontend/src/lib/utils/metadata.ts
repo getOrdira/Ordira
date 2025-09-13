@@ -40,7 +40,7 @@ const DEFAULT_METADATA = {
   url: process.env.NEXT_PUBLIC_APP_URL || 'https://ordira.xyz',
   siteName: 'Ordira',
   locale: 'en_US',
-  twitterHandle: '@ordira',
+  twitterHandle: '@ordiraxyz',
 };
 
 /**

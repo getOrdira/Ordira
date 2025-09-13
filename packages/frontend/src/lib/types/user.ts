@@ -8,7 +8,7 @@ import { commonSchemas } from '../validation/utils';
  * - 'customer' aligns with general user schemas like registerUserSchema
  * - 'manufacturer' and 'brand' for role-specific extensions
  */
-export type UserRole = 'customer' | 'manufacturer' | 'brand';
+export type UserRole = 'customer' | 'manufacturer' | 'brand' | 'creator';
 
 /**
  * User preferences structure

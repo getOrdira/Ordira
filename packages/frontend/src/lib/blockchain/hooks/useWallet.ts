@@ -408,12 +408,12 @@ export function useWalletCapabilities() {
         const provider = await connector.getProvider();
         
         return {
-          supportsSignTypedData: typeof provider?.request === 'function',
-          supportsChainSwitching: typeof provider?.request === 'function',
+          supportsSignTypedData: typeof (provider as any)?.request === 'function',
+          supportsChainSwitching: typeof (provider as any)?.request === 'function',
           supportsEIP1559: true, // Most modern wallets support this
-          supportsPersonalSign: typeof provider?.request === 'function',
+          supportsPersonalSign: typeof (provider as any)?.request === 'function',
           name: connector.name,
-          version: provider?.version || 'unknown',
+          version: (provider as any)?.version || 'unknown',
         };
       } catch (error) {
         return null;

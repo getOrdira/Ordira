@@ -97,7 +97,7 @@ export function Web3Provider({ children, queryClient }: Web3ProviderProps) {
             learnMoreUrl: 'https://docs.rainbowkit.com',
           }}
           initialChain={rainbowKitConfig.initialChain}
-          theme={rainbowKitConfig.theme}
+          theme={rainbowKitConfig.theme as any}
           modalSize={rainbowKitConfig.modalSize}
           showRecentTransactions={rainbowKitConfig.showRecentTransactions}
           coolMode={rainbowKitConfig.coolMode}
@@ -294,6 +294,12 @@ export function Web3DevTools() {
 // Type augmentation for window.ethereum
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: {
+      isMetaMask?: boolean;
+      isCoinbaseWallet?: boolean;
+      request: (args: { method: string; params?: any[] }) => Promise<any>;
+      on: (event: string, handler: (...args: any[]) => void) => void;
+      removeListener: (event: string, handler: (...args: any[]) => void) => void;
+    };
   }
 }
