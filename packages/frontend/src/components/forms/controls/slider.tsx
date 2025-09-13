@@ -24,7 +24,7 @@ import {
  * Aligns with backend number validation patterns
  */
 export interface RHFSliderProps<TFieldValues extends FieldValues = FieldValues>
-  extends Omit<BaseSliderProps, 'value' | 'onValueChange'>,
+  extends Omit<BaseSliderProps, 'value' | 'onValueChange' | 'name'>,
     BaseFieldProps<TFieldValues> {
   // Value transformation options
   transformValue?: (value: number) => any; // Transform before sending to form
@@ -98,7 +98,7 @@ RHFSlider.displayName = 'RHFSlider';
  * Perfect for price ranges, date ranges, etc.
  */
 export interface RHFRangeSliderProps<TFieldValues extends FieldValues = FieldValues>
-  extends Omit<BaseRangeSliderProps, 'value' | 'onValueChange'>,
+  extends Omit<BaseRangeSliderProps, 'value' | 'onValueChange' | 'name'>,
     BaseFieldProps<TFieldValues> {
   // Value transformation options
   transformValue?: (value: [number, number]) => any;
@@ -683,7 +683,7 @@ export const RHFBudgetSlider = forwardRef<
       <div className="flex justify-between text-xs text-[var(--caption-color)] font-satoshi">
         {budgetTiers.map((tier, index) => (
           <div key={index} className="flex flex-col items-center">
-            <div className={cn("w-2 h-2 rounded-full", tier.color.replace('text-', 'bg-'))} />
+            <div className={cn("w-2 h-2 rounded-full", tier.color?.replace('text-', 'bg-') || 'bg-gray-400')} />
             <span className="mt-1">{tier.label}</span>
             <span className="text-[var(--muted)]">
               {currencySymbol}{tier.value >= 1000 ? `${(tier.value / 1000).toFixed(0)}K` : tier.value.toLocaleString()}

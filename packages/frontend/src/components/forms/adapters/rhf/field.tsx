@@ -48,7 +48,7 @@ export interface BaseFieldProps<TFieldValues extends FieldValues = FieldValues> 
 /**
  * Hook to get field state and helpers for any form field
  */
-export function useFieldState<TFieldValues extends FieldValues = FieldValues>(
+function useFieldState<TFieldValues extends FieldValues = FieldValues>(
   name: FieldPath<TFieldValues>,
   control?: Control<TFieldValues>
 ) {
@@ -86,7 +86,7 @@ export function useFieldState<TFieldValues extends FieldValues = FieldValues>(
 /**
  * Format field error message with proper fallbacks
  */
-export function formatFieldError(
+function formatFieldError(
   error: FieldError | undefined,
   transformError?: (error: FieldError) => string
 ): string | undefined {
@@ -132,8 +132,8 @@ function createFieldAdapter<TComponent extends React.ComponentType<any>>(
   displayName: string
 ) {
   const FieldAdapter = forwardRef<
-    React.ElementRef<TComponent>,
-    React.ComponentPropsWithoutRef<TComponent> & BaseFieldProps
+    any,
+    any
   >(({ 
     name, 
     control, 
@@ -155,19 +155,17 @@ function createFieldAdapter<TComponent extends React.ComponentType<any>>(
     const errorMessage = formatFieldError(error, transformError);
     const successMessage = isSuccess && showSuccessIcon ? 'Valid' : undefined;
 
-    return (
-      <Component
-        {...props}
-        {...field}
-        ref={ref}
-        disabled={disabled || isLoading}
-        error={errorMessage}
-        success={successMessage}
-        className={cn(className, {
-          'opacity-50 cursor-not-allowed': disabled || isLoading,
-        })}
-      />
-    );
+    return React.createElement(Component, {
+      ...props,
+      ...field,
+      ref,
+      disabled: disabled || isLoading,
+      error: errorMessage,
+      success: successMessage,
+      className: cn(className, {
+        'opacity-50 cursor-not-allowed': disabled || isLoading,
+      }),
+    });
   });
 
   FieldAdapter.displayName = displayName;
@@ -179,63 +177,49 @@ function createFieldAdapter<TComponent extends React.ComponentType<any>>(
 /**
  * Standard text input field with RHF integration
  */
-export interface RHFInputProps extends 
-  Omit<InputProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFInputProps = Omit<InputProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFInput = createFieldAdapter(Input, 'RHFInput');
 
 /**
  * Password input field with show/hide toggle
  */
-export interface RHFPasswordInputProps extends 
-  Omit<PasswordInputProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFPasswordInputProps = Omit<PasswordInputProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFPasswordInput = createFieldAdapter(PasswordInput, 'RHFPasswordInput');
 
 /**
  * Email input field with email validation UI
  */
-export interface RHFEmailInputProps extends 
-  Omit<EmailInputProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFEmailInputProps = Omit<EmailInputProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFEmailInput = createFieldAdapter(EmailInput, 'RHFEmailInput');
 
 /**
  * Phone input field with international format
  */
-export interface RHFPhoneInputProps extends 
-  Omit<PhoneInputProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFPhoneInputProps = Omit<PhoneInputProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFPhoneInput = createFieldAdapter(PhoneInput, 'RHFPhoneInput');
 
 /**
  * URL input field with URL validation UI
  */
-export interface RHFURLInputProps extends 
-  Omit<URLInputProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFURLInputProps = Omit<URLInputProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFURLInput = createFieldAdapter(URLInput, 'RHFURLInput');
 
 /**
  * Search input field
  */
-export interface RHFSearchInputProps extends 
-  Omit<SearchInputProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFSearchInputProps = Omit<SearchInputProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFSearchInput = createFieldAdapter(SearchInput, 'RHFSearchInput');
 
 /**
  * Textarea field for longer text input
  */
-export interface RHFTextareaProps extends 
-  Omit<TextareaProps, 'error' | 'success'>, 
-  BaseFieldProps {}
+export type RHFTextareaProps = Omit<TextareaProps, 'error' | 'success' | 'name'> & BaseFieldProps;
 
 export const RHFTextarea = createFieldAdapter(Textarea, 'RHFTextarea');
 
@@ -248,7 +232,7 @@ export const RHFTextarea = createFieldAdapter(Textarea, 'RHFTextarea');
 export const RHFBusinessEmailInput = forwardRef<
   HTMLInputElement,
   RHFEmailInputProps
->(({ transformError, ...props }, ref) => {
+>(({ transformError, name, ...props }, ref) => {
   const businessEmailTransform = (error: FieldError): string => {
     if (error.message?.includes('disposable')) {
       return 'Business email addresses only - disposable emails not allowed';
@@ -259,6 +243,7 @@ export const RHFBusinessEmailInput = forwardRef<
   return (
     <RHFEmailInput
       {...props}
+      name={name}
       ref={ref}
       transformError={transformError || businessEmailTransform}
       placeholder="your.business@company.com"
@@ -274,7 +259,7 @@ RHFBusinessEmailInput.displayName = 'RHFBusinessEmailInput';
 export const RHFMongoIdInput = forwardRef<
   HTMLInputElement,
   RHFInputProps
->(({ transformError, ...props }, ref) => {
+>(({ transformError, name, ...props }, ref) => {
   const mongoIdTransform = (error: FieldError): string => {
     if (error.type === 'pattern') {
       return 'Must be a valid ID format';
@@ -285,6 +270,7 @@ export const RHFMongoIdInput = forwardRef<
   return (
     <RHFInput
       {...props}
+      name={name}
       ref={ref}
       transformError={transformError || mongoIdTransform}
       placeholder="507f1f77bcf86cd799439011"
@@ -301,7 +287,7 @@ RHFMongoIdInput.displayName = 'RHFMongoIdInput';
 export const RHFSubdomainInput = forwardRef<
   HTMLInputElement,
   RHFInputProps & { baseDomain?: string }
->(({ baseDomain = '.yourapp.com', transformError, ...props }, ref) => {
+>(({ baseDomain = '.yourapp.com', transformError, name, ...props }, ref) => {
   const subdomainTransform = (error: FieldError): string => {
     if (error.type === 'pattern') {
       return 'Subdomain can only contain letters, numbers, and hyphens';
@@ -316,6 +302,7 @@ export const RHFSubdomainInput = forwardRef<
     <div className="flex items-center">
       <RHFInput
         {...props}
+        name={name}
         ref={ref}
         transformError={transformError || subdomainTransform}
         placeholder="your-brand"
@@ -329,6 +316,184 @@ export const RHFSubdomainInput = forwardRef<
 });
 
 RHFSubdomainInput.displayName = 'RHFSubdomainInput';
+
+/**
+ * Business name field with validation for brand/manufacturer names
+ */
+export const RHFBusinessNameInput = forwardRef<
+  HTMLInputElement,
+  RHFInputProps
+>(({ transformError, name, ...props }, ref) => {
+  const businessNameTransform = (error: FieldError): string => {
+    if (error.type === 'minLength') {
+      return 'Business name must be at least 2 characters';
+    }
+    if (error.type === 'maxLength') {
+      return 'Business name must be less than 100 characters';
+    }
+    if (error.type === 'pattern') {
+      return 'Business name can only contain letters, numbers, spaces, and basic punctuation';
+    }
+    return formatFieldError(error) || 'Invalid business name';
+  };
+
+  return (
+    <RHFInput
+      {...props}
+      name={name}
+      ref={ref}
+      transformError={transformError || businessNameTransform}
+      placeholder="Your Business Name"
+      maxLength={100}
+    />
+  );
+});
+
+RHFBusinessNameInput.displayName = 'RHFBusinessNameInput';
+
+/**
+ * Phone number field with international format validation
+ */
+export const RHFPhoneNumberInput = forwardRef<
+  HTMLInputElement,
+  RHFPhoneInputProps
+>(({ transformError, name, ...props }, ref) => {
+  const phoneTransform = (error: FieldError): string => {
+    if (error.type === 'pattern') {
+      return 'Please enter a valid phone number (e.g., +1 (555) 123-4567)';
+    }
+    return formatFieldError(error) || 'Invalid phone number';
+  };
+
+  return (
+    <RHFPhoneInput
+      {...props}
+      name={name}
+      ref={ref}
+      transformError={transformError || phoneTransform}
+      placeholder="+1 (555) 123-4567"
+    />
+  );
+});
+
+RHFPhoneNumberInput.displayName = 'RHFPhoneNumberInput';
+
+/**
+ * Website URL field with domain validation
+ */
+export const RHFWebsiteInput = forwardRef<
+  HTMLInputElement,
+  RHFURLInputProps
+>(({ transformError, name, ...props }, ref) => {
+  const websiteTransform = (error: FieldError): string => {
+    if (error.type === 'pattern') {
+      return 'Please enter a valid website URL (e.g., https://example.com)';
+    }
+    if (error.message?.includes('domain')) {
+      return 'Please enter a valid domain name';
+    }
+    return formatFieldError(error) || 'Invalid website URL';
+  };
+
+  return (
+    <RHFURLInput
+      {...props}
+      name={name}
+      ref={ref}
+      transformError={transformError || websiteTransform}
+      placeholder="https://yourwebsite.com"
+    />
+  );
+});
+
+RHFWebsiteInput.displayName = 'RHFWebsiteInput';
+
+/**
+ * Industry selection field (for manufacturers)
+ */
+export const RHFIndustryInput = forwardRef<
+  HTMLInputElement,
+  RHFInputProps
+>(({ transformError, name, ...props }, ref) => {
+  const industryTransform = (error: FieldError): string => {
+    if (error.type === 'minLength') {
+      return 'Please specify your industry';
+    }
+    return formatFieldError(error) || 'Invalid industry';
+  };
+
+  return (
+    <RHFInput
+      {...props}
+      name={name}
+      ref={ref}
+      transformError={transformError || industryTransform}
+      placeholder="e.g., Fashion, Electronics, Food & Beverage"
+    />
+  );
+});
+
+RHFIndustryInput.displayName = 'RHFIndustryInput';
+
+/**
+ * Product name field with validation
+ */
+export const RHFProductNameInput = forwardRef<
+  HTMLInputElement,
+  RHFInputProps
+>(({ transformError, name, ...props }, ref) => {
+  const productNameTransform = (error: FieldError): string => {
+    if (error.type === 'minLength') {
+      return 'Product name must be at least 3 characters';
+    }
+    if (error.type === 'maxLength') {
+      return 'Product name must be less than 200 characters';
+    }
+    return formatFieldError(error) || 'Invalid product name';
+  };
+
+  return (
+    <RHFInput
+      {...props}
+      name={name}
+      ref={ref}
+      transformError={transformError || productNameTransform}
+      placeholder="Enter product name"
+      maxLength={200}
+    />
+  );
+});
+
+RHFProductNameInput.displayName = 'RHFProductNameInput';
+
+/**
+ * Description textarea with character limits
+ */
+export const RHFDescriptionTextarea = forwardRef<
+  HTMLTextAreaElement,
+  RHFTextareaProps & { maxLength?: number }
+>(({ transformError, name, maxLength = 1000, ...props }, ref) => {
+  const descriptionTransform = (error: FieldError): string => {
+    if (error.type === 'maxLength') {
+      return `Description must be less than ${maxLength} characters`;
+    }
+    return formatFieldError(error) || 'Invalid description';
+  };
+
+  return (
+    <RHFTextarea
+      {...props}
+      name={name}
+      ref={ref}
+      transformError={transformError || descriptionTransform}
+      placeholder="Enter description..."
+      maxLength={maxLength}
+      showCharacterCount
+    />
+  );
+});
+
+RHFDescriptionTextarea.displayName = 'RHFDescriptionTextarea';
 
 // Export field state hook and utilities
 export { useFieldState, formatFieldError };

@@ -1,5 +1,6 @@
 // src/components/forms/adapters/rhf/resolver.tsx
 
+import React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Resolver, FieldErrors, FieldValues } from 'react-hook-form';
 import { z } from 'zod';
@@ -35,17 +36,16 @@ export interface ResolverOptions {
 /**
  * Create enhanced Zod resolver with backend alignment
  */
-export function createZodResolver<T extends z.ZodSchema>(
+export function createZodResolver<T extends z.ZodTypeAny>(
   schema: T,
   options: ResolverOptions = {}
-): Resolver<z.infer<T>> {
-  const baseResolver = zodResolver(schema);
-  
+): Resolver<any, FieldValues> {
   return async (values, context, resolverOptions) => {
     // Apply field transformations before validation
     const transformedValues = transformFieldsForValidation(values, options);
     
     // Run base Zod validation
+    const baseResolver = zodResolver(schema as any);
     const result = await baseResolver(transformedValues, context, resolverOptions);
     
     // Transform errors to match backend patterns
@@ -93,18 +93,19 @@ function transformErrorsForDisplay(
   const transformedErrors: FieldErrors = {};
   
   for (const [fieldName, error] of Object.entries(errors)) {
-    if (!error) continue;
+    if (!error || typeof error !== 'object' || !('message' in error)) continue;
     
+    const errorObj = error as { message: string; type?: string };
     const transformedFieldName = options.transformFieldNames?.(fieldName) || fieldName;
     const transformedMessage = options.transformErrorMessage?.(
-      error.message || 'Invalid value',
+      errorObj.message || 'Invalid value',
       fieldName
-    ) || error.message;
+    ) || errorObj.message;
     
     transformedErrors[transformedFieldName] = {
-      ...error,
+      ...errorObj,
       message: transformedMessage
-    };
+    } as any;
   }
   
   return transformedErrors;
@@ -259,9 +260,10 @@ export const validationSchemas = {
   /**
    * Plan type validation (matches backend commonSchemas.plan)
    */
-  plan: z.enum(['foundation', 'growth', 'premium', 'enterprise'], {
-    errorMap: () => ({ message: 'Plan must be foundation, growth, premium, or enterprise' })
-  }),
+  plan: z.enum(['foundation', 'growth', 'premium', 'enterprise']).refine(
+    (val) => ['foundation', 'growth', 'premium', 'enterprise'].includes(val),
+    { message: 'Plan must be foundation, growth, premium, or enterprise' }
+  ),
 
   /**
    * Optional plan validation
@@ -361,9 +363,22 @@ export const formSchemas = {
     emailOrPhone: z.union([
       validationSchemas.email,
       validationSchemas.phone
-    ], {
-      errorMap: () => ({ message: 'Must be a valid email or phone number' })
-    }),
+    ]).refine(
+      (val) => {
+        try {
+          validationSchemas.email.parse(val);
+          return true;
+        } catch {
+          try {
+            validationSchemas.phone.parse(val);
+            return true;
+          } catch {
+            return false;
+          }
+        }
+      },
+      { message: 'Must be a valid email or phone number' }
+    ),
     password: z.string().min(1, 'Password is required'),
     rememberMe: z.boolean().optional().default(false)
   }),
@@ -449,7 +464,7 @@ export const formSchemas = {
 /**
  * Create resolver with backend API integration for async validation
  */
-export function createAsyncZodResolver<T extends z.ZodSchema>(
+export function createAsyncZodResolver<T extends z.ZodTypeAny>(
   schema: T,
   backendValidationConfig?: {
     endpoint: string;
@@ -458,7 +473,7 @@ export function createAsyncZodResolver<T extends z.ZodSchema>(
     transformRequest?: (data: any) => any;
     transformResponse?: (response: any) => BackendValidationError[];
   }
-): Resolver<z.infer<T>> {
+): Resolver<any, FieldValues> {
   return async (values, context, resolverOptions) => {
     // First run client-side Zod validation
     const clientValidation = await createZodResolver(schema)(values, context, resolverOptions);
@@ -515,7 +530,7 @@ export function createAsyncZodResolver<T extends z.ZodSchema>(
 /**
  * Utility to create form resolver with common configurations
  */
-export function createFormResolver<T extends z.ZodSchema>(
+export function createFormResolver<T extends z.ZodTypeAny>(
   schema: T,
   config: {
     mode?: 'client' | 'server' | 'hybrid';
@@ -523,7 +538,7 @@ export function createFormResolver<T extends z.ZodSchema>(
     transformFieldNames?: boolean;
     customErrorMessages?: Record<string, string>;
   } = {}
-) {
+): Resolver<any, FieldValues> {
   const resolverOptions: ResolverOptions = {
     transformFieldNames: config.transformFieldNames ? 
       (fieldName: string) => fieldName.replace(/([A-Z])/g, '_$1').toLowerCase() : 
@@ -546,6 +561,264 @@ export function createFormResolver<T extends z.ZodSchema>(
   return createZodResolver(schema, resolverOptions);
 }
 
+/**
+ * Real-time validation hook for async field validation
+ */
+export function useAsyncFieldValidation(
+  fieldName: string,
+  value: any,
+  validationEndpoint: string,
+  options: {
+    debounceMs?: number;
+    enabled?: boolean;
+    onValidationChange?: (isValid: boolean, error?: string) => void;
+  } = {}
+) {
+  const [isValidating, setIsValidating] = React.useState(false);
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [isValid, setIsValid] = React.useState<boolean | null>(null);
+  
+  const debouncedValue = React.useMemo(() => {
+    if (!options.debounceMs) return value;
+    
+    const timeoutId = setTimeout(() => {
+      // This will be handled by the effect below
+    }, options.debounceMs);
+    
+    return () => clearTimeout(timeoutId);
+  }, [value, options.debounceMs]);
+
+  React.useEffect(() => {
+    if (!options.enabled || !value || !validationEndpoint) return;
+
+    const timeoutId = setTimeout(async () => {
+      setIsValidating(true);
+      setValidationError(null);
+      
+      try {
+        const response = await fetch(validationEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            field: fieldName,
+            value,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setIsValid(result.valid);
+          setValidationError(result.error || null);
+          options.onValidationChange?.(result.valid, result.error);
+        } else {
+          const errorData = await response.json();
+          setIsValid(false);
+          setValidationError(errorData.message || 'Validation failed');
+          options.onValidationChange?.(false, errorData.message);
+        }
+      } catch (error) {
+        console.error('Async validation error:', error);
+        setIsValid(false);
+        setValidationError('Network error during validation');
+        options.onValidationChange?.(false, 'Network error during validation');
+      } finally {
+        setIsValidating(false);
+      }
+    }, options.debounceMs || 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [value, fieldName, validationEndpoint, options]);
+
+  return {
+    isValidating,
+    validationError,
+    isValid,
+  };
+}
+
+/**
+ * Business-specific validation schemas that align with your backend
+ */
+export const businessValidationSchemas = {
+  /**
+   * Product creation validation (matches backend product validation)
+   */
+  createProduct: z.object({
+    name: z.string()
+      .min(3, 'Product name must be at least 3 characters')
+      .max(200, 'Product name cannot exceed 200 characters')
+      .trim(),
+    description: z.string()
+      .min(10, 'Description must be at least 10 characters')
+      .max(2000, 'Description cannot exceed 2000 characters')
+      .trim(),
+    category: z.string()
+      .min(1, 'Category is required')
+      .max(100, 'Category cannot exceed 100 characters'),
+    price: z.number()
+      .positive('Price must be positive')
+      .max(999999.99, 'Price cannot exceed 999,999.99'),
+    currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
+      .default('USD'),
+    tags: z.array(z.string().max(50))
+      .max(20, 'Cannot have more than 20 tags')
+      .optional()
+      .default([]),
+    images: z.array(z.string().url())
+      .max(10, 'Cannot have more than 10 images')
+      .optional()
+      .default([]),
+    specifications: z.record(z.string(), z.string())
+      .optional()
+      .default({}),
+    isActive: z.boolean().default(true),
+    requiresApproval: z.boolean().default(false)
+  }),
+
+  /**
+   * Certificate creation validation (matches backend certificate validation)
+   */
+  createCertificate: z.object({
+    recipientName: z.string()
+      .min(2, 'Recipient name must be at least 2 characters')
+      .max(100, 'Recipient name cannot exceed 100 characters')
+      .trim(),
+    recipientEmail: z.string()
+      .email('Must be a valid email address')
+      .toLowerCase(),
+    productId: validationSchemas.mongoId,
+    productName: z.string()
+      .min(1, 'Product name is required')
+      .max(200, 'Product name cannot exceed 200 characters'),
+    template: z.string()
+      .min(1, 'Template is required')
+      .max(100, 'Template name cannot exceed 100 characters'),
+    expiryDate: validationSchemas.optionalDate,
+    customFields: z.record(z.string(), z.any())
+      .optional()
+      .default({}),
+    metadata: z.object({
+      orderId: z.string().optional(),
+      integrationSource: z.enum(['shopify', 'woocommerce', 'wix', 'manual']).optional(),
+    }).optional()
+  }),
+
+  /**
+   * Vote submission validation (matches backend vote validation)
+   */
+  submitVote: z.object({
+    proposalId: validationSchemas.mongoId,
+    productId: validationSchemas.mongoId,
+    voteType: z.enum(['approve', 'reject', 'abstain']),
+    comments: z.string()
+      .max(500, 'Comments cannot exceed 500 characters')
+      .optional(),
+    confidence: z.number()
+      .min(1, 'Confidence must be at least 1')
+      .max(10, 'Confidence cannot exceed 10')
+      .optional(),
+    isAnonymous: z.boolean().default(false)
+  }),
+
+  /**
+   * Integration configuration validation (matches backend integration validation)
+   */
+  configureIntegration: z.object({
+    type: z.enum(['shopify', 'woocommerce', 'wix', 'api']),
+    name: z.string()
+      .min(2, 'Integration name must be at least 2 characters')
+      .max(100, 'Integration name cannot exceed 100 characters'),
+    config: z.record(z.string(), z.any()),
+    isActive: z.boolean().default(true),
+    autoSync: z.boolean().default(false),
+    syncFrequency: z.enum(['hourly', 'daily', 'weekly', 'manual'])
+      .default('daily'),
+    webhookUrl: validationSchemas.optionalUrl
+  }),
+
+  /**
+   * Manufacturer profile validation (matches backend manufacturer validation)
+   */
+  updateManufacturerProfile: z.object({
+    name: validationSchemas.businessName,
+    description: validationSchemas.optionalLongText,
+    industry: validationSchemas.industry,
+    servicesOffered: z.array(z.string().max(100))
+      .max(20, 'Cannot offer more than 20 services')
+      .optional()
+      .default([]),
+    moq: z.number().int().min(1).optional(),
+    contactEmail: validationSchemas.email.optional().or(z.literal('')),
+    country: validationSchemas.optionalShortText,
+    establishedYear: z.number()
+      .int()
+      .min(1800)
+      .max(new Date().getFullYear())
+      .optional(),
+    certifications: z.array(z.string().max(200))
+      .max(10, 'Cannot have more than 10 certifications')
+      .optional()
+      .default([]),
+    website: validationSchemas.optionalUrl,
+    socialMedia: z.object({
+      linkedin: validationSchemas.optionalUrl,
+      twitter: validationSchemas.optionalUrl,
+      instagram: validationSchemas.optionalUrl,
+    }).optional()
+  }),
+
+  /**
+   * Brand settings validation (matches backend brand validation)
+   */
+  updateBrandSettings: z.object({
+    themeColor: validationSchemas.hexColor,
+    logoUrl: validationSchemas.optionalUrl,
+    bannerImages: z.array(validationSchemas.url)
+      .max(5, 'Cannot have more than 5 banner images')
+      .optional()
+      .default([]),
+    customCss: z.string()
+      .max(10000, 'Custom CSS cannot exceed 10,000 characters')
+      .optional()
+      .or(z.literal('')),
+    subdomain: validationSchemas.subdomain.optional(),
+    customDomain: z.string()
+      .regex(/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/, 'Must be a valid domain name')
+      .optional()
+      .or(z.literal('')),
+    enableSsl: z.boolean().default(true),
+    certificateWallet: validationSchemas.ethereumAddress,
+    seoSettings: z.object({
+      title: z.string().max(100).optional(),
+      description: z.string().max(200).optional(),
+      keywords: z.array(z.string().max(50)).max(10).optional().default([]),
+    }).optional()
+  })
+};
+
+/**
+ * Create a resolver with real-time validation integration
+ */
+export function createRealtimeValidationResolver<T extends z.ZodTypeAny>(
+  schema: T,
+  realtimeConfig?: {
+    fields: Record<string, {
+      endpoint: string;
+      debounceMs?: number;
+      enabled?: boolean;
+    }>;
+  }
+): Resolver<any, FieldValues> {
+  return createZodResolver(schema, {
+    backendValidation: realtimeConfig ? {
+      enabled: true,
+      debounceMs: 500,
+      validateOnBlur: true
+    } : undefined
+  });
+}
+
 // Export commonly used validators
 export { zodResolver };
-export type { ResolverOptions };

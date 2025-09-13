@@ -384,7 +384,7 @@ export const RHFIndustryRadio = forwardRef<
     label: industry.name,
     value: industry.value,
     description: industry.description,
-    icon: industry.icon
+    icon: 'icon' in industry ? industry.icon : undefined
   }));
 
   return (

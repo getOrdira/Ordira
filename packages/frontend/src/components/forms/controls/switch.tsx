@@ -1,6 +1,7 @@
 // src/components/forms/controls/switch.tsx
 
 import React, { forwardRef } from 'react';
+import { FieldValues } from 'react-hook-form';
 import { cn } from '@/lib/utils';
 
 // Import your base switch primitives
@@ -18,12 +19,16 @@ import {
   type BaseFieldProps 
 } from '@/components/forms/adapters/rhf/field';
 
+// Import types
+import { UserPreferences } from '@/lib/types/user';
+import { emailGatingConfigSchema, updateBrandSettingsSchema } from '@/lib/types/brand';
+
 /**
  * RHF Switch Component - Boolean toggle with form integration
  * Aligns with backend boolean validation patterns
  */
 export interface RHFSwitchProps<TFieldValues extends FieldValues = FieldValues>
-  extends Omit<BaseSwitchProps, 'checked' | 'onCheckedChange'>,
+  extends Omit<BaseSwitchProps, 'checked' | 'onCheckedChange' | 'name'>,
     BaseFieldProps<TFieldValues> {
   // Switch-specific options
   trueValue?: any; // Value when switched on (default: true)
@@ -227,7 +232,7 @@ RHFSwitchGroup.displayName = 'RHFSwitchGroup';
  * RHF Theme Switch - Specialized for theme selection
  */
 export interface RHFThemeSwitchProps<TFieldValues extends FieldValues = FieldValues>
-  extends Omit<BaseThemeSwitchProps, 'theme' | 'onThemeChange'>,
+  extends Omit<BaseThemeSwitchProps, 'theme' | 'onThemeChange' | 'name'>,
     BaseFieldProps<TFieldValues> {}
 
 export const RHFThemeSwitch = forwardRef<
@@ -280,6 +285,13 @@ RHFThemeSwitch.displayName = 'RHFThemeSwitch';
 /**
  * Specialized switch group for user preferences
  * Aligns with your backend userPreferencesSchema validation
+ * 
+ * Backend fields supported:
+ * - emailNotifications: boolean (inferred general toggle)
+ * - marketingEmails: boolean (default: false)
+ * - productUpdates: boolean (default: true)
+ * - securityNotifications: boolean (default: true)
+ * - smsNotifications: boolean (inferred general toggle)
  */
 export interface RHFUserPreferencesSwitchProps<TFieldValues extends FieldValues = FieldValues>
   extends BaseFieldProps<TFieldValues> {
@@ -366,7 +378,7 @@ export const RHFUserPreferencesSwitch = forwardRef<
             name={name}
             control={control}
             switches={category.switches.map(s => ({
-              key: s.key,
+              key: String(s.key),
               label: s.label,
               description: s.description
             }))}
@@ -384,7 +396,16 @@ RHFUserPreferencesSwitch.displayName = 'RHFUserPreferencesSwitch';
 
 /**
  * Specialized switch group for brand settings
- * Aligns with your backend brand settings validation
+ * Aligns with your backend updateBrandSettingsSchema validation
+ * 
+ * Backend fields supported:
+ * - enableSsl: boolean (custom field for SSL configuration)
+ * - isPublic: boolean (custom field for public profile)
+ * - allowCustomOrders: boolean (custom field for order management)
+ * - autoApproveOrders: boolean (custom field for order automation)
+ * - enableAnalytics: boolean (custom field for analytics tracking)
+ * - enableApiAccess: boolean (custom field for API access)
+ * - enableWebhooks: boolean (custom field for webhook integration)
  */
 export interface RHFBrandSettingsSwitchProps<TFieldValues extends FieldValues = FieldValues>
   extends BaseFieldProps<TFieldValues> {
@@ -469,6 +490,13 @@ RHFBrandSettingsSwitch.displayName = 'RHFBrandSettingsSwitch';
 /**
  * Specialized switch group for email gating configuration
  * Aligns with your backend emailGatingConfigSchema validation
+ * 
+ * Backend fields supported:
+ * - enabled: boolean (default: false)
+ * - allowUnregistered: boolean (default: false) 
+ * - requireApproval: boolean (default: false)
+ * - autoSyncEnabled: boolean (default: false)
+ * - welcomeEmailEnabled: boolean (inferred from backend patterns)
  */
 export interface RHFEmailGatingSwitchProps<TFieldValues extends FieldValues = FieldValues>
   extends BaseFieldProps<TFieldValues> {}

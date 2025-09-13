@@ -31,7 +31,7 @@ import {
  * RHF Checkbox Component - Single checkbox with form integration
  */
 export interface RHFCheckboxProps<TFieldValues extends FieldValues = FieldValues>
-  extends Omit<BaseCheckboxProps, 'checked' | 'onCheckedChange'>,
+  extends Omit<BaseCheckboxProps, 'checked' | 'onCheckedChange' | 'name'>,
     BaseFieldProps<TFieldValues> {
   // Checkbox-specific options
   checkValue?: any; // Value when checked (default: true)
@@ -54,24 +54,33 @@ export const RHFCheckbox = forwardRef<
     field,
     error,
     isLoading
-  } = useFieldState(name, control);
+  } = useFieldState(name!, control);
 
   const errorMessage = formatFieldError(error, transformError);
   
   return (
-    <Checkbox
-      {...props}
-      ref={ref}
-      checked={field.value === checkValue}
-      onCheckedChange={(checked) => {
-        field.onChange(checked ? checkValue : uncheckValue);
-      }}
-      disabled={props.disabled || isLoading}
-      error={errorMessage}
-      className={cn(className, {
-        'opacity-50 cursor-not-allowed': props.disabled || isLoading,
-      })}
-    />
+    <div className="space-y-2">
+      <Checkbox
+        {...props}
+        ref={ref}
+        checked={field.value === checkValue}
+        onCheckedChange={(checked) => {
+          field.onChange(checked ? checkValue : uncheckValue);
+        }}
+        disabled={props.disabled || isLoading}
+        className={cn(className, {
+          'opacity-50 cursor-not-allowed': props.disabled || isLoading,
+        })}
+      />
+      {errorMessage && (
+        <p className="text-sm text-[var(--error)] flex items-center gap-1 font-satoshi">
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zM10 15a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          {errorMessage}
+        </p>
+      )}
+    </div>
   );
 });
 
@@ -188,8 +197,8 @@ export const RHFCheckboxGroup = forwardRef<
       )}>
         {options.map((option) => {
           const isChecked = currentValue.includes(option.value);
-          const isDisabled = option.disabled || isLoading || 
-            (!isChecked && isMaxReached);
+          const isDisabled = Boolean(option.disabled || isLoading || 
+            (!isChecked && isMaxReached));
 
           if (variant === 'card') {
             return (
@@ -214,7 +223,7 @@ export const RHFCheckboxGroup = forwardRef<
               checked={isChecked}
               disabled={isDisabled}
               onCheckedChange={() => !isDisabled && handleToggle(option.value)}
-              variant={variant === 'compact' ? 'sm' : 'default'}
+              variant={variant === 'compact' ? 'secondary' : 'default'}
             />
           );
         })}
@@ -263,7 +272,7 @@ RHFCheckboxGroup.displayName = 'RHFCheckboxGroup';
  * RHF Toggle Checkbox - Switch-like checkbox
  */
 export interface RHFToggleCheckboxProps<TFieldValues extends FieldValues = FieldValues>
-  extends Omit<BaseToggleCheckboxProps, 'checked' | 'onCheckedChange'>,
+  extends Omit<BaseToggleCheckboxProps, 'checked' | 'onCheckedChange' | 'name'>,
     BaseFieldProps<TFieldValues> {
   checkValue?: any;
   uncheckValue?: any;
@@ -285,7 +294,7 @@ export const RHFToggleCheckbox = forwardRef<
     field,
     error,
     isLoading
-  } = useFieldState(name, control);
+  } = useFieldState(name!, control);
 
   const errorMessage = formatFieldError(error, transformError);
   
@@ -409,3 +418,350 @@ export const RHFPlanCheckbox = forwardRef<
 });
 
 RHFPlanCheckbox.displayName = 'RHFPlanCheckbox';
+
+/**
+ * Specialized checkbox for feature toggles/settings
+ * Aligns with your backend settings validation
+ */
+export interface RHFFeatureToggleProps<TFieldValues extends FieldValues = FieldValues>
+  extends BaseFieldProps<TFieldValues> {
+  features: Array<{
+    id: string;
+    name: string;
+    description: string;
+    category: 'general' | 'notifications' | 'integrations' | 'security' | 'analytics';
+    enabled?: boolean;
+    requiresPlan?: 'foundation' | 'growth' | 'premium' | 'enterprise';
+    badge?: string;
+  }>;
+  groupByCategory?: boolean;
+}
+
+export const RHFFeatureToggle = forwardRef<
+  HTMLDivElement,
+  RHFFeatureToggleProps
+>(({ 
+  name, 
+  control, 
+  features,
+  groupByCategory = true,
+  transformError,
+  className,
+  ...props 
+}, ref) => {
+  const {
+    field,
+    error,
+    isLoading
+  } = useFieldState(name!, control);
+
+  const currentValue = Array.isArray(field.value) ? field.value : [];
+  const errorMessage = formatFieldError(error, transformError);
+
+  const handleFeatureToggle = (featureId: string) => {
+    const newValue = currentValue.includes(featureId)
+      ? currentValue.filter((id: string) => id !== featureId)
+      : [...currentValue, featureId];
+    field.onChange(newValue);
+  };
+
+  const groupedFeatures = groupByCategory 
+    ? features.reduce((acc, feature) => {
+        if (!acc[feature.category]) {
+          acc[feature.category] = [];
+        }
+        acc[feature.category].push(feature);
+        return acc;
+      }, {} as Record<string, typeof features>)
+    : { all: features };
+
+  const categoryLabels = {
+    general: 'General Settings',
+    notifications: 'Notifications',
+    integrations: 'Integrations',
+    security: 'Security',
+    analytics: 'Analytics'
+  };
+
+  return (
+    <div className={cn('space-y-6', className)} ref={ref}>
+      {Object.entries(groupedFeatures).map(([category, categoryFeatures]) => (
+        <div key={category} className="space-y-4">
+          {groupByCategory && (
+            <h3 className="text-lg font-satoshi-bold text-[var(--heading-color)]">
+              {categoryLabels[category as keyof typeof categoryLabels] || category}
+            </h3>
+          )}
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            {categoryFeatures.map((feature) => {
+              const isEnabled = currentValue.includes(feature.id);
+
+              return (
+                <CheckboxCard
+                  key={feature.id}
+                  title={feature.name}
+                  description={feature.description}
+                  badge={feature.badge || (feature.requiresPlan ? `Requires ${feature.requiresPlan}` : undefined)}
+                  checked={isEnabled}
+                  disabled={isLoading}
+                  onCheckedChange={() => handleFeatureToggle(feature.id)}
+                  className="p-4"
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {errorMessage && (
+        <p className="text-sm text-[var(--error)] flex items-center gap-1 font-satoshi">
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zM10 15a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+});
+
+RHFFeatureToggle.displayName = 'RHFFeatureToggle';
+
+/**
+ * Specialized checkbox for notification preferences
+ * Aligns with your backend notification settings
+ */
+export interface RHFNotificationPreferencesProps<TFieldValues extends FieldValues = FieldValues>
+  extends BaseFieldProps<TFieldValues> {
+  preferences: Array<{
+    id: string;
+    name: string;
+    description: string;
+    type: 'email' | 'push' | 'sms' | 'in_app';
+    category: 'voting' | 'certificates' | 'orders' | 'security' | 'marketing';
+    defaultEnabled?: boolean;
+  }>;
+  showCategoryHeaders?: boolean;
+}
+
+export const RHFNotificationPreferences = forwardRef<
+  HTMLDivElement,
+  RHFNotificationPreferencesProps
+>(({ 
+  name, 
+  control, 
+  preferences,
+  showCategoryHeaders = true,
+  transformError,
+  className,
+  ...props 
+}, ref) => {
+  const {
+    field,
+    error,
+    isLoading
+  } = useFieldState(name!, control);
+
+  const currentValue = Array.isArray(field.value) ? field.value : [];
+  const errorMessage = formatFieldError(error, transformError);
+
+  const handlePreferenceToggle = (preferenceId: string) => {
+    const newValue = currentValue.includes(preferenceId)
+      ? currentValue.filter((id: string) => id !== preferenceId)
+      : [...currentValue, preferenceId];
+    field.onChange(newValue);
+  };
+
+  const groupedPreferences = preferences.reduce((acc, preference) => {
+    if (!acc[preference.category]) {
+      acc[preference.category] = [];
+    }
+    acc[preference.category].push(preference);
+    return acc;
+  }, {} as Record<string, typeof preferences>);
+
+  const categoryLabels = {
+    voting: 'Voting Updates',
+    certificates: 'Certificate Notifications',
+    orders: 'Order Updates',
+    security: 'Security Alerts',
+    marketing: 'Marketing Communications'
+  };
+
+  const typeIcons = {
+    email: '📧',
+    push: '🔔',
+    sms: '📱',
+    in_app: '💬'
+  };
+
+  return (
+    <div className={cn('space-y-6', className)} ref={ref}>
+      {Object.entries(groupedPreferences).map(([category, categoryPreferences]) => (
+        <div key={category} className="space-y-4">
+          {showCategoryHeaders && (
+            <h3 className="text-lg font-satoshi-bold text-[var(--heading-color)]">
+              {categoryLabels[category as keyof typeof categoryLabels] || category}
+            </h3>
+          )}
+          
+          <div className="space-y-3">
+            {categoryPreferences.map((preference) => {
+              const isEnabled = currentValue.includes(preference.id);
+
+              return (
+                <div key={preference.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-lg">{typeIcons[preference.type]}</span>
+                    <div>
+                      <h4 className="font-satoshi-medium text-[var(--heading-color)]">
+                        {preference.name}
+                      </h4>
+                      <p className="text-sm text-[var(--caption-color)]">
+                        {preference.description}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <ToggleCheckbox
+                    checked={isEnabled}
+                    disabled={isLoading}
+                    onCheckedChange={() => handlePreferenceToggle(preference.id)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {errorMessage && (
+        <p className="text-sm text-[var(--error)] flex items-center gap-1 font-satoshi">
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zM10 15a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+});
+
+RHFNotificationPreferences.displayName = 'RHFNotificationPreferences';
+
+/**
+ * Specialized checkbox for integration selection
+ * Aligns with your backend integration configuration
+ */
+export interface RHFIntegrationSelectorProps<TFieldValues extends FieldValues = FieldValues>
+  extends BaseFieldProps<TFieldValues> {
+  integrations: Array<{
+    id: string;
+    name: string;
+    description: string;
+    type: 'shopify' | 'woocommerce' | 'wix' | 'api' | 'csv';
+    icon?: React.ReactNode;
+    status?: 'available' | 'connected' | 'error' | 'pending';
+    requiresSetup?: boolean;
+  }>;
+  allowMultiple?: boolean;
+  showStatus?: boolean;
+}
+
+export const RHFIntegrationSelector = forwardRef<
+  HTMLDivElement,
+  RHFIntegrationSelectorProps
+>(({ 
+  name, 
+  control, 
+  integrations,
+  allowMultiple = false,
+  showStatus = true,
+  transformError,
+  className,
+  ...props 
+}, ref) => {
+  const {
+    field,
+    error,
+    isLoading
+  } = useFieldState(name!, control);
+
+  const currentValue = allowMultiple 
+    ? (Array.isArray(field.value) ? field.value : [])
+    : field.value;
+  
+  const errorMessage = formatFieldError(error, transformError);
+
+  const handleIntegrationToggle = (integrationId: string) => {
+    if (allowMultiple) {
+      const newValue = currentValue.includes(integrationId)
+        ? currentValue.filter((id: string) => id !== integrationId)
+        : [...currentValue, integrationId];
+      field.onChange(newValue);
+    } else {
+      field.onChange(integrationId);
+    }
+  };
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'connected': return 'text-green-600';
+      case 'error': return 'text-red-600';
+      case 'pending': return 'text-yellow-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'connected': return 'Connected';
+      case 'error': return 'Error';
+      case 'pending': return 'Pending';
+      default: return 'Available';
+    }
+  };
+
+  return (
+    <div className={cn('space-y-4', className)} ref={ref}>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {integrations.map((integration) => {
+          const isSelected = allowMultiple 
+            ? currentValue.includes(integration.id)
+            : currentValue === integration.id;
+
+          return (
+            <CheckboxCard
+              key={integration.id}
+              title={integration.name}
+              description={integration.description}
+              icon={integration.icon}
+              badge={showStatus ? getStatusLabel(integration.status) : undefined}
+              checked={isSelected}
+              disabled={isLoading || integration.requiresSetup}
+              onCheckedChange={() => !integration.requiresSetup && handleIntegrationToggle(integration.id)}
+              className={cn(
+                "p-6 transition-all",
+                integration.status === 'connected' && "border-green-200 bg-green-50",
+                integration.status === 'error' && "border-red-200 bg-red-50",
+                integration.status === 'pending' && "border-yellow-200 bg-yellow-50"
+              )}
+            />
+          );
+        })}
+      </div>
+
+      {errorMessage && (
+        <p className="text-sm text-[var(--error)] flex items-center gap-1 font-satoshi">
+          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zM10 15a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+});
+
+RHFIntegrationSelector.displayName = 'RHFIntegrationSelector';
