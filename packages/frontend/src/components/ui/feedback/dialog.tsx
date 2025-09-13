@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 const dialogVariants = cva(
@@ -348,12 +348,12 @@ export const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttribute
 DialogFooter.displayName = "DialogFooter";
 
 // Confirmation Dialog Component
-export interface ConfirmationDialogProps extends Omit<DialogProps, 'children'> {
+export interface ConfirmationDialogProps extends Omit<DialogProps, 'children' | 'variant'> {
   confirmText?: string;
   cancelText?: string;
   onConfirm: () => void;
   onCancel?: () => void;
-  variant?: 'default' | 'destructive';
+  confirmVariant?: 'default' | 'destructive';
   loading?: boolean;
 }
 
@@ -363,7 +363,7 @@ export const ConfirmationDialog = React.forwardRef<HTMLDivElement, ConfirmationD
     cancelText = "Cancel", 
     onConfirm,
     onCancel,
-    variant: confirmVariant = "default",
+    confirmVariant = "default",
     loading = false,
     onClose,
     ...props 
@@ -492,11 +492,6 @@ export const FormDialog = React.forwardRef<HTMLDivElement, FormDialogProps>(
 FormDialog.displayName = "FormDialog";
 
 export { 
-  Dialog, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription, 
-  DialogContent, 
-  DialogFooter 
+  Dialog
 };
 export default Dialog;

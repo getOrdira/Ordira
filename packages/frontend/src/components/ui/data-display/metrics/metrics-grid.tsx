@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { DashboardStatsGrid } from '@/components/ui/layout/grid';
 import { Metric, RevenueMetric, CountMetric, PercentageMetric, type MetricProps } from './metric';
 import { 
@@ -136,7 +136,7 @@ const MetricsGrid = React.forwardRef<HTMLDivElement, MetricsGridProps>(
     return (
       <DashboardStatsGrid 
         ref={ref}
-        columns={gridColumns}
+        columns={gridColumns as 1 | 2 | 3 | 4 | 5 | 6}
         variant={variant === 'compact' ? 'compact' : 'default'}
         className={cn("w-full", className)}
         {...props}

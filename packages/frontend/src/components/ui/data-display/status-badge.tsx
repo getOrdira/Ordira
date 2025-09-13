@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { 
   CheckBadgeIcon,
   ClockIcon,
@@ -310,8 +310,8 @@ export const VerificationBadge = React.forwardRef<HTMLDivElement, VerificationBa
     let metadata: StatusBadgeProps['metadata'] = {};
 
     if (isVerified) {
-      // Use distinct verified status based on user type
-      status = userType === 'manufacturer' ? 'verified-manufacturer' : 'verified-brand';
+      // Use verified status for both user types
+      status = 'verified';
       if (verifiedAt) {
         metadata.timestamp = verifiedAt;
       }
@@ -368,7 +368,7 @@ export const ManufacturerStatusBadge = React.forwardRef<HTMLDivElement, Manufact
     } else if (isPremium) {
       status = 'premium';
     } else if (isVerified) {
-      status = 'verified-manufacturer'; // Use manufacturer-specific verified style
+      status = 'verified';
     } else if (isCertified) {
       status = 'certified';
     } else {
@@ -409,7 +409,7 @@ export const BusinessStatusBadge = React.forwardRef<HTMLDivElement, BusinessStat
     ...props 
   }, ref) => {
     // If verified, show verification badge instead of account status
-    const status = isVerified ? 'verified-brand' : accountStatus;
+    const status = isVerified ? 'verified' : accountStatus;
     const displaySubtitle = subtitle || (planType ? `${planType} plan` : undefined);
 
     // Hide when not verified and hideWhenUnverified is true

@@ -280,7 +280,7 @@ const DescriptionTextarea = React.forwardRef<HTMLTextAreaElement, DescriptionTex
 DescriptionTextarea.displayName = "DescriptionTextarea";
 
 // AI Prompt Textarea - Specialized for AI interactions (like your image)
-export interface AITextareaProps extends Omit<TextareaProps, 'icon' | 'placeholder' | 'variant'> {
+export interface AITextareaProps extends Omit<TextareaProps, 'icon' | 'placeholder' | 'variant' | 'onSubmit'> {
   onSubmit?: (value: string) => void;
   isLoading?: boolean;
   submitOnEnter?: boolean;
@@ -384,7 +384,7 @@ const AITextarea = React.forwardRef<HTMLTextAreaElement, AITextareaProps>(
 AITextarea.displayName = "AITextarea";
 
 // Comment Textarea - For comments and feedback
-export interface CommentTextareaProps extends TextareaProps {
+export interface CommentTextareaProps extends Omit<TextareaProps, 'onSubmit'> {
   authorName?: string;
   authorAvatar?: string;
   onSubmit?: (value: string) => void;

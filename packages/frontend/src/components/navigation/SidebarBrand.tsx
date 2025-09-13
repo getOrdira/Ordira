@@ -8,7 +8,7 @@ import { BrandUser } from '@/lib/types/user';
 import { VerificationBadge } from '@/components/ui/data-display/status-badge';
 import {
   BarChart3,
-  Certificate,
+  FileCheck,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -39,7 +39,7 @@ const navigationSections = {
   main: [
     { href: '/brand/dashboard', label: 'Dashboard', icon: Home },
     { href: '/brand/products', label: 'Products', icon: Package },
-    { href: '/brand/certificates', label: 'Certificates', icon: Certificate },
+    { href: '/brand/certificates', label: 'Certificates', icon: FileCheck },
     { href: '/brand/voting', label: 'Voting', icon: Vote },
   ],
   analytics: [
@@ -48,7 +48,7 @@ const navigationSections = {
       label: 'Analytics', 
       icon: BarChart3,
       children: [
-        { href: '/brand/analytics/certificates', label: 'Certificates', icon: Certificate },
+        { href: '/brand/analytics/certificates', label: 'Certificates', icon: FileCheck },
         { href: '/brand/analytics/votes', label: 'Votes', icon: Vote },
         { href: '/brand/analytics/engagement', label: 'Engagement', icon: Users },
         { href: '/brand/analytics/products', label: 'Products', icon: Package },
@@ -236,11 +236,7 @@ export function SidebarBrand({ user }: SidebarBrandProps) {
                   {user.businessName || 'Brand Account'}
                 </p>
                 <p className="text-xs text-gray-500 truncate font-satoshi-regular">
-                  {user.plan && (
-                    <span className="capitalize">{user.plan}</span>
-                  )}
-                  {user.plan && ' • '}
-                  {user.email}
+                  {user.isVerified ? 'Verified' : 'Standard'} • {user.email}
                 </p>
               </div>
             </div>

@@ -454,4 +454,3 @@ const NotificationDropdown = React.forwardRef<HTMLDivElement, NotificationDropdo
 NotificationDropdown.displayName = "NotificationDropdown";
 
 export { NotificationDropdown };
-export type { Notification, NotificationSender, NotificationAction, NotificationDropdownProps };

@@ -3,10 +3,10 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner'; // Assuming you're using sonner for notifications
+import { useNotifications as useUtilitiesNotifications } from '@/hooks/use-utilities';
 
 // Import our aligned components and hooks
-import { NotificationDropdown } from './notifications-dropdown';
+import { NotificationDropdown, type Notification as DropdownNotification } from './notifications-dropdown';
 import { useNotifications } from '@/hooks/use-notifications';
 import type { NotificationAction } from '@/hooks/use-notifications';
 
@@ -31,6 +31,7 @@ export function NotificationDropdownWrapper({
   showToasts = true,
 }: NotificationDropdownWrapperProps) {
   const router = useRouter();
+  const { addNotification } = useUtilitiesNotifications();
   
   // Use our aligned notification hook
   const {
@@ -63,15 +64,23 @@ export function NotificationDropdownWrapper({
       await handleNotificationClick(notificationId);
       
       if (showToasts) {
-        toast.success('Notification opened');
+        addNotification({
+          type: 'success',
+          title: 'Success',
+          message: 'Notification opened'
+        });
       }
     } catch (err) {
       console.error('Failed to handle notification click:', err);
       if (showToasts) {
-        toast.error('Failed to open notification');
+        addNotification({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to open notification'
+        });
       }
     }
-  }, [customNotificationClick, handleNotificationClick, showToasts]);
+  }, [customNotificationClick, handleNotificationClick, showToasts, addNotification]);
 
   // Mark all as read with success feedback
   const handleMarkAllAsRead = useCallback(async () => {
@@ -79,15 +88,23 @@ export function NotificationDropdownWrapper({
       await markAllAsRead();
       
       if (showToasts) {
-        toast.success(`Marked ${stats.unread} notifications as read`);
+        addNotification({
+          type: 'success',
+          title: 'Success',
+          message: `Marked ${stats.unread} notifications as read`
+        });
       }
     } catch (err) {
       console.error('Failed to mark all as read:', err);
       if (showToasts) {
-        toast.error('Failed to mark notifications as read');
+        addNotification({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to mark notifications as read'
+        });
       }
     }
-  }, [markAllAsRead, stats.unread, showToasts]);
+  }, [markAllAsRead, stats.unread, showToasts, addNotification]);
 
   // Navigation handlers
   const handleViewAll = useCallback(() => {
@@ -136,12 +153,20 @@ export function NotificationDropdownWrapper({
                   }
                   
                   if (showToasts) {
-                    toast.success('Invitation accepted');
+                    addNotification({
+                      type: 'success',
+                      title: 'Success',
+                      message: 'Invitation accepted'
+                    });
                   }
                 } catch (err) {
                   console.error('Failed to accept invitation:', err);
                   if (showToasts) {
-                    toast.error('Failed to accept invitation');
+                    addNotification({
+                      type: 'error',
+                      title: 'Error',
+                      message: 'Failed to accept invitation'
+                    });
                   }
                 }
               },
@@ -155,12 +180,20 @@ export function NotificationDropdownWrapper({
                   await markAsRead(notification.id);
                   
                   if (showToasts) {
-                    toast.success('Invitation declined');
+                    addNotification({
+                      type: 'success',
+                      title: 'Success',
+                      message: 'Invitation declined'
+                    });
                   }
                 } catch (err) {
                   console.error('Failed to decline invitation:', err);
                   if (showToasts) {
-                    toast.error('Failed to decline invitation');
+                    addNotification({
+                      type: 'error',
+                      title: 'Error',
+                      message: 'Failed to decline invitation'
+                    });
                   }
                 }
               },
@@ -186,12 +219,20 @@ export function NotificationDropdownWrapper({
                 }
                 
                 if (showToasts) {
-                  toast.success('Redirecting to billing details');
+                  addNotification({
+                    type: 'success',
+                    title: 'Success',
+                    message: 'Redirecting to billing details'
+                  });
                 }
               } catch (err) {
                 console.error('Failed to view billing details:', err);
                 if (showToasts) {
-                  toast.error('Failed to view billing details');
+                  addNotification({
+                    type: 'error',
+                    title: 'Error',
+                    message: 'Failed to view billing details'
+                  });
                 }
               }
             },
@@ -216,12 +257,20 @@ export function NotificationDropdownWrapper({
                 }
                 
                 if (showToasts) {
-                  toast.success('Certificate opened');
+                  addNotification({
+                    type: 'success',
+                    title: 'Success',
+                    message: 'Certificate opened'
+                  });
                 }
               } catch (err) {
                 console.error('Failed to view certificate:', err);
                 if (showToasts) {
-                  toast.error('Failed to view certificate');
+                  addNotification({
+                    type: 'error',
+                    title: 'Error',
+                    message: 'Failed to view certificate'
+                  });
                 }
               }
             },
@@ -246,12 +295,20 @@ export function NotificationDropdownWrapper({
                 }
                 
                 if (showToasts) {
-                  toast.success('Viewing vote results');
+                  addNotification({
+                    type: 'success',
+                    title: 'Success',
+                    message: 'Viewing vote results'
+                  });
                 }
               } catch (err) {
                 console.error('Failed to view vote results:', err);
                 if (showToasts) {
-                  toast.error('Failed to view vote results');
+                  addNotification({
+                    type: 'error',
+                    title: 'Error',
+                    message: 'Failed to view vote results'
+                  });
                 }
               }
             },
@@ -275,12 +332,20 @@ export function NotificationDropdownWrapper({
               }
               
               if (showToasts) {
-                toast.success('Viewing order details');
+                addNotification({
+                  type: 'success',
+                  title: 'Success',
+                  message: 'Viewing order details'
+                });
               }
             } catch (err) {
               console.error('Failed to view order:', err);
               if (showToasts) {
-                toast.error('Failed to view order');
+                addNotification({
+                  type: 'error',
+                  title: 'Error',
+                  message: 'Failed to view order'
+                });
               }
             }
           },
@@ -304,12 +369,20 @@ export function NotificationDropdownWrapper({
                 }
                 
                 if (showToasts) {
-                  toast.success('Reviewing security alert');
+                  addNotification({
+                    type: 'success',
+                    title: 'Success',
+                    message: 'Reviewing security alert'
+                  });
                 }
               } catch (err) {
                 console.error('Failed to review security alert:', err);
                 if (showToasts) {
-                  toast.error('Failed to review security alert');
+                  addNotification({
+                    type: 'error',
+                    title: 'Error',
+                    message: 'Failed to review security alert'
+                  });
                 }
               }
             },
@@ -329,12 +402,20 @@ export function NotificationDropdownWrapper({
             await markAsRead(notification.id);
             
             if (showToasts) {
-              toast.success('Notification dismissed');
+              addNotification({
+                type: 'success',
+                title: 'Success',
+                message: 'Notification dismissed'
+              });
             }
           } catch (err) {
             console.error('Failed to dismiss notification:', err);
             if (showToasts) {
-              toast.error('Failed to dismiss notification');
+              addNotification({
+                type: 'error',
+                title: 'Error',
+                message: 'Failed to dismiss notification'
+              });
             }
           }
         },
@@ -342,14 +423,16 @@ export function NotificationDropdownWrapper({
     }
 
     return actions;
-  }, [markAsRead, router, showToasts]);
+  }, [markAsRead, router, showToasts, addNotification]);
 
-  // Transform notifications to include generated actions
-  const notificationsWithActions = useMemo(() => {
+  // Transform notifications to include generated actions and match expected type
+  const notificationsWithActions = useMemo((): DropdownNotification[] => {
     return displayNotifications.map(notification => ({
       ...notification,
       actions: generateNotificationActions(notification),
-    }));
+      // Ensure all required fields are present
+      _id: notification.id, // Add _id field for backend compatibility
+    } as DropdownNotification));
   }, [displayNotifications, generateNotificationActions]);
 
   // Handle bulk operations from context menu (future enhancement)
@@ -358,30 +441,46 @@ export function NotificationDropdownWrapper({
       await bulkAction(notificationIds, 'read');
       
       if (showToasts) {
-        toast.success(`Marked ${notificationIds.length} notifications as read`);
+        addNotification({
+          type: 'success',
+          title: 'Success',
+          message: `Marked ${notificationIds.length} notifications as read`
+        });
       }
     } catch (err) {
       console.error('Failed to bulk mark as read:', err);
       if (showToasts) {
-        toast.error('Failed to mark notifications as read');
+        addNotification({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to mark notifications as read'
+        });
       }
     }
-  }, [bulkAction, showToasts]);
+  }, [bulkAction, showToasts, addNotification]);
 
   const handleBulkDelete = useCallback(async (notificationIds: string[]) => {
     try {
       await bulkAction(notificationIds, 'delete');
       
       if (showToasts) {
-        toast.success(`Deleted ${notificationIds.length} notifications`);
+        addNotification({
+          type: 'success',
+          title: 'Success',
+          message: `Deleted ${notificationIds.length} notifications`
+        });
       }
     } catch (err) {
       console.error('Failed to bulk delete:', err);
       if (showToasts) {
-        toast.error('Failed to delete notifications');
+        addNotification({
+          type: 'error',
+          title: 'Error',
+          message: 'Failed to delete notifications'
+        });
       }
     }
-  }, [bulkAction, showToasts]);
+  }, [bulkAction, showToasts, addNotification]);
 
   // Show error state if there's a persistent error
   if (error && !loading) {
@@ -399,14 +498,6 @@ export function NotificationDropdownWrapper({
       onViewAll={handleViewAll}
       onSettingsClick={handleSettingsClick}
       className={className}
-      // Additional props for enhanced functionality
-      loading={loading}
-      error={error}
-      stats={stats}
-      // Future enhancement: Add bulk operation handlers
-      onBulkMarkAsRead={handleBulkMarkAsRead}
-      onBulkDelete={handleBulkDelete}
-      onRefresh={refreshNotifications}
     />
   );
 }

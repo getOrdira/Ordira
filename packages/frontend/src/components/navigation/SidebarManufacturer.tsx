@@ -87,16 +87,6 @@ interface SidebarManufacturerProps {
   user: ManufacturerUser;
 }
 
-interface ManufacturerUser {
-  id: string;
-  email: string;
-  profilePictureUrl?: string;
-  isVerified: boolean;
-  type: 'manufacturer';
-  companyName: string;
-  isPremium?: boolean;
-  isVIP?: boolean;
-}
 
 export function SidebarManufacturer({ user }: SidebarManufacturerProps) {
   const pathname = usePathname();
@@ -240,15 +230,7 @@ export function SidebarManufacturer({ user }: SidebarManufacturerProps) {
                 
                 {/* Verification/Status badge */}
                 <div className="absolute -bottom-1 -right-1">
-                  {user.isVIP ? (
-                    <div className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center">
-                      <Trophy className="w-3 h-3 text-white" />
-                    </div>
-                  ) : user.isPremium ? (
-                    <div className="w-6 h-6 bg-[var(--ordira-primary)] rounded-full flex items-center justify-center">
-                      <Trophy className="w-3 h-3 text-white" />
-                    </div>
-                  ) : user.isVerified ? (
+                  {user.isVerified ? (
                     <VerificationBadge
                       isVerified={true}
                       userType="manufacturer"
@@ -261,10 +243,10 @@ export function SidebarManufacturer({ user }: SidebarManufacturerProps) {
               
               <div className="ml-3 min-w-0 flex-1">
                 <p className="text-sm font-satoshi-bold text-gray-900 truncate">
-                  {user.companyName || 'Manufacturer'}
+                  {user.name || 'Manufacturer'}
                 </p>
                 <p className="text-xs text-gray-500 truncate font-satoshi-regular">
-                  {user.isVIP ? 'VIP Member' : user.isPremium ? 'Premium' : user.isVerified ? 'Verified' : 'Standard'} • {user.email}
+                  {user.isVerified ? 'Verified' : 'Standard'} • {user.email}
                 </p>
               </div>
             </div>

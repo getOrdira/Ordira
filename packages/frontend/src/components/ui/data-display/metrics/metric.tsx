@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/primitives/card';
 import { 
-  TrendingUpIcon, 
-  TrendingDownIcon,
+  ArrowTrendingUpIcon, 
+  ArrowTrendingDownIcon,
   MinusIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
@@ -125,9 +125,9 @@ const Metric = React.forwardRef<HTMLDivElement, MetricProps>(
 
       switch (trend) {
         case 'up':
-          return <TrendingUpIcon className={cn("w-4 h-4", trendColor)} />;
+          return <ArrowTrendingUpIcon className={cn("w-4 h-4", trendColor)} />;
         case 'down':
-          return <TrendingDownIcon className={cn("w-4 h-4", trendColor)} />;
+          return <ArrowTrendingDownIcon className={cn("w-4 h-4", trendColor)} />;
         case 'neutral':
           return <MinusIcon className="w-4 h-4 text-[var(--muted)]" />;
         default:

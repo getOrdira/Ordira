@@ -113,7 +113,7 @@ const Menu = React.forwardRef<HTMLDivElement, MenuProps>(
     const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
-    const submenuTimerRef = useRef<NodeJS.Timeout>();
+    const submenuTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
     const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
 

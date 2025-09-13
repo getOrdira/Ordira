@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { type TableColumn } from './table';
 
 export interface TableCellProps {

@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, createContext, useContext } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { StarIcon } from '@heroicons/react/24/outline';
 import { TablePagination } from '@/components/ui/navigation/pagination';

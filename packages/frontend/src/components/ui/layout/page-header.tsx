@@ -24,7 +24,8 @@ import {
   MoreHorizontal,
   Search,
   Filter,
-  Plus
+  Plus,
+  ChevronRight
 } from 'lucide-react';
 
 // Types for user (matches your existing patterns)
@@ -38,6 +39,11 @@ export interface PageHeaderUser {
   manufacturerName?: string;
 }
 
+export interface BreadcrumbItem {
+  label: string;
+  href?: string;
+}
+
 export interface PageHeaderProps {
   user: PageHeaderUser;
   title?: string;
@@ -47,6 +53,7 @@ export interface PageHeaderProps {
   showFilters?: boolean;
   className?: string;
   variant?: 'default' | 'minimal' | 'compact';
+  breadcrumbs?: BreadcrumbItem[];
 }
 
 const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(
@@ -59,6 +66,7 @@ const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(
     showFilters = false,
     className,
     variant = 'default',
+    breadcrumbs,
     ...props 
   }, ref) => {
     const pathname = usePathname();
@@ -179,6 +187,33 @@ const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(
         <div className="flex items-center justify-between">
           {/* Left Section - Title & Description */}
           <div className="flex-1 min-w-0">
+            {/* Breadcrumbs */}
+            {breadcrumbs && breadcrumbs.length > 0 && (
+              <nav className="mb-3" aria-label="Breadcrumb">
+                <ol className="flex items-center space-x-2 text-sm">
+                  {breadcrumbs.map((crumb, index) => (
+                    <li key={index} className="flex items-center">
+                      {index > 0 && (
+                        <ChevronRight className="w-4 h-4 text-[var(--caption-color)] mx-2" />
+                      )}
+                      {crumb.href ? (
+                        <Link
+                          href={crumb.href}
+                          className="text-[var(--caption-color)] hover:text-[var(--heading-color)] font-satoshi-medium transition-colors"
+                        >
+                          {crumb.label}
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--heading-color)] font-satoshi-medium">
+                          {crumb.label}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            )}
+
             {/* Title */}
             <h1 className={cn(
               "font-satoshi-bold text-[var(--heading-color)] mb-1",

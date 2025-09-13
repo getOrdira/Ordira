@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 
 const tooltipVariants = cva(
   // Base styles for tooltip container
@@ -99,7 +99,7 @@ const Tooltip = React.forwardRef<HTMLDivElement, TooltipProps>(
     
     const triggerRef = useRef<HTMLDivElement>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
     const isControlled = controlledOpen !== undefined;
     const open = isControlled ? controlledOpen : isOpen;

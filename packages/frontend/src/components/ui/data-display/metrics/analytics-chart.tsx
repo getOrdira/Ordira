@@ -19,7 +19,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { cn } from '@/lib/utils/cn';
+import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/primitives/card';
 import { 
   ChartBarIcon,
@@ -338,7 +338,15 @@ const AnalyticsChart = React.forwardRef<HTMLDivElement, AnalyticsChartProps>(
           );
 
         default:
-          return null;
+          return (
+            <div className="flex items-center justify-center h-64 text-[var(--muted)]">
+              <div className="text-center">
+                <ChartBarIcon className="w-8 h-8 mx-auto mb-2" />
+                <p className="text-sm font-medium">Unsupported chart type</p>
+                <p className="text-xs mt-1">Chart type "{type}" is not supported</p>
+              </div>
+            </div>
+          );
       }
     };
 

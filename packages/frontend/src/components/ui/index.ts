@@ -12,12 +12,18 @@ export * from './primitives/radio';
 export * from './primitives/select';
 export * from './primitives/slider';
 export * from './primitives/switch';
-export * from './primitives/textarea';
+// Export everything from textarea except TextareaProps (which conflicts with input.tsx)
+export { 
+  Textarea, 
+  NameTextarea, 
+  DescriptionTextarea, 
+  AITextarea, 
+  CommentTextarea 
+} from './primitives/textarea';
 
 // =============================================================================
 // DATA DISPLAY - Components for showing data
 // =============================================================================
-export * from './data-display/avatar';
 export * from './data-display/badge';
 export * from './data-display/chip';
 export * from './data-display/empty-state';
@@ -49,13 +55,10 @@ export * from './feedback/tooltip';
 // =============================================================================
 // LAYOUT - Layout and spacing components
 // =============================================================================
-export * from './layout/card';
 export * from './layout/container';
-export * from './layout/divider';
 export * from './layout/flex';
 export * from './layout/grid';
 export * from './layout/page-header';
-export * from './layout/spacer';
 
 // =============================================================================
 // NAVIGATION - Navigation and menu components
@@ -63,11 +66,9 @@ export * from './layout/spacer';
 export * from './navigation/avatar-menu-wrapper';
 export * from './navigation/breadcrumb';
 export * from './navigation/button-link';
-export * from './navigation/dropdown';
 export * from './navigation/menu';
 export * from './navigation/nav-section';
 export * from './navigation/notification-dropdown-wrapper';
-export * from './navigation/notifications-dropdown';
 export * from './navigation/pagination';
 export * from './navigation/pill-nav';
 export * from './navigation/tabs';
@@ -79,9 +80,7 @@ export * from './navigation/use-avatar-menu';
 
 // Primitive types
 export type {
-  ButtonProps,
-  ButtonVariant,
-  ButtonSize
+  ButtonProps
 } from './primitives/button';
 
 export type {
@@ -121,17 +120,9 @@ export type {
 
 // Data display types
 export type {
-  AvatarProps,
-  AvatarSize,
-  AvatarShape,
-  AvatarVariant
+  AvatarProps
 } from './data-display/avatar';
 
-export type {
-  BadgeProps,
-  BadgeVariant,
-  BadgeSize
-} from './data-display/badge';
 
 export type {
   ChipProps,
@@ -139,9 +130,7 @@ export type {
 } from './data-display/chip';
 
 export type {
-  EmptyStateProps,
-  EmptyStateVariant,
-  EmptyStateSize
+  EmptyStateProps
 } from './data-display/empty-state';
 
 export type {
@@ -157,14 +146,12 @@ export type {
 } from './data-display/skeleton';
 
 export type {
-  StatusBadgeProps,
-  StatusBadgeStatus
+  StatusBadgeProps
 } from './data-display/status-badge';
 
 // Feedback types
 export type {
-  AlertProps,
-  AlertVariant
+  AlertProps
 } from './feedback/alert';
 
 export type {
@@ -174,8 +161,7 @@ export type {
 } from './feedback/dialog';
 
 export type {
-  LoadingSpinnerProps,
-  SpinnerVariant
+  LoadingSpinnerProps
 } from './feedback/loading-spinner';
 
 export type {
@@ -185,45 +171,32 @@ export type {
 } from './feedback/modal';
 
 export type {
-  PopoverProps,
-  PopoverTrigger,
-  PopoverPlacement
+  PopoverProps
 } from './feedback/popover';
 
 export type {
-  ToastProps,
-  ToastVariant,
-  ToastPosition
+  ToastProps
 } from './feedback/toast';
 
 export type {
-  TooltipProps,
-  TooltipVariant,
-  TooltipPlacement
+  TooltipProps
 } from './feedback/tooltip';
 
 // Layout types
 export type {
-  ContainerProps,
-  ContainerSize
+  ContainerProps
 } from './layout/container';
 
 export type {
-  FlexProps,
-  FlexDirection,
-  FlexAlign,
-  FlexJustify
+  FlexProps
 } from './layout/flex';
 
 export type {
-  GridProps,
-  GridCols,
-  GridGap
+  GridProps
 } from './layout/grid';
 
 export type {
-  PageHeaderProps,
-  PageHeaderAction
+  PageHeaderProps
 } from './layout/page-header';
 
 // Navigation types
@@ -234,14 +207,12 @@ export type {
 
 export type {
   DropdownProps,
-  DropdownItem,
-  DropdownSection
+  DropdownItem
 } from './navigation/dropdown';
 
 export type {
   MenuProps,
-  MenuItem,
-  MenuSection
+  MenuItem
 } from './navigation/menu';
 
 export type {
@@ -249,6 +220,5 @@ export type {
 } from './navigation/pagination';
 
 export type {
-  TabsProps,
-  Tab
+  TabsProps
 } from './navigation/tabs';

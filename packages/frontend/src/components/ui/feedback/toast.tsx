@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const toastVariants = cva(
-  // Base toast styles - matching your image design
+  
   "relative flex items-start gap-4 w-full max-w-md p-4 rounded-2xl shadow-lg border-l-4 bg-white backdrop-blur-sm transition-all duration-300 transform",
   {
     variants: {
