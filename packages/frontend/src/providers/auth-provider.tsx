@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { AnyUser } from '@/lib/types/user';
 import { LoginCredentials, AuthResponse } from '@/lib/types/auth';
-import { tokenUtils } from '@/lib/auth/auth-utils';
+import { getToken, setTokens, clearTokens, isTokenExpired, getRefreshToken } from '@/lib/auth/session';
 import { authApi, authHelpers } from '@/lib/api/auth';
 import { ApiError } from '@/lib/types/common';
 
@@ -38,20 +38,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * This function is memoized with useCallback to prevent re-creation on every render.
    */
   const fetchUserProfile = useCallback(async () => {
-    const token = tokenUtils.getToken();
+    const token = getToken();
     if (!token) {
       setIsLoading(false);
       return;
     }
 
     // Check if token is expired before making the request
-    if (tokenUtils.isTokenExpired(token)) {
+    if (isTokenExpired(token)) {
       // Try to refresh token
-      const refreshToken = tokenUtils.getRefreshToken();
-      if (refreshToken && !tokenUtils.isTokenExpired(refreshToken)) {
+      const refreshToken = getRefreshToken();
+      if (refreshToken && !isTokenExpired(refreshToken)) {
         try {
           const response = await authApi.refreshToken();
-          tokenUtils.setTokens(response.token, response.refreshToken);
+          if (response.refreshToken) {
+            setTokens(response.token, response.refreshToken);
+          }
           
           // Fetch user profile with new token
           if (response.user) {
@@ -108,7 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(user);
         
         // Store tokens using the utility functions
-        tokenUtils.setTokens(token, refreshToken);
+        if (refreshToken) {
+          setTokens(token, refreshToken);
+        }
 
         // Clear any existing query cache to ensure fresh data
         queryClient.clear();
@@ -144,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Login error:', error);
       
       // Clear any potentially corrupted tokens
-      tokenUtils.clearTokens();
+      clearTokens();
       setUser(null);
       
       // Re-throw with user-friendly message
@@ -161,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Refreshes the current user's profile data
    */
   const refreshUser = useCallback(async () => {
-    if (!tokenUtils.getToken()) {
+    if (!getToken()) {
       return;
     }
     
@@ -192,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Clear client-side state
     setUser(null);
-    tokenUtils.clearTokens();
+    clearTokens();
     queryClient.clear();
     
     // Redirect to login page
