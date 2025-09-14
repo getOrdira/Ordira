@@ -199,7 +199,7 @@ export const FileUpload = forwardRef<HTMLInputElement, FileUploadProps>(({
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
     >
       <div className="space-y-4">

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { SubmitHandler, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
@@ -26,7 +26,7 @@ const contactSchema = z.object({
   message: z.string()
     .min(10, 'Message must be at least 10 characters')
     .max(2000, 'Message cannot exceed 2000 characters'),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']),
   attachments: z.array(z.string()).optional()
 });
 
@@ -49,7 +49,7 @@ const priorityOptions = [
 ];
 
 export interface ContactFormProps {
-  onSubmit: (data: ContactFormData) => Promise<void>;
+  onSubmit?: (data: ContactFormData) => Promise<void> | SubmitHandler<ContactFormData>;
   onCancel?: () => void;
   defaultValues?: Partial<ContactFormData>;
   showPriority?: boolean;
@@ -82,7 +82,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
   const handleFormSubmit = async (data: ContactFormData) => {
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      if (onSubmit) {
+        await onSubmit(data);
+      }
       setIsSuccess(true);
       if (variant !== 'modal') {
         // Reset form after success for non-modal variants

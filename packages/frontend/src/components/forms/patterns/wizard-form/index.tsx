@@ -27,7 +27,7 @@ export interface WizardContextType {
   goToStep: (stepIndex: number) => void;
   updateFormData: (data: Record<string, any>) => void;
   updateStepStatus: (stepId: string, status: Partial<Pick<WizardStepData, 'isCompleted' | 'isValid'>>) => void;
-  validateCurrentStep: () => boolean;
+  validateCurrentStep: () => Promise<boolean>;
 }
 
 const WizardContext = createContext<WizardContextType | null>(null);

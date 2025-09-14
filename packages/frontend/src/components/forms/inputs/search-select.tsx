@@ -77,7 +77,7 @@ export const SearchSelect = forwardRef<HTMLInputElement, SearchSelectProps>(({
     field,
     error: fieldError,
     isLoading
-  } = useFieldState(name, control);
+  } = useFieldState(name!, control);
 
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,7 +88,7 @@ export const SearchSelect = forwardRef<HTMLInputElement, SearchSelectProps>(({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const displayError = error || fieldError;
   const selectedValues = multiple 
@@ -222,7 +222,7 @@ export const SearchSelect = forwardRef<HTMLInputElement, SearchSelectProps>(({
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
     >
       <div ref={containerRef} className="relative">

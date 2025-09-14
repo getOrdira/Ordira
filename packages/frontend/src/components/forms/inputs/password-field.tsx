@@ -6,7 +6,7 @@ import { PasswordInput, type PasswordInputProps } from '@/components/ui/primitiv
 import { useFieldState, type BaseFieldProps } from '../adapters/rhf/field';
 
 export interface PasswordFieldProps 
-  extends Omit<PasswordInputProps, 'error' | 'success' | 'label' | 'helper'>,
+  extends Omit<PasswordInputProps, 'error' | 'success' | 'label' | 'helper' | 'name'>,
     Omit<FieldWrapperProps, 'children'>,
     BaseFieldProps {
   // Password-specific options
@@ -102,7 +102,7 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(({
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
       htmlFor={field.name}
     >

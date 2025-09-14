@@ -391,7 +391,7 @@ export const ImageUpload = forwardRef<HTMLInputElement, ImageUploadProps>(({
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
     >
       {renderUploadArea()}

@@ -6,7 +6,7 @@ import { Textarea, type TextareaProps } from '@/components/ui/primitives/input';
 import { useFieldState, type BaseFieldProps } from '../adapters/rhf/field';
 
 export interface TextareaFieldProps 
-  extends Omit<TextareaProps, 'error' | 'success' | 'label' | 'helper'>,
+  extends Omit<TextareaProps, 'error' | 'success' | 'label' | 'helper' | 'name'>,
     Omit<FieldWrapperProps, 'children'>,
     BaseFieldProps {
   // Textarea-specific options
@@ -46,7 +46,7 @@ export const TextareaField = forwardRef<HTMLTextAreaElement, TextareaFieldProps>
 
   const currentValue = field.value || '';
   const characterCount = currentValue.length;
-  const wordCount = currentValue.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const wordCount = currentValue.trim().split(/\s+/).filter((word: string) => word.length > 0).length;
   const displayError = error || fieldError;
 
   // Handle auto-resize
@@ -85,7 +85,7 @@ export const TextareaField = forwardRef<HTMLTextAreaElement, TextareaFieldProps>
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
       htmlFor={field.name}
     >

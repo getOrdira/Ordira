@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { FieldValues, Path, useFormContext } from 'react-hook-form';
-import { ZodSchema, ZodError } from 'zod';
+import { ZodSchema, ZodError, ZodObject } from 'zod';
 import { cn } from '@/lib/utils';
 
 // Types aligned with backend Joi validation patterns
@@ -39,6 +39,7 @@ export interface FormValidatorContextType {
   validateForm: (data: any) => Promise<ValidationResult>;
   registerRule: (rule: FieldValidationRule) => void;
   unregisterRule: (field: string) => void;
+  debouncedValidateField: (field: string, value: any, delay?: number) => void;
 }
 
 const FormValidatorContext = createContext<FormValidatorContextType | null>(null);
@@ -85,13 +86,20 @@ export const FormValidator: React.FC<FormValidatorProps> = ({
     onValidationChange?.(isValid, errors);
   }, [isValid, errors, onValidationChange]);
 
+  // Cleanup validation timers on unmount
+  useEffect(() => {
+    return () => {
+      validationTimers.forEach(timer => clearTimeout(timer));
+    };
+  }, [validationTimers]);
+
   // Format Zod errors to match backend Joi error format
   const formatZodError = (zodError: ZodError, fieldPrefix = ''): ValidationError[] => {
-    return zodError.errors.map(error => ({
+    return zodError.issues.map(error => ({
       field: fieldPrefix ? `${fieldPrefix}.${error.path.join('.')}` : error.path.join('.'),
       message: error.message,
       code: error.code,
-      value: error.path.length > 0 ? getNestedValue(zodError.name, error.path) : undefined,
+      value: error.path.length > 0 ? getNestedValue(zodError.name, error.path.map(String)) : undefined,
       type: 'zod_validation'
     }));
   };
@@ -303,14 +311,24 @@ export const FormValidator: React.FC<FormValidatorProps> = ({
   // Get field schema from Zod schema
   const getFieldSchema = (schema: ZodSchema, fieldPath: string) => {
     try {
-      // This is a simplified approach - in practice, you might need
-      // more sophisticated schema traversal for nested objects
       const pathParts = fieldPath.split('.');
-      let currentSchema = schema;
+      let currentSchema: any = schema;
       
       for (const part of pathParts) {
-        if ('shape' in currentSchema && currentSchema.shape) {
-          currentSchema = currentSchema.shape[part];
+        if (currentSchema && typeof currentSchema === 'object') {
+          if ('shape' in currentSchema && currentSchema.shape) {
+            currentSchema = currentSchema.shape[part];
+          } else if ('element' in currentSchema) {
+            // Handle array schemas
+            currentSchema = currentSchema.element;
+          } else if ('innerType' in currentSchema) {
+            // Handle optional/nullable schemas
+            currentSchema = currentSchema.innerType;
+          } else {
+            return null;
+          }
+        } else {
+          return null;
         }
       }
       
@@ -330,7 +348,8 @@ export const FormValidator: React.FC<FormValidatorProps> = ({
     validateField,
     validateForm,
     registerRule,
-    unregisterRule
+    unregisterRule,
+    debouncedValidateField
   };
 
   return (

@@ -1,6 +1,7 @@
 // src/components/forms/controls/toggle-group.tsx
 
 import React, { forwardRef } from 'react';
+import { FieldValues } from 'react-hook-form';
 import { cn } from '@/lib/utils';
 
 // Import field utilities from your RHF adapters
@@ -257,6 +258,12 @@ RHFToggleGroup.displayName = 'RHFToggleGroup';
 /**
  * Specialized toggle group for view modes
  * Perfect for list/grid views, sorting options, etc.
+ * 
+ * Common view modes:
+ * - list: Traditional list view with rows
+ * - grid: Card-based grid layout
+ * - table: Tabular data view
+ * - kanban: Kanban board layout
  */
 export interface RHFViewModeToggleProps<TFieldValues extends FieldValues = FieldValues>
   extends BaseFieldProps<TFieldValues> {
@@ -322,6 +329,14 @@ RHFViewModeToggle.displayName = 'RHFViewModeToggle';
 /**
  * Specialized toggle group for status filters
  * Aligns with your backend status validation patterns
+ * 
+ * Backend status values supported:
+ * - active: Active users/entities
+ * - inactive: Inactive users/entities  
+ * - pending: Pending approval/verification
+ * - suspended: Temporarily suspended
+ * - draft: Draft content (for products/content)
+ * - published: Published content
  */
 export interface RHFStatusToggleProps<TFieldValues extends FieldValues = FieldValues>
   extends BaseFieldProps<TFieldValues> {
@@ -381,7 +396,15 @@ RHFStatusToggle.displayName = 'RHFStatusToggle';
 
 /**
  * Specialized toggle group for plan tiers
- * Aligns with your backend plan validation
+ * Aligns with your backend plan validation patterns
+ * 
+ * Backend plan values supported:
+ * - foundation: Basic plan with core features
+ * - growth: Mid-tier plan with additional features
+ * - premium: Advanced plan with premium features
+ * - enterprise: Enterprise plan with full features
+ * 
+ * Used in: BrandUser.plan, ManufacturerUser.planType, etc.
  */
 export interface RHFPlanToggleProps<TFieldValues extends FieldValues = FieldValues>
   extends BaseFieldProps<TFieldValues> {

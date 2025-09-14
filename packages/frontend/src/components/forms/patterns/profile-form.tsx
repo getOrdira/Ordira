@@ -53,14 +53,14 @@ const profileSchema = z.object({
     .or(z.literal('')),
   
   // Communication Preferences
-  emailNotifications: z.boolean().default(true),
-  marketingEmails: z.boolean().default(false),
-  weeklyDigest: z.boolean().default(true),
+  emailNotifications: z.boolean(),
+  marketingEmails: z.boolean(),
+  weeklyDigest: z.boolean(),
   
   // Privacy Settings
-  profileVisibility: z.enum(['public', 'private', 'contacts']).default('public'),
-  showEmail: z.boolean().default(false),
-  showPhone: z.boolean().default(false)
+  profileVisibility: z.enum(['public', 'private', 'contacts']),
+  showEmail: z.boolean(),
+  showPhone: z.boolean()
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -87,7 +87,7 @@ const countryOptions = [
   { value: 'FR', label: 'France' },
   { value: 'AU', label: 'Australia' },
   { value: 'JP', label: 'Japan' },
-  { value: 'other', label: 'Other' }
+  { value: 'other', label: 'Other' },
 ];
 
 const timezoneOptions = [
@@ -109,7 +109,7 @@ const visibilityOptions = [
 
 export interface ProfileFormProps {
   initialData?: Partial<ProfileFormData>;
-  onSubmit: (data: ProfileFormData) => Promise<void>;
+  onSubmit?: (data: ProfileFormData) => Promise<void>;
   onCancel?: () => void;
   onAvatarChange?: (file: File) => Promise<void>;
   avatarUrl?: string;
@@ -151,7 +151,9 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
   const handleFormSubmit = async (data: ProfileFormData) => {
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      if (onSubmit) {
+        await onSubmit(data);
+      }
       setIsDirty(false);
     } catch (error) {
       console.error('Profile form submission error:', error);
@@ -293,7 +295,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
             placeholder="Select your industry"
             options={industryOptions}
             error={errors.industry?.message}
-            onValueChange={(value) => setValue('industry', value)}
+            onValueChange={(value) => setValue('industry', Array.isArray(value) ? value[0] : value)}
           />
         </div>
 
@@ -309,7 +311,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               placeholder="Select your country"
               options={countryOptions}
               error={errors.country?.message}
-              onValueChange={(value) => setValue('country', value)}
+              onValueChange={(value) => setValue('country', Array.isArray(value) ? value[0] : value)}
             />
             
             <Select
@@ -317,7 +319,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               placeholder="Select your timezone"
               options={timezoneOptions}
               error={errors.timezone?.message}
-              onValueChange={(value) => setValue('timezone', value)}
+              onValueChange={(value) => setValue('timezone', Array.isArray(value) ? value[0] : value)}
             />
           </div>
 

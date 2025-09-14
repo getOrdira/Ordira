@@ -6,7 +6,7 @@ export * from './elements/field-error';
 export * from './elements/field-help';
 export * from './elements/field-label';
 export * from './elements/field-wrapper';
-export * from './elements/form-actions';
+export { FormActions as FormActionsElement, type FormActionsProps as FormActionsElementProps } from './elements/form-actions';
 export * from './elements/form-grid';
 export * from './elements/form-section';
 export * from './elements/submit-button';
@@ -45,5 +45,5 @@ export * from './validation/validation-message';
 
 // React Hook Form Adapters
 export * from './adapters/rhf/field';
-export * from './adapters/rhf/form';
+export { FormActions as RHFFormActions, type FormActionsProps as RHFFormActionsProps } from './adapters/rhf/form';
 export * from './adapters/rhf/resolver';

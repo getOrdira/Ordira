@@ -283,7 +283,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(({
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
     >
       <div

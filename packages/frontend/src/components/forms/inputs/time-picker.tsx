@@ -115,7 +115,7 @@ export const TimePicker = forwardRef<HTMLInputElement, TimePickerProps>(({
       tooltip={tooltip}
       required={required}
       optional={optional}
-      error={displayError}
+      error={typeof displayError === 'string' ? displayError : Array.isArray(displayError) ? displayError.join(', ') : displayError?.message}
       className={className}
     >
       <div ref={containerRef} className="relative">

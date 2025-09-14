@@ -25,47 +25,47 @@ import {
 // Validation schema for application settings
 const settingsSchema = z.object({
   // General Settings
-  language: z.string().default('en'),
-  timezone: z.string().default('America/New_York'),
-  dateFormat: z.enum(['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD']).default('MM/DD/YYYY'),
-  timeFormat: z.enum(['12', '24']).default('12'),
+  language: z.string(),
+  timezone: z.string(),
+  dateFormat: z.enum(['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD']),
+  timeFormat: z.enum(['12', '24']),
   
   // Theme & Appearance
-  theme: z.enum(['light', 'dark', 'auto']).default('auto'),
-  accentColor: z.string().default('#FF6900'),
-  fontSize: z.number().min(12).max(20).default(16),
-  compactMode: z.boolean().default(false),
-  animations: z.boolean().default(true),
+  theme: z.enum(['light', 'dark', 'auto']),
+  accentColor: z.string(),
+  fontSize: z.number().min(12).max(20),
+  compactMode: z.boolean(),
+  animations: z.boolean(),
   
   // Notifications
-  emailNotifications: z.boolean().default(true),
-  pushNotifications: z.boolean().default(true),
-  desktopNotifications: z.boolean().default(false),
-  notificationSound: z.boolean().default(true),
+  emailNotifications: z.boolean(),
+  pushNotifications: z.boolean(),
+  desktopNotifications: z.boolean(),
+  notificationSound: z.boolean(),
   quietHours: z.object({
-    enabled: z.boolean().default(false),
-    startTime: z.string().default('22:00'),
-    endTime: z.string().default('08:00')
+    enabled: z.boolean(),
+    startTime: z.string(),
+    endTime: z.string()
   }),
   
   // Privacy & Security
-  profileVisibility: z.enum(['public', 'private', 'contacts']).default('public'),
-  showOnlineStatus: z.boolean().default(true),
-  allowAnalytics: z.boolean().default(true),
-  twoFactorEnabled: z.boolean().default(false),
-  sessionTimeout: z.number().min(15).max(480).default(60), // minutes
+  profileVisibility: z.enum(['public', 'private', 'contacts']),
+  showOnlineStatus: z.boolean(),
+  allowAnalytics: z.boolean(),
+  twoFactorEnabled: z.boolean(),
+  sessionTimeout: z.number().min(15).max(480), // minutes
   
   // Data & Storage
-  autoSave: z.boolean().default(true),
-  autoSaveInterval: z.number().min(1).max(60).default(5), // minutes
-  dataRetention: z.number().min(30).max(365).default(90), // days
-  exportFormat: z.enum(['json', 'csv', 'xlsx']).default('csv'),
+  autoSave: z.boolean(),
+  autoSaveInterval: z.number().min(1).max(60), // minutes
+  dataRetention: z.number().min(30).max(365), // days
+  exportFormat: z.enum(['json', 'csv', 'xlsx']),
   
   // Advanced Settings
-  debugMode: z.boolean().default(false),
-  betaFeatures: z.boolean().default(false),
-  apiRateLimit: z.number().min(100).max(10000).default(1000),
-  maxFileSize: z.number().min(1).max(100).default(10) // MB
+  debugMode: z.boolean(),
+  betaFeatures: z.boolean(),
+  apiRateLimit: z.number().min(100).max(10000),
+  maxFileSize: z.number().min(1).max(100) // MB
 });
 
 type SettingsFormData = z.infer<typeof settingsSchema>;
@@ -107,7 +107,7 @@ const accentColors = [
 
 export interface SettingsFormProps {
   initialData?: Partial<SettingsFormData>;
-  onSubmit: (data: SettingsFormData) => Promise<void>;
+  onSubmit?: (data: SettingsFormData) => Promise<void>;
   onReset?: () => Promise<void>;
   onExportData?: () => Promise<void>;
   className?: string;
@@ -165,7 +165,9 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
   const handleFormSubmit = async (data: SettingsFormData) => {
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      if (onSubmit) {
+        await onSubmit(data);
+      }
       setIsDirty(false);
     } catch (error) {
       console.error('Settings form submission error:', error);
@@ -266,14 +268,14 @@ export const SettingsForm: React.FC<SettingsFormProps> = ({
                   label="Language"
                   options={languageOptions}
                   error={errors.language?.message}
-                  onValueChange={(value) => setValue('language', value)}
+                  onValueChange={(value) => setValue('language', Array.isArray(value) ? value[0] : value)}
                 />
                 
                 <Select
                   label="Timezone"
                   options={timezoneOptions}
                   error={errors.timezone?.message}
-                  onValueChange={(value) => setValue('timezone', value)}
+                  onValueChange={(value) => setValue('timezone', Array.isArray(value) ? value[0] : value)}
                 />
               </div>
 
