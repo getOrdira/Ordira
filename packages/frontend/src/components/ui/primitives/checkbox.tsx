@@ -1,7 +1,7 @@
 // src/components/ui/primitives/checkbox.tsx
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { CheckIcon } from '@heroicons/react/24/outline';
@@ -118,7 +118,8 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
     id,
     ...props 
   }, ref) => {
-    const checkboxId = id || `checkbox-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = useId();
+    const checkboxId = id || generatedId;
     
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const isChecked = e.target.checked;
@@ -299,7 +300,8 @@ const CheckboxCard = React.forwardRef<HTMLInputElement, CheckboxCardProps>(
     className, 
     ...props 
   }, ref) => {
-    const checkboxId = `checkbox-card-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = useId();
+    const checkboxId = `checkbox-card-${generatedId}`;
     
     return (
       <div className={cn(
@@ -383,7 +385,8 @@ const ToggleCheckbox = React.forwardRef<HTMLInputElement, ToggleCheckboxProps>(
     size = "md",
     ...props 
   }, ref) => {
-    const toggleId = `toggle-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = useId();
+    const toggleId = `toggle-${generatedId}`;
     
     const sizeClasses = {
       sm: "h-6 w-11",

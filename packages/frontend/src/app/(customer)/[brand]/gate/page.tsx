@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 // UI Components
 import { Container } from '@/components/ui/layout/container';
-import { Card } from '@/components/ui/layout/card';
+import { Card } from '@/components/ui/primitives/card';
 import { Button } from '@/components/ui/primitives/button';
 import { TextField } from '@/components/forms/inputs/text-field';
 import { Alert } from '@/components/ui/feedback/alert';

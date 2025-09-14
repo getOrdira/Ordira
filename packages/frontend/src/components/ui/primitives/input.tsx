@@ -8,13 +8,13 @@ import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const inputVariants = cva(
   // Base styles
-  "flex w-full rounded-xl border bg-white px-4 py-3 font-satoshi transition-all duration-200 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-[var(--input-placeholder)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+  "flex w-full rounded-3xl border px-4 py-3 font-satoshi transition-all duration-200 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-[var(--input-placeholder)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
         // Default input style with Ordira accent
         default: [
-          "border-[var(--input-border)] text-[var(--foreground)]",
+          "bg-white border-[var(--input-border)] text-[var(--foreground)]",
           "focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20",
           "hover:border-[var(--primary)]/60"
         ].join(" "),
@@ -38,6 +38,20 @@ const inputVariants = cva(
           "hover:bg-[var(--background-tertiary)]"
         ].join(" "),
         
+        // Gray variant for light gray backgrounds
+        gray: [
+          "border-transparent bg-gray-200 text-[var(--foreground)]",
+          "focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20",
+          "hover:bg-gray-300"
+        ].join(" "),
+        
+        // White variant for explicit white backgrounds
+        white: [
+          "border-[var(--input-border)] bg-white text-[var(--foreground)]",
+          "focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20",
+          "hover:border-[var(--primary)]/60"
+        ].join(" "),
+        
         // Filled variant
         filled: [
           "border-transparent bg-[var(--background-secondary)] text-[var(--foreground)]",
@@ -48,7 +62,7 @@ const inputVariants = cva(
       size: {
         sm: "h-10 px-3 py-2 text-sm",
         md: "h-12 px-4 py-3 text-base",
-        lg: "h-14 px-5 py-4 text-lg"
+        lg: "h-20 px-8 py-6 text-xl rounded-3xl"
       }
     },
     defaultVariants: {
@@ -136,12 +150,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           type={type}
           className={cn(
-            inputVariants({ variant: currentVariant, size: actualSize, className }),
+            inputVariants({ variant: currentVariant, size: actualSize }),
             leftIcon && "pl-12",
-            rightIcon && "pr-12"
+            rightIcon && "pr-12",
+            className
           )}
           ref={ref}
           required={required}
+          suppressHydrationWarning
           {...props}
         />
         

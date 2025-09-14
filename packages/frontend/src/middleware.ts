@@ -6,6 +6,7 @@ import { jwtVerify } from 'jose';
 // Constants
 const AUTH_TOKEN_COOKIE = 'auth_token';
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret');
+const MFG_JWT_SECRET = new TextEncoder().encode(process.env.MFG_JWT_SECRET || 'default-secret');
 
 // Types for better type safety
 interface JWTPayload {
@@ -108,17 +109,28 @@ const roleBasedRedirects = {
 
 /**
  * Verify and decode JWT token
+ * Tries both JWT_SECRET (for brands/customers) and MFG_JWT_SECRET (for manufacturers)
  */
 async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
+    // Try JWT_SECRET first (for brands/customers)
     const { payload } = await jwtVerify(token, JWT_SECRET, {
       algorithms: ['HS256']
     });
     
     return payload as unknown as JWTPayload;
   } catch (error) {
-    console.error('Token verification failed:', error);
-    return null;
+    try {
+      // Try MFG_JWT_SECRET (for manufacturers)
+      const { payload } = await jwtVerify(token, MFG_JWT_SECRET, {
+        algorithms: ['HS256']
+      });
+      
+      return payload as unknown as JWTPayload;
+    } catch (mfgError) {
+      console.error('Token verification failed with both secrets:', { error, mfgError });
+      return null;
+    }
   }
 }
 

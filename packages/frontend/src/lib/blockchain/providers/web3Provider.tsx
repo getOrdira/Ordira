@@ -35,6 +35,21 @@ export function useWeb3Config() {
   return context;
 }
 
+// Singleton to prevent multiple Web3 initializations
+let isWeb3Initialized = false;
+let initializationPromise: Promise<void> | null = null;
+
+// Reset function for development hot reloading
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+  // Reset on hot reload
+  if (typeof module !== 'undefined' && (module as any).hot) {
+    (module as any).hot.accept(() => {
+      isWeb3Initialized = false;
+      initializationPromise = null;
+    });
+  }
+}
+
 // Main Web3 Provider component
 export function Web3Provider({ children, queryClient }: Web3ProviderProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -60,12 +75,18 @@ export function Web3Provider({ children, queryClient }: Web3ProviderProps) {
     );
   }
 
-  // Check if Web3 should be enabled
+  // Check if Web3 should be enabled and properly configured
+  const hasRequiredEnvVars = !!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
   const isWeb3Enabled = blockchainFeatureFlags.walletConnection && 
-    typeof window !== 'undefined';
+    typeof window !== 'undefined' && 
+    hasRequiredEnvVars;
 
   // If Web3 is disabled, provide context without blockchain providers
   if (!isWeb3Enabled) {
+    if (!hasRequiredEnvVars) {
+      console.warn('Web3 features disabled: Missing NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID environment variable');
+    }
+    
     return (
       <Web3Context.Provider
         value={{
@@ -80,7 +101,26 @@ export function Web3Provider({ children, queryClient }: Web3ProviderProps) {
     );
   }
 
-  // Web3 enabled - wrap with blockchain providers
+        // Web3 enabled - wrap with blockchain providers
+        // Prevent multiple initializations
+        if (isWeb3Initialized) {
+          return (
+            <Web3Context.Provider
+              value={{
+                isWeb3Enabled: true,
+                features: blockchainFeatureFlags,
+                supportedChainIds: supportedChains.map(chain => chain.id),
+                defaultChainId: defaultChain.id,
+              }}
+            >
+              {children}
+            </Web3Context.Provider>
+          );
+        }
+
+        // Mark as initialized immediately to prevent race conditions
+        isWeb3Initialized = true;
+
   return (
     <Web3Context.Provider
       value={{
@@ -116,6 +156,8 @@ function Web3FeatureProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     // Initialize Web3 features
     const initializeWeb3Features = async () => {
       try {
@@ -138,14 +180,23 @@ function Web3FeatureProvider({ children }: { children: ReactNode }) {
           console.log('Web3 Provider initialized with features:', blockchainFeatureFlags);
         }
 
-        setIsInitialized(true);
+        if (isMounted) {
+          setIsInitialized(true);
+        }
       } catch (error) {
         console.error('Failed to initialize Web3 features:', error);
-        setIsInitialized(true); // Still set to true to prevent blocking
+        if (isMounted) {
+          setIsInitialized(true); // Still set to true to prevent blocking
+        }
       }
     };
 
     initializeWeb3Features();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Show loading state during initialization
@@ -294,12 +345,6 @@ export function Web3DevTools() {
 // Type augmentation for window.ethereum
 declare global {
   interface Window {
-    ethereum?: {
-      isMetaMask?: boolean;
-      isCoinbaseWallet?: boolean;
-      request: (args: { method: string; params?: any[] }) => Promise<any>;
-      on: (event: string, handler: (...args: any[]) => void) => void;
-      removeListener: (event: string, handler: (...args: any[]) => void) => void;
-    };
+    ethereum?: any;
   }
 }

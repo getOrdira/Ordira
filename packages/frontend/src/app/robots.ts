@@ -12,7 +12,7 @@ import { MetadataRoute } from 'next';
  */
 export default function robots(): MetadataRoute.Robots {
   // Base URL from environment or fallback
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ordira.xyz';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.ordira.xyz';
   
   return {
     rules: [
@@ -25,8 +25,6 @@ export default function robots(): MetadataRoute.Robots {
           '/auth/login',          // Login page
           '/auth/register',       // Registration page
           '/gate',                // Customer entry point
-          '/proposals',           // Public proposals
-          '/vote',                // Public voting
           
         ],
         disallow: [
@@ -77,8 +75,6 @@ export default function robots(): MetadataRoute.Robots {
           '/auth/login',
           '/auth/register',
           '/gate',
-          '/proposals',
-          '/vote',
         ],
         disallow: [
           '/brand/',
@@ -118,7 +114,6 @@ export default function robots(): MetadataRoute.Robots {
           '/',
           '/pricing',
           '/gate',
-          '/proposals',
         ],
         disallow: [
           '/brand/',
@@ -134,7 +129,6 @@ export default function robots(): MetadataRoute.Robots {
           '/',
           '/pricing',
           '/gate',
-          '/proposals',
         ],
         disallow: [
           '/brand/',

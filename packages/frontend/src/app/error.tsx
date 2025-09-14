@@ -67,7 +67,7 @@ export default function Error({ error, reset }: ErrorProps) {
       return {
         type: 'Network Error',
         description: 'There was a problem connecting to our servers. Please check your internet connection.',
-        severity: 'warning',
+        severity: 'warning' as const,
         canRetry: true,
       };
     }
@@ -76,7 +76,7 @@ export default function Error({ error, reset }: ErrorProps) {
       return {
         type: 'Access Denied',
         description: 'You don\'t have permission to access this resource. Please log in or contact support.',
-        severity: 'error',
+        severity: 'error' as const,
         canRetry: false,
       };
     }
@@ -85,7 +85,7 @@ export default function Error({ error, reset }: ErrorProps) {
       return {
         type: 'Request Timeout',
         description: 'The request took too long to complete. Please try again.',
-        severity: 'warning',
+        severity: 'warning' as const,
         canRetry: true,
       };
     }

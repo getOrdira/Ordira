@@ -371,3 +371,24 @@ p, .body {
     --muted: #000000;
   }
 }
+
+/* Override dark mode for auth pages */
+.bg-white {
+  background-color: white !important;
+}
+
+/* Force black text for auth page labels */
+.bg-white label {
+  color: black !important;
+}
+
+/* Force gray background for auth inputs */
+.auth-input input {
+  background-color: #f5f5f5 !important;
+}
+
+.auth-input input[type="email"],
+.auth-input input[type="password"],
+.auth-input input[type="text"] {
+  background-color: #bebebe !important;
+}

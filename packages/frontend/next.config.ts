@@ -1,9 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    appDir: true,
-  },
+  // Remove deprecated appDir - it's now default in Next.js 15
   images: {
     domains: ['localhost', 'your-domain.com'],
   },
@@ -18,6 +16,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
+  // Fix workspace root warning
+  outputFileTracingRoot: undefined,
   // Security headers
   async headers() {
     return [

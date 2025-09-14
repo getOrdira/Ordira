@@ -142,55 +142,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   }, ref) => {
     const isDisabled = disabled || loading;
     
-    // Default icons based on the design image
+    // Only use explicitly provided icons
     const getDefaultIcons = () => {
-      if (iconOnly) return {};
-      
       return {
-        leftIcon: leftIcon || (
-          // Question mark icon as shown in the design
-          <svg 
-            width="20" 
-            height="20" 
-            viewBox="0 0 20 20" 
-            fill="none" 
-            className="flex-shrink-0"
-          >
-            <rect 
-              x="1" 
-              y="1" 
-              width="18" 
-              height="18" 
-              rx="4" 
-              stroke="currentColor" 
-              strokeWidth="2"
-              fill="none"
-            />
-            <path 
-              d="M8.5 8.5C8.5 7.39543 9.39543 6.5 10.5 6.5C11.6046 6.5 12.5 7.39543 12.5 8.5C12.5 9.60457 11.6046 10.5 10.5 10.5V11.5M10.5 14.5H10.51"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ),
-        rightIcon: rightIcon || (
-          // Plus/arrow icon as shown in the design
-          <svg 
-            width="20" 
-            height="20" 
-            viewBox="0 0 20 20" 
-            fill="currentColor"
-            className="flex-shrink-0"
-          >
-            <path 
-              fillRule="evenodd" 
-              d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" 
-              clipRule="evenodd" 
-            />
-          </svg>
-        )
+        leftIcon: leftIcon,
+        rightIcon: rightIcon
       };
     };
 

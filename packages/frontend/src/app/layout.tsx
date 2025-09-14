@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { AppProvider } from '@/providers/app-provider';
 import { cn } from '@/lib/utils';
-import './globals.css';
+import '@/styles/globals.css';
 
 // Font configuration
 const inter = Inter({
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://ordira.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://app.ordira.xyz'),
   alternates: {
     canonical: '/',
   },

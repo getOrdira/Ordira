@@ -176,7 +176,7 @@ export default function NotFound() {
         {/* Branding */}
         <div className="mt-8 pt-6 border-t border-[var(--border)]">
           <p className="text-xs text-[var(--muted)] font-satoshi">
-            © 2024 Ordira - Decentralized Manufacturing Platform
+            © 2025 Ordira - Decentralized Manufacturing
           </p>
         </div>
       </Container>
