@@ -173,7 +173,7 @@ export default function RegisterPage() {
 
       {/* Right Side - Register Form */}
         <div className="w-1/2 bg-white h-screen overflow-y-auto" style={{ backgroundColor: 'white' }}>
-         <div className="w-full max-w-2xl mx-auto px-8 pt-32 pb-32" style={{ maxWidth: '560px', width: '100%' }}>
+         <div className="w-full max-w-2xl mx-auto px-8" style={{ maxWidth: '560px', width: '100%', paddingTop: '50px', paddingBottom: '50px' }}>
               <div className="w-full max-w-lg mx-auto">
           {/* Logo */}
           <div className="flex items-center justify-center mb-8 sm:mb-12">
@@ -188,13 +188,13 @@ export default function RegisterPage() {
 
           {/* Welcome Text */}
           <div className="text-center mb-20 sm:mb-24">
-            <h2 className="font-serif font-bold mt-4 text-3xl md:text-5xl" style={{ 
+            <h2 className="font-serif font-bold mt-4 text-4xl md:text-6xl" style={{ 
               color: 'black', 
               lineHeight: '1.2',
               marginBottom: '6px'
             }}>Create Account</h2>
             <p className="text-base sm:text-md text-gray-600" style={{ color: 'gray' }}>
-              Complete the following form and submit to create your account
+              Complete the following form and submit to create your account.
             </p>
           </div>
 
@@ -269,8 +269,9 @@ export default function RegisterPage() {
                   
                   {showUserTypeDropdown && (
                     <div 
-                      className="absolute z-20 w-full bg-white border border-gray-200 shadow-lg"
+                      className="absolute z-20 w-full border border-gray-200 shadow-lg"
                       style={{
+                        backgroundColor: '#f5f5f5',
                         borderRadius: '12px',
                         top: '100%',
                         left: '0',
@@ -323,7 +324,7 @@ export default function RegisterPage() {
               {/* First Name Field */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-black">
-                  First Name
+                  First Name*
                 </label>
                 <input
                   type="text"
@@ -350,7 +351,7 @@ export default function RegisterPage() {
               {/* Last Name Field */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-black">
-                  Last Name
+                  Last Name*
                 </label>
                 <input
                   type="text"
@@ -378,7 +379,7 @@ export default function RegisterPage() {
             {/* Email Field */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-black">
-                Email
+                Email*
               </label>
               <input
                 type="email"
@@ -432,7 +433,7 @@ export default function RegisterPage() {
             {/* Business Website */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-black">
-                Business Website (Optional)
+                Business Website*
               </label>
               <input
                 type="url"
@@ -486,7 +487,7 @@ export default function RegisterPage() {
             {/* Password Field */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-black">
-                Password
+                Password*
               </label>
               <div className="relative">
                 <input
@@ -545,7 +546,7 @@ export default function RegisterPage() {
             {/* Confirm Password Field */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-black">
-                Confirm Password
+                Confirm Password*
               </label>
               <div className="relative">
                 <input
@@ -603,15 +604,16 @@ export default function RegisterPage() {
 
             {/* Terms and Marketing Consent */}
             <div className="space-y-3">
-              <label className="flex items-start space-x-3 cursor-pointer">
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   {...registerForm.register('acceptTerms')}
                   style={{
-                    width: '16px',
-                    height: '16px',
+                    width: '14px',
+                    height: '14px',
                     accentColor: '#FF6900',
-                    marginTop: '2px'
+                    marginRight: '8px',
+                    flexShrink: 0
                   }}
                 />
                 <span className="text-sm text-gray-600">
@@ -629,15 +631,16 @@ export default function RegisterPage() {
                 <p className="text-sm text-red-600">{registerForm.formState.errors.acceptTerms.message}</p>
               )}
 
-              <label className="flex items-start space-x-3 cursor-pointer">
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   {...registerForm.register('marketingConsent')}
                   style={{
-                    width: '16px',
-                    height: '16px',
+                    width: '14px',
+                    height: '14px',
                     accentColor: '#FF6900',
-                    marginTop: '2px'
+                    marginRight: '8px',
+                    flexShrink: 0
                   }}
                 />
                 <span className="text-sm text-gray-600">
@@ -661,7 +664,8 @@ export default function RegisterPage() {
                 border: 'none',
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 transition: 'background-color 0.2s ease',
-                marginTop: '24px'
+                marginTop: '24px',
+                marginBottom: '10px'
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {
@@ -684,7 +688,7 @@ export default function RegisterPage() {
                 <Link 
                   href="/auth/login" 
                   className="font-medium hover:underline"
-                  style={{ color: '#FF6900' }}
+                  style={{ color: '#FF6900', marginTop: '10px' }}
                 >
                   Sign in
                 </Link>
