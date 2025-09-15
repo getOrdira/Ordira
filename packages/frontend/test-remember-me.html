@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remember Me Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Remember Me Functionality Test</h1>
+    
+    <div class="test-section info">
+        <h3>📋 Test Instructions:</h3>
+        <ol>
+            <li>Open your browser's Developer Tools (F12)</li>
+            <li>Go to the <strong>Application/Storage</strong> tab</li>
+            <li>Look for <strong>Cookies</strong> section</li>
+            <li>Navigate to your localhost domain</li>
+            <li>Login with "Remember Me" checked and unchecked</li>
+            <li>Check if <code>remember_token</code> cookie appears when checked</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 What to Look For:</h3>
+        <ul>
+            <li><strong>With Remember Me:</strong> Should see <code>remember_token</code> cookie with 30-day expiration</li>
+            <li><strong>Without Remember Me:</strong> Should NOT see <code>remember_token</code> cookie</li>
+            <li><strong>Regular auth cookies:</strong> Should see <code>auth-token</code> and <code>refresh-token</code> in both cases</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🌐 Test URLs:</h3>
+        <p><strong>Desktop Login:</strong> <a href="http://localhost:3000/auth/login" target="_blank">http://localhost:3000/auth/login</a></p>
+        <p><strong>Mobile Login:</strong> <a href="http://localhost:3000/auth/login/mobile" target="_blank">http://localhost:3000/auth/login/mobile</a></p>
+    </div>
+
+    <div class="test-section">
+        <h3>🔧 Manual Test Steps:</h3>
+        <ol>
+            <li>Go to login page</li>
+            <li>Enter valid credentials</li>
+            <li><strong>Test 1:</strong> Leave "Remember Me" unchecked → Login → Check cookies</li>
+            <li><strong>Test 2:</strong> Check "Remember Me" → Login → Check cookies</li>
+            <li>Compare the cookie results</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Expected Results:</h3>
+        <pre>
+✅ Remember Me CHECKED:
+- auth-token: [present]
+- refresh-token: [present] 
+- remember_token: [present with 30-day expiration]
+
+✅ Remember Me UNCHECKED:
+- auth-token: [present]
+- refresh-token: [present]
+- remember_token: [NOT present]
+        </pre>
+    </div>
+
+    <div class="test-section">
+        <h3>🐛 Troubleshooting:</h3>
+        <ul>
+            <li><strong>No cookies at all:</strong> Check if login is successful</li>
+            <li><strong>remember_token missing when checked:</strong> Check backend logs for errors</li>
+            <li><strong>Cookie not secure:</strong> Check if running in production mode</li>
+        </ul>
+    </div>
+
+    <script>
+        // Simple test to check current cookies
+        function checkCookies() {
+            const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+                const [name, value] = cookie.trim().split('=');
+                acc[name] = value;
+                return acc;
+            }, {});
+            
+            console.log('Current cookies:', cookies);
+            
+            const hasRememberToken = cookies['remember_token'] ? '✅ Present' : '❌ Missing';
+            const hasAuthToken = cookies['auth-token'] ? '✅ Present' : '❌ Missing';
+            const hasRefreshToken = cookies['refresh-token'] ? '✅ Present' : '❌ Missing';
+            
+            alert(`Cookie Status:
+Remember Token: ${hasRememberToken}
+Auth Token: ${hasAuthToken}
+Refresh Token: ${hasRefreshToken}`);
+        }
+        
+        // Add test button
+        document.body.innerHTML += `
+            <div class="test-section">
+                <h3>🔍 Quick Cookie Check:</h3>
+                <button onclick="checkCookies()">Check Current Cookies</button>
+            </div>
+        `;
+    </script>
+</body>
+</html>

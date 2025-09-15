@@ -110,8 +110,9 @@ export default function MobileRegisterPage() {
       }
       
       if (response.success) {
-        setSuccess('Registration successful! Please check your email to verify your account.');
-        registerForm.reset();
+        // Redirect to mobile verify-email page with the email address
+        const emailParam = encodeURIComponent(data.email);
+        window.location.href = `/auth/verify-email/mobile?email=${emailParam}`;
       }
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');

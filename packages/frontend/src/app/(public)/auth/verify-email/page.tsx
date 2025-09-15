@@ -3,22 +3,50 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle, AlertCircle, Mail, RefreshCw } from 'lucide-react';
+import { CheckCircle, AlertCircle, Mail } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/primitives/button';
+import Image from 'next/image';
+import { LoadingSpinner } from '@/components/ui/feedback/loading-spinner';
 
 export default function VerifyEmailPage() {
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   
   const searchParams = useSearchParams();
   const email = searchParams?.get('email');
   const token = searchParams?.get('token');
   const verified = searchParams?.get('verified') === 'true';
 
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Redirect to mobile version if on mobile
+  useEffect(() => {
+    if (isMobile && typeof window !== 'undefined') {
+      const params = new URLSearchParams();
+      if (email) params.set('email', email);
+      if (token) params.set('token', token);
+      if (verified) params.set('verified', 'true');
+      
+      const mobileUrl = `/auth/verify-email/mobile?${params.toString()}`;
+      window.location.href = mobileUrl;
+    }
+  }, [isMobile, email, token, verified]);
+
   const handleResendEmail = async () => {
-    if (!email) return;
+    if (!email || countdown > 0) return;
     
     setIsResending(true);
     setError(null);
@@ -32,6 +60,9 @@ export default function VerifyEmailPage() {
       
       setResendSuccess(true);
       setTimeout(() => setResendSuccess(false), 5000);
+      
+      // Start countdown timer
+      setCountdown(60);
     } catch (err: any) {
       setError(err.message || 'Failed to resend verification email');
     } finally {
@@ -39,60 +70,82 @@ export default function VerifyEmailPage() {
     }
   };
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-          {/* Logo */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
-              </div>
-              <span className="text-2xl font-bold text-gray-900">Ordira</span>
-            </div>
-          </div>
+    <div className="min-h-screen flex bg-white">
+      {/* Left Side - Black Background */}
+      <div className="w-1/2 bg-black relative" style={{ 
+        backgroundColor: 'black',
+        borderTopRightRadius: '24px',
+        borderBottomRightRadius: '24px',
+      }}>
+        {/* Logo */}
+        <div className="absolute z-10" style={{ top: '18px', left: '18px' }}>
+          <Image 
+            src="/ordira-logo.svg" 
+            alt="Ordira Logo" 
+            width={120}
+            height={48}
+            className="h-12 w-auto"
+          />
+        </div>
+      </div>
 
-          {/* Status Icon */}
-          <div className="mb-6">
-            {verified ? (
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle className="w-8 h-8 text-green-600" />
+      {/* Right Side - Verify Email Content */}
+      <div className="w-1/2 flex flex-col p-4 sm:p-8 bg-white min-h-screen" style={{ backgroundColor: 'white' }}>
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="w-full max-w-2xl mx-auto p-8" style={{ maxWidth: '560px', width: '100%' }}>
+            <div className="w-full max-w-lg mx-auto">
+              {/* Logo */}
+              <div className="flex items-center justify-center mb-8 sm:mb-12">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center">
+                    <svg className="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                <Mail className="w-8 h-8 text-blue-600" />
-              </div>
-            )}
-          </div>
 
-          {/* Content */}
-          {verified ? (
-            <>
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Email Verified!
-              </h1>
-              <p className="text-gray-600 mb-6">
-                Your email has been successfully verified. You can now access your Ordira account.
-              </p>
-              <Link href="/auth/login">
-                <Button className="w-full">
-                  Continue to Sign In
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Check Your Email
-              </h1>
-              <p className="text-gray-600 mb-6">
-                We've sent a verification link to{' '}
-                <span className="font-medium text-gray-900">{email || 'your email address'}</span>.
-                Please check your inbox and click the link to verify your account.
-              </p>
+              {/* Content */}
+              <div className="text-center mb-20 sm:mb-24">
+                {verified ? (
+                  <>
+                    <h2 className="font-serif font-bold mt-4" style={{ 
+                      color: 'black', 
+                      fontSize: '48px',
+                      lineHeight: '1.2',
+                      marginBottom: '6px'
+                    }}>Email Verified!</h2>
+                    <p className="text-base sm:text-md text-gray-600" style={{ color: 'gray' }}>
+                      Your email has been verified. Your account is under review. We will notify you when your account is approved.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="font-serif font-bold mt-4" style={{ 
+                      color: 'black', 
+                      fontSize: '48px',
+                      lineHeight: '1.2',
+                      marginBottom: '6px'
+                    }}>Check Your Email</h2>
+                    <p className="text-base sm:text-md text-gray-600" style={{ color: 'gray' }}>
+                      We've sent a verification link to{' '}
+                      <span className="font-medium text-gray-900">{email || 'your email address'}</span>.
+                      Please check your inbox and click the link to verify your account.
+                    </p>
+                  </>
+                )}
+              </div>
 
               {/* Error Message */}
               {error && (
@@ -110,46 +163,105 @@ export default function VerifyEmailPage() {
                 </div>
               )}
 
-              {/* Resend Button */}
-              <div className="space-y-4">
-                <button
-                  onClick={handleResendEmail}
-                  disabled={isResending || !email}
-                  className="w-full py-2 px-4 bg-white text-gray-900 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  {isResending ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Mail className="w-4 h-4" />
-                  )}
-                  {isResending ? 'Sending...' : 'Resend Verification Email'}
-                </button>
-
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">
-                    Didn't receive the email? Check your spam folder or{' '}
+              {/* Action Button */}
+              <div className="pt-16">
+                {verified ? (
+                  <Link href="/auth/login">
                     <button
-                      onClick={handleResendEmail}
-                      disabled={isResending || !email}
-                      className="text-purple-600 hover:text-purple-700 font-medium disabled:opacity-50"
+                      style={{
+                        backgroundColor: '#FF6900',
+                        color: 'black',
+                        height: '42px',
+                        borderRadius: '12px',
+                        fontSize: '18px',
+                        fontWeight: '500',
+                        width: '100%',
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        marginTop: '18px',
+                        marginBottom: '18px'
+                      }}
                     >
-                      try again
+                      Continue to Sign In
                     </button>
+                  </Link>
+                ) : (
+                  <button
+                    onClick={handleResendEmail}
+                    disabled={isResending || !email || countdown > 0}
+                    style={{
+                      backgroundColor: (isResending || countdown > 0) ? '#CC5500' : '#FF6900',
+                      color: 'black',
+                      height: '42px',
+                      borderRadius: '12px',
+                      fontSize: '18px',
+                      fontWeight: '500',
+                      width: '100%',
+                      border: 'none',
+                      cursor: (isResending || countdown > 0) ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                      marginTop: '18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      marginBottom: '8px'
+                    }}
+                    onMouseDown={(e) => {
+                      if (!isResending && email && countdown === 0) {
+                        e.currentTarget.style.backgroundColor = '#CC5500';
+                      }
+                    }}
+                    onMouseUp={(e) => {
+                      if (!isResending && email && countdown === 0) {
+                        e.currentTarget.style.backgroundColor = '#FF6900';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isResending && email && countdown === 0) {
+                        e.currentTarget.style.backgroundColor = '#FF6900';
+                      }
+                    }}
+                  >
+                    {isResending ? (
+                      <>
+                        <LoadingSpinner size="sm" variant="white" />
+                        Sending...
+                      </>
+                    ) : countdown > 0 ? (
+                      `Resend in ${countdown}s`
+                    ) : (
+                      'Resend Verification Email'
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Additional Help Text */}
+              {!verified && (
+                <div className="text-center pt-4 mt-4">
+                  <p className="text-sm text-gray-600">
+                    Didn't receive the email? Check your spam folder or try again.
                   </p>
                 </div>
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
+        </div>
 
-          {/* Back to Login */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
+        {/* Back to Login Link - Fixed at bottom */}
+        <div className="text-center pb-8">
+          <p className="text-base text-gray-600" style={{ color: 'black' }}>
+            Remember your password?{' '}
             <Link 
               href="/auth/login" 
-              className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              className="text-base text-[#FF6900] hover:text-[#CC5500] font-medium transition-colors"
+              style={{ fontSize: '16px', fontWeight: '500' }}
             >
-              ← Back to Sign In
+              Sign In
             </Link>
-          </div>
+          </p>
         </div>
       </div>
     </div>

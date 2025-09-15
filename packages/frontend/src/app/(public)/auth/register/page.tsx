@@ -141,8 +141,9 @@ export default function RegisterPage() {
       }
       
       if (response.success) {
-        setSuccess('Registration successful! Please check your email to verify your account.');
-        registerForm.reset();
+        // Redirect to verify-email page with the email address
+        const emailParam = encodeURIComponent(data.email);
+        window.location.href = `/auth/verify-email?email=${emailParam}`;
       }
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
@@ -231,7 +232,7 @@ export default function RegisterPage() {
                       borderRadius: '12px',
                       padding: '14px 40px 14px 18px',
                       fontSize: '16px',
-                      border: 'none',
+                      border: registerForm.formState.errors.userType ? '2px solid #ef4444' : 'none',
                       marginBottom: '24px',
                       color: registerForm.watch('userType') ? '#000000' : '#6B7280',
                       width: '100%',
@@ -314,9 +315,11 @@ export default function RegisterPage() {
                   )}
                 </div>
               </div>
-              {registerForm.formState.errors.userType && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.userType.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.userType && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.userType.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Name Fields */}
@@ -336,16 +339,18 @@ export default function RegisterPage() {
                     borderRadius: '12px',
                     padding: '14px 18px',
                     fontSize: '16px',
-                    border: 'none',
+                    border: registerForm.formState.errors.firstName ? '2px solid #ef4444' : 'none',
                     marginBottom: '24px',
                     color: '#000000',
                     width: '100%',
                     outline: 'none'
                   }}
                 />
-                {registerForm.formState.errors.firstName && (
-                  <p className="text-sm text-red-600">{registerForm.formState.errors.firstName.message}</p>
-                )}
+                <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                  {registerForm.formState.errors.firstName && (
+                    <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.firstName.message}</p>
+                  )}
+                </div>
               </div>
 
               {/* Last Name Field */}
@@ -363,16 +368,18 @@ export default function RegisterPage() {
                     borderRadius: '12px',
                     padding: '14px 18px',
                     fontSize: '16px',
-                    border: 'none',
+                    border: registerForm.formState.errors.lastName ? '2px solid #ef4444' : 'none',
                     marginBottom: '24px',
                     color: '#000000',
                     width: '100%',
                     outline: 'none'
                   }}
                 />
-                {registerForm.formState.errors.lastName && (
-                  <p className="text-sm text-red-600">{registerForm.formState.errors.lastName.message}</p>
-                )}
+                <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                  {registerForm.formState.errors.lastName && (
+                    <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.lastName.message}</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -391,16 +398,18 @@ export default function RegisterPage() {
                   borderRadius: '12px',
                   padding: '14px 18px',
                   fontSize: '16px',
-                  border: 'none',
+                  border: registerForm.formState.errors.email ? '2px solid #ef4444' : 'none',
                   marginBottom: '24px',
                   color: '#000000',
                   width: '100%',
                   outline: 'none'
                 }}
               />
-              {registerForm.formState.errors.email && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.email.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.email && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.email.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Business Information */}
@@ -418,16 +427,18 @@ export default function RegisterPage() {
                   borderRadius: '12px',
                   padding: '14px 18px',
                   fontSize: '16px',
-                  border: 'none',
+                  border: registerForm.formState.errors.businessName ? '2px solid #ef4444' : 'none',
                   marginBottom: '24px',
                   color: '#000000',
                   width: '100%',
                   outline: 'none'
                 }}
               />
-              {registerForm.formState.errors.businessName && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.businessName.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.businessName && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.businessName.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Business Website */}
@@ -445,16 +456,18 @@ export default function RegisterPage() {
                   borderRadius: '12px',
                   padding: '14px 18px',
                   fontSize: '16px',
-                  border: 'none',
+                  border: registerForm.formState.errors.businessWebsite ? '2px solid #ef4444' : 'none',
                   marginBottom: '24px',
                   color: '#000000',
                   width: '100%',
                   outline: 'none'
                 }}
               />
-              {registerForm.formState.errors.businessWebsite && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.businessWebsite.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.businessWebsite && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.businessWebsite.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Business Number */}
@@ -472,16 +485,18 @@ export default function RegisterPage() {
                   borderRadius: '12px',
                   padding: '14px 18px',
                   fontSize: '16px',
-                  border: 'none',
+                  border: registerForm.formState.errors.businessNumber ? '2px solid #ef4444' : 'none',
                   marginBottom: '24px',
                   color: '#000000',
                   width: '100%',
                   outline: 'none'
                 }}
               />
-              {registerForm.formState.errors.businessNumber && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.businessNumber.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.businessNumber && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.businessNumber.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Password Field */}
@@ -500,7 +515,7 @@ export default function RegisterPage() {
                     borderRadius: '12px',
                     padding: '14px 40px 14px 18px',
                     fontSize: '16px',
-                    border: 'none',
+                    border: registerForm.formState.errors.password ? '2px solid #ef4444' : 'none',
                     marginBottom: '24px',
                     color: '#000000',
                     width: '100%',
@@ -538,9 +553,11 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
-              {registerForm.formState.errors.password && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.password.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.password && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.password.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Confirm Password Field */}
@@ -559,7 +576,7 @@ export default function RegisterPage() {
                     borderRadius: '12px',
                     padding: '14px 40px 14px 18px',
                     fontSize: '16px',
-                    border: 'none',
+                    border: registerForm.formState.errors.confirmPassword ? '2px solid #ef4444' : 'none',
                     marginBottom: '24px',
                     color: '#000000',
                     width: '100%',
@@ -597,9 +614,11 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
-              {registerForm.formState.errors.confirmPassword && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.confirmPassword.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {registerForm.formState.errors.confirmPassword && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.confirmPassword.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Terms and Marketing Consent */}
@@ -628,7 +647,9 @@ export default function RegisterPage() {
                 </span>
               </label>
               {registerForm.formState.errors.acceptTerms && (
-                <p className="text-sm text-red-600">{registerForm.formState.errors.acceptTerms.message}</p>
+                <div style={{ marginTop: '1px', marginLeft: '22px' }}>
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0 }}>{registerForm.formState.errors.acceptTerms.message}</p>
+                </div>
               )}
 
               <label className="flex items-center cursor-pointer">

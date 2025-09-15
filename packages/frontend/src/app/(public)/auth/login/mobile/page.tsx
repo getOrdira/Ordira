@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import Image from 'next/image';
+import { LoadingSpinner } from '@/components/ui/feedback/loading-spinner';
 
 // Login form validation schema
 const loginSchema = z.object({
@@ -21,6 +22,7 @@ export default function MobileLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -187,13 +189,20 @@ export default function MobileLoginPage() {
               />
               <span className="text-sm text-gray-600">Remember me</span>
             </label>
-            <a 
-              href="/auth/forgot-password" 
+            <button
+              onClick={() => setIsForgotPasswordModalOpen(true)}
               className="text-sm font-medium hover:underline"
-              style={{ color: '#FF6900' }}
+              style={{ 
+                color: '#FF6900',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: '500'
+              }}
             >
               Forgot password?
-            </a>
+            </button>
           </div>
 
           {/* Login Button */}
@@ -241,6 +250,190 @@ export default function MobileLoginPage() {
           </div>
         </form>
       </div>
+
+      {/* Mobile Forgot Password Modal */}
+      {isForgotPasswordModalOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px'
+          }}
+        >
+          <div 
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '400px',
+              maxHeight: '90vh',
+              overflow: 'auto'
+            }}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setIsForgotPasswordModalOpen(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                width: '32px',
+                height: '32px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'black',
+                fontSize: '20px',
+                fontWeight: 'bold'
+              }}
+            >
+              ×
+            </button>
+
+            {/* Header */}
+            <div className="text-center mb-6" style={{ paddingBottom: '20px', textAlign: 'center' }}>
+              <h2 className="text-xl font-bold mb-2" style={{ color: 'black', textAlign: 'center' }}>
+                Forgot Password?
+              </h2>
+              <p className="text-sm" style={{ color: 'black', marginTop: '12px', textAlign: 'center' }}>
+                Enter your email address and we'll send you a link to reset your password.
+              </p>
+            </div>
+
+            {/* Form */}
+            <MobileForgotPasswordForm onClose={() => setIsForgotPasswordModalOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Mobile Forgot Password Form Component
+function MobileForgotPasswordForm({ onClose }: { onClose: () => void }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const form = useForm({
+    resolver: zodResolver(z.object({
+      email: z.string().email('Please enter a valid email address'),
+    })),
+    defaultValues: {
+      email: '',
+    },
+  });
+
+  const onSubmit = async (data: { email: string }) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // TODO: Replace with actual API call
+      console.log('Forgot password data:', data);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setIsSubmitted(true);
+    } catch (err) {
+      setError('Failed to send reset link. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isSubmitted) {
+    return (
+      <div className="text-center">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <p className="text-gray-600 text-sm mb-6">
+          We've sent a password reset link to your email address. Please check your inbox and follow the instructions.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" style={{ textAlign: 'center' }}>
+      {/* Email Field */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium" style={{ color: 'black', textAlign: 'center', display: 'block' }}>
+          Email Address
+        </label>
+        <input
+          type="email"
+          placeholder="Enter your email"
+          {...form.register('email')}
+          style={{
+            backgroundColor: '#f5f5f5',
+            height: '48px',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            fontSize: '16px',
+            border: form.formState.errors.email ? '2px solid #ef4444' : 'none',
+            color: '#000000',
+            width: '100%',
+            outline: 'none'
+          }}
+        />
+        {form.formState.errors.email && (
+          <p className="text-sm text-red-600 mt-1">
+            {form.formState.errors.email.message}
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+          <p className="text-red-700 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <button
+        type="submit"
+        disabled={isLoading}
+        style={{
+          backgroundColor: '#FF6900',
+          color: 'black',
+          height: '48px',
+          borderRadius: '12px',
+          fontSize: '18px',
+          fontWeight: '500',
+          width: '100%',
+          border: 'none',
+          cursor: isLoading ? 'not-allowed' : 'pointer',
+          opacity: isLoading ? 0.7 : 1,
+          transition: 'all 0.2s ease',
+          marginTop: '16px'
+        }}
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center">
+            <LoadingSpinner size="sm" variant="white" className="mr-2" />
+            Sending...
+          </div>
+        ) : (
+          'Send Reset Link'
+        )}
+      </button>
+    </form>
   );
 }

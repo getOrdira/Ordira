@@ -12,8 +12,8 @@ import { CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/primitives/button';
-import { Input, PasswordInput } from '@/components/ui/primitives/input';
-import { Checkbox } from '@/components/ui/primitives/checkbox';
+import { LoadingSpinner } from '@/components/ui/feedback/loading-spinner';
+import { ForgotPasswordModal } from '../forgot-password-modal';
 
 // Validation schemas aligned with backend validation
 const loginSchema = z.object({
@@ -33,6 +33,7 @@ export default function LoginPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
   
   const { login } = useAuth();
   const searchParams = useSearchParams();
@@ -96,6 +97,7 @@ export default function LoginPage() {
   };
 
   return (
+    <>
     <div className="min-h-screen flex bg-white">
       {/* Left Side - Black Background */}
       <div className="w-1/2 bg-black relative" style={{ 
@@ -177,16 +179,18 @@ export default function LoginPage() {
                   borderRadius: '12px',
                   padding: '14px 18px',
                   fontSize: '16px',
-                  border: 'none',
+                  border: loginForm.formState.errors.email ? '2px solid #ef4444' : 'none',
                   marginBottom: '24px',
                   color: '#000000',
                   width: '100%',
                   outline: 'none'
                 }}
               />
-              {loginForm.formState.errors.email && (
-                <p className="text-sm text-red-600">{loginForm.formState.errors.email.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {loginForm.formState.errors.email && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{loginForm.formState.errors.email.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Password Field */}
@@ -205,7 +209,7 @@ export default function LoginPage() {
                     borderRadius: '12px',
                     padding: '14px 40px 14px 18px',
                     fontSize: '16px',
-                    border: 'none',
+                    border: loginForm.formState.errors.password ? '2px solid #ef4444' : 'none',
                     marginBottom: '24px',
                     color: '#000000',
                     width: '100%',
@@ -245,9 +249,11 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
-              {loginForm.formState.errors.password && (
-                <p className="text-sm text-red-600">{loginForm.formState.errors.password.message}</p>
-              )}
+              <div style={{ minHeight: '20px', marginTop: '-20px' }}>
+                {loginForm.formState.errors.password && (
+                  <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{loginForm.formState.errors.password.message}</p>
+                )}
+              </div>
             </div>
 
             {/* Remember Me & Forgot Password */}
@@ -274,12 +280,20 @@ export default function LoginPage() {
                   className="rounded border-2 border-gray-300"
                 />
               </div>
-              <Link
-                href="/auth/forgot-password"
-                className="text-md text-[#FF6900] hover:text-[#B54A00] transition-colors mb-6"
+              <button
+                type="button"
+                onClick={() => setIsForgotPasswordModalOpen(true)}
+                className="text-base text-[#FF6900] hover:text-[#CC5500] font-medium transition-colors"
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '500'
+                }}
               >
-                Forgot Password
-                  </Link>
+                Forgot Password?
+              </button>
                 </div>
 
             {/* Sign In Button */}
@@ -301,9 +315,9 @@ export default function LoginPage() {
               }}
                 >
                   {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <LoadingSpinner size="sm" variant="white" />
                   ) : (
-                'Sign In'
+                    'Sign In'
                   )}
             </Button>
             </div>
@@ -318,13 +332,22 @@ export default function LoginPage() {
             Don't have an account?{' '}
             <Link 
               href="/auth/register" 
-              className="text-[#FF6900] hover:text-[#CC5500] font-medium transition-colors"
+              className="text-base text-[#FF6900] hover:text-[#CC5500] font-medium transition-colors"
+              style={{ fontSize: '16px', fontWeight: '500' }}
             >
               Sign Up
             </Link>
           </p>
         </div>
       </div>
+
     </div>
+
+    {/* Forgot Password Modal - Outside main container */}
+    <ForgotPasswordModal
+      isOpen={isForgotPasswordModalOpen}
+      onClose={() => setIsForgotPasswordModalOpen(false)}
+    />
+    </>
   );
 }
