@@ -70,7 +70,7 @@ export default function LogoutSuccessPage() {
                   marginBottom: '6px'
                 }}>Logged Out Successfully</h2>
                 <p className="text-base sm:text-md text-gray-600" style={{ color: 'gray' }}>
-                  You have been successfully logged out of your account. Thank you for using our service.
+                  You have been successfully logged out of your account. Thank you for using Ordira.
                 </p>
               </div>
 

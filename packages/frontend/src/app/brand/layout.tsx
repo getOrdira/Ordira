@@ -19,9 +19,22 @@ export default function BrandLayout({
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
 
-  // Redirect if not authenticated or not a brand user
+  // TEMPORARY: Mock user for UI testing - REMOVE THIS IN PRODUCTION
+  const mockUser = {
+    id: '1',
+    email: 'test@brand.com',
+    role: 'brand',
+    businessName: 'Test Brand',
+    isVerified: true,
+    profilePictureUrl: null
+  };
+
+  // TEMPORARY: Skip authentication for UI testing
+  const isTestingMode = true; // Set to false when ready for production
+
+  // Redirect if not authenticated or not a brand user (only if not testing)
   useEffect(() => {
-    if (!isLoading) {
+    if (!isTestingMode && !isLoading) {
       if (!isAuthenticated) {
         redirect('/auth/login?redirect=/brand/dashboard');
       } else if (user && !isBrandUser(user)) {
@@ -35,10 +48,10 @@ export default function BrandLayout({
         }
       }
     }
-  }, [isLoading, isAuthenticated, user]);
+  }, [isLoading, isAuthenticated, user, isTestingMode]);
 
-  // Show loading state while checking authentication
-  if (isLoading) {
+  // Show loading state while checking authentication (only if not testing)
+  if (!isTestingMode && isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--background-secondary)]">
         <div className="text-center">
@@ -49,20 +62,23 @@ export default function BrandLayout({
     );
   }
 
-  // Don't render if not authenticated or wrong user type
-  if (!isAuthenticated || !user || !isBrandUser(user)) {
+  // Use mock user for testing, real user for production
+  const currentUser = isTestingMode ? mockUser : (user as any);
+
+  // Don't render if not authenticated or wrong user type (only if not testing)
+  if (!isTestingMode && (!isAuthenticated || !user || !isBrandUser(user))) {
     return null;
   }
 
   return (
     <div className="flex h-screen bg-[var(--background-secondary)] overflow-hidden">
       {/* Sidebar Navigation */}
-      <SidebarBrand user={user} />
+      <SidebarBrand user={currentUser} />
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <BrandHeader user={user} />
+        <BrandHeader user={currentUser} />
 
         {/* Page Content */}
         <div className="flex-1 overflow-y-auto">

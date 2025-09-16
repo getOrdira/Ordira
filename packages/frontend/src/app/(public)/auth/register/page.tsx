@@ -10,6 +10,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { authApi, authHelpers } from '@/lib/api/auth';
 import { RegisterUserData, RegisterBusinessData, RegisterManufacturerData } from '@/lib/types/auth';
+import { PasswordStrengthIndicator } from '@/components/ui/feedback/password-strength-indicator';
 
 // Registration form validation schema
 const registerSchema = z.object({
@@ -53,6 +54,7 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showUserTypeDropdown, setShowUserTypeDropdown] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [passwordValue, setPasswordValue] = useState('');
 
   const userTypeOptions = [
     { value: 'brand', label: 'Brand', description: 'Create and manage brand campaigns' },
@@ -509,6 +511,10 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   {...registerForm.register('password')}
+                  onChange={(e) => {
+                    registerForm.setValue('password', e.target.value);
+                    setPasswordValue(e.target.value);
+                  }}
                   style={{
                     backgroundColor: '#f5f5f5',
                     height: '40px',
@@ -516,7 +522,7 @@ export default function RegisterPage() {
                     padding: '14px 40px 14px 18px',
                     fontSize: '16px',
                     border: registerForm.formState.errors.password ? '2px solid #ef4444' : 'none',
-                    marginBottom: '24px',
+                    marginBottom: '12px',
                     color: '#000000',
                     width: '100%',
                     outline: 'none'
@@ -553,6 +559,10 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
+              
+              {/* Password Strength Indicator */}
+              <PasswordStrengthIndicator password={passwordValue} />
+              
               <div style={{ minHeight: '20px', marginTop: '-20px' }}>
                 {registerForm.formState.errors.password && (
                   <p className="text-sm" style={{ color: '#ef4444', margin: 0, marginTop: '4px' }}>{registerForm.formState.errors.password.message}</p>

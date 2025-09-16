@@ -9,6 +9,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { authApi } from '@/lib/api/auth';
 import { RegisterUserData, RegisterBusinessData, RegisterManufacturerData } from '@/lib/types/auth';
+import { PasswordStrengthIndicator } from '@/components/ui/feedback/password-strength-indicator';
 
 // Registration form validation schema
 const registerSchema = z.object({
@@ -51,6 +52,7 @@ export default function MobileRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showUserTypeDropdown, setShowUserTypeDropdown] = useState(false);
+  const [passwordValue, setPasswordValue] = useState('');
 
   const userTypeOptions = [
     { value: 'brand', label: 'Brand', description: 'Create and manage brand campaigns' },
@@ -436,6 +438,10 @@ export default function MobileRegisterPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 {...registerForm.register('password')}
+                onChange={(e) => {
+                  registerForm.setValue('password', e.target.value);
+                  setPasswordValue(e.target.value);
+                }}
                 style={{
                   backgroundColor: '#f5f5f5',
                   height: '48px',
@@ -473,6 +479,10 @@ export default function MobileRegisterPage() {
                 )}
               </button>
             </div>
+            
+            {/* Password Strength Indicator */}
+            <PasswordStrengthIndicator password={passwordValue} />
+            
             {registerForm.formState.errors.password && (
               <p className="text-sm text-red-600">{registerForm.formState.errors.password.message}</p>
             )}
