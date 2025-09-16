@@ -28,6 +28,7 @@ export interface IUser extends Document {
   isActive?: boolean;
 
   passwordResetCode?: string;
+  passwordResetToken?: string;
   passwordResetExpires?: Date;
   passwordResetAttempts?: number;
   lastPasswordResetAttempt?: Date;
@@ -309,6 +310,30 @@ const UserSchema = new Schema<IUser>(
       referralSource: { type: String }
     },
     
+    // Password reset fields
+    passwordResetCode: { 
+      type: String,
+      select: false // Don't include in queries for security
+    },
+    passwordResetToken: { 
+      type: String,
+      select: false // Don't include in queries for security
+    },
+    passwordResetExpires: { 
+      type: Date,
+      select: false // Don't include in queries for security
+    },
+    passwordResetAttempts: { 
+      type: Number, 
+      default: 0 
+    },
+    lastPasswordResetAttempt: { 
+      type: Date 
+    },
+    lastPasswordChangeAt: {
+      type: Date
+    },
+    
     // Account status
     status: {
       type: String,
@@ -338,6 +363,9 @@ const UserSchema = new Schema<IUser>(
         delete ret.__v;
         delete ret.password;
         delete ret.emailCode;
+        delete ret.passwordResetCode;
+        delete ret.passwordResetToken;
+        delete ret.passwordResetExpires;
         delete ret.twoFactorSecret;
         delete ret.backupCodes;
         return ret;

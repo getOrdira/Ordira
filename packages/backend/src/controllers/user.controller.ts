@@ -771,21 +771,21 @@ export const forgotPassword = asyncHandler(async (
 export const resetPassword = asyncHandler(async (
   req: Request & ValidatedRequest & {
     validatedBody: {
-      email: string;
-      resetCode: string;
+      token: string;
       newPassword: string;
+      confirmPassword: string;
     }
   },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const { email, resetCode, newPassword } = req.validatedBody;
+  const { token, newPassword, confirmPassword } = req.validatedBody;
 
   // Reset password through auth service
   await authService.resetPassword({
-    email,
-    resetCode,
-    newPassword
+    token,
+    newPassword,
+    confirmPassword
   });
 
   res.json({

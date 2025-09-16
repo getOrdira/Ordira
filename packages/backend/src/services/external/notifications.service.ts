@@ -290,16 +290,16 @@ export class NotificationsService {
   }
 
   /**
-   * Send password reset code email
+   * Send password reset link email
    */
-  async sendPasswordResetCode(email: string, resetCode: string): Promise<void> {
+  async sendPasswordResetLink(email: string, resetToken: string): Promise<void> {
     this.validateEmailAddress(email);
     
-    if (!resetCode || resetCode.length < 6) {
-      throw { statusCode: 400, message: 'Invalid reset code provided' };
+    if (!resetToken || resetToken.length < 32) {
+      throw { statusCode: 400, message: 'Invalid reset token provided' };
     }
 
-    const template = this.getPasswordResetEmailTemplate(resetCode);
+    const template = this.getPasswordResetEmailTemplate(resetToken);
     await this.sendEmail(email, template.subject, template.text, template.html, { 
       priority: 'high',
       trackingEnabled: true 
@@ -2384,21 +2384,29 @@ The Team`,
     };
   }
 
-  private getPasswordResetEmailTemplate(resetCode: string): EmailTemplate {
+  private getPasswordResetEmailTemplate(resetToken: string): EmailTemplate {
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}`;
+    
     return {
       subject: 'Reset Your Ordira Password',
-      text: `You requested a password reset for your Ordira account.\n\nYour reset code is: ${resetCode}\n\nThis code will expire in 15 minutes.\n\nIf you didn't request this reset, please ignore this email.`,
+      text: `You requested a password reset for your Ordira account.\n\nClick the link below to reset your password:\n${resetUrl}\n\nThis link will expire in 15 minutes.\n\nIf you didn't request this reset, please ignore this email.`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333; text-align: center;">Password Reset</h2>
           <p>You requested a password reset for your Ordira account.</p>
-          <p>Your reset code is:</p>
-          <div style="background: #f4f4f4; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 3px; margin: 20px 0;">
-            ${resetCode}
+          <p>Click the button below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="background: #FF6900; color: black; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: 500; display: inline-block;">
+              Reset Password
+            </a>
           </div>
           <p style="color: #666; font-size: 14px;">
-            This code will expire in 15 minutes for security reasons.<br>
+            This link will expire in 15 minutes for security reasons.<br>
             If you didn't request this reset, please ignore this email and your password will remain unchanged.
+          </p>
+          <p style="color: #999; font-size: 12px; margin-top: 20px;">
+            If the button doesn't work, copy and paste this link into your browser:<br>
+            <a href="${resetUrl}" style="color: #FF6900;">${resetUrl}</a>
           </p>
         </div>
       `

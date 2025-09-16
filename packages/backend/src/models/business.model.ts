@@ -47,6 +47,7 @@ export interface IBusiness extends Document {
   
   // ADD THESE PASSWORD RESET FIELDS:
   passwordResetCode?: string;
+  passwordResetToken?: string;
   passwordResetExpires?: Date;
   passwordResetAttempts?: number;
   lastPasswordResetAttempt?: Date;
@@ -260,6 +261,10 @@ const BusinessSchema = new Schema<IBusiness>(
       type: String,
       select: false // Don't include in queries for security
     },
+    passwordResetToken: { 
+      type: String,
+      select: false // Don't include in queries for security
+    },
     passwordResetExpires: { 
       type: Date,
       select: false // Don't include in queries for security
@@ -283,6 +288,7 @@ const BusinessSchema = new Schema<IBusiness>(
         delete ret.password;
         delete ret.emailCode;
         delete ret.passwordResetCode; // Don't expose in JSON
+        delete ret.passwordResetToken; // Don't expose in JSON
         delete ret.passwordResetExpires; // Don't expose in JSON
         delete ret.__v;
         delete ret.loginAttempts;

@@ -1006,24 +1006,28 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
   }
 
   // In your AuthService class, add:
-async resetPassword(data: {
-  email: string;
-  resetCode: string;
-  newPassword: string;
-}): Promise<void> {
-  try {
-    const { email, resetCode, newPassword } = data;
+  async resetPassword(data: {
+    token: string;
+    newPassword: string;
+    confirmPassword: string;
+  }): Promise<void> {
+    try {
+      const { token, newPassword, confirmPassword } = data;
 
-    // Find user by email and reset code
-    const user = await User.findOne({
-      email: UtilsService.normalizeEmail(email),
-      passwordResetToken: resetCode,
-      passwordResetExpires: { $gt: new Date() }
-    });
+      // Validate password confirmation
+      if (newPassword !== confirmPassword) {
+        throw { statusCode: 400, message: 'Passwords do not match' };
+      }
 
-    if (!user) {
-      throw { statusCode: 400, message: 'Invalid or expired reset code' };
-    }
+      // Find user by reset token
+      const user = await User.findOne({
+        passwordResetToken: token,
+        passwordResetExpires: { $gt: new Date() }
+      });
+
+      if (!user) {
+        throw { statusCode: 400, message: 'Invalid or expired reset token' };
+      }
 
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 12);
@@ -1037,10 +1041,10 @@ async resetPassword(data: {
     });
 
     // Log security event
-    this.logSecurityEvent('PASSWORD_RESET', email, true);
+    this.logSecurityEvent('PASSWORD_RESET', user.email, true);
 
   } catch (error) {
-    this.logSecurityEvent('PASSWORD_RESET', data.email, false);
+    this.logSecurityEvent('PASSWORD_RESET', 'unknown', false);
     throw error;
   }
 }
@@ -1094,10 +1098,10 @@ async resetPassword(data: {
       return; // Silently fail to prevent enumeration
     }
 
-    const resetCode = this.generateCode();
+    const resetToken = this.generateSecureResetToken();
     const resetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-    account.passwordResetCode = resetCode;
+    account.passwordResetToken = resetToken;
     account.passwordResetExpires = resetExpires;
     
     // Track reset attempts for rate limiting
@@ -1107,7 +1111,7 @@ async resetPassword(data: {
     await account.save();
 
     try {
-      await this.notificationsService.sendPasswordResetCode(normalized, resetCode);
+      await this.notificationsService.sendPasswordResetLink(normalized, resetToken);
       this.logSecurityEvent('PASSWORD_RESET_REQUEST', normalized, true, {
         accountType: business ? 'business' : 'user',
         securityContext
