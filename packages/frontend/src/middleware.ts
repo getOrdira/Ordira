@@ -232,10 +232,54 @@ export async function middleware(request: NextRequest) {
   if (token) {
     user = await verifyToken(token);
     
-    // Clear invalid token
+    // If token is invalid or expired, try to refresh
     if (!user) {
+      try {
+        // Attempt token refresh
+        const refreshToken = request.cookies.get('refresh_token')?.value;
+        if (refreshToken) {
+          const refreshResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/refresh`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (refreshResponse.ok) {
+            const refreshData = await refreshResponse.json();
+            if (refreshData.success && refreshData.data?.token && refreshData.data?.refreshToken) {
+              // Update cookies with new tokens
+              const response = NextResponse.next();
+              response.cookies.set(AUTH_TOKEN_COOKIE, refreshData.data.token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 15 * 60, // 15 minutes
+              });
+              response.cookies.set('refresh_token', refreshData.data.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 7 * 24 * 60 * 60, // 7 days
+              });
+              
+              // Verify the new token
+              user = await verifyToken(refreshData.data.token);
+              if (user) {
+                return addSecurityHeaders(response);
+              }
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed in middleware:', refreshError);
+      }
+      
+      // Clear invalid tokens if refresh failed
       const response = NextResponse.next();
       response.cookies.delete(AUTH_TOKEN_COOKIE);
+      response.cookies.delete('refresh_token');
       return addSecurityHeaders(response);
     }
   }
