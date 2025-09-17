@@ -44,6 +44,33 @@ export class UtilsService {
   }
 
   /**
+   * Generate a secure ID (similar to UUID but shorter)
+   * Used for session IDs, token IDs, etc.
+   */
+  static generateSecureId(): string {
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    return `${timestamp}-${randomPart}`;
+  }
+
+  /**
+   * Hash a string using a simple hash function
+   * Note: This is not cryptographically secure, use crypto.createHash for security-critical hashing
+   */
+  static hashString(str: string): string {
+    let hash = 0;
+    if (str.length === 0) return hash.toString();
+    
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return Math.abs(hash).toString(36);
+  }
+
+  /**
    * Validate email format
    */
   static isValidEmail(email: string): boolean {

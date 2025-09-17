@@ -571,9 +571,12 @@ export function uploadRateLimit(req: Request, res: Response, next: NextFunction)
 export function validateS3Config(req: Request, res: Response, next: NextFunction): void | Response {
   if (USE_S3) {
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_S3_BUCKET) {
+      // Log detailed error for debugging
+      console.error('S3 configuration validation failed: Missing required environment variables');
+      
       return res.status(500).json({
-        error: 'S3 storage not properly configured',
-        code: 'S3_CONFIG_ERROR'
+        error: 'Storage service not available',
+        code: 'STORAGE_UNAVAILABLE'
       });
     }
   }
@@ -589,10 +592,12 @@ export async function checkStorageHealth(req: Request, res: Response, next: Next
     try {
       const validation = await S3Service.validateConfiguration();
       if (!validation.canConnect || !validation.bucketExists || !validation.hasPermissions) {
+        // Log detailed errors for debugging
+        console.error('Storage health check failed:', validation.errors);
+        
         return res.status(503).json({
           error: 'Storage service unavailable',
-          code: 'STORAGE_UNAVAILABLE',
-          details: validation.errors
+          code: 'STORAGE_UNAVAILABLE'
         });
       }
     } catch (error) {

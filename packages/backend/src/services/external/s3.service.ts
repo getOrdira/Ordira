@@ -101,7 +101,16 @@ export class S3Service {
         size: fileBuffer.length
       };
     } catch (error) {
-      throw new Error(`S3 upload failed: ${error.message}`);
+      // Log detailed error for debugging but don't expose sensitive info
+      console.error('S3 upload failed:', {
+        businessId: options.businessId,
+        filename: options.filename,
+        error: error.message,
+        code: error.code
+      });
+      
+      // Return generic error message to prevent configuration exposure
+      throw new Error('File upload failed. Please try again.');
     }
   }
 
@@ -138,7 +147,16 @@ export class S3Service {
         bucket: result.Bucket
       };
     } catch (error) {
-      throw new Error(`S3 stream upload failed: ${error.message}`);
+      // Log detailed error for debugging but don't expose sensitive info
+      console.error('S3 stream upload failed:', {
+        businessId: options.businessId,
+        filename: options.filename,
+        error: error.message,
+        code: error.code
+      });
+      
+      // Return generic error message to prevent configuration exposure
+      throw new Error('File upload failed. Please try again.');
     }
   }
 
@@ -455,7 +473,7 @@ export class S3Service {
 
     // Check configuration
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !BUCKET_NAME) {
-      result.errors.push('Missing AWS configuration (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, or AWS_S3_BUCKET)');
+      result.errors.push('Storage service configuration incomplete');
       return result;
     }
 
@@ -484,7 +502,15 @@ export class S3Service {
       result.hasPermissions = true;
 
     } catch (error) {
-      result.errors.push(`S3 validation failed: ${error.message}`);
+      // Log detailed error for debugging
+      console.error('S3 validation failed:', {
+        error: error.message,
+        code: error.code,
+        statusCode: error.statusCode
+      });
+      
+      // Return generic error message
+      result.errors.push('Storage service validation failed');
     }
 
     return result;

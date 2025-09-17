@@ -301,14 +301,74 @@ export function getTenantCacheStats(): { size: number; entries: string[] } {
 }
 
 /**
- * Middleware to add CORS headers for tenant-specific domains
+ * Enhanced middleware to add CORS headers for tenant-specific domains with security validation
  */
 export function tenantCorsMiddleware(req: TenantRequest, res: Response, next: NextFunction): void {
   if (req.isCustomDomain && req.tenant) {
-    // Allow the custom domain to make requests
-    res.setHeader('Access-Control-Allow-Origin', `https://${req.hostname}`);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    // Validate the hostname before setting CORS headers
+    const hostname = req.hostname;
+    
+    // Additional security checks for custom domains
+    if (isValidTenantHostname(hostname)) {
+      // Only allow HTTPS in production
+      const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+      const origin = `${protocol}://${hostname}`;
+      
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, X-Tenant-ID');
+      res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+    } else {
+      console.warn(`⚠️ Invalid tenant hostname detected: ${hostname}`);
+      // Don't set CORS headers for invalid hostnames
+    }
   }
   
   next();
+}
+
+/**
+ * Validate tenant hostname for security
+ */
+function isValidTenantHostname(hostname: string): boolean {
+  if (!hostname || typeof hostname !== 'string') {
+    return false;
+  }
+  
+  // Basic length check
+  if (hostname.length === 0 || hostname.length > 253) {
+    return false;
+  }
+  
+  // Check for suspicious patterns
+  const suspiciousPatterns = [
+    /\.\./, // Double dots
+    /[^a-z0-9.-]/, // Invalid characters
+    /^-/, // Starting with dash
+    /-$/, // Ending with dash
+    /^\./, // Starting with dot
+    /\.$/, // Ending with dot
+  ];
+  
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(hostname.toLowerCase())) {
+      return false;
+    }
+  }
+  
+  // Must have at least one dot
+  if (!hostname.includes('.')) {
+    return false;
+  }
+  
+  // Each label must be 1-63 characters
+  const labels = hostname.split('.');
+  for (const label of labels) {
+    if (label.length === 0 || label.length > 63) {
+      return false;
+    }
+  }
+  
+  return true;
 }

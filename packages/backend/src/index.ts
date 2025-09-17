@@ -73,6 +73,73 @@ import supplyChainRoutes from './routes/supplyChain.routes';
 // 5️⃣ Enhanced cache and utility imports
 import { startDomainCachePolling, isAllowedCustomDomain } from './cache/domainCache';
 
+// CORS validation functions
+function isValidOriginFormat(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return ['http:', 'https:'].includes(url.protocol) && 
+           url.hostname.length > 0 && 
+           url.hostname.length <= 253; // RFC 1123 limit
+  } catch {
+    return false;
+  }
+}
+
+function isValidLocalhostOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    // Only allow exact localhost or 127.0.0.1 with specific ports
+    const allowedHosts = ['localhost', '127.0.0.1', '::1'];
+    const allowedPorts = ['3000', '3001', '4000', '5000', '8000', '8080'];
+    
+    return allowedHosts.includes(url.hostname) && 
+           (url.port === '' || allowedPorts.includes(url.port));
+  } catch {
+    return false;
+  }
+}
+
+function isValidCustomDomain(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+    
+    // Block suspicious patterns
+    const blockedPatterns = [
+      /^[0-9]/, // Domains starting with numbers
+      /\.\./, // Double dots
+      /[^a-z0-9.-]/, // Invalid characters
+      /^-/, // Starting with dash
+      /-$/, // Ending with dash
+      /^\./, // Starting with dot
+      /\.$/, // Ending with dot
+    ];
+    
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(hostname)) {
+        return false;
+      }
+    }
+    
+    // Must have at least one dot (subdomain or TLD)
+    if (!hostname.includes('.')) {
+      return false;
+    }
+    
+    // Each label must be 1-63 characters
+    const labels = hostname.split('.');
+    for (const label of labels) {
+      if (label.length === 0 || label.length > 63) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // 6️⃣ Validation schemas for route-specific validation
 import { authValidationSchemas } from './validation/auth.validation';
 import { manufacturerAccountValidationSchemas } from './validation/manufacturerAccount.validation';
@@ -197,34 +264,56 @@ interface ErrorWithStatus extends Error {
     app.use(compression() as any);
     app.use(mongoSanitize() as any);
 
-    // Enhanced CORS policy with tenant-aware origin validation
+    // Enhanced CORS policy with strict tenant-aware origin validation
     app.use(cors({
       origin: (origin, callback) => {
         // Allow requests without origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
         
+        // Validate origin format first
+        if (!isValidOriginFormat(origin)) {
+          console.warn(`⚠️ CORS blocked invalid origin format: ${origin}`);
+          return callback(new Error(`Invalid origin format: ${origin}`));
+        }
+        
         // Allow configured frontend URL
         if (origin === process.env.FRONTEND_URL) return callback(null, true);
         
-        // Allow localhost for development
-        if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+        // Strict localhost validation for development only
+        if (process.env.NODE_ENV === 'development' && isValidLocalhostOrigin(origin)) {
           return callback(null, true);
         }
         
-        // Check against cached custom domains
-        if (isAllowedCustomDomain(origin)) return callback(null, true);
+        // Production: Require HTTPS for all custom domains
+        if (process.env.NODE_ENV === 'production' && !origin.startsWith('https://')) {
+          console.warn(`⚠️ CORS blocked non-HTTPS origin in production: ${origin}`);
+          return callback(new Error(`HTTPS required in production: ${origin}`));
+        }
+        
+        // Check against cached custom domains with additional validation
+        if (isAllowedCustomDomain(origin)) {
+          // Additional validation for custom domains
+          if (isValidCustomDomain(origin)) {
+            return callback(null, true);
+          } else {
+            console.warn(`⚠️ CORS blocked invalid custom domain: ${origin}`);
+            return callback(new Error(`Invalid custom domain: ${origin}`));
+          }
+        }
         
         // Block unauthorized origins
-        console.warn(`⚠️ CORS blocked origin: ${origin}`);
+        console.warn(`⚠️ CORS blocked unauthorized origin: ${origin}`);
         return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
       allowedHeaders: [
         'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 
-        'Authorization', 'Cache-Control', 'Pragma', 'X-Tenant-ID'
+        'Authorization', 'Cache-Control', 'Pragma', 'X-Tenant-ID',
+        'X-Device-Fingerprint', 'X-API-Key'
       ],
       credentials: true,
-      maxAge: 86400 // 24 hours
+      maxAge: 86400, // 24 hours
+      optionsSuccessStatus: 200 // For legacy browser support
     }));
 
     // Enhanced metrics endpoint with authentication in production

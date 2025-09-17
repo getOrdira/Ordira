@@ -8,6 +8,7 @@ import { NotificationsService } from '../external/notifications.service';
 import { UtilsService } from '../utils/utils.service';
 import mongoose from 'mongoose';
 import { EmailGatingService } from './emailGating.service';
+import { securityService, SecurityEventType, SecuritySeverity } from './security.service';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const JWT_EXPIRES_IN = '7d';
@@ -131,32 +132,137 @@ export class AuthService {
     }
   }
 
-  private logSecurityEvent(
+  private async logSecurityEvent(
     event: string, 
     identifier: string, 
     success: boolean, 
     additionalData?: any
-  ): void {
-    const logData: any = {
-      event,
-      identifier: UtilsService.maskEmail(identifier),
-      success,
-      timestamp: new Date()
+  ): Promise<void> {
+    try {
+      // Map string events to SecurityEventType enum
+      const eventType = this.mapEventToSecurityEventType(event);
+      const severity = this.determineEventSeverity(event, success);
+      
+      // Extract user ID from identifier (could be email or user ID)
+      const userId = await this.extractUserIdFromIdentifier(identifier);
+      const userType = await this.determineUserType(userId);
+
+      await securityService.logSecurityEvent({
+        eventType,
+        userId: userId || identifier,
+        userType: userType || 'business',
+        severity,
+        success,
+        ipAddress: additionalData?.securityContext?.ipAddress,
+        userAgent: additionalData?.securityContext?.userAgent,
+        deviceFingerprint: additionalData?.securityContext?.deviceFingerprint,
+        additionalData: additionalData ? { ...additionalData } : undefined
+      });
+    } catch (error) {
+      console.error('Failed to log security event:', error);
+      // Fallback to console logging
+      console.log(`Security Event: ${event}`, {
+        identifier: UtilsService.maskEmail(identifier),
+        success,
+        timestamp: new Date(),
+        ...additionalData
+      });
+    }
+  }
+
+  /**
+   * Map string event names to SecurityEventType enum
+   */
+  private mapEventToSecurityEventType(event: string): SecurityEventType {
+    const eventMap: Record<string, SecurityEventType> = {
+      'LOGIN_BUSINESS': SecurityEventType.LOGIN_SUCCESS,
+      'LOGIN_USER': SecurityEventType.LOGIN_SUCCESS,
+      'LOGIN_FAILED': SecurityEventType.LOGIN_FAILED,
+      'REGISTER_BUSINESS': SecurityEventType.LOGIN_SUCCESS,
+      'REGISTER_USER': SecurityEventType.LOGIN_SUCCESS,
+      'VERIFY_BUSINESS': SecurityEventType.EMAIL_VERIFIED,
+      'VERIFY_USER': SecurityEventType.EMAIL_VERIFIED,
+      'CHANGE_PASSWORD': SecurityEventType.PASSWORD_CHANGE,
+      'PASSWORD_RESET': SecurityEventType.PASSWORD_RESET,
+      'TOKEN_REFRESHED': SecurityEventType.TOKEN_REFRESH,
+      'TOKEN_INVALIDATED': SecurityEventType.TOKEN_INVALIDATED,
+      'SESSION_REVOKED': SecurityEventType.SESSION_REVOKED,
+      'ALL_SESSIONS_REVOKED': SecurityEventType.ALL_SESSIONS_REVOKED,
+      'SECURITY_PREFERENCES_UPDATED': SecurityEventType.SECURITY_SETTINGS_CHANGED
     };
 
-    // Add security context if available
-    if (additionalData?.securityContext) {
-      logData.ip = additionalData.securityContext.ipAddress;
-      logData.userAgent = additionalData.securityContext.userAgent;
+    return eventMap[event] || SecurityEventType.SUSPICIOUS_ACTIVITY;
+  }
+
+  /**
+   * Determine event severity based on event type and success
+   */
+  private determineEventSeverity(event: string, success: boolean): SecuritySeverity {
+    if (!success) {
+      return SecuritySeverity.HIGH; // Failed events are always high severity
     }
 
-    // Add any additional data
-    if (additionalData) {
-      const { securityContext, ...otherData } = additionalData;
-      Object.assign(logData, otherData);
+    const criticalEvents = ['CHANGE_PASSWORD', 'PASSWORD_RESET', 'TOKEN_INVALIDATED', 'ALL_SESSIONS_REVOKED'];
+    const highEvents = ['LOGIN_BUSINESS', 'LOGIN_USER', 'VERIFY_BUSINESS', 'VERIFY_USER'];
+    const mediumEvents = ['TOKEN_REFRESHED', 'SESSION_REVOKED', 'SECURITY_PREFERENCES_UPDATED'];
+
+    if (criticalEvents.includes(event)) {
+      return SecuritySeverity.CRITICAL;
+    } else if (highEvents.includes(event)) {
+      return SecuritySeverity.HIGH;
+    } else if (mediumEvents.includes(event)) {
+      return SecuritySeverity.MEDIUM;
     }
 
-    console.log(`Security Event: ${event}`, logData);
+    return SecuritySeverity.LOW;
+  }
+
+  /**
+   * Extract user ID from identifier (email or user ID)
+   */
+  private async extractUserIdFromIdentifier(identifier: string): Promise<string | null> {
+    try {
+      // If it's already a user ID (ObjectId format), return it
+      if (mongoose.Types.ObjectId.isValid(identifier)) {
+        return identifier;
+      }
+
+      // If it's an email, find the user ID
+      const business = await Business.findOne({ email: identifier }).select('_id');
+      if (business) {
+        return business._id.toString();
+      }
+
+      const user = await User.findOne({ email: identifier }).select('_id');
+      if (user) {
+        return user._id.toString();
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Failed to extract user ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Determine user type from user ID
+   */
+  private async determineUserType(userId: string): Promise<'business' | 'user' | 'manufacturer' | null> {
+    try {
+      if (!userId) return null;
+
+      const business = await Business.findById(userId).select('_id');
+      if (business) return 'business';
+
+      const user = await User.findById(userId).select('_id');
+      if (user) return 'user';
+
+      return null;
+    } catch (error) {
+      console.error('Failed to determine user type:', error);
+      return null;
+    }
   }
 
   private validateBusinessInput(data: RegisterBusinessInput): void {
