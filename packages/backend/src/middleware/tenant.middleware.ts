@@ -1,8 +1,6 @@
-// @ts-nocheck
-
 import { NextFunction, Request, Response } from 'express';
-import { BrandSettings, IBrandSettings } from '../models/brandSettings.model';
-import { Business } from '../models/business.model';
+import { IBrandSettings } from '../models/brandSettings.model';
+import { tenantService } from '../services/business/tenant.service';
 
 /**
  * Extended Request interface with tenant information
@@ -14,105 +12,7 @@ export interface TenantRequest extends Request {
   isCustomDomain?: boolean; // Whether request came via custom domain
 }
 
-const BASE_DOMAIN = process.env.BASE_DOMAIN!; // e.g. "dashboard.yoursaas.com"
-const ALLOWED_SUBDOMAINS = ['www', 'api', 'admin', 'dashboard', 'app']; // Reserved subdomains
-
-if (!BASE_DOMAIN) {
-  throw new Error('Missing BASE_DOMAIN environment variable!');
-}
-
-/**
- * Cache for tenant lookups to reduce database queries
- */
-const tenantCache = new Map<string, { 
-  settings: IBrandSettings; 
-  business: any; 
-  timestamp: number; 
-}>();
-const TENANT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-/**
- * Get tenant from cache or database
- */
-async function getTenantSettings(
-  identifier: string, 
-  isSubdomain: boolean
-): Promise<{ settings: IBrandSettings | null; business: any }> {
-  const cacheKey = `${isSubdomain ? 'sub' : 'domain'}:${identifier}`;
-  
-  // Check cache first
-  const cached = tenantCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < TENANT_CACHE_TTL) {
-    return { settings: cached.settings, business: cached.business };
-  }
-
-  try {
-    // Query database
-    const query = isSubdomain ? { subdomain: identifier } : { customDomain: identifier };
-    const settings = await BrandSettings.findOne(query).populate({
-      path: 'business',
-      select: 'businessName email isEmailVerified plan status createdAt'
-    });
-
-    if (settings) {
-      // Cache the result
-      tenantCache.set(cacheKey, {
-        settings,
-        business: settings.business,
-        timestamp: Date.now()
-      });
-
-      return { settings, business: settings.business };
-    }
-
-    return { settings: null, business: null };
-  } catch (error) {
-    console.error('Error fetching tenant settings:', error);
-    return { settings: null, business: null };
-  }
-}
-
-/**
- * Validate subdomain format and check if it's allowed
- */
-function validateSubdomain(subdomain: string): { valid: boolean; reason?: string } {
-  // Check length
-  if (subdomain.length < 3 || subdomain.length > 63) {
-    return { valid: false, reason: 'Subdomain must be between 3 and 63 characters' };
-  }
-
-  // Check format (alphanumeric and hyphens, no leading/trailing hyphens)
-  const subdomainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
-  if (!subdomainRegex.test(subdomain)) {
-    return { valid: false, reason: 'Invalid subdomain format' };
-  }
-
-  // Check if it's a reserved subdomain
-  if (ALLOWED_SUBDOMAINS.includes(subdomain)) {
-    return { valid: false, reason: 'Reserved subdomain' };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validate custom domain format
- */
-function validateCustomDomain(domain: string): { valid: boolean; reason?: string } {
-  // Basic domain validation
-  const domainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
-  
-  if (!domainRegex.test(domain)) {
-    return { valid: false, reason: 'Invalid domain format' };
-  }
-
-  // Prevent using the base domain as custom domain
-  if (domain === BASE_DOMAIN || domain.endsWith(`.${BASE_DOMAIN}`)) {
-    return { valid: false, reason: 'Cannot use base domain as custom domain' };
-  }
-
-  return { valid: true };
-}
+// Tenant resolution logic moved to TenantService
 
 /**
  * Main tenant resolution middleware
@@ -123,71 +23,32 @@ export async function resolveTenant(
   next: NextFunction
 ): Promise<void | Response> {
   try {
-    const host = req.hostname.toLowerCase();
-    let settings: IBrandSettings | null = null;
-    let business: any = null;
-    let isCustomDomain = false;
-    let identifier: string;
-
-    // Determine if this is a subdomain or custom domain request
-    if (host.endsWith(BASE_DOMAIN)) {
-      // Subdomain case: extract subdomain from host
-      const subdomain = host.slice(0, host.length - BASE_DOMAIN.length - 1);
-      
-      // Validate subdomain format
-      const validation = validateSubdomain(subdomain);
-      if (!validation.valid) {
-        return res.status(400).json({ 
-          error: 'Invalid subdomain',
-          details: validation.reason,
-          code: 'INVALID_SUBDOMAIN'
-        });
-      }
-
-      identifier = subdomain;
-      const result = await getTenantSettings(subdomain, true);
-      settings = result.settings;
-      business = result.business;
-    } else {
-      // Custom domain case
-      isCustomDomain = true;
-      
-      // Validate custom domain format
-      const validation = validateCustomDomain(host);
-      if (!validation.valid) {
-        return res.status(400).json({ 
-          error: 'Invalid domain',
-          details: validation.reason,
-          code: 'INVALID_DOMAIN'
-        });
-      }
-
-      identifier = host;
-      const result = await getTenantSettings(host, false);
-      settings = result.settings;
-      business = result.business;
-    }
-
+    const hostname = req.hostname.toLowerCase();
+    
+    // Use tenant service to resolve tenant
+    const result = await tenantService.resolveTenant(hostname);
+    
     // Check if tenant was found
-    if (!settings) {
+    if (!result.settings) {
       return res.status(404).json({ 
         error: 'Brand not found',
-        message: `No brand configuration found for ${isCustomDomain ? 'domain' : 'subdomain'}: ${identifier}`,
+        message: `No brand configuration found for ${result.isCustomDomain ? 'domain' : 'subdomain'}: ${result.identifier}`,
         code: 'BRAND_NOT_FOUND'
       });
     }
 
-    // Check if business account is active
-    if (business && business.status === 'suspended') {
+    // Validate business status
+    const businessValidation = tenantService.validateBusinessStatus(result.business);
+    if (!businessValidation.valid) {
       return res.status(403).json({ 
-        error: 'Account suspended',
-        message: 'This brand account has been suspended',
-        code: 'ACCOUNT_SUSPENDED'
+        error: 'Account issue',
+        message: businessValidation.reason,
+        code: businessValidation.reason === 'Account suspended' ? 'ACCOUNT_SUSPENDED' : 'EMAIL_VERIFICATION_REQUIRED'
       });
     }
 
     // Check if business email is verified (for critical operations)
-    if (business && !business.isEmailVerified && req.path.includes('/admin')) {
+    if (result.business && !result.business.isEmailVerified && req.path.includes('/admin')) {
       return res.status(403).json({ 
         error: 'Email verification required',
         message: 'Please verify your email address to access admin features',
@@ -196,16 +57,17 @@ export async function resolveTenant(
     }
 
     // Attach tenant information to request
-    req.tenant = settings;
-    req.business = business;
-    req.tenantId = business?._id?.toString();
-    req.isCustomDomain = isCustomDomain;
+    req.tenant = result.settings;
+    req.business = result.business;
+    req.tenantId = result.business?._id?.toString();
+    req.isCustomDomain = result.isCustomDomain;
 
     // Add tenant info to response headers for debugging
     if (process.env.NODE_ENV === 'development') {
       res.setHeader('X-Tenant-ID', req.tenantId || 'unknown');
-      res.setHeader('X-Tenant-Type', isCustomDomain ? 'custom-domain' : 'subdomain');
-      res.setHeader('X-Tenant-Identifier', identifier);
+      res.setHeader('X-Tenant-Type', result.isCustomDomain ? 'custom-domain' : 'subdomain');
+      res.setHeader('X-Tenant-Identifier', result.identifier);
+      res.setHeader('X-Cache-Hit', result.cacheHit ? 'true' : 'false');
     }
 
     next();
@@ -232,13 +94,13 @@ export function requireTenantPlan(requiredPlans: string[]) {
       });
     }
 
-    const currentPlan = req.tenant.plan;
+    const hasRequiredPlan = tenantService.validateTenantPlan(req.tenant, requiredPlans);
     
-    if (!currentPlan || !requiredPlans.includes(currentPlan)) {
+    if (!hasRequiredPlan) {
       return res.status(403).json({ 
         error: 'Plan upgrade required',
         message: `This feature requires one of the following plans: ${requiredPlans.join(', ')}`,
-        currentPlan,
+        currentPlan: req.tenant.plan,
         requiredPlans,
         code: 'PLAN_UPGRADE_REQUIRED'
       });
@@ -259,15 +121,14 @@ export function requireTenantSetup(req: TenantRequest, res: Response, next: Next
     });
   }
 
-  // Check if required setup fields are present
-  const requiredFields = ['businessName', 'email'];
-  const missingFields = requiredFields.filter(field => !req.business[field]);
+  // Use tenant service to validate setup
+  const setupValidation = tenantService.validateTenantSetup(req.business);
 
-  if (missingFields.length > 0) {
+  if (!setupValidation.valid) {
     return res.status(403).json({ 
       error: 'Setup incomplete',
       message: 'Please complete your brand setup before accessing this feature',
-      missingFields,
+      missingFields: setupValidation.missingFields,
       code: 'SETUP_INCOMPLETE'
     });
   }
@@ -279,25 +140,21 @@ export function requireTenantSetup(req: TenantRequest, res: Response, next: Next
  * Clear tenant cache for a specific identifier
  */
 export function clearTenantCache(identifier: string, isSubdomain: boolean = true): void {
-  const cacheKey = `${isSubdomain ? 'sub' : 'domain'}:${identifier}`;
-  tenantCache.delete(cacheKey);
+  tenantService.clearTenantCache(identifier, isSubdomain);
 }
 
 /**
  * Clear all tenant cache entries
  */
 export function clearAllTenantCache(): void {
-  tenantCache.clear();
+  tenantService.clearAllTenantCache();
 }
 
 /**
  * Get tenant cache statistics
  */
 export function getTenantCacheStats(): { size: number; entries: string[] } {
-  return {
-    size: tenantCache.size,
-    entries: Array.from(tenantCache.keys())
-  };
+  return tenantService.getTenantCacheStats();
 }
 
 /**
@@ -308,8 +165,8 @@ export function tenantCorsMiddleware(req: TenantRequest, res: Response, next: Ne
     // Validate the hostname before setting CORS headers
     const hostname = req.hostname;
     
-    // Additional security checks for custom domains
-    if (isValidTenantHostname(hostname)) {
+    // Use tenant service for security validation
+    if (tenantService.validateTenantHostname(hostname)) {
       // Only allow HTTPS in production
       const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
       const origin = `${protocol}://${hostname}`;
@@ -326,49 +183,4 @@ export function tenantCorsMiddleware(req: TenantRequest, res: Response, next: Ne
   }
   
   next();
-}
-
-/**
- * Validate tenant hostname for security
- */
-function isValidTenantHostname(hostname: string): boolean {
-  if (!hostname || typeof hostname !== 'string') {
-    return false;
-  }
-  
-  // Basic length check
-  if (hostname.length === 0 || hostname.length > 253) {
-    return false;
-  }
-  
-  // Check for suspicious patterns
-  const suspiciousPatterns = [
-    /\.\./, // Double dots
-    /[^a-z0-9.-]/, // Invalid characters
-    /^-/, // Starting with dash
-    /-$/, // Ending with dash
-    /^\./, // Starting with dot
-    /\.$/, // Ending with dot
-  ];
-  
-  for (const pattern of suspiciousPatterns) {
-    if (pattern.test(hostname.toLowerCase())) {
-      return false;
-    }
-  }
-  
-  // Must have at least one dot
-  if (!hostname.includes('.')) {
-    return false;
-  }
-  
-  // Each label must be 1-63 characters
-  const labels = hostname.split('.');
-  for (const label of labels) {
-    if (label.length === 0 || label.length > 63) {
-      return false;
-    }
-  }
-  
-  return true;
 }

@@ -566,6 +566,16 @@ ManufacturerSchema.index({ isActive: 1, profileScore: -1 });
 ManufacturerSchema.index({ industry: 1, 'headquarters.country': 1 });
 ManufacturerSchema.index({ servicesOffered: 1, isActive: 1 });
 
+// Additional compound indexes for aggregation queries
+ManufacturerSchema.index({ isActive: 1, lastLoginAt: -1 });
+ManufacturerSchema.index({ isActive: 1, isEmailVerified: 1, profileScore: -1 });
+ManufacturerSchema.index({ industry: 1, isActive: 1, profileScore: -1 });
+ManufacturerSchema.index({ 'headquarters.country': 1, isActive: 1, isVerified: 1 });
+ManufacturerSchema.index({ plan: 1, isActive: 1, profileScore: -1 });
+ManufacturerSchema.index({ totalConnections: -1, isActive: 1 });
+ManufacturerSchema.index({ createdAt: -1, isActive: 1 });
+ManufacturerSchema.index({ lastProfileUpdate: -1, isActive: 1 });
+
 // Text index for search functionality (aligned with service search)
 ManufacturerSchema.index({
   name: 'text',

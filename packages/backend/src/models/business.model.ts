@@ -308,8 +308,15 @@ BusinessSchema.index({ createdAt: -1 });
 BusinessSchema.index({ regNumber: 1 }, { sparse: true });
 BusinessSchema.index({ taxId: 1 }, { sparse: true });
 
-// Compound indexes
+// Compound indexes for better query performance
 BusinessSchema.index({ email: 1, isEmailVerified: 1 });
+BusinessSchema.index({ isActive: 1, isEmailVerified: 1 });
+BusinessSchema.index({ businessType: 1, isEmailVerified: 1 });
+BusinessSchema.index({ industry: 1, isEmailVerified: 1 });
+BusinessSchema.index({ plan: 1, isActive: 1 });
+BusinessSchema.index({ createdAt: -1, isActive: 1 });
+BusinessSchema.index({ lastLoginAt: -1, isActive: 1 });
+BusinessSchema.index({ businessType: 1, industry: 1, isActive: 1 });
 
 // Virtual for full name
 BusinessSchema.virtual('fullName').get(function() {

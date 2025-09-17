@@ -483,6 +483,209 @@ export class SecurityService {
       return false;
     }
   }
+
+  /**
+   * Log authentication attempt (success or failure)
+   */
+  async logAuthenticationAttempt(
+    userId: string,
+    userType: 'business' | 'user' | 'manufacturer',
+    success: boolean,
+    ipAddress?: string,
+    userAgent?: string,
+    additionalData?: Record<string, any>
+  ): Promise<void> {
+    await this.logSecurityEvent({
+      eventType: success ? SecurityEventType.LOGIN_SUCCESS : SecurityEventType.LOGIN_FAILED,
+      userId,
+      userType,
+      severity: success ? SecuritySeverity.LOW : SecuritySeverity.MEDIUM,
+      success,
+      ipAddress,
+      userAgent,
+      additionalData
+    });
+  }
+
+  /**
+   * Log password change event
+   */
+  async logPasswordChange(
+    userId: string,
+    userType: 'business' | 'user' | 'manufacturer',
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    await this.logSecurityEvent({
+      eventType: SecurityEventType.PASSWORD_CHANGE,
+      userId,
+      userType,
+      severity: SecuritySeverity.HIGH,
+      success: true,
+      ipAddress,
+      userAgent
+    });
+  }
+
+  /**
+   * Log API key creation/revocation
+   */
+  async logApiKeyEvent(
+    eventType: SecurityEventType.API_KEY_CREATED | SecurityEventType.API_KEY_REVOKED,
+    userId: string,
+    userType: 'business' | 'user' | 'manufacturer',
+    apiKeyId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    await this.logSecurityEvent({
+      eventType,
+      userId,
+      userType,
+      severity: SecuritySeverity.MEDIUM,
+      success: true,
+      ipAddress,
+      userAgent,
+      additionalData: { apiKeyId }
+    });
+  }
+
+  /**
+   * Log security settings change
+   */
+  async logSecuritySettingsChange(
+    userId: string,
+    userType: 'business' | 'user' | 'manufacturer',
+    settingsChanged: string[],
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    await this.logSecurityEvent({
+      eventType: SecurityEventType.SECURITY_SETTINGS_CHANGED,
+      userId,
+      userType,
+      severity: SecuritySeverity.MEDIUM,
+      success: true,
+      ipAddress,
+      userAgent,
+      additionalData: { settingsChanged }
+    });
+  }
+
+  /**
+   * Get security audit report for a user
+   */
+  async getSecurityAuditReport(userId: string, days: number = 30): Promise<{
+    totalEvents: number;
+    eventsByType: Record<string, number>;
+    eventsBySeverity: Record<string, number>;
+    recentActivity: SecurityEvent[];
+    riskScore: number;
+  }> {
+    try {
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      
+      const events = await this.securityEvents.find({
+        userId,
+        timestamp: { $gte: startDate }
+      }).lean();
+
+      const eventsByType = events.reduce((acc, event) => {
+        acc[event.eventType] = (acc[event.eventType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const eventsBySeverity = events.reduce((acc, event) => {
+        acc[event.severity] = (acc[event.severity] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Calculate risk score based on events
+      let riskScore = 0;
+      events.forEach(event => {
+        switch (event.severity) {
+          case SecuritySeverity.CRITICAL:
+            riskScore += 10;
+            break;
+          case SecuritySeverity.HIGH:
+            riskScore += 5;
+            break;
+          case SecuritySeverity.MEDIUM:
+            riskScore += 2;
+            break;
+          case SecuritySeverity.LOW:
+            riskScore += 1;
+            break;
+        }
+        if (!event.success) {
+          riskScore += 2; // Failed events increase risk
+        }
+      });
+
+      return {
+        totalEvents: events.length,
+        eventsByType,
+        eventsBySeverity,
+        recentActivity: events.slice(0, 10) as SecurityEvent[],
+        riskScore: Math.min(riskScore, 100) // Cap at 100
+      };
+    } catch (error) {
+      console.error('Failed to generate security audit report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get system-wide security metrics
+   */
+  async getSystemSecurityMetrics(days: number = 7): Promise<{
+    totalEvents: number;
+    eventsByType: Record<string, number>;
+    eventsBySeverity: Record<string, number>;
+    topUsersByEvents: Array<{ userId: string; eventCount: number }>;
+    suspiciousActivityCount: number;
+  }> {
+    try {
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      
+      const events = await this.securityEvents.find({
+        timestamp: { $gte: startDate }
+      }).lean();
+
+      const eventsByType = events.reduce((acc, event) => {
+        acc[event.eventType] = (acc[event.eventType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const eventsBySeverity = events.reduce((acc, event) => {
+        acc[event.severity] = (acc[event.severity] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const userEventCounts = events.reduce((acc, event) => {
+        acc[event.userId] = (acc[event.userId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const topUsersByEvents = Object.entries(userEventCounts)
+        .map(([userId, eventCount]) => ({ userId, eventCount }))
+        .sort((a, b) => b.eventCount - a.eventCount)
+        .slice(0, 10);
+
+      const suspiciousActivityCount = eventsByType[SecurityEventType.SUSPICIOUS_ACTIVITY] || 0;
+
+      return {
+        totalEvents: events.length,
+        eventsByType,
+        eventsBySeverity,
+        topUsersByEvents,
+        suspiciousActivityCount
+      };
+    } catch (error) {
+      console.error('Failed to get system security metrics:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

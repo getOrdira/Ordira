@@ -1,8 +1,10 @@
-// @ts-nocheck
 // src/middleware/auth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { createAppError, createUnauthorizedError, createForbiddenError } from './error.middleware';
+import { Manufacturer } from '../models/manufacturer.model';
+import { Business } from '../models/business.model';
+import { User } from '../models/user.model';
 
 /**
  * Extended request interface for authentication
@@ -12,6 +14,8 @@ export interface AuthRequest extends Request {
   userType?: 'business' | 'manufacturer' | 'user';
   tokenPayload?: JWTPayload;
   sessionId?: string;
+  user?: any; // Will contain the full user document (manufacturer, business, or user)
+  manufacturer?: any; // For backward compatibility
 }
 
 /**
@@ -47,13 +51,13 @@ if (!JWT_SECRET) {
 }
 
 /**
- * Enhanced authentication middleware with comprehensive token validation
+ * Enhanced authentication middleware with comprehensive token validation and user document fetching
  */
-export function authenticate(
+export async function authenticate(
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): void {
+): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
     
@@ -97,11 +101,50 @@ export function authenticate(
       throw createUnauthorizedError('Token is too old, please refresh');
     }
 
+    // Fetch user document based on user type
+    let userDocument = null;
+    try {
+      switch (payload.userType) {
+        case 'manufacturer':
+          userDocument = await Manufacturer.findById(payload.sub);
+          if (userDocument && !userDocument.isAccountActive()) {
+            throw createUnauthorizedError('Account is deactivated');
+          }
+          // Update last login for manufacturers
+          if (userDocument) {
+            await userDocument.updateLastLogin();
+          }
+          break;
+        case 'business':
+          userDocument = await Business.findById(payload.sub);
+          break;
+        case 'user':
+          userDocument = await User.findById(payload.sub);
+          break;
+      }
+    } catch (error: any) {
+      if (error.message === 'Account is deactivated') {
+        throw error;
+      }
+      console.error('Error fetching user document:', error);
+      throw createUnauthorizedError('User not found');
+    }
+
+    if (!userDocument) {
+      throw createUnauthorizedError('User not found');
+    }
+
     // Attach user context to request
     req.userId = payload.sub;
     req.userType = payload.userType;
     req.tokenPayload = payload;
     req.sessionId = payload.sessionId;
+    req.user = userDocument;
+    
+    // For backward compatibility with manufacturer routes
+    if (payload.userType === 'manufacturer') {
+      req.manufacturer = userDocument;
+    }
 
     // Add security headers
     res.set({
@@ -381,5 +424,86 @@ export function decodeTokenUnsafe(token: string): JWTPayload | null {
     return jwt.decode(token) as JWTPayload;
   } catch (error) {
     return null;
+  }
+}
+
+/**
+ * Middleware to require manufacturer user type specifically
+ */
+export function requireManufacturer(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  try {
+    if (!req.userType || req.userType !== 'manufacturer') {
+      throw createForbiddenError('This endpoint requires manufacturer authentication');
+    }
+
+    if (!req.manufacturer) {
+      throw createUnauthorizedError('Manufacturer data not found');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Middleware to require verified manufacturers only
+ */
+export function requireVerifiedManufacturer(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  try {
+    if (!req.manufacturer) {
+      throw createUnauthorizedError('Manufacturer authentication required');
+    }
+
+    if (!req.manufacturer.isVerified) {
+      throw createForbiddenError('This action requires a verified manufacturer account');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Middleware to check if manufacturer has access to a specific brand
+ * Expects brandId in req.params.brandId or req.body.brandId
+ */
+export function requireBrandAccess(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  try {
+    if (!req.manufacturer) {
+      throw createUnauthorizedError('Manufacturer authentication required');
+    }
+
+    const brandId = req.params.brandId || req.body.brandId;
+    
+    if (!brandId) {
+      throw createForbiddenError('Brand ID is required');
+    }
+
+    // Check if manufacturer has access to this brand
+    const hasAccess = req.manufacturer.brands.some((brand: any) => 
+      brand.toString() === brandId
+    );
+
+    if (!hasAccess) {
+      throw createForbiddenError('Access denied to this brand');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
 }

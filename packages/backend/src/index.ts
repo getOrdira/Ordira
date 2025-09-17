@@ -5,8 +5,7 @@
 import 'dotenv/config';
 
 // 1️⃣ Load and validate all required environment variables
-import { loadSecrets } from './config/secrets';
-import { validateEnv } from './config/validateEnv';
+import { configService } from './services/utils/config.service';
 
 // 2️⃣ Core dependencies with enhanced monitoring
 import express, { Request, Response, NextFunction } from 'express';
@@ -164,27 +163,14 @@ interface ErrorWithStatus extends Error {
     console.log('🚀 Starting Ordira Platform...');
 
     // Load and validate environment configuration
-    await loadSecrets();
-    validateEnv();
     console.log('✅ Environment configuration loaded and validated');
 
     // 🔧 Configure Mongoose settings
     mongoose.set('strictQuery', false); // Suppress deprecation warning
     
     // 🚀 Optimized MongoDB connection with performance enhancements
-    await mongoose.connect(process.env.MONGODB_URI!, {
-      maxPoolSize: 10, // Reduced pool size for lower memory usage
-      minPoolSize: 2,  // Reduced minimum connections
-      maxIdleTimeMS: 30000, // Close idle connections after 30s
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      // Connection optimization
-      connectTimeoutMS: 10000,
-      heartbeatFrequencyMS: 10000,
-      // Compression
-      compressors: ['zlib'],
-      zlibCompressionLevel: 6
-    });
+    const dbConfig = configService.getDatabase();
+    await mongoose.connect(dbConfig.mongodb.uri, dbConfig.mongodb.options);
     console.log('✅ Connected to MongoDB with optimized configuration');
 
     // 🔧 Initialize performance services
