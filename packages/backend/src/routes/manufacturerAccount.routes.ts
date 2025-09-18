@@ -1,9 +1,8 @@
-// @ts-nocheck
 // src/routes/manufacturerAccount.routes.ts
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import Joi from 'joi';
 import { validateBody, validateQuery } from '../middleware/validation.middleware';
-import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { uploadMiddleware } from '../middleware/upload.middleware';
@@ -13,7 +12,7 @@ import {
   quickUpdateManufacturerSchema,
   manufacturerVerificationSchema
 } from '../validation/manufacturerAccount.validation';
-import { RequestHandler } from 'express';
+import { asRouteHandler } from '../utils/routeHelpers';	
 
 const router = Router();
 const safeUploadMiddleware = {
@@ -25,7 +24,7 @@ const safeUploadMiddleware = {
 router.use(dynamicRateLimiter());
 
 // Apply manufacturer authentication to all routes
-router.use(authenticateManufacturer);
+router.use(authenticate, requireManufacturer);
 
 // ===== PROFILE MANAGEMENT =====
 
@@ -41,7 +40,7 @@ router.put(
   '/',
   validateBody(updateManufacturerAccountSchema),
   trackManufacturerAction('update_account'),
-  ctrl.updateManufacturerProfile
+  asRouteHandler(ctrl.updateManufacturerProfile)
 );
 
 // Delete manufacturer account (soft delete)
@@ -97,7 +96,7 @@ router.get(
     endDate: Joi.date().greater(Joi.ref('startDate')).optional()
   })),
   trackManufacturerAction('view_activity_log'),
-  ctrl.getAccountActivity
+  asRouteHandler(ctrl.getAccountActivity)
 );
 
 // ===== NOTIFICATION PREFERENCES =====
@@ -123,7 +122,7 @@ router.put(
     }).optional()
   })),
   trackManufacturerAction('update_notification_preferences'),
-  ctrl.updateNotificationPreferences
+  asRouteHandler(ctrl.updateNotificationPreferences)
 );
 
 // ===== DATA EXPORT (GDPR COMPLIANCE) =====
@@ -133,7 +132,7 @@ router.get(
   '/export',
   strictRateLimiter(), // Limit data export requests
   trackManufacturerAction('request_data_export'),
-  ctrl.exportAccountData
+  asRouteHandler(ctrl.exportAccountData)  
 );
 
 export default router;

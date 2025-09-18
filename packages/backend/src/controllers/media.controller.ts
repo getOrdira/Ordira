@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/media.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { MediaService } from '../services/business/media.service';
@@ -13,7 +13,7 @@ const mediaService = new MediaService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantMediaRequest extends Request, AuthRequest {
+interface TenantMediaRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
   file?: Express.Multer.File;
 }

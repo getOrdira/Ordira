@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/nfts.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { NftService } from '../services/blockchain/nft.service';
@@ -13,7 +13,7 @@ const nftService = new NftService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantNFTRequest extends Request, AuthRequest {
+interface TenantNFTRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

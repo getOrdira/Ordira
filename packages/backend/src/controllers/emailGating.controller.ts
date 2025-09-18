@@ -1,7 +1,7 @@
-// @ts-nocheck
+
 // src/controllers/emailGating.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { EmailGatingService } from '../services/business/emailGating.service';
@@ -12,7 +12,7 @@ const emailGatingService = new EmailGatingService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantEmailGatingRequest extends Request, AuthRequest {
+interface TenantEmailGatingRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

@@ -1,8 +1,7 @@
-// @ts-nocheck
 // src/controllers/votes.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { VotingBusinessService } from '../services/business/votes.service';
@@ -15,7 +14,7 @@ const votingBusinessService = new VotingBusinessService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantVotingRequest extends Request, AuthRequest {
+interface TenantVotingRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

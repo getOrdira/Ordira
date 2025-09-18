@@ -1,14 +1,13 @@
-// @ts-nocheck
+
 // src/routes/brandAccount.routes.ts
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { validateBody, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantSetup } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { uploadMiddleware } from '../middleware/upload.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as ctrl from '../controllers/brandAccount.controller';
-import { RequestHandler } from 'express';
 import { 
   updateBrandAccountSchema,
   submitVerificationSchema,
@@ -16,6 +15,7 @@ import {
   exportAccountDataSchema,
   analyticsQuerySchema
 } from '../validation/brandAccount.validation';
+import { asRouteHandler } from '../utils/routeHelpers';
 
 const router = Router();
 const safeUploadMiddleware = {
@@ -40,7 +40,7 @@ router.use(requireTenantSetup);
  */
 router.get(
   '/profile',
-  ctrl.getBrandProfile
+  asRouteHandler(ctrl.getBrandProfile)
 );
 
 /**
@@ -50,7 +50,7 @@ router.get(
 router.put(
   '/profile',
   validateBody(updateBrandAccountSchema),
-  ctrl.updateBrandProfile
+  asRouteHandler(ctrl.updateBrandProfile)
 );
 
 /**
@@ -61,7 +61,7 @@ router.post(
   '/profile-picture',
   ...safeUploadMiddleware.singleImage,
   trackManufacturerAction('upload_brand_profile_picture'),
-  ctrl.uploadProfilePicture
+  asRouteHandler(ctrl.uploadProfilePicture)
 );
 
 // ===== VERIFICATION MANAGEMENT =====
@@ -74,7 +74,7 @@ router.post(
   '/verification',
   strictRateLimiter(), // Prevent verification spam
   validateBody(submitVerificationSchema),
-  ctrl.submitVerification
+  asRouteHandler(ctrl.submitVerification)
 );
 
 /**
@@ -83,7 +83,7 @@ router.post(
  */
 router.get(
   '/verification/status',
-  ctrl.getVerificationStatus
+  asRouteHandler(ctrl.getVerificationStatus)
 );
 
 // ===== ACCOUNT MANAGEMENT =====
@@ -96,7 +96,7 @@ router.post(
   '/deactivate',
   strictRateLimiter(), // Prevent accidental deactivation spam
   validateBody(deactivateAccountSchema),
-  ctrl.deactivateAccount
+  asRouteHandler(ctrl.deactivateAccount)
 );
 
 // ===== ANALYTICS & INSIGHTS =====
@@ -108,7 +108,7 @@ router.post(
 router.get(
   '/analytics',
   validateQuery(analyticsQuerySchema),
-  ctrl.getAccountAnalytics
+  asRouteHandler(ctrl.getAccountAnalytics)
 );
 
 // ===== DATA EXPORT =====
@@ -121,7 +121,7 @@ router.post(
   '/export',
   strictRateLimiter(), // Prevent export abuse
   validateBody(exportAccountDataSchema),
-  ctrl.exportAccountData
+  asRouteHandler(ctrl.exportAccountData)
 );
 
 export default router;

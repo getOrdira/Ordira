@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/routes/integrations.routes.ts
 import { Router } from 'express';
 import { validateBody, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, TenantRequest } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';

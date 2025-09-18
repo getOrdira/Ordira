@@ -1,9 +1,8 @@
-// @ts-nocheck
 // src/routes/products.routes.ts
-import { Router } from 'express';
+import { Router, Request, RequestHandler } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
-import { authenticateManufacturer, requireVerifiedManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate, requireVerifiedManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -17,7 +16,6 @@ import {
   productValidationSchemas
 } from '../validation/product.validation';
 import Joi from 'joi';
-import { RequestHandler } from 'express';
 import * as supplyChainCtrl from '../controllers/supplyChain.controller';
 
 // ===== UPLOAD MIDDLEWARE SETUP =====
@@ -96,7 +94,7 @@ const bulkProductsSchema = Joi.object({
 });
 
 // Dual authentication interface
-interface DualAuthRequest extends Request {
+interface DualUnifiedAuthRequest extends Request {
   userType?: 'business' | 'manufacturer';
   userId?: string;
   manufacturer?: any;
@@ -121,7 +119,7 @@ router.get(
   validateQuery(Joi.object({
     limit: Joi.number().integer().min(1).max(50).default(10).optional()
   })),
-  productCtrl.getFeaturedProducts
+  asRouteHandler(productCtrl.getFeaturedProducts)
 );
 
 /**
@@ -134,7 +132,7 @@ router.get(
 router.post(
   '/search',
   validateBody(productSearchSchema),
-  productCtrl.searchProducts
+  asRouteHandler(productCtrl.searchProducts)
 );
 
 /**
@@ -212,37 +210,12 @@ router.get(
   '/category/:category',
   validateParams(categoryParamsSchema),
   trackManufacturerAction('view_products_by_category'),
-  productCtrl.getProductsByCategory
+  asRouteHandler(productCtrl.getProductsByCategory)
 );
 
 // ===== DUAL AUTHENTICATION MIDDLEWARE =====
 // Supports both business and manufacturer authentication
-router.use((req: any, res, next) => {
-  // Try brand/business authentication first
-  authenticate(req, res, (brandErr) => {
-    if (!brandErr) {
-      req.userType = 'business';
-      // Apply tenant resolution for business users
-      return resolveTenant(req, res, next);
-    }
-    
-    // If brand auth fails, try manufacturer authentication
-    authenticateManufacturer(req, res, (mfgErr) => {
-      if (!mfgErr) {
-        req.userType = 'manufacturer';
-        return next();
-      }
-      
-      // Both authentications failed
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        message: 'Valid business or manufacturer authentication required',
-        code: 'AUTH_REQUIRED'
-      });
-    });
-  });
-});
+router.use(authenticate);
 
 // ===== AUTHENTICATED PRODUCT MANAGEMENT =====
 
@@ -258,7 +231,7 @@ router.get(
   '/',
   validateQuery(listProductsQuerySchema),
   trackManufacturerAction('view_products'),
-  productCtrl.listProducts
+  asRouteHandler(productCtrl.listProducts)
 );
 
 /**
@@ -275,7 +248,7 @@ router.post(
   strictRateLimiter(), // Prevent product spam
   validateBody(createProductSchema),
   trackManufacturerAction('create_product'),
-  productCtrl.createProduct
+  asRouteHandler(productCtrl.createProduct)
 );
 
 /**
@@ -292,7 +265,7 @@ router.post(
   strictRateLimiter(), // Prevent product spam
   validateBody(quickCreateProductSchema),
   trackManufacturerAction('quick_create_product'),
-  productCtrl.createProduct
+  asRouteHandler(productCtrl.createProduct)
 );
 
 /**
@@ -305,7 +278,7 @@ router.post(
 router.get(
   '/stats',
   trackManufacturerAction('view_product_stats'),
-  productCtrl.getProductStats
+  asRouteHandler(productCtrl.getProductStats)
 );
 
 /**
@@ -320,7 +293,7 @@ router.get(
   '/:id',
   validateParams(productParamsSchema),
   trackManufacturerAction('view_product_details'),
-  productCtrl.getProduct
+  asRouteHandler(productCtrl.getProduct)
 );
 
 /**
@@ -337,7 +310,7 @@ router.put(
   validateParams(productParamsSchema),
   validateBody(updateProductSchema),
   trackManufacturerAction('update_product'),
-  productCtrl.updateProduct
+  asRouteHandler(productCtrl.updateProduct)
 );
 
 /**
@@ -355,7 +328,7 @@ router.post(
   validateParams(productParamsSchema),
   ...safeUploadMiddleware.multipleImages,
   trackManufacturerAction('upload_product_images'),
-  productCtrl.uploadProductImages
+  asRouteHandler(productCtrl.uploadProductImages)
 );
 
 /**
@@ -372,7 +345,7 @@ router.delete(
   strictRateLimiter(), // Security for deletions
   validateParams(productParamsSchema),
   trackManufacturerAction('delete_product'),
-  productCtrl.deleteProduct
+  asRouteHandler(productCtrl.deleteProduct)
 );
 
 // ===== PRODUCT VOTING SYSTEM =====
@@ -391,7 +364,7 @@ router.post(
   strictRateLimiter(), // Prevent vote spam
   validateParams(productParamsSchema),
   trackManufacturerAction('vote_for_product'),
-  productCtrl.voteForProduct
+  asRouteHandler(productCtrl.voteForProduct)
 );
 
 /**
@@ -408,7 +381,7 @@ router.post(
   strictRateLimiter(), // Security for certificate addition
   validateParams(productParamsSchema),
   trackManufacturerAction('add_product_certificate'),
-  productCtrl.addProductCertificate
+  asRouteHandler(productCtrl.addProductCertificate)
 );
 
 // ===== BULK OPERATIONS =====
@@ -427,7 +400,7 @@ router.put(
   strictRateLimiter(), // Very strict for bulk operations
   validateBody(bulkProductsSchema),
   trackManufacturerAction('bulk_update_products'),
-  productCtrl.bulkUpdateProducts
+  asRouteHandler(productCtrl.bulkUpdateProducts)
 );
 
 /**
@@ -539,7 +512,6 @@ router.post(
         success: true,
         message: 'WooCommerce import endpoint - to be implemented',
         data: {
-          importRequest: req.body,
           note: 'WooCommerce integration to be implemented with import service'
         }
       });

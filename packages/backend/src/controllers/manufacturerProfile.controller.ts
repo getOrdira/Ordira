@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/manufacturerProfile.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ManufacturerProfileService } from '../services/business/manufacturerProfile.service';
@@ -13,7 +13,7 @@ const manufacturerProfileService = new ManufacturerProfileService();
 /**
  * Extended request interfaces for type safety
  */
-interface SearchRequest extends Request, AuthRequest, ValidatedRequest {
+interface SearchRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedQuery: {
     query?: string;
     industry?: string;
@@ -27,7 +27,7 @@ interface SearchRequest extends Request, AuthRequest, ValidatedRequest {
   };
 }
 
-interface ProfileDetailRequest extends Request, AuthRequest, ValidatedRequest {
+interface ProfileDetailRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedParams: { id: string };
 }
 
@@ -143,7 +143,7 @@ export const getManufacturerProfile = asyncHandler(async (
  * @returns { manufacturers[], industryStats }
  */
 export const getManufacturersByIndustry = asyncHandler(async (
-  req: AuthRequest & { params: { industry: string } },
+  req: UnifiedAuthRequest & { params: { industry: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -182,7 +182,7 @@ export const getManufacturersByIndustry = asyncHandler(async (
  * @returns { manufacturers[], suggestions, savedSearch }
  */
 export const advancedManufacturerSearch = asyncHandler(async (
-  req: AuthRequest & {
+  req: UnifiedAuthRequest & {
     validatedBody: {
       query?: string;
       industries?: string[];
@@ -246,7 +246,7 @@ export const advancedManufacturerSearch = asyncHandler(async (
  * @returns { featured[], criteria }
  */
 export const getFeaturedManufacturers = asyncHandler(async (
-  req: AuthRequest & { query: { limit?: string; industry?: string } },
+  req: UnifiedAuthRequest & { query: { limit?: string; industry?: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -281,7 +281,7 @@ export const getFeaturedManufacturers = asyncHandler(async (
  * @returns { globalStats, industryBreakdown, trends }
  */
 export const getManufacturerStats = asyncHandler(async (
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -312,7 +312,7 @@ export const getManufacturerStats = asyncHandler(async (
  * @returns { comparison, recommendations }
  */
 export const compareManufacturers = asyncHandler(async (
-  req: AuthRequest & { validatedBody: { manufacturerIds: string[] } },
+  req: UnifiedAuthRequest & { validatedBody: { manufacturerIds: string[] } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {

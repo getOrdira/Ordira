@@ -1,10 +1,10 @@
-// @ts-nocheck
+
 // src/routes/media.routes.ts
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import Joi from 'joi';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
-import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from '../middleware/upload.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -16,7 +16,7 @@ import {
   updateMediaMetadataSchema,
   bulkDeleteMediaSchema
 } from '../validation/media.validation';
-import { RequestHandler } from 'express';
+
 
 const router = Router();
 const safeUploadMiddleware = {
@@ -39,7 +39,7 @@ router.use((req: any, res, next) => {
     }
     
     // If brand auth fails, try manufacturer authentication
-    authenticateManufacturer(req, res, (mfgErr) => {
+    requireManufacturer(req, res, (mfgErr) => {
       if (!mfgErr) {
         req.userType = 'manufacturer';
         return next();
@@ -65,7 +65,7 @@ router.post(
   ...safeUploadMiddleware.singleImage, // Use predefined single image middleware
   validateBody(uploadMediaSchema),
   trackManufacturerAction('upload_media'),
-  mediaCtrl.uploadMedia,
+  asRouteHandler(mediaCtrl.uploadMedia),
   cleanupOnError
 );
 
@@ -77,7 +77,7 @@ router.post(
   ...safeUploadMiddleware.multipleImages, // Use predefined multiple images middleware
   validateBody(uploadMediaSchema),
   trackManufacturerAction('batch_upload_media'),
-  mediaCtrl.uploadMultipleMedia,
+  asRouteHandler(mediaCtrl.uploadMultipleMedia),
   cleanupOnError
 );
 
@@ -88,15 +88,16 @@ router.get(
   '/',
   validateQuery(listMediaQuerySchema),
   trackManufacturerAction('list_media'),
-  mediaCtrl.listMedia
+  asRouteHandler(mediaCtrl.listMedia)
 );
+
 
 // Get specific media file details
 router.get(
   '/:mediaId',
   validateParams(mediaParamsSchema),
   trackManufacturerAction('view_media_details'),
-  mediaCtrl.getMediaDetails
+  asRouteHandler(mediaCtrl.getMediaDetails)
 );
 
 // Update media metadata
@@ -105,7 +106,7 @@ router.put(
   validateParams(mediaParamsSchema),
   validateBody(updateMediaMetadataSchema),
   trackManufacturerAction('update_media'),
-  mediaCtrl.updateMediaMetadata
+  asRouteHandler(mediaCtrl.updateMediaMetadata)
 );
 
 // Delete single media file (strict rate limiting)
@@ -114,7 +115,7 @@ router.delete(
   strictRateLimiter(), // Security for deletions
   validateParams(mediaParamsSchema),
   trackManufacturerAction('delete_media'),
-  mediaCtrl.deleteMedia
+  asRouteHandler(mediaCtrl.deleteMedia)
 );
 
 // ===== SPECIALIZED ROUTES =====
@@ -132,7 +133,7 @@ router.get(
       })
   })),
   trackManufacturerAction('browse_media_by_category'),
-  mediaCtrl.getMediaByCategory
+  asRouteHandler(mediaCtrl.getMediaByCategory)
 );
 
 // Download media file
@@ -140,7 +141,7 @@ router.get(
   '/:mediaId/download',
   validateParams(mediaParamsSchema),
   trackManufacturerAction('download_media'),
-  mediaCtrl.downloadMedia
+  asRouteHandler(mediaCtrl.downloadMedia)
 );
 
 // ===== BULK OPERATIONS =====

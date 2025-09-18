@@ -1,9 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/notification.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { NotificationService } from '../services/business/notification.service';
@@ -30,14 +29,14 @@ interface BaseNotificationQuery {
   userType?: 'business' | 'manufacturer';
 }
 
-type NotificationListRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseNotificationQuery;
+type NotificationListRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseNotificationQuery;
 
 interface BaseNotificationAction {
   validatedParams: { id: string };
   userType?: 'business' | 'manufacturer';
 }
 
-type NotificationActionRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseNotificationAction;
+type NotificationActionRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseNotificationAction;
 
 interface BaseBulkAction {
   validatedBody: {
@@ -47,7 +46,7 @@ interface BaseBulkAction {
   userType?: 'business' | 'manufacturer';
 }
 
-type BulkActionRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseBulkAction;
+type BulkActionRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseBulkAction;
 
 interface BaseCreateNotification {
   validatedBody: {
@@ -64,7 +63,7 @@ interface BaseCreateNotification {
   };
 }
 
-type CreateNotificationRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseCreateNotification;
+type CreateNotificationRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseCreateNotification;
 
 interface BaseBulkNotification {
   validatedBody: {
@@ -84,12 +83,12 @@ interface BaseBulkNotification {
   };
 }
 
-type BulkNotificationRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseBulkNotification;
+type BulkNotificationRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseBulkNotification;
 
 /**
  * Helper to determine user context
  */
-function getUserContext(req: AuthRequest | ManufacturerAuthRequest): {
+function getUserContext(req: UnifiedAuthRequest | UnifiedAuthRequest): {
   userId: string;
   userType: 'business' | 'manufacturer';
   businessId?: string;
@@ -211,7 +210,7 @@ export const getNotifications = asyncHandler(async (
  * @returns { totalStats, typeBreakdown, priorityBreakdown, recentActivity }
  */
 export const getNotificationStats = asyncHandler(async (
-  req: AuthRequest | ManufacturerAuthRequest,
+  req: UnifiedAuthRequest | UnifiedAuthRequest,
   res: Response,
   next: NextFunction
  ): Promise<void> => {
@@ -349,7 +348,7 @@ export const getNotificationDetails = asyncHandler(async (
  * @returns { count, hasUnread, breakdown }
  */
 export const getUnreadCount = asyncHandler(async (
-  req: AuthRequest | ManufacturerAuthRequest,
+  req: UnifiedAuthRequest | UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -405,7 +404,7 @@ export const getUnreadCount = asyncHandler(async (
  * @returns { markedCount, stats }
  */
 export const markAllAsRead = asyncHandler(async (
-  req: AuthRequest | ManufacturerAuthRequest,
+  req: UnifiedAuthRequest | UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -446,7 +445,7 @@ export const markAllAsRead = asyncHandler(async (
  * @returns { notifications[], typeStats, insights }
  */
 export const getNotificationsByType = asyncHandler(async (
-  req: (AuthRequest | ManufacturerAuthRequest) & { params: { type: string } },
+  req: (UnifiedAuthRequest | UnifiedAuthRequest) & { params: { type: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -656,7 +655,7 @@ export const bulkNotificationAction = asyncHandler(async (
  * @returns { deleted, summary }
  */
 export const bulkDeleteNotifications = asyncHandler(async (
-  req: (AuthRequest | ManufacturerAuthRequest) & {
+  req: (UnifiedAuthRequest | UnifiedAuthRequest) & {
     validatedBody: { notificationIds: string[] }
   },
   res: Response,
@@ -779,7 +778,7 @@ export const createNotification = asyncHandler(async (
  * @returns { cleaned, summary }
  */
 export const cleanupOldNotifications = asyncHandler(async (
-  req: (AuthRequest | ManufacturerAuthRequest) & { 
+  req: (UnifiedAuthRequest | UnifiedAuthRequest) & { 
     query: { daysToKeep?: string } 
   },
   res: Response,

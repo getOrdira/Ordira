@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Request, Response, NextFunction } from 'express';
 import Joi, { ObjectSchema, ValidationError } from 'joi';
 import { Types } from 'mongoose';
@@ -11,6 +10,25 @@ export interface ValidatedRequest {
   validatedQuery?: any;
   validatedParams?: any;
   validationErrors?: string[];
+}
+
+/**
+ * Request interface with required validated properties
+ */
+export interface RequiredValidatedRequest {
+  validatedBody: any;
+  validatedQuery: any;
+  validatedParams: any;
+  validationErrors?: string[];
+}
+
+/**
+ * Type assertion helper for validated request handlers
+ */
+export function asValidatedHandler<T extends ValidatedRequest>(
+  handler: (req: T, res: Response, next: NextFunction) => void | Promise<void>
+) {
+  return handler as any;
 }
 
 /**

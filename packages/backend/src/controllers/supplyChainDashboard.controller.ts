@@ -1,7 +1,6 @@
-// @ts-nocheck
 // src/controllers/supplyChainDashboard.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ManufacturerAccountService } from '../services/business/manufacturerAccount.service';
 import { Location } from '../models/location.model';
@@ -16,7 +15,7 @@ const manufacturerAccountService = new ManufacturerAccountService();
  * Get comprehensive supply chain overview for manufacturer dashboard
  */
 export const getSupplyChainOverview = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -159,7 +158,7 @@ export const getSupplyChainOverview = asyncHandler(async (
  * Get detailed analytics for supply chain operations
  */
 export const getSupplyChainAnalytics = asyncHandler(async (
-  req: ManufacturerAuthRequest & { query: { timeframe?: string; groupBy?: string } },
+  req: UnifiedAuthRequest & { query: { timeframe?: string; groupBy?: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -271,7 +270,7 @@ export const getSupplyChainAnalytics = asyncHandler(async (
  * Get available quick actions for the manufacturer
  */
 export const getQuickActions = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

@@ -1,8 +1,9 @@
-// @ts-nocheck
+
 // src/routes/nfts.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -105,7 +106,7 @@ router.post(
   strictRateLimiter(), // Prevent contract deployment spam
   validateBody(deployNftSchema),
   trackManufacturerAction('deploy_nft_contract'),
-  nftsCtrl.deployNft
+  asRouteHandler(nftsCtrl.deployNft)
 );
 
 /**
@@ -120,7 +121,7 @@ router.get(
   '/contracts',
   validateQuery(listNftsQuerySchema),
   trackManufacturerAction('view_nft_contracts'),
-  nftsCtrl.listNftContracts
+  asRouteHandler(nftsCtrl.listNftContracts)
 );
 
 // ===== NFT MINTING =====
@@ -141,7 +142,7 @@ router.post(
   strictRateLimiter(), // Prevent minting spam
   validateBody(mintNftSchema),
   trackManufacturerAction('mint_nft'),
-  nftsCtrl.mintNft
+  asRouteHandler(nftsCtrl.mintNft)
 );
 
 // ===== CERTIFICATE MANAGEMENT =====
@@ -158,7 +159,7 @@ router.get(
   '/certificates',
   validateQuery(listNftsQuerySchema),
   trackManufacturerAction('view_certificates'),
-  nftsCtrl.listCertificates
+  asRouteHandler(nftsCtrl.listCertificates)
 );
 
 /**
@@ -175,7 +176,7 @@ router.post(
   strictRateLimiter(), // Security for transfers
   validateBody(transferNftSchema),
   trackManufacturerAction('transfer_nft'),
-  nftsCtrl.transferNft
+  asRouteHandler(nftsCtrl.transferNft)
 );
 
 // ===== ANALYTICS & REPORTING =====
@@ -192,7 +193,7 @@ router.get(
   '/analytics',
   validateQuery(nftAnalyticsSchema),
   trackManufacturerAction('view_nft_analytics'),
-  nftsCtrl.getNftAnalytics
+  asRouteHandler(nftsCtrl.getNftAnalytics)
 );
 
 // ===== VERIFICATION =====
@@ -211,7 +212,7 @@ router.get(
   validateParams(tokenIdParamsSchema),
   validateQuery(verificationQuerySchema),
   trackManufacturerAction('verify_nft'),
-  nftsCtrl.verifyNft
+  asRouteHandler(nftsCtrl.verifyNft)
 );
 
 // ===== NFT BURNING =====
@@ -230,9 +231,9 @@ router.delete(
   '/:tokenId',
   strictRateLimiter(), // Security for burning
   validateParams(tokenIdParamsSchema),
-  validateBody(burnNftSchema.fork(['owner'], (schema) => schema.optional())), // Make owner optional since it's from tenant
+  validateBody(burnNftSchema.fork(['owner'], (schema) => schema.optional()))  , // Make owner optional since it's from tenant
   trackManufacturerAction('burn_nft'),
-  nftsCtrl.burnNft
+  asRouteHandler(nftsCtrl.burnNft)
 );
 
 export default router;

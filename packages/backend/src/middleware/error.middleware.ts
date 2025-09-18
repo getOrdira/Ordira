@@ -1,4 +1,3 @@
-// @ts-nocheck
 // src/middleware/error.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
@@ -17,11 +16,11 @@ export interface AppError extends Error {
  * Error response interface
  */
 export interface ErrorResponse {
+  success: false;
   error: string;
   code?: string;
   details?: any;
   timestamp: string;
-  path: string;
   requestId?: string;
 }
 
@@ -291,14 +290,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     logError(multerError, req, requestId);
     
     const response: ErrorResponse = {
+      success: false,
       error: multerError.message,
       code: multerError.code,
       timestamp: new Date().toISOString(),
-      path: req.path,
       requestId
     };
     
-    res.status(400).json(response)
+    res.status(400).json(response);
     return;
   }
   
@@ -317,11 +316,11 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   const shouldHideDetails = isProduction && status >= 500;
   
   const response: ErrorResponse = {
+    success: false,
     error: shouldHideDetails ? 'Internal Server Error' : message,
     code: normalizedError.code,
     details: shouldHideDetails ? undefined : normalizedError.details,
     timestamp: new Date().toISOString(),
-    path: req.path,
     requestId
   };
   
@@ -340,10 +339,10 @@ export function notFoundHandler(req: Request, res: Response, _next: NextFunction
   const requestId = generateRequestId();
   
   const response: ErrorResponse = {
+    success: false,
     error: `Route ${req.method} ${req.path} not found`,
     code: 'ROUTE_NOT_FOUND',
     timestamp: new Date().toISOString(),
-    path: req.path,
     requestId
   };
   

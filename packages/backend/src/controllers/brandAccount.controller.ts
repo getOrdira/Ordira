@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/controllers/brandAccount.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -12,7 +12,7 @@ import { AnalyticsBusinessService } from '../services/business/analytics.service
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
-interface BrandAccountRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface BrandAccountRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     profilePictureUrl?: string;
     description?: string;
@@ -46,7 +46,7 @@ interface BrandAccountRequest extends Request, AuthRequest, TenantRequest, Valid
   };
 }
 
-interface VerificationRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface VerificationRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     businessLicense?: string;
     taxDocument?: string;
@@ -67,7 +67,7 @@ const analyticsService = new AnalyticsBusinessService();
  * Get comprehensive brand profile with enhanced metadata
  */
 export async function getBrandProfile(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -114,7 +114,7 @@ export async function getBrandProfile(
  * @returns { profilePictureUrl, uploadedAt }
  */
 export async function uploadProfilePicture(
-  req: AuthRequest & TenantRequest & { file?: Express.Multer.File },
+  req: UnifiedAuthRequest & TenantRequest & { file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -367,7 +367,7 @@ export async function submitVerification(
  * Get current verification status with detailed information
  */
 export async function getVerificationStatus(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -469,7 +469,7 @@ export async function deactivateAccount(
  * Get brand account analytics and insights
  */
 export async function getAccountAnalytics(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -519,7 +519,7 @@ export async function getAccountAnalytics(
  * Export brand account data in various formats
  */
 export async function exportAccountData(
-  req: AuthRequest & TenantRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & TenantRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

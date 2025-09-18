@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/routes/domainMapping.routes.ts
 import { Router } from 'express';
 import { validateBody, validateQuery, validateParams } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';

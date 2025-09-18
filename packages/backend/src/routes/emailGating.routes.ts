@@ -1,8 +1,9 @@
-// @ts-nocheck
+
 // src/routes/emailGating.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -64,7 +65,7 @@ router.use(resolveTenant);
  */
 router.get(
   '/settings',
-  emailGatingCtrl.getEmailGatingSettings
+  asRouteHandler(emailGatingCtrl.getEmailGatingSettings)
 );
 
 /**
@@ -80,7 +81,7 @@ router.put(
   '/settings',
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Email gating is a premium feature
   validateBody(emailGatingSettingsSchema),
-  emailGatingCtrl.updateEmailGatingSettings
+  asRouteHandler(emailGatingCtrl.updateEmailGatingSettings)
 );
 
 // ===== CUSTOMER MANAGEMENT =====
@@ -96,7 +97,7 @@ router.put(
 router.get(
   '/customers',
   validateQuery(customerListQuerySchema),
-  emailGatingCtrl.getCustomers
+  asRouteHandler(emailGatingCtrl.getCustomers)
 );
 
 /**
@@ -113,7 +114,7 @@ router.post(
   strictRateLimiter(), // Prevent abuse of customer imports
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Customer management requires Growth+
   validateBody(customersImportSchema),
-  emailGatingCtrl.addCustomers
+  asRouteHandler(emailGatingCtrl.addCustomers)
 );
 
 /**
@@ -128,7 +129,7 @@ router.delete(
   '/customers/:customerId',
   strictRateLimiter(), // Security for customer deletion
   validateParams(customerIdParamsSchema),
-  emailGatingCtrl.deleteCustomer
+  asRouteHandler(emailGatingCtrl.deleteCustomer)
 );
 
 // ===== CUSTOMER IMPORT OPERATIONS =====
@@ -147,7 +148,7 @@ router.post(
   strictRateLimiter(), // Prevent abuse of bulk CSV imports
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Bulk imports require Growth+
   validateBody(csvImportSchema),
-  emailGatingCtrl.importFromCSV
+  asRouteHandler(emailGatingCtrl.importFromCSV)
 );
 
 /**
@@ -162,7 +163,7 @@ router.post(
   '/customers/sync-shopify',
   strictRateLimiter(), // Prevent sync abuse
   requireTenantPlan(['premium', 'enterprise']), // Advanced integrations require Premium+
-  emailGatingCtrl.syncFromShopify
+  asRouteHandler(emailGatingCtrl.syncFromShopify)
 );
 
 // ===== CUSTOMER ACCESS CONTROL =====
@@ -179,7 +180,7 @@ router.post(
 router.get(
   '/check/:email',
   validateParams(emailCheckParamsSchema),
-  emailGatingCtrl.checkEmailAccess
+  asRouteHandler(emailGatingCtrl.checkEmailAccess)
 );
 
 /**
@@ -195,7 +196,7 @@ router.post(
   strictRateLimiter(), // Security for access revocation
   validateParams(customerIdParamsSchema),
   validateBody(customerAccessActionSchema),
-  emailGatingCtrl.revokeCustomerAccess
+  asRouteHandler(emailGatingCtrl.revokeCustomerAccess)
 );
 
 /**
@@ -210,7 +211,7 @@ router.post(
   '/customers/:customerId/restore',
   strictRateLimiter(), // Security for access restoration
   validateParams(customerIdParamsSchema),
-  emailGatingCtrl.restoreCustomerAccess
+  asRouteHandler(emailGatingCtrl.restoreCustomerAccess)
 );
 
 /**
@@ -225,7 +226,7 @@ router.put(
   '/customers/bulk-access',
   strictRateLimiter(), // Prevent abuse of bulk access operations
   validateBody(bulkAccessSchema),
-  emailGatingCtrl.bulkUpdateAccess
+  asRouteHandler(emailGatingCtrl.bulkUpdateAccess)
 );
 
 // ===== ANALYTICS & INSIGHTS =====
@@ -239,7 +240,7 @@ router.put(
  */
 router.get(
   '/analytics',
-  emailGatingCtrl.getCustomerAnalytics
+  asRouteHandler(emailGatingCtrl.getCustomerAnalytics)
 );
 
 /**
@@ -255,7 +256,7 @@ router.get(
   requireTenantPlan(['premium', 'enterprise']), // Advanced insights require Premium+
   (req, res, next) => {
     // Use the analytics controller for insights
-    emailGatingCtrl.getCustomerAnalytics(req, res, next);
+    asRouteHandler(emailGatingCtrl.getCustomerAnalytics)(req, res, next);
   }
 );
 
@@ -271,12 +272,12 @@ router.get(
   (req, res, next) => {
     // Combine settings and analytics for dashboard view
     Promise.all([
-      emailGatingCtrl.getEmailGatingSettings(req, res, () => {}),
-      emailGatingCtrl.getCustomerAnalytics(req, res, () => {})
+      asRouteHandler(emailGatingCtrl.getEmailGatingSettings)(req, res, () => {}),
+      asRouteHandler(emailGatingCtrl.getCustomerAnalytics)(req, res, () => {})
     ]).then(() => {
       // This would be handled by a dedicated dashboard controller method
       // For now, redirect to analytics
-      emailGatingCtrl.getCustomerAnalytics(req, res, next);
+      asRouteHandler(emailGatingCtrl.getCustomerAnalytics)(req, res, next);
     }).catch(next);
   }
 );
@@ -298,7 +299,7 @@ router.get(
     // Add deprecation warning header
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /api/email-gating/customers instead.');
     // Type cast to match controller expectations
-    emailGatingCtrl.getCustomers(req as any, res, next);
+    asRouteHandler(emailGatingCtrl.getCustomers)(req, res, next);
   }
 );
 
@@ -319,7 +320,7 @@ router.post(
     // Add deprecation warning header
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /api/email-gating/customers instead.');
     // Type cast to match controller expectations
-    emailGatingCtrl.addCustomers(req as any, res, next);
+    asRouteHandler(emailGatingCtrl.addCustomers)(req, res, next);
   }
 );
 

@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/controllers/apiKey.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -9,7 +9,7 @@ import { ApiKeyService } from '../services/business/apiKey.service';
 import { BillingService } from '../services/external/billing.service';
 
 // Enhanced request interfaces
-interface ApiKeyRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface ApiKeyRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   params: {
     keyId?: string;
   };

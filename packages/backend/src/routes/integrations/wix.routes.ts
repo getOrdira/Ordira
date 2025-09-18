@@ -2,10 +2,10 @@
 // src/routes/integrations/wix.routes.ts
 
 import { Router } from 'express';
-import express from 'express';
 import { resolveTenant, TenantRequest } from '../../middleware/tenant.middleware';
-import { authenticate, AuthRequest } from '../../middleware/auth.middleware';
+import { authenticate, UnifiedUnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
 import { validateBody, validateQuery, ValidatedRequest } from '../../middleware/validation.middleware';
+import { asRouteHandler } from '../../utils/routeHelpers';
 import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../../middleware/metrics.middleware';
 import * as wixCtrl from '../../controllers/wix.controller';
@@ -18,7 +18,7 @@ const router = Router();
 /**
  * Extended request interface with authentication and tenant context
  */
-interface WixTenantRequest extends AuthRequest, TenantRequest {}
+interface WixTenantRequest extends UnifiedAuthRequest, TenantRequest {}
 
 /**
  * Request interface for validated endpoints
@@ -167,7 +167,7 @@ router.post(
   strictRateLimiter(), // Prevent OAuth flow abuse
   validateBody(wixConnectSchema),
   trackManufacturerAction('initiate_wix_connection'),
-  wixCtrl.connectWix
+  asRouteHandler(wixCtrl.connectWix)
 );
 
 /**
@@ -182,7 +182,7 @@ router.get(
   '/oauth/callback',
   dynamicRateLimiter(), // Handle legitimate OAuth callbacks
   validateQuery(wixCallbackSchema),
-  wixCtrl.oauthCallback
+  asRouteHandler(wixCtrl.oauthCallback)
 );
 
 /**
@@ -197,7 +197,7 @@ router.get(
   authenticate,
   resolveTenant,
   trackManufacturerAction('view_wix_status'),
-  wixCtrl.getConnectionStatus
+  asRouteHandler(wixCtrl.getConnectionStatus)
 );
 
 /**
@@ -213,7 +213,7 @@ router.delete(
   resolveTenant,
   strictRateLimiter(), // Security for disconnection
   trackManufacturerAction('disconnect_wix'),
-  wixCtrl.disconnectWix
+  asRouteHandler(wixCtrl.disconnectWix)
 );
 
 // ===== DATA SYNCHRONIZATION =====
@@ -233,7 +233,7 @@ router.post(
   strictRateLimiter(), // Prevent sync spam
   validateBody(wixSyncSchema),
   trackManufacturerAction('sync_wix_data'),
-  wixCtrl.syncWixData
+  asRouteHandler(wixCtrl.syncWixData)
 );
 
 /**
@@ -338,7 +338,7 @@ router.post(
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
     // Cast req to the expected type for the controller
-    wixCtrl.handleOrderWebhook(req as any, res, next);
+    asRouteHandler(wixCtrl.handleOrderWebhook)(req, res, next);
   }
 );
 
@@ -476,7 +476,7 @@ router.get(
   resolveTenant,
   strictRateLimiter(), // Prevent connection test spam
   trackManufacturerAction('test_wix_connection'),
-  wixCtrl.testWixConnection
+  asRouteHandler(wixCtrl.testWixConnection)
 );
 
 /**

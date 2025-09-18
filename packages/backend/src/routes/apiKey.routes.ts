@@ -1,12 +1,12 @@
-// @ts-nocheck
+
 // src/routes/apiKey.routes.ts
 
 import { Router } from 'express';
-import { resolveTenant } from '../middleware/tenant.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
-import { requireTenantPlan } from '../middleware/tenant.middleware';
 import * as apiKeyCtrl from '../controllers/apiKey.controller';
 import Joi from 'joi';
 
@@ -157,7 +157,7 @@ const usageQuerySchema = Joi.object({
 /**
  * Create a new API key
  * POST /api/brand/api-keys
- * Maps to: apiKeyCtrl.createKey
+ * Maps to: asRouteHandler(apiKeyCtrl.createKey)
  */
 router.post(
   '/',
@@ -166,13 +166,13 @@ router.post(
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Lowered from premium+ to growth+
   dynamicRateLimiter(), // Fixed: No parameters
   validateBody(createApiKeySchema),
-  apiKeyCtrl.createKey
+  asRouteHandler(apiKeyCtrl.createKey)
 );
 
 /**
  * List all API keys for the authenticated business
  * GET /api/brand/api-keys
- * Maps to: apiKeyCtrl.listKeys
+ * Maps to: asRouteHandler(apiKeyCtrl.listKeys)
  */
 router.get(
   '/',
@@ -180,13 +180,13 @@ router.get(
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   dynamicRateLimiter(), // Fixed: No parameters
-  apiKeyCtrl.listKeys
+  asRouteHandler(apiKeyCtrl.listKeys)
 );
 
 /**
  * Update API key configuration
  * PUT /api/brand/api-keys/:keyId
- * Maps to: apiKeyCtrl.updateKey
+ * Maps to: asRouteHandler(apiKeyCtrl.updateKey)
  */
 router.put(
   '/:keyId',
@@ -196,13 +196,13 @@ router.put(
   dynamicRateLimiter(), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   validateBody(updateApiKeySchema),
-  apiKeyCtrl.updateKey
+  asRouteHandler(apiKeyCtrl.updateKey)
 );
 
 /**
  * Revoke/delete an API key
  * DELETE /api/brand/api-keys/:keyId
- * Maps to: apiKeyCtrl.revokeKey
+ * Maps to: asRouteHandler(apiKeyCtrl.revokeKey)
  */
 router.delete(
   '/:keyId',
@@ -211,13 +211,13 @@ router.delete(
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   dynamicRateLimiter(), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
-  apiKeyCtrl.revokeKey
+  asRouteHandler(apiKeyCtrl.revokeKey)
 );
 
 /**
  * Get API key usage statistics
  * GET /api/brand/api-keys/:keyId/usage
- * Maps to: apiKeyCtrl.getKeyUsage
+ * Maps to: asRouteHandler(apiKeyCtrl.getKeyUsage)
  */
 router.get(
   '/:keyId/usage',
@@ -227,13 +227,13 @@ router.get(
   dynamicRateLimiter(), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   validateQuery(usageQuerySchema),
-  apiKeyCtrl.getKeyUsage
+  asRouteHandler(apiKeyCtrl.getKeyUsage)
 );
 
 /**
  * Rotate API key (generate new key, keep same config)
  * POST /api/brand/api-keys/:keyId/rotate
- * Maps to: apiKeyCtrl.rotateKey
+ * Maps to: asRouteHandler(apiKeyCtrl.rotateKey)
  */
 router.post(
   '/:keyId/rotate',
@@ -242,7 +242,7 @@ router.post(
   requireTenantPlan(['premium', 'enterprise']), // Premium+ for key rotation
   dynamicRateLimiter(), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
-  apiKeyCtrl.rotateKey
+  asRouteHandler(apiKeyCtrl.rotateKey)
 );
 
 /**
@@ -252,7 +252,7 @@ router.post(
 /**
  * Get API key details by ID
  * GET /api/brand/api-keys/:keyId
- * Maps to: apiKeyCtrl.getKeyDetails
+ * Maps to: asRouteHandler(apiKeyCtrl.getKeyDetails)
  */
 router.get(
   '/:keyId',
@@ -261,13 +261,13 @@ router.get(
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   dynamicRateLimiter(), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
-  apiKeyCtrl.getKeyDetails
+  asRouteHandler(apiKeyCtrl.getKeyDetails)
 );
 
 /**
  * Test API key functionality
  * POST /api/brand/api-keys/:keyId/test
- * Maps to: apiKeyCtrl.testKey
+ * Maps to: asRouteHandler(apiKeyCtrl.testKey)
  */
 router.post(
   '/:keyId/test',
@@ -276,13 +276,13 @@ router.post(
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
-  apiKeyCtrl.testKey
+  asRouteHandler(apiKeyCtrl.testKey)
 );
 
 /**
  * Bulk operations on API keys
  * POST /api/brand/api-keys/bulk
- * Maps to: apiKeyCtrl.bulkUpdateKeys
+ * Maps to: asRouteHandler(apiKeyCtrl.bulkUpdateKeys)
  */
 router.post(
   '/bulk',
@@ -305,13 +305,13 @@ router.post(
       }),
     reason: Joi.string().trim().max(200).optional()
   })),
-  apiKeyCtrl.bulkUpdateKeys
+  asRouteHandler(apiKeyCtrl.bulkUpdateKeys)
 );
 
 /**
  * Get API key security audit log
  * GET /api/brand/api-keys/audit
- * Maps to: apiKeyCtrl.getAuditLog
+ * Maps to: asRouteHandler(apiKeyCtrl.getAuditLog)
  */
 router.get(
   '/audit',
@@ -327,13 +327,13 @@ router.get(
     page: Joi.number().integer().min(1).default(1).optional(),
     limit: Joi.number().integer().min(1).max(100).default(20).optional()
   })),
-  apiKeyCtrl.getAuditLog
+  asRouteHandler(apiKeyCtrl.getAuditLog)
 );
 
 /**
  * Export API key data and configurations
  * POST /api/brand/api-keys/export
- * Maps to: apiKeyCtrl.exportKeys
+ * Maps to: asRouteHandler(apiKeyCtrl.exportKeys)
  */
 router.post(
   '/export',
@@ -350,7 +350,7 @@ router.post(
       .max(100)
       .optional()
   })),
-  apiKeyCtrl.exportKeys
+  asRouteHandler(apiKeyCtrl.exportKeys)
 );
 
 export default router;

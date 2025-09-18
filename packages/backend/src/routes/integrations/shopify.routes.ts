@@ -1,10 +1,10 @@
-// @ts-nocheck
 // src/routes/integrations/shopify.routes.ts
 import { Router } from 'express';
 import express from 'express';
 import { resolveTenant, TenantRequest } from '../../middleware/tenant.middleware';
-import { authenticate, AuthRequest } from '../../middleware/auth.middleware';
+import { authenticate, UnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
 import { validateBody, validateQuery, validateParams, ValidatedRequest } from '../../middleware/validation.middleware';
+import { asRouteHandler } from '../../utils/routeHelpers';
 import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../../middleware/metrics.middleware';
 import * as shopifyCtrl from '../../controllers/shopify.controller';
@@ -17,7 +17,7 @@ const router = Router();
 /**
  * Extended request interface with authentication and tenant context
  */
-interface ShopifyTenantRequest extends AuthRequest, TenantRequest {}
+interface ShopifyTenantRequest extends UnifiedAuthRequest, TenantRequest {}
 
 /**
  * Request interface for validated endpoints
@@ -149,7 +149,7 @@ router.post(
   strictRateLimiter(), // Prevent OAuth flow abuse
   validateBody(shopifyConnectSchema),
   trackManufacturerAction('initiate_shopify_connection'),
-  shopifyCtrl.connectShopify
+  asRouteHandler(shopifyCtrl.connectShopify)
 );
 
 /**
@@ -164,7 +164,7 @@ router.get(
   '/oauth/callback',
   dynamicRateLimiter(), // Handle legitimate OAuth callbacks
   validateQuery(shopifyCallbackSchema),
-  shopifyCtrl.oauthCallback
+  asRouteHandler(shopifyCtrl.oauthCallback)
 );
 
 /**
@@ -180,7 +180,7 @@ router.get(
   authenticate,
   resolveTenant,
   trackManufacturerAction('view_shopify_status'),
-  shopifyCtrl.getConnectionStatus
+  asRouteHandler(shopifyCtrl.getConnectionStatus)
 );
 
 /**
@@ -197,7 +197,7 @@ router.delete(
   resolveTenant,
   strictRateLimiter(), // Security for disconnection
   trackManufacturerAction('disconnect_shopify'),
-  shopifyCtrl.disconnectShopify
+  asRouteHandler(shopifyCtrl.disconnectShopify)
 );
 
 // ===== DATA SYNCHRONIZATION =====
@@ -218,7 +218,7 @@ router.post(
   strictRateLimiter(), // Prevent sync spam
   validateBody(shopifySyncSchema),
   trackManufacturerAction('sync_shopify_data'),
-  shopifyCtrl.syncShopifyData
+  asRouteHandler(shopifyCtrl.syncShopifyData)
 );
 
 /**
@@ -271,7 +271,7 @@ router.post(
   '/webhook',
   express.raw({ type: 'application/json', limit: '1mb' }),
   dynamicRateLimiter(), // Handle webhook traffic
-  shopifyCtrl.handleWebhook
+  asRouteHandler(shopifyCtrl.handleWebhook)
 );
 
 /**
@@ -287,7 +287,7 @@ router.post(
   '/webhook/orders',
   express.raw({ type: 'application/json', limit: '1mb' }),
   dynamicRateLimiter(), // Handle order webhook traffic
-  shopifyCtrl.handleWebhook
+  asRouteHandler(shopifyCtrl.handleWebhook)
 );
 
 /**
@@ -425,7 +425,7 @@ router.get(
   resolveTenant,
   strictRateLimiter(), // Prevent connection test spam
   trackManufacturerAction('test_shopify_connection'),
-  shopifyCtrl.testShopifyConnection
+  asRouteHandler(shopifyCtrl.testShopifyConnection)
 );
 
 /**

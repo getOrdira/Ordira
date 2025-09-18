@@ -1,4 +1,3 @@
-// @ts-nocheck
 import rateLimit from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
 import { BrandSettings } from '../models/brandSettings.model';

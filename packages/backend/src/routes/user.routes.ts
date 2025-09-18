@@ -1,8 +1,8 @@
-// @ts-nocheck
 // src/routes/user.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate, requireUser } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { metricsMiddleware, trackManufacturerAction } from '../middleware/metrics.middleware';
 import { uploadMiddleware, cleanupOnError } from '../middleware/upload.middleware';
@@ -72,7 +72,7 @@ router.post(
   '/register',
   strictRateLimiter(), // Prevent registration abuse and spam accounts
   validateBody(registerUserSchema),
-  userCtrl.registerUser
+  asRouteHandler(userCtrl.registerUser)
 );
 
 /**
@@ -88,7 +88,7 @@ router.post(
   '/login',
   strictRateLimiter(), // Prevent brute force attacks
   validateBody(loginUserSchema),
-  userCtrl.loginUser
+  asRouteHandler(userCtrl.loginUser)
 );
 
 /**
@@ -104,7 +104,7 @@ router.post(
   '/verify',
   strictRateLimiter(), // Prevent verification code spam
   validateBody(verifyUserSchema),
-  userCtrl.verifyUser
+  asRouteHandler(userCtrl.verifyUser)
 );
 
 /**
@@ -120,7 +120,7 @@ router.post(
   '/forgot-password',
   strictRateLimiter(), // Prevent password reset abuse
   validateBody(forgotPasswordSchema),
-  userCtrl.forgotPassword
+  asRouteHandler(userCtrl.forgotPassword)
 );
 
 /**
@@ -136,7 +136,7 @@ router.post(
   '/reset-password',
   strictRateLimiter(), // Prevent reset abuse
   validateBody(resetPasswordSchema),
-  userCtrl.resetPassword
+  asRouteHandler(userCtrl.resetPassword)
 );
 
 /**
@@ -152,7 +152,7 @@ router.post(
   '/resend-verification',
   strictRateLimiter(), // Prevent verification email spam
   validateBody(resendVerificationSchema),
-  userCtrl.resendVerification
+  asRouteHandler(userCtrl.resendVerification)
 );
 
 // ===== PROTECTED USER ROUTES =====
@@ -173,7 +173,7 @@ router.use(authenticate);
  */
 router.get(
   '/profile',
-  userCtrl.getUserProfile
+  asRouteHandler(userCtrl.getUserProfile)
 );
 
 /**
@@ -188,7 +188,7 @@ router.get(
 router.put(
   '/profile',
   validateBody(updateUserProfileSchema),
-  userCtrl.updateUserProfile
+  asRouteHandler(userCtrl.updateUserProfile)
 );
 
 /**
@@ -202,7 +202,7 @@ router.put(
 router.delete(
   '/profile',
   strictRateLimiter(), // Security for irreversible account actions
-  userCtrl.deleteUserAccount
+  asRouteHandler(userCtrl.deleteUserAccount)
 );
 
 
@@ -222,7 +222,7 @@ router.delete(
 router.post(
   '/vote',
   trackManufacturerAction('user_vote_submission'),
-  userCtrl.submitVote
+  asRouteHandler(userCtrl.submitVote)
 );
 
 /**
@@ -237,7 +237,7 @@ router.post(
 router.get(
   '/vote/status/:proposalId',
   validateParams(proposalIdParamsSchema),
-  userCtrl.checkVoteStatus
+  asRouteHandler(userCtrl.checkVoteStatus)
 );
 
 /**
@@ -252,7 +252,7 @@ router.get(
 router.get(
   '/voting-history',
   validateQuery(listUsersQuerySchema),
-  userCtrl.getVotingHistory
+  asRouteHandler(userCtrl.getVotingHistory)
 );
 
 
@@ -272,7 +272,7 @@ router.get(
 router.post(
   '/interaction',
   trackManufacturerAction('user_brand_interaction'),
-  userCtrl.recordInteraction
+  asRouteHandler(userCtrl.recordInteraction)
 );
 
 // ===== ADMIN/MANAGEMENT ROUTES =====
@@ -290,7 +290,7 @@ router.post(
 router.get(
   '/',
   validateQuery(listUsersQuerySchema),
-  userCtrl.listUsers
+  asRouteHandler(userCtrl.listUsers)
 );
 
 

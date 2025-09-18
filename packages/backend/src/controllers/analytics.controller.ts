@@ -1,16 +1,14 @@
-// @ts-nocheck
 // src/controllers/analytics.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { AnalyticsBusinessService } from '../services/business/analytics.service';
 import { ManufacturerService } from '../services/business/manufacturer.service';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 
 // Enhanced request interfaces
-interface AnalyticsRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface AnalyticsRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   query: {
     timeframe?: '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
     groupBy?: 'hour' | 'day' | 'week' | 'month';
@@ -25,7 +23,7 @@ interface AnalyticsRequest extends Request, AuthRequest, TenantRequest, Validate
   };
 }
 
-interface ManufacturerAnalyticsRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface ManufacturerAnalyticsRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   params: {
     brandId?: string;
   };

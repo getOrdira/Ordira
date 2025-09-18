@@ -1,9 +1,8 @@
-// @ts-nocheck
 // src/routes/invitation.routes.ts
 import { Router, Request } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate, AuthRequest } from '../middleware/auth.middleware';
-import { authenticateManufacturer, ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate, UnifiedAuthRequest, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, TenantRequest } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -23,17 +22,17 @@ const router = Router();
 /**
  * Extended request interface with brand authentication and tenant context
  */
-interface BrandInvitationRequest extends AuthRequest, TenantRequest {}
+interface BrandInvitationRequest extends UnifiedAuthRequest, TenantRequest {}
 
 /**
  * Extended request interface for manufacturer authentication
  */
-interface ManufacturerInvitationRequest extends ManufacturerAuthRequest {}
+interface ManufacturerInvitationRequest extends UnifiedAuthRequest {}
 
 /**
  * Extended request interface with user type detection
  */
-interface DualAuthRequest extends Request {
+interface DualUnifiedAuthRequest extends Request {
   userType?: 'brand' | 'manufacturer';
   userId?: string;
   tenant?: { business: { toString: () => string } };
@@ -59,14 +58,14 @@ router.get(
     // Try brand authentication first
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return resolveTenant(req as any, res, next);
       }
       
       // If brand auth fails, try manufacturer authentication
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -80,10 +79,10 @@ router.get(
     });
   },
   trackManufacturerAction('view_invitation_overview'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     try {
-      const userType = (req as DualAuthRequest).userType;
-      const userId = (req as DualAuthRequest).userId;
+      const userType = (req as DualUnifiedAuthRequest).userType;
+      const userId = (req as DualUnifiedAuthRequest).userId;
       
       if (!userId) {
         return res.status(401).json({
@@ -140,13 +139,13 @@ router.get(
     // Dual authentication middleware
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return resolveTenant(req as any, res, next);
       }
       
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -163,10 +162,10 @@ router.get(
     includeAnalytics: require('joi').boolean().default(true)
   })),
   trackManufacturerAction('view_invitation_stats'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     try {
-      const userType = (req as DualAuthRequest).userType;
-      const userId = (req as DualAuthRequest).userId;
+      const userType = (req as DualUnifiedAuthRequest).userType;
+      const userId = (req as DualUnifiedAuthRequest).userId;
       
       if (!userId) {
         return res.status(401).json({
@@ -208,7 +207,7 @@ router.get(
               custom: 0
             }
           },
-          note: 'Enhanced with invCtrl.getInvitationStats when implemented'
+          note: 'Enhanced with (((invCtrl.getInvitationStats) when implemented'
         }
       });
     } catch (error) {
@@ -234,7 +233,7 @@ router.post(
   strictRateLimiter(), // Prevent invitation spam
   validateBody(sendInviteSchema),
   trackManufacturerAction('send_invitation'),
-  invCtrl.sendInviteAsBrand
+  asRouteHandler(((invCtrl.sendInviteAsBrand)))
 );
 
 
@@ -251,7 +250,7 @@ router.get(
   resolveTenant,
   validateQuery(listInvitesQuerySchema),
   trackManufacturerAction('view_sent_invitations'),
-  invCtrl.listInvitesForBrand
+  asRouteHandler(((invCtrl.listInvitesForBrand)))
 );
 
 /**
@@ -267,7 +266,7 @@ router.get(
   resolveTenant,
   validateParams(inviteParamsSchema),
   trackManufacturerAction('view_invitation_details'),
-  invCtrl.listInvitesForBrand
+  asRouteHandler(((invCtrl.listInvitesForBrand)))
 );
 
 /**
@@ -294,7 +293,7 @@ router.put(
       data: {
         inviteId: req.params.inviteId,
         action: 'update',
-        note: 'This endpoint can be enhanced with invCtrl.updateInvitation'
+        note: 'This endpoint can be enhanced with asRouteHandler(((invCtrl.updateInvitation)'
       }
     });
   }
@@ -315,7 +314,7 @@ router.delete(
   strictRateLimiter(), // Security for cancellation
   validateParams(inviteParamsSchema),
   trackManufacturerAction('cancel_invitation'),
-  invCtrl.cancelInvite
+  asRouteHandler(invCtrl.cancelInvite)
 );
 
 /**
@@ -386,7 +385,7 @@ router.get(
 /**
  * Apply manufacturer authentication to all manufacturer routes
  */
-router.use('/manufacturer', authenticateManufacturer);
+router.use('/manufacturer', requireManufacturer);
 
 /**
  * List invitations received by manufacturer
@@ -399,7 +398,7 @@ router.get(
   '/manufacturer',
   validateQuery(listInvitesQuerySchema),
   trackManufacturerAction('view_received_invitations'),
-  invCtrl.listInvitesForManufacturer
+  asRouteHandler(((invCtrl.listInvitesForManufacturer)))
 );
 
 /**
@@ -413,7 +412,7 @@ router.get(
   '/manufacturer/:inviteId',
   validateParams(inviteParamsSchema),
   trackManufacturerAction('view_invitation_details'),
-  invCtrl.listInvitesForManufacturer
+  asRouteHandler(((invCtrl.listInvitesForManufacturer)))
 );
 
 /**
@@ -430,7 +429,7 @@ router.post(
   validateParams(inviteParamsSchema),
   validateBody(respondToInviteSchema),
   trackManufacturerAction('respond_to_invitation'),
-  invCtrl.respondToInvite
+  asRouteHandler(((invCtrl.respondToInvite)))
 );
 
 /**
@@ -462,7 +461,7 @@ router.post(
       data: {
         inviteId: req.params.inviteId,
         counterOffer: req.body.counterOffer,
-        note: 'This endpoint can be enhanced with invCtrl.submitCounterOffer'
+        note: 'This endpoint can be enhanced with (((invCtrl.submitCounterOffer)'
       }
     });
   }
@@ -544,13 +543,13 @@ router.get(
     // Dual authentication middleware
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return resolveTenant(req as any, res, next);
       }
       
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -563,7 +562,7 @@ router.get(
   },
   validateParams(inviteParamsSchema),
   trackManufacturerAction('view_invitation_details'),
-  invCtrl.getInvitationDetails
+  asRouteHandler(((invCtrl.getInvitationDetails)))
 );
 
 /**
@@ -579,13 +578,13 @@ router.get(
     // Dual authentication middleware
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return next();
       }
       
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -597,10 +596,10 @@ router.get(
     });
   },
   trackManufacturerAction('view_invitation_system_health'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     try {
-      const userType = (req as DualAuthRequest).userType;
-      const userId = (req as DualAuthRequest).userId;
+      const userType = (req as DualUnifiedAuthRequest).userType;
+      const userId = (req as DualUnifiedAuthRequest).userId;
       
       if (!userId) {
         return res.status(401).json({
@@ -661,13 +660,13 @@ router.get(
     // Dual authentication middleware
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return resolveTenant(req as any, res, next);
       }
       
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -679,10 +678,10 @@ router.get(
     });
   },
   trackManufacturerAction('view_connections'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     try {
-      const userType = (req as DualAuthRequest).userType;
-      const userId = (req as DualAuthRequest).userId;
+      const userType = (req as DualUnifiedAuthRequest).userType;
+      const userId = (req as DualUnifiedAuthRequest).userId;
 
       // This would use service methods to get connections
       res.json({
@@ -728,13 +727,13 @@ router.delete(
     // Dual authentication middleware
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return resolveTenant(req as any, res, next);
       }
       
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -750,7 +749,7 @@ router.delete(
     partnerId: require('joi').string().pattern(/^[0-9a-fA-F]{24}$/).required()
   })),
   trackManufacturerAction('disconnect_partner'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     try {
       // This would use service methods to remove connection
       res.json({
@@ -758,7 +757,7 @@ router.delete(
         message: 'Connection removal endpoint - to be implemented',
         data: {
           partnerId: req.params.partnerId,
-          userType: (req as DualAuthRequest).userType,
+          userType: (req as DualUnifiedAuthRequest).userType,
           action: 'disconnect',
           note: 'This endpoint can be enhanced with invitationService.removeConnection'
         }
@@ -783,13 +782,13 @@ router.get(
     // Dual authentication middleware
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-        (req as DualAuthRequest).userType = 'brand';
+        (req as DualUnifiedAuthRequest).userType = 'brand';
         return next();
       }
       
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
         if (!mfgErr) {
-          (req as DualAuthRequest).userType = 'manufacturer';
+          (req as DualUnifiedAuthRequest).userType = 'manufacturer';
           return next();
         }
         
@@ -801,7 +800,7 @@ router.get(
     });
   },
   trackManufacturerAction('view_notification_preferences'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     res.json({
       success: true,
       message: 'Notification preferences retrieved',
@@ -832,13 +831,13 @@ router.put(
     
       authenticate(req, res, (brandErr) => {
       if (!brandErr) {
-      (req as DualAuthRequest).userType = 'brand';
+      (req as DualUnifiedAuthRequest).userType = 'brand';
       return next();
      }
 
-      authenticateManufacturer(req, res, (mfgErr) => {
+      requireManufacturer(req, res, (mfgErr) => {
        if (!mfgErr) {
-      (req as DualAuthRequest).userType = 'manufacturer'; 
+      (req as DualUnifiedAuthRequest).userType = 'manufacturer'; 
       return next();
       }
         
@@ -857,7 +856,7 @@ router.put(
     connectionUpdates: require('joi').boolean().optional()
   })),
   trackManufacturerAction('update_notification_preferences'),
-  async (req: DualAuthRequest, res, next) => {
+  async (req: DualUnifiedAuthRequest, res, next) => {
     res.json({
       success: true,
       message: 'Notification preferences updated - to be implemented',
@@ -882,7 +881,7 @@ router.use((error: any, req: any, res: any, next: any) => {
     error: error.message,
     stack: error.stack,
     userId: req.userId,
-    userType: (req as DualAuthRequest).userType,
+    userType: (req as DualUnifiedAuthRequest).userType,
     timestamp: new Date().toISOString()
   });
 
@@ -896,7 +895,7 @@ router.use((error: any, req: any, res: any, next: any) => {
     });
   }
 
-  if (error.message?.includes('already connected')) {
+  if (error.message?.includes('already connected'))  {
     return res.status(409).json({
       success: false,
       error: 'Already connected',

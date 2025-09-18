@@ -1,8 +1,6 @@
-// @ts-nocheck
-// @ts-nocheck
 // src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { AuthService } from '../services/business/auth.service';
@@ -27,17 +25,17 @@ interface AuthControllerRequest extends Request, ValidatedRequest {
   };
 }
 
-interface LoginUserRequest extends Request, AuthRequest, ValidatedRequest {
+interface LoginUserRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: LoginUserInput;
   validatedBody?: LoginUserInput;
 }
 
 
-interface BusinessAuthRequest extends AuthControllerRequest {
+interface BusinessUnifiedAuthRequest extends AuthControllerRequest {
   body: RegisterBusinessInput | VerifyBusinessInput | LoginBusinessInput;
 }
 
-interface UserAuthRequest extends AuthControllerRequest {
+interface UserUnifiedAuthRequest extends AuthControllerRequest {
   body: RegisterUserInput | VerifyUserInput | LoginUserInput;
 }
 
@@ -51,21 +49,21 @@ interface PasswordResetRequest extends AuthControllerRequest {
   };
 }
 
-interface RevokeAllSessionsRequest extends Request, AuthRequest, ValidatedRequest {
+interface RevokeAllSessionsRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     currentPassword: string;
     reason?: string;
   };
 }
 
-interface ChangePasswordRequest extends Request, AuthRequest, ValidatedRequest {
+interface ChangePasswordRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     currentPassword: string;
     newPassword: string;
   };
 }
 
-interface UpdateSecurityPreferencesRequest extends Request, AuthRequest, ValidatedRequest {
+interface UpdateSecurityPreferencesRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     twoFactorEnabled?: boolean;
     emailNotifications?: boolean;
@@ -88,7 +86,7 @@ const notificationsService = new NotificationsService();
  * Enhanced business registration with security features and validation
  */
 export async function registerBusinessHandler(
-  req: BusinessAuthRequest,
+  req: BusinessUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -145,7 +143,7 @@ export async function registerBusinessHandler(
  * Enhanced business verification with attempt tracking
  */
 export async function verifyBusinessHandler(
-  req: BusinessAuthRequest,
+  req: BusinessUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -197,7 +195,7 @@ export async function verifyBusinessHandler(
  * Enhanced business login with security features
  */
 export async function loginBusinessHandler(
-  req: BusinessAuthRequest,
+  req: BusinessUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -270,7 +268,7 @@ export async function loginBusinessHandler(
  * Enhanced user registration with validation and security
  */
 export async function registerUserHandler(
-  req: UserAuthRequest,
+  req: UserUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -324,7 +322,7 @@ export async function registerUserHandler(
  * Enhanced user verification with attempt tracking
  */
 export async function verifyUserHandler(
-  req: UserAuthRequest,
+  req: UserUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -542,7 +540,7 @@ export async function validatePasswordStrengthHandler(
  * Get active sessions for authenticated user
  */
 export async function getActiveSessionsHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -581,7 +579,7 @@ export async function getActiveSessionsHandler(
  * Revoke specific session
  */
 export async function revokeSessionHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -670,7 +668,7 @@ export async function revokeAllSessionsHandler(
  * Get login history for authenticated user
  */
 export async function getLoginHistoryHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -705,7 +703,7 @@ export async function getLoginHistoryHandler(
  * Get security events for authenticated user
  */
 export async function getSecurityEventsHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -768,7 +766,7 @@ export async function updateSecurityPreferencesHandler(
  * Enhanced user login with security features
  */
 export async function loginUserHandler(
-  req: UserAuthRequest,
+  req: UserUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -937,7 +935,7 @@ export async function resetPasswordHandler(
  * Enhanced logout with token invalidation
  */
 export async function logoutHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -970,7 +968,7 @@ export async function logoutHandler(
  * Refresh JWT token with enhanced security
  */
 export async function refreshTokenHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1005,7 +1003,7 @@ export async function refreshTokenHandler(
  * Get current user information with enhanced details
  */
 export async function getCurrentUserHandler(
-  req: AuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

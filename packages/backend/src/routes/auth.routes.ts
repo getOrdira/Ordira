@@ -1,10 +1,10 @@
-// @ts-nocheck
 // src/routes/auth.routes.ts
 
 import { Router } from 'express';
 import { validateBody, validateParams } from '../middleware/validation.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, refreshToken } from '../middleware/unifiedAuth.middleware';
 import * as authCtrl from '../controllers/auth.controller';
 import { authValidationSchemas } from '../validation/auth.validation';
 import Joi from 'joi';
@@ -75,7 +75,7 @@ router.post(
   '/register/business',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.registerBusiness),
-  authCtrl.registerBusinessHandler
+  asRouteHandler(authCtrl.registerBusinessHandler)
 );
 
 /**
@@ -87,7 +87,7 @@ router.post(
   '/verify/business',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.verifyBusiness),
-  authCtrl.verifyBusinessHandler
+  asRouteHandler(authCtrl.verifyBusinessHandler)
 );
 
 /**
@@ -99,7 +99,7 @@ router.post(
   '/login/business',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.loginBusiness),
-  authCtrl.loginBusinessHandler
+  asRouteHandler(authCtrl.loginBusinessHandler)
 );
 
 /**
@@ -111,7 +111,7 @@ router.post(
   '/register/user',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.registerUser),
-  authCtrl.registerUserHandler
+  asRouteHandler(authCtrl.registerUserHandler)
 );
 
 /**
@@ -123,7 +123,7 @@ router.post(
   '/verify/user',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.verifyUser),
-  authCtrl.verifyUserHandler
+  asRouteHandler(authCtrl.verifyUserHandler)
 );
 
 /**
@@ -135,7 +135,7 @@ router.post(
   '/login/user',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(authValidationSchemas.loginUser),
-  authCtrl.loginUserHandler
+  asRouteHandler(authCtrl.loginUserHandler)
 );
 
 /**
@@ -151,7 +151,7 @@ router.post(
   '/forgot-password',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(forgotPasswordSchema),
-  authCtrl.forgotPasswordHandler
+  asRouteHandler(authCtrl.forgotPasswordHandler)
 );
 
 /**
@@ -163,7 +163,7 @@ router.post(
   '/reset-password',
   strictRateLimiter(), // Fixed: No parameters
   validateBody(resetPasswordSchema),
-  authCtrl.resetPasswordHandler
+  asRouteHandler(authCtrl.resetPasswordHandler)
 );
 
 /**
@@ -180,7 +180,7 @@ router.post(
   authenticate, // Uses auth middleware as per controller implementation
   dynamicRateLimiter(), // Fixed: No parameters
   validateBody(refreshTokenSchema),
-  authCtrl.refreshTokenHandler
+  asRouteHandler(authCtrl.refreshTokenHandler)
 );
 
 /**
@@ -192,7 +192,7 @@ router.post(
   '/logout',
   authenticate,
   dynamicRateLimiter(), // Fixed: No parameters
-  authCtrl.logoutHandler
+  asRouteHandler(authCtrl.logoutHandler)
 );
 
 /**
@@ -204,7 +204,7 @@ router.get(
   '/me',
   authenticate,
   dynamicRateLimiter(), // Fixed: No parameters
-  authCtrl.getCurrentUserHandler
+  asRouteHandler(authCtrl.getCurrentUserHandler)
 );
 
 /**
@@ -221,7 +221,7 @@ router.post(
   authenticate,
   dynamicRateLimiter(), // Fixed: No parameters
   validateBody(changePasswordSchema),
-  authCtrl.changePasswordHandler
+  asRouteHandler(authCtrl.changePasswordHandler)
 );
 
 /**
@@ -237,7 +237,7 @@ router.post(
     businessId: Joi.string().optional(),
     type: Joi.string().valid('business', 'user').optional()
   }).or('email', 'businessId')),
-  authCtrl.resendVerificationHandler
+  asRouteHandler(authCtrl.resendVerificationHandler)
 );
 
 /**
@@ -251,7 +251,7 @@ router.post(
   validateBody(Joi.object({
     email: Joi.string().email().required()
   })),
-  authCtrl.checkEmailAvailabilityHandler
+  asRouteHandler(authCtrl.checkEmailAvailabilityHandler)  
 );
 
 /**
@@ -265,7 +265,7 @@ router.post(
   validateBody(Joi.object({
     password: Joi.string().required()
   })),
-  authCtrl.validatePasswordStrengthHandler
+  asRouteHandler(authCtrl.validatePasswordStrengthHandler)
 );
 
 /**
@@ -281,7 +281,7 @@ router.get(
   '/sessions',
   authenticate,
   dynamicRateLimiter(), // Fixed: No parameters
-  authCtrl.getActiveSessionsHandler
+  asRouteHandler(authCtrl.getActiveSessionsHandler)
 );
 
 /**
@@ -296,7 +296,7 @@ router.delete(
   validateParams(Joi.object({
     sessionId: Joi.string().required()
   })),
-  authCtrl.revokeSessionHandler
+  asRouteHandler(authCtrl.revokeSessionHandler)
 );
 
 /**
@@ -312,7 +312,7 @@ router.post(
     currentPassword: Joi.string().required(),
     reason: Joi.string().max(200).optional()
   })),
-  authCtrl.revokeAllSessionsHandler
+  asRouteHandler(authCtrl.revokeAllSessionsHandler)
 );
 
 /**
@@ -328,7 +328,7 @@ router.get(
   '/login-history',
   authenticate,
   dynamicRateLimiter(), // Fixed: No parameters
-  authCtrl.getLoginHistoryHandler
+  asRouteHandler(authCtrl.getLoginHistoryHandler)
 );
 
 /**
@@ -340,7 +340,7 @@ router.get(
   '/security-events',
   authenticate,
   dynamicRateLimiter(), // Fixed: No parameters
-  authCtrl.getSecurityEventsHandler
+  asRouteHandler(authCtrl.getSecurityEventsHandler)
 );
 
 /**
@@ -363,7 +363,7 @@ router.put(
     requireTwoFactor: Joi.boolean().optional(),
     allowedDevices: Joi.number().integer().min(1).max(10).optional()
   })),
-  authCtrl.updateSecurityPreferencesHandler
+  asRouteHandler(authCtrl.updateSecurityPreferencesHandler)
 );
 
 /**

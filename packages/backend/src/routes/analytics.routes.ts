@@ -1,13 +1,12 @@
-// @ts-nocheck
+
 // src/routes/analytics.routes.ts
 
 import { Router } from 'express';
-import { resolveTenant } from '../middleware/tenant.middleware';
-import { authenticate } from '../middleware/auth.middleware';
-import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
+import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { validateQuery, validateParams, validateBody } from '../middleware/validation.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
-import { requireTenantPlan } from '../middleware/tenant.middleware';
 import * as analyticsCtrl from '../controllers/analytics.controller';
 import Joi from 'joi';
 
@@ -176,7 +175,7 @@ const comparativeAnalyticsSchema = Joi.object({
 /**
  * Get comprehensive business analytics overview
  * GET /api/analytics/overview
- * Maps to: analyticsCtrl.getDashboardAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getDashboardAnalytics)
  */
 router.get(
   '/overview',
@@ -185,13 +184,13 @@ router.get(
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(baseAnalyticsQuerySchema),
-  analyticsCtrl.getDashboardAnalytics
+  asRouteHandler(analyticsCtrl.getDashboardAnalytics)
 );
 
 /**
  * Get product selection voting analytics
  * GET /api/analytics/votes
- * Maps to: analyticsCtrl.getVotesAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getVotesAnalytics)
  */
 router.get(
   '/votes',
@@ -200,13 +199,13 @@ router.get(
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(votesAnalyticsQuerySchema),
-  analyticsCtrl.getVotesAnalytics
+  asRouteHandler(analyticsCtrl.getVotesAnalytics)
 );
 
 /**
  * Get product analytics
  * GET /api/analytics/products
- * Maps to: analyticsCtrl.getProductAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getProductAnalytics)
  */
 router.get(
   '/products',
@@ -214,13 +213,13 @@ router.get(
   authenticate,
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(baseAnalyticsQuerySchema),
-  analyticsCtrl.getProductAnalytics
+  asRouteHandler(analyticsCtrl.getProductAnalytics)
 );
 
 /**
  * Get blockchain transaction analytics
  * GET /api/analytics/transactions
- * Maps to: analyticsCtrl.getTransactionsAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getTransactionsAnalytics)
  */
 router.get(
   '/transactions',
@@ -229,13 +228,13 @@ router.get(
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(transactionsAnalyticsQuerySchema),
-  analyticsCtrl.getTransactionsAnalytics
+  asRouteHandler(analyticsCtrl.getTransactionsAnalytics)
 );
 
 /**
  * Get NFT/certificate analytics
  * GET /api/analytics/certificates
- * Maps to: analyticsCtrl.getNftAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getNftAnalytics)
  */
 router.get(
   '/certificates',
@@ -244,13 +243,13 @@ router.get(
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(certificateAnalyticsQuerySchema),
-  analyticsCtrl.getNftAnalytics
+  asRouteHandler(analyticsCtrl.getNftAnalytics)
 );
 
 /**
  * Get engagement analytics
  * GET /api/analytics/engagement
- * Maps to: analyticsCtrl.getEngagementAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getEngagementAnalytics)
  */
 router.get(
   '/engagement',
@@ -259,13 +258,13 @@ router.get(
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(baseAnalyticsQuerySchema),
-  analyticsCtrl.getEngagementAnalytics
+  asRouteHandler(analyticsCtrl.getEngagementAnalytics)
 );
 
 /**
  * Get real-time analytics dashboard data
  * GET /api/analytics/dashboard
- * Maps to: analyticsCtrl.getDashboardAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getDashboardAnalytics)
  */
 router.get(
   '/dashboard',
@@ -273,7 +272,7 @@ router.get(
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
-  analyticsCtrl.getDashboardAnalytics
+  asRouteHandler(analyticsCtrl.getDashboardAnalytics)
 );
 
 /**
@@ -283,30 +282,30 @@ router.get(
 /**
  * Get manufacturer analytics (Manufacturer only)
  * GET /api/analytics/manufacturer
- * Maps to: analyticsCtrl.getManufacturerAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getManufacturerAnalytics)
  */
 router.get(
   '/manufacturer',
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   dynamicRateLimiter(), // FIXED: No parameters
   validateQuery(manufacturerAnalyticsQuerySchema),
-  analyticsCtrl.getManufacturerAnalytics
+  asRouteHandler(analyticsCtrl.getManufacturerAnalytics)
 );
 
 /**
  * Get manufacturer analytics for specific brand
  * GET /api/analytics/manufacturer/brands/:brandId
- * Maps to: analyticsCtrl.getManufacturerBrandAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getManufacturerBrandAnalytics)
  */
 router.get(
   '/manufacturer/brands/:brandId',
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   dynamicRateLimiter(), // FIXED: No parameters
   validateParams(Joi.object({
     brandId: Joi.string().hex().length(24).required()
   })),
   validateQuery(manufacturerAnalyticsQuerySchema),
-  analyticsCtrl.getManufacturerBrandAnalytics
+  asRouteHandler(analyticsCtrl.getManufacturerBrandAnalytics)
 );
 
 /**
@@ -316,7 +315,7 @@ router.get(
 /**
  * Get analytics for specific proposal/selection round
  * GET /api/analytics/proposals/:proposalId
- * Maps to: analyticsCtrl.getProposalAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getProposalAnalytics)
  */
 router.get(
   '/proposals/:proposalId',
@@ -328,13 +327,13 @@ router.get(
     proposalId: Joi.string().trim().max(100).required() // Updated for flexible proposal IDs
   })),
   validateQuery(votesAnalyticsQuerySchema),
-  analyticsCtrl.getProposalAnalytics
+  asRouteHandler(analyticsCtrl.getProposalAnalytics)
 );
 
 /**
  * Get analytics for specific product
  * GET /api/analytics/products/:productId
- * Maps to: analyticsCtrl.getProductAnalyticsById
+ * Maps to: asRouteHandler(analyticsCtrl.getProductAnalyticsById)
  */
 router.get(
   '/products/:productId',
@@ -345,7 +344,7 @@ router.get(
     productId: Joi.string().trim().max(100).required()
   })),
   validateQuery(baseAnalyticsQuerySchema),
-  analyticsCtrl.getProductAnalyticsById
+  asRouteHandler(analyticsCtrl.getProductAnalyticsById)
 );
 
 /**
@@ -355,7 +354,7 @@ router.get(
 /**
  * Export analytics data
  * POST /api/analytics/export
- * Maps to: analyticsCtrl.exportAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.exportAnalytics)
  */
 router.post(
   '/export',
@@ -364,13 +363,13 @@ router.post(
   requireTenantPlan(['enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateBody(exportAnalyticsSchema),
-  analyticsCtrl.exportAnalytics
+  asRouteHandler(analyticsCtrl.exportAnalytics)
 );
 
 /**
  * Generate custom analytics reports
  * POST /api/analytics/custom-report
- * Maps to: analyticsCtrl.generateCustomReport
+ * Maps to: asRouteHandler(analyticsCtrl.generateCustomReport)
  */
 router.post(
   '/custom-report',
@@ -379,13 +378,13 @@ router.post(
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateBody(customReportSchema),
-  analyticsCtrl.generateCustomReport
+  asRouteHandler(analyticsCtrl.generateCustomReport)
 );
 
 /**
  * Get comparative analytics between date ranges
  * POST /api/analytics/compare
- * Maps to: analyticsCtrl.getComparativeAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getComparativeAnalytics)
  */
 router.post(
   '/compare',
@@ -394,7 +393,7 @@ router.post(
   requireTenantPlan(['premium', 'enterprise']),
   dynamicRateLimiter(), // FIXED: No parameters
   validateBody(comparativeAnalyticsSchema),
-  analyticsCtrl.getComparativeAnalytics
+  asRouteHandler(analyticsCtrl.getComparativeAnalytics)
 );
 
 /**
@@ -404,7 +403,7 @@ router.post(
 /**
  * Legacy NFT analytics endpoint (maps to certificates)
  * GET /api/analytics/nfts
- * Maps to: analyticsCtrl.getNftAnalytics
+ * Maps to: asRouteHandler(analyticsCtrl.getNftAnalytics)
  */
 router.get(
   '/nfts',
@@ -418,7 +417,7 @@ router.get(
     res.setHeader('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /api/analytics/certificates instead.');
     next();
   },
-  analyticsCtrl.getNftAnalytics
+  asRouteHandler(analyticsCtrl.getNftAnalytics)
 );
 
 export default router;

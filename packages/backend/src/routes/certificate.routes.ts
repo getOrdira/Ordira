@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/routes/certificate.routes.ts
 import { Router } from 'express';
 import { validateBody, validateQuery, validateParams } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -14,9 +14,10 @@ import {
   certificateParamsSchema,
   listCertificatesQuerySchema
 } from '../validation/certificate.validation';
-
-// Add additional validation schemas for specific routes
+import { asRouteHandler } from '../utils/routeHelpers';
 import Joi from 'joi';
+
+
 const transferCertificatesSchema = Joi.object({
   certificateIds: Joi.array()
     .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
@@ -158,7 +159,7 @@ router.use(resolveTenant);
 router.get(
   '/',
   validateQuery(listCertificatesQuerySchema),
-  certCtrl.listCertificates
+  asRouteHandler(certCtrl.listCertificates)
 );
 
 /**
@@ -172,7 +173,7 @@ router.get(
 router.get(
   '/:id',
   validateParams(certificateParamsSchema),
-  certCtrl.getCertificate
+  asRouteHandler(certCtrl.getCertificate)
 );
 
 // ===== CERTIFICATE CREATION =====
@@ -191,7 +192,7 @@ router.post(
   strictRateLimiter(), // Prevent certificate creation abuse
   enforcePlanLimits('certificates'), // Enforce certificate limits
   validateBody(createCertificateSchema),
-  certCtrl.createCertificate
+  asRouteHandler(certCtrl.createCertificate)
 );
 
 /**
@@ -210,7 +211,7 @@ router.post(
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Batch requires Growth+ plans
   enforcePlanLimits('certificates'), // Enforce certificate limits
   validateBody(batchCreateCertificatesSchema),
-  certCtrl.createBatchCertificates
+  asRouteHandler(certCtrl.createBatchCertificates)
 );
 
 /**
@@ -224,7 +225,7 @@ router.post(
 router.get(
   '/batch/:batchId/progress',
   validateParams(batchParamsSchema),
-  certCtrl.getBatchProgress
+  asRouteHandler(certCtrl.getBatchProgress)
 );
 
 // ===== WEB3 TRANSFER OPERATIONS =====
@@ -244,7 +245,7 @@ router.post(
   strictRateLimiter(), // Security for wallet transfers
   requireWeb3Plan, // Web3 features require Premium+ plans
   validateBody(transferCertificatesSchema),
-  certCtrl.transferCertificates
+  asRouteHandler(certCtrl.transferCertificates)
 );
 
 /**
@@ -260,7 +261,7 @@ router.post(
   '/retry-failed',
   strictRateLimiter(), // Prevent retry spam
   requireWeb3Plan, // Web3 features require Premium+ plans
-  certCtrl.retryFailedTransfers
+  asRouteHandler(certCtrl.retryFailedTransfers)
 );
 
 /**
@@ -275,7 +276,7 @@ router.post(
 router.get(
   '/pending-transfers',
   requireWeb3Plan, // Web3 features require Premium+ plans
-  certCtrl.getPendingTransfers
+  asRouteHandler(certCtrl.getPendingTransfers)
 );
 
 // ===== CERTIFICATE MODIFICATION =====
@@ -293,7 +294,7 @@ router.put(
   strictRateLimiter(), // Security for ownership changes
   validateParams(certificateParamsSchema),
   validateBody(transferSingleCertificateSchema),
-  certCtrl.transferCertificates
+  asRouteHandler(certCtrl.transferCertificates)
 );
 
 /**
@@ -309,7 +310,7 @@ router.post(
   strictRateLimiter(), // Security for certificate revocation
   validateParams(certificateParamsSchema),
   validateBody(revokeCertificateSchema),
-  certCtrl.revokeCertificate
+  asRouteHandler(certCtrl.revokeCertificate)
 );
 
 /**
@@ -324,7 +325,7 @@ router.delete(
   '/:id',
   strictRateLimiter(), // Security for permanent deletion
   validateParams(certificateParamsSchema),
-  certCtrl.revokeCertificate // Uses same controller as revoke but with permanent flag
+  asRouteHandler(certCtrl.revokeCertificate) // Uses same controller as revoke but with permanent flag
 );
 
 // ===== ANALYTICS & REPORTING =====
@@ -343,7 +344,7 @@ router.get(
   '/analytics/web3',
   requireWeb3Plan, // Web3 analytics require Premium+ plans
   validateQuery(web3AnalyticsQuerySchema),
-  certCtrl.getWeb3Analytics
+  asRouteHandler(certCtrl.getWeb3Analytics)
 );
 
 export default router;

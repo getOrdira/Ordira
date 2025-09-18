@@ -1,7 +1,6 @@
-// @ts-nocheck
 // src/controllers/user.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { UserService } from '../services/business/user.service';
@@ -14,7 +13,7 @@ const authService = new AuthService();
 /**
  * Extended request interfaces for type safety
  */
-interface UserAuthRequest extends Request, AuthRequest{
+interface UserUnifiedAuthRequest extends Request, UnifiedAuthRequest{
   userType?: 'user' | 'business';
 }
 
@@ -48,7 +47,7 @@ interface UserVerifyRequest extends Request, ValidatedRequest{
   };
 }
 
-interface UserUpdateRequest extends Request, UserAuthRequest, ValidatedRequest {
+interface UserUpdateRequest extends Request, UserUnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     firstName?: string;
     lastName?: string;
@@ -57,7 +56,7 @@ interface UserUpdateRequest extends Request, UserAuthRequest, ValidatedRequest {
   };
 }
 
-interface UserVoteRequest extends Request, UserAuthRequest, ValidatedRequest {
+interface UserVoteRequest extends Request, UserUnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     proposalId: string;
     businessId: string;
@@ -203,7 +202,7 @@ export const loginUser = asyncHandler(async (
 
   // Record login session
   await userService.recordSession(user.id, {
-    deviceInfo: req.get('User-Agent'),
+    deviceInfo: Array.isArray(req.get('User-Agent')) ? req.get('User-Agent')![0] : (req.get('User-Agent') as string) || '',
     ipAddress: req.ip
   });
 
@@ -249,7 +248,7 @@ export const loginUser = asyncHandler(async (
  * GET /api/users/profile
  */
 export const getUserProfile = asyncHandler(async (
-  req: UserAuthRequest,
+  req: UserUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -326,7 +325,7 @@ export const updateUserProfile = asyncHandler(async (
  * DELETE /api/users/profile
  */
 export const deleteUserAccount = asyncHandler(async (
-  req: UserAuthRequest,
+  req: UserUnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -384,7 +383,7 @@ export const submitVote = asyncHandler(async (
   ...req.body,
   selectedProductId: req.body.productId || req.body.selectedProductId, // Add fallback
   ipAddress: req.ip,
-  userAgent: req.get('User-Agent') || '',
+  userAgent: Array.isArray(req.get('User-Agent')) ? req.get('User-Agent')![0] : (req.get('User-Agent') as string) || '',
   businessId: req.params.businessId,
   proposalId: req.params.proposalId
 };
@@ -434,7 +433,7 @@ export const submitVote = asyncHandler(async (
  * GET /api/users/vote/status/:proposalId
  */
 export const checkVoteStatus = asyncHandler(async (
-  req: UserAuthRequest & { params: { proposalId: string } },
+  req: UserUnifiedAuthRequest & { params: { proposalId: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -486,7 +485,7 @@ export const checkVoteStatus = asyncHandler(async (
  * GET /api/users/voting-history
  */
 export const getVotingHistory = asyncHandler(async (
-  req: UserAuthRequest & { query: { businessId?: string; page?: string; limit?: string } },
+  req: UserUnifiedAuthRequest & { query: { businessId?: string; page?: string; limit?: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -648,7 +647,7 @@ export const getUserAnalytics = asyncHandler(async (
  * GET /api/users/search
  */
 export const searchUsers = asyncHandler(async (
-  req: UserAuthRequest & { query: { q: string; limit?: string; businessId?: string } },
+  req: UserUnifiedAuthRequest & { query: { q: string; limit?: string; businessId?: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -692,7 +691,7 @@ export const searchUsers = asyncHandler(async (
  * POST /api/users/interaction
  */
 export const recordInteraction = asyncHandler(async (
-  req: UserAuthRequest & ValidatedRequest & {
+  req: UserUnifiedAuthRequest & ValidatedRequest & {
     validatedBody: {
       businessId: string;
       type: 'page_view' | 'product_view' | 'vote';
@@ -712,7 +711,7 @@ export const recordInteraction = asyncHandler(async (
   if (metadata?.sessionDuration) {
     await userService.recordSession(userId, {
       duration: metadata.sessionDuration,
-      deviceInfo: req.get('User-Agent'),
+      deviceInfo: Array.isArray(req.get('User-Agent')) ? req.get('User-Agent')![0] : (req.get('User-Agent') as string) || '',
       ipAddress: req.ip
     });
   }

@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/routes/brandProfile.routes.ts
 import { Router } from 'express';
 import { validateParams, validateQuery, validateBody } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as ctrl from '../controllers/brandProfile.controller';
 import { 
@@ -10,6 +10,7 @@ import {
   brandProfileQuerySchema 
 } from '../validation/brandProfile.validation';
 import Joi from 'joi';
+import { asRouteHandler } from '../utils/routeHelpers';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.use(authenticate);
 router.get(
   '/',
   validateQuery(brandProfileQuerySchema),
-  ctrl.listBrandProfiles
+  asRouteHandler(ctrl.listBrandProfiles)
 );
 
 /**
@@ -39,7 +40,7 @@ router.get(
   validateQuery(Joi.object({
     limit: Joi.number().integer().min(1).max(20).default(10)
   })),
-  ctrl.getFeaturedBrands
+  asRouteHandler(ctrl.getFeaturedBrands)
 );
 
 /**
@@ -51,7 +52,7 @@ router.get(
   validateQuery(Joi.object({
     search: Joi.string().required().trim().max(100)
   })),
-  ctrl.searchBrandProfiles
+  asRouteHandler(ctrl.searchBrandProfiles)
 );
 
 /**
@@ -63,7 +64,7 @@ router.get(
   validateQuery(Joi.object({
     q: Joi.string().required().min(2).max(100)
   })),
-  ctrl.getSearchSuggestions
+  asRouteHandler(ctrl.getSearchSuggestions)
 );
 
 /**
@@ -75,7 +76,7 @@ router.get(
   validateQuery(Joi.object({
     timeframe: Joi.string().valid('7d', '30d', '90d', '1y').default('30d')
   })),
-  ctrl.getPublicBrandAnalytics
+  asRouteHandler(ctrl.getPublicBrandAnalytics)
 );
 
 /**
@@ -89,7 +90,7 @@ router.get(
     industry: Joi.string().optional(),
     location: Joi.string().optional()
   })),
-  ctrl.getBrandRecommendations
+  asRouteHandler(ctrl.getBrandRecommendations)
 );
 
 /**
@@ -105,7 +106,7 @@ router.post(
     rating: Joi.number().min(1).max(5).optional(),
     reason: Joi.string().max(500).optional()
   })),
-  ctrl.provideBrandRecommendationFeedback
+  asRouteHandler(ctrl.provideBrandRecommendationFeedback)
 );
 
 /**
@@ -117,7 +118,7 @@ router.get(
   validateParams(Joi.object({
     subdomain: Joi.string().alphanum().min(3).max(63).required()
   })),
-  ctrl.getBrandBySubdomain
+  asRouteHandler(ctrl.getBrandBySubdomain)
 );
 
 /**
@@ -129,7 +130,7 @@ router.get(
   validateParams(Joi.object({
     domain: Joi.string().domain().required()
   })),
-  ctrl.getBrandByCustomDomain
+  asRouteHandler(ctrl.getBrandByCustomDomain)
 );
 
 /**
@@ -140,7 +141,7 @@ router.get(
 router.get(
   '/:id',
   validateParams(brandProfileParamsSchema),
-  ctrl.getBrandProfile
+  asRouteHandler(ctrl.getBrandProfile)
 );
 
 /**
@@ -153,7 +154,7 @@ router.get(
   validateParams(Joi.object({
     brandId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
   })),
-  ctrl.getBrandProfileForManufacturer
+  asRouteHandler(ctrl.getBrandProfileForManufacturer)
 );
 
 /**
@@ -176,7 +177,7 @@ router.post(
     description: Joi.string().max(1000).required(),
     evidence: Joi.array().items(Joi.string().uri()).optional()
   })),
-  ctrl.reportBrand
+  asRouteHandler(ctrl.reportBrand)
 );
 
 export default router;

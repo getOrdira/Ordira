@@ -1,7 +1,6 @@
-// @ts-nocheck
 // src/controllers/domainMapping.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -11,7 +10,7 @@ import { NotificationsService } from '../services/external/notifications.service
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
-interface DomainMappingRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface DomainMappingRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     domain: string;
     certificateType?: 'letsencrypt' | 'custom';
@@ -28,7 +27,7 @@ interface DomainMappingRequest extends Request, AuthRequest, TenantRequest, Vali
   };
 }
 
-interface DomainVerificationRequest extends Request, AuthRequest, TenantRequest {
+interface DomainVerificationRequest extends Request, UnifiedAuthRequest, TenantRequest {
   params: {
     domainId: string;
   };
@@ -206,7 +205,7 @@ export async function addDomainMapping(
  * List all domain mappings for the authenticated brand
  */
 export async function listDomainMappings(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

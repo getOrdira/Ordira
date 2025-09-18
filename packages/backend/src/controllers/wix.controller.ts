@@ -1,8 +1,7 @@
-// @ts-nocheck
 // src/controllers/wix.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { WixService } from '../services/external/wix.service';
@@ -14,7 +13,7 @@ const wixService = new WixService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantWixRequest extends Request, AuthRequest {
+interface TenantWixRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

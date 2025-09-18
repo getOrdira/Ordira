@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/controllers/brandProfile.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { BrandProfileService } from '../services/business/brandProfile.service';
@@ -30,7 +30,7 @@ interface BrandProfileRequest extends Request, ValidatedRequest{
   };
 }
 
-interface ManufacturerViewRequest extends AuthRequest, ValidatedRequest {
+interface ManufacturerViewRequest extends UnifiedAuthRequest, ValidatedRequest {
   params: {
     brandId: string;
   };
@@ -363,7 +363,7 @@ export async function reportBrand(
  * Get personalized recommendations - matches service.getPersonalizedRecommendations()
  */
 export async function getBrandRecommendations(
-  req: AuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -403,7 +403,7 @@ export async function getBrandRecommendations(
  * Provide feedback on recommendations - matches service.recordRecommendationFeedback()
  */
 export async function provideBrandRecommendationFeedback(
-  req: AuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

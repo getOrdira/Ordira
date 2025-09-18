@@ -1,8 +1,7 @@
-// @ts-nocheck
 // src/controllers/shopify.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ShopifyService } from '../services/external/shopify.service';
@@ -14,7 +13,7 @@ const shopifyService = new ShopifyService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantShopifyRequest extends Request, AuthRequest {
+interface TenantShopifyRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

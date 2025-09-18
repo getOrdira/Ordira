@@ -1,9 +1,7 @@
-// @ts-nocheck
 // src/controllers/product.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ProductService } from '../services/business/product.service';
@@ -14,11 +12,11 @@ const productService = new ProductService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantProductRequest extends Request, AuthRequest {
+interface TenantProductRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 
-interface ManufacturerProductRequest extends Request, ManufacturerAuthRequest {
+interface ManufacturerProductRequest extends Request, UnifiedAuthRequest {
   manufacturer?: any;
 }
 
@@ -80,7 +78,7 @@ interface BaseProductUpdate {
   };
 }
 
-type ProductUpdateRequest = (AuthRequest | ManufacturerAuthRequest) & ValidatedRequest & BaseProductUpdate;
+type ProductUpdateRequest = UnifiedAuthRequest & ValidatedRequest & BaseProductUpdate;
 
 interface ProductDetailRequest extends TenantProductRequest, ValidatedRequest {
   validatedParams: { id: string };
@@ -115,7 +113,7 @@ interface BulkProductRequest extends TenantProductRequest, ValidatedRequest {
 /**
  * Helper to determine user context
  */
-function getUserContext(req: AuthRequest | ManufacturerAuthRequest): {
+function getUserContext(req: UnifiedAuthRequest): {
   userId: string;
   userType: 'business' | 'manufacturer';
   businessId?: string;

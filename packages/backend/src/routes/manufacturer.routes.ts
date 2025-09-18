@@ -1,9 +1,10 @@
-// @ts-nocheck
+
 // src/routes/manufacturer.routes.ts
 import { Router } from 'express';
 import Joi from 'joi';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticateManufacturer, requireVerifiedManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate, requireVerifiedManufacturer, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as mfgCtrl from '../controllers/manufacturer.controller';
@@ -31,7 +32,7 @@ router.post(
   strictRateLimiter(), // Prevent registration spam
   validateBody(registerManufacturerSchema),
   trackManufacturerAction('register'),
-  mfgCtrl.register
+  asRouteHandler(mfgCtrl.register)
 );
 
 // Manufacturer login (strict rate limiting to prevent brute force)
@@ -40,14 +41,14 @@ router.post(
   strictRateLimiter(), // Prevent brute force attacks
   validateBody(loginManufacturerSchema),
   trackManufacturerAction('login'),
-  mfgCtrl.login
+  asRouteHandler(mfgCtrl.login)
 );
 
 // Verify manufacturer token (utility endpoint)
 router.post(
   '/verify-token',
   strictRateLimiter(),
-  mfgCtrl.verifyToken
+  asRouteHandler(mfgCtrl.verifyToken)
 );
 
 // ===== PUBLIC MANUFACTURER DISCOVERY =====
@@ -56,19 +57,19 @@ router.post(
 router.get(
   '/search',
   validateQuery(listBrandsQuerySchema), // Reuse for search filters
-  mfgCtrl.searchManufacturers
+  asRouteHandler(mfgCtrl.searchManufacturers)
 );
 
 // ===== PROTECTED MANUFACTURER ROUTES =====
 
 // All routes below require valid manufacturer JWT
-router.use(authenticateManufacturer);
+router.use(authenticate, requireManufacturer);
 
 // Get manufacturer profile
 router.get(
   '/profile',
   trackManufacturerAction('view_profile'),
-  mfgCtrl.getProfile
+  asRouteHandler(mfgCtrl.getProfile)
 );
 
 // Update manufacturer profile
@@ -76,28 +77,28 @@ router.put(
   '/profile',
   validateBody(updateManufacturerProfileSchema),
   trackManufacturerAction('update_profile'),
-  mfgCtrl.updateProfile
+  asRouteHandler(mfgCtrl.updateProfile)
 );
 
 // Get manufacturer dashboard summary
 router.get(
   '/dashboard',
   trackManufacturerAction('view_dashboard'),
-  mfgCtrl.getDashboardSummary
+  asRouteHandler(mfgCtrl.getDashboardSummary)
 );
 
 // Refresh manufacturer authentication token
 router.post(
   '/refresh',
   trackManufacturerAction('refresh_token'),
-  mfgCtrl.refreshToken
+  asRouteHandler(mfgCtrl.refreshToken)
 );
 
 // Logout manufacturer (clear cookies and invalidate session)
 router.post(
   '/logout',
   trackManufacturerAction('logout'),
-  mfgCtrl.logout
+  asRouteHandler(mfgCtrl.logout)
 );
 
 // ===== BRAND RELATIONSHIP ROUTES =====
@@ -107,7 +108,7 @@ router.get(
   '/brands',
   validateQuery(listBrandsQuerySchema),
   trackManufacturerAction('list_brands'),
-  mfgCtrl.listBrandsForManufacturer
+  asRouteHandler(mfgCtrl.listBrandsForManufacturer)
 );
 
 // Get specific brand connection status
@@ -115,7 +116,7 @@ router.get(
   '/brands/:brandId/connection-status',
   validateParams(brandParamsSchema),
   trackManufacturerAction('check_connection_status'),
-  mfgCtrl.getConnectionStatus
+  asRouteHandler(mfgCtrl.getConnectionStatus)
 );
 
 // Check if manufacturer can connect to a brand
@@ -123,7 +124,7 @@ router.get(
   '/brands/:brandId/can-connect',
   validateParams(brandParamsSchema),
   trackManufacturerAction('check_can_connect'),
-  mfgCtrl.canConnectToBrand
+  asRouteHandler(mfgCtrl.canConnectToBrand)
 );
 
 // Create connection request to a brand
@@ -139,7 +140,7 @@ router.post(
     portfolio: Joi.string().trim().max(500).optional()
   })),
   trackManufacturerAction('create_connection'),
-  mfgCtrl.createConnectionRequest
+  asRouteHandler(mfgCtrl.createConnectionRequest)
 );
 
 // ===== VERIFIED MANUFACTURER ROUTES =====
@@ -153,7 +154,7 @@ router.get(
   validateParams(brandParamsSchema),
   validateQuery(listBrandsQuerySchema), // For analytics filtering
   trackManufacturerAction('view_brand_results'),
-  mfgCtrl.getResultsForBrand
+  asRouteHandler(mfgCtrl.getResultsForBrand)
 );
 
 // Get comprehensive analytics for a brand
@@ -162,7 +163,7 @@ router.get(
   validateParams(brandParamsSchema),
   validateQuery(listBrandsQuerySchema), // For timeframe filtering
   trackManufacturerAction('view_comprehensive_analytics'),
-  mfgCtrl.getComprehensiveAnalytics
+  asRouteHandler(mfgCtrl.getComprehensiveAnalytics)
 );
 
 // ===== SUPPLY CHAIN MANAGEMENT ROUTES =====
@@ -170,68 +171,68 @@ router.get(
 // Deploy supply chain contract
 router.post(
   '/account/supply-chain/deploy',
-  authenticateManufacturer,
+  authenticate,
   validateBody(Joi.object({
     manufacturerName: Joi.string().required().min(2).max(100).trim()
   })),
   trackManufacturerAction('deploy_supply_chain_contract'),
-  mfgAccountCtrl.deploySupplyChainContract
+  asRouteHandler(mfgAccountCtrl.deploySupplyChainContract)
 );
 
 // Get supply chain contract info
 router.get(
   '/account/supply-chain/contract',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_supply_chain_contract'),
-  mfgAccountCtrl.getSupplyChainContract
+  asRouteHandler(mfgAccountCtrl.getSupplyChainContract)
 );
 
 // Create supply chain endpoint
 router.post(
   '/account/supply-chain/endpoints',
-  authenticateManufacturer,
+  authenticate,
   validateBody(Joi.object({
     name: Joi.string().required().min(2).max(100).trim(),
     eventType: Joi.string().valid('sourced', 'manufactured', 'quality_checked', 'packaged', 'shipped', 'delivered').required(),
     location: Joi.string().required().min(2).max(200).trim()
   })),
   trackManufacturerAction('create_supply_chain_endpoint'),
-  mfgAccountCtrl.createSupplyChainEndpoint
+  asRouteHandler(mfgAccountCtrl.createSupplyChainEndpoint)
 );
 
 // Get all supply chain endpoints
 router.get(
   '/account/supply-chain/endpoints',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_supply_chain_endpoints'),
-  mfgAccountCtrl.getSupplyChainEndpoints
+  asRouteHandler(mfgAccountCtrl.getSupplyChainEndpoints)
 );
 
 // Register product for supply chain tracking
 router.post(
   '/account/supply-chain/products',
-  authenticateManufacturer,
+  authenticate,
   validateBody(Joi.object({
     productId: Joi.string().required().min(1).max(100).trim(),
     name: Joi.string().required().min(2).max(200).trim(),
     description: Joi.string().optional().max(1000).trim()
   })),
   trackManufacturerAction('register_supply_chain_product'),
-  mfgAccountCtrl.registerSupplyChainProduct
+  asRouteHandler(mfgAccountCtrl.registerSupplyChainProduct)
 );
 
 // Get all supply chain products
 router.get(
   '/account/supply-chain/products',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_supply_chain_products'),
-  mfgAccountCtrl.getSupplyChainProducts
+  asRouteHandler(mfgAccountCtrl.getSupplyChainProducts)
 );
 
 // Log supply chain event
 router.post(
   '/account/supply-chain/events',
-  authenticateManufacturer,
+  authenticate,
   validateBody(Joi.object({
     endpointId: Joi.number().integer().positive().required(),
     productId: Joi.string().required().min(1).max(100).trim(),
@@ -240,53 +241,53 @@ router.post(
     details: Joi.string().optional().max(1000).trim()
   })),
   trackManufacturerAction('log_supply_chain_event'),
-  mfgAccountCtrl.logSupplyChainEvent
+  asRouteHandler(mfgAccountCtrl.logSupplyChainEvent)
 );
 
 // Get supply chain events for a product
 router.get(
   '/account/supply-chain/products/:productId/events',
-  authenticateManufacturer,
+  authenticate,
   validateParams(Joi.object({
     productId: Joi.string().required().min(1).max(100).trim()
   })),
   trackManufacturerAction('get_supply_chain_product_events'),
-  mfgAccountCtrl.getSupplyChainProductEvents
+  asRouteHandler(mfgAccountCtrl.getSupplyChainProductEvents)
 );
 
 // Get supply chain dashboard
 router.get(
   '/account/supply-chain/dashboard',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_supply_chain_dashboard'),
-  mfgAccountCtrl.getSupplyChainDashboard
+  asRouteHandler(mfgAccountCtrl.getSupplyChainDashboard)
 );
 
 // Generate QR code for product
 router.post(
   '/account/supply-chain/products/:productId/qr-code',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('generate_product_qr_code'),
-  mfgAccountCtrl.generateProductQrCode
+  asRouteHandler(mfgAccountCtrl.generateProductQrCode)
 );
 
 // Generate QR codes for multiple products
 router.post(
   '/account/supply-chain/products/qr-codes/batch',
-  authenticateManufacturer,
+  authenticate,
   validateBody(Joi.object({
     productIds: Joi.array().items(Joi.string().required()).min(1).max(50).required()
   })),
   trackManufacturerAction('generate_batch_product_qr_codes'),
-  mfgAccountCtrl.generateBatchProductQrCodes
+  asRouteHandler(mfgAccountCtrl.generateBatchProductQrCodes)
 );
 
 // Get QR code information for product
 router.get(
   '/account/supply-chain/products/:productId/qr-code',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_product_qr_code_info'),
-  mfgAccountCtrl.getProductQrCodeInfo
+  asRouteHandler(mfgAccountCtrl.getProductQrCodeInfo)
 );
 
 // ===== SUPPLY CHAIN DASHBOARD ROUTES =====
@@ -294,29 +295,29 @@ router.get(
 // Get supply chain overview for dashboard
 router.get(
   '/supply-chain/overview',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_supply_chain_overview'),
-  supplyChainDashboardCtrl.getSupplyChainOverview
+  asRouteHandler(supplyChainDashboardCtrl.getSupplyChainOverview)
 );
 
 // Get supply chain analytics
 router.get(
   '/supply-chain/analytics',
-  authenticateManufacturer,
+  authenticate,
   validateQuery(Joi.object({
     timeframe: Joi.string().valid('7d', '30d', '90d').optional(),
     groupBy: Joi.string().valid('hour', 'day', 'week', 'month').optional()
   })),
   trackManufacturerAction('get_supply_chain_analytics'),
-  supplyChainDashboardCtrl.getSupplyChainAnalytics
+  asRouteHandler(supplyChainDashboardCtrl.getSupplyChainAnalytics)
 );
 
 // Get quick actions for supply chain
 router.get(
   '/supply-chain/quick-actions',
-  authenticateManufacturer,
+  authenticate,
   trackManufacturerAction('get_supply_chain_quick_actions'),
-  supplyChainDashboardCtrl.getQuickActions
+  asRouteHandler(supplyChainDashboardCtrl.getQuickActions)
 );
 
 export default router;

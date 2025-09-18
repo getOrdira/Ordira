@@ -1,7 +1,7 @@
-// @ts-nocheck
+
 // src/routes/supplyChain.routes.ts
 import { Router } from 'express';
-import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { validateBody, validateQuery } from '../middleware/validation.middleware';
 import { strictRateLimiter, dynamicRateLimiter, enhancedSupplyChainRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as supplyChainCtrl from '../controllers/supplyChain.controller';
@@ -15,6 +15,7 @@ import {
   batchQrCodeSchema,
   supplyChainQuerySchema
 } from '../validation/supplyChain.validation';
+import { asRouteHandler } from '../utils/routeHelpers';
 
 const router = Router();
 
@@ -31,9 +32,9 @@ const router = Router();
 router.post(
   '/deploy',
   strictRateLimiter(), // Strict rate limiting for contract deployment
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(contractDeploymentSchema),
-  supplyChainCtrl.deployContract
+  asRouteHandler(supplyChainCtrl.deployContract)
 );
 
 /**
@@ -45,8 +46,8 @@ router.post(
  */
 router.get(
   '/contract',
-  authenticateManufacturer,
-  supplyChainCtrl.getContract
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getContract)
 );
 
 /**
@@ -60,9 +61,9 @@ router.get(
 router.post(
   '/endpoints',
   dynamicRateLimiter(), // Dynamic rate limiting based on manufacturer plan
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(endpointSchema),
-  supplyChainCtrl.createEndpoint
+  asRouteHandler(supplyChainCtrl.createEndpoint)
 );
 
 /**
@@ -74,8 +75,8 @@ router.post(
  */
 router.get(
   '/endpoints',
-  authenticateManufacturer,
-  supplyChainCtrl.getEndpoints
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getEndpoints)
 );
 
 /**
@@ -89,9 +90,9 @@ router.get(
 router.post(
   '/products',
   dynamicRateLimiter(), // Dynamic rate limiting based on manufacturer plan
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(productSchema),
-  supplyChainCtrl.registerProduct
+  asRouteHandler(supplyChainCtrl.registerProduct)
 );
 
 /**
@@ -104,9 +105,9 @@ router.post(
  */
 router.get(
   '/products',
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateQuery(supplyChainQuerySchema),
-  supplyChainCtrl.getProducts
+  asRouteHandler(supplyChainCtrl.getProducts)
 );
 
 /**
@@ -120,9 +121,9 @@ router.get(
  */
 router.get(
   '/products/:productId/events',
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateQuery(supplyChainQuerySchema),
-  supplyChainCtrl.getProductEvents
+  asRouteHandler(supplyChainCtrl.getProductEvents)
 );
 
 /**
@@ -136,9 +137,9 @@ router.get(
 router.post(
   '/products/:id/supply-chain/events',
   enhancedSupplyChainRateLimiter(), // Enhanced rate limiting for blockchain transactions
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(eventSchema),
-  supplyChainCtrl.logEvent
+  asRouteHandler(supplyChainCtrl.logEvent)
 );
 
 /**
@@ -150,8 +151,8 @@ router.post(
  */
 router.get(
   '/products/:id/supply-chain/tracking',
-  authenticateManufacturer,
-  supplyChainCtrl.getTrackingData
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getTrackingData)
 );
 
 /**
@@ -163,8 +164,8 @@ router.get(
  */
 router.get(
   '/products/:id/supply-chain/events',
-  authenticateManufacturer,
-  supplyChainCtrl.getEvents
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getEvents)
 );
 
 /**
@@ -178,9 +179,9 @@ router.get(
 router.post(
   '/scan-qr',
   enhancedSupplyChainRateLimiter(),
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(qrScanSchema),
-  supplyChainCtrl.scanQrCode
+  asRouteHandler(supplyChainCtrl.scanQrCode)
 );
 
 /**
@@ -195,9 +196,9 @@ router.post(
 router.post(
   '/qr-codes/batch',
   enhancedSupplyChainRateLimiter(),
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(batchQrCodeSchema),
-  supplyChainCtrl.generateBatchQrCodes
+  asRouteHandler(supplyChainCtrl.generateBatchQrCodes)
 );
 
 /**
@@ -211,9 +212,9 @@ router.post(
 router.post(
   '/locations',
   dynamicRateLimiter(),
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(locationSchema),
-  supplyChainCtrl.createLocation
+  asRouteHandler(supplyChainCtrl.createLocation)
 );
 
 /**
@@ -226,9 +227,9 @@ router.post(
  */
 router.get(
   '/locations',
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateQuery(supplyChainQuerySchema),
-  supplyChainCtrl.getLocations
+  asRouteHandler(supplyChainCtrl.getLocations)
 );
 
 /**
@@ -241,8 +242,8 @@ router.get(
  */
 router.get(
   '/locations/:id',
-  authenticateManufacturer,
-  supplyChainCtrl.getLocation
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getLocation)
 );
 
 /**
@@ -256,9 +257,9 @@ router.get(
 router.put(
   '/locations/:id',
   dynamicRateLimiter(),
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateBody(locationSchema),
-  supplyChainCtrl.updateLocation
+  asRouteHandler(supplyChainCtrl.updateLocation)
 );
 
 /**
@@ -272,8 +273,8 @@ router.put(
 router.delete(
   '/locations/:id',
   dynamicRateLimiter(),
-  authenticateManufacturer,
-  supplyChainCtrl.deleteLocation
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.deleteLocation)
 );
 
 /**
@@ -286,9 +287,9 @@ router.delete(
  */
 router.get(
   '/locations/nearby',
-  authenticateManufacturer,
+  authenticate, requireManufacturer,
   validateQuery(supplyChainQuerySchema),
-  supplyChainCtrl.getNearbyLocations
+  asRouteHandler(supplyChainCtrl.getNearbyLocations)
 );
 
 /**
@@ -300,8 +301,8 @@ router.get(
  */
 router.get(
   '/locations/stats',
-  authenticateManufacturer,
-  supplyChainCtrl.getLocationStats
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getLocationStats)
 );
 
 /**
@@ -313,8 +314,8 @@ router.get(
  */
 router.get(
   '/rate-limits',
-  authenticateManufacturer,
-  supplyChainCtrl.getRateLimitInfo
+  authenticate, requireManufacturer,
+  asRouteHandler(supplyChainCtrl.getRateLimitInfo)
 );
 
 export default router;

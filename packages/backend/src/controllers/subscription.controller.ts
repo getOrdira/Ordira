@@ -1,7 +1,6 @@
-// @ts-nocheck
 // src/controllers/subscription.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { SubscriptionService } from '../services/business/subscription.service';
@@ -278,7 +277,7 @@ function generateOpportunityInsights(overview: any, metrics: any): any { return 
 // ====================
 // CONTROLLER FUNCTIONS
 // ====================
-interface TenantSubscriptionRequest extends Request, AuthRequest {
+interface TenantSubscriptionRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 
@@ -327,7 +326,7 @@ interface AnalyticsRequest extends TenantSubscriptionRequest, ValidatedRequest {
 /**
  * Extended request interfaces for type safety
  */
-interface TenantSubscriptionRequest extends Request, AuthRequest {
+interface TenantSubscriptionRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

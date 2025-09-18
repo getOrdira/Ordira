@@ -1,9 +1,8 @@
-// @ts-nocheck
+
 // src/routes/notification.routes.ts
 import { Router } from 'express';
 import { validateParams, validateQuery, validateBody } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
-import { authenticateManufacturer } from '../middleware/manufacturerAuth.middleware';
+import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -16,9 +15,10 @@ import {
   notificationValidationSchemas
 } from '../validation/notification.validation';
 import Joi from 'joi';
+import { asRouteHandler } from '../utils/routeHelpers';
 
 // ===== DUAL AUTHENTICATION INTERFACE =====
-interface DualAuthRequest extends Request {
+interface DualUnifiedAuthRequest extends Request {
   userType?: 'business' | 'manufacturer';
   userId?: string;
   manufacturer?: any;
@@ -42,7 +42,7 @@ router.use((req: any, res, next) => {
     }
     
     // If brand auth fails, try manufacturer authentication
-    authenticateManufacturer(req, res, (mfgErr) => {
+    requireManufacturer(req, res, (mfgErr) => {
       if (!mfgErr) {
         req.userType = 'manufacturer';
         return next();
@@ -73,7 +73,7 @@ router.get(
   '/',
   validateQuery(listNotificationsQuerySchema),
   trackManufacturerAction('view_notifications'),
-  notificationCtrl.getNotifications
+  asRouteHandler(notificationCtrl.getNotifications)
 );
 
 /**
@@ -86,7 +86,7 @@ router.get(
 router.get(
   '/stats',
   trackManufacturerAction('view_notification_stats'),
-  notificationCtrl.getNotificationStats
+  asRouteHandler(notificationCtrl.getNotificationStats)
 );
 
 /**
@@ -99,7 +99,7 @@ router.get(
 router.get(
   '/unread/count',
   trackManufacturerAction('check_unread_count'),
-  notificationCtrl.getUnreadCount
+  asRouteHandler(notificationCtrl.getUnreadCount)
 );
 
 /**
@@ -112,7 +112,7 @@ router.get(
 router.put(
   '/read-all',
   trackManufacturerAction('mark_all_notifications_read'),
-  notificationCtrl.markAllAsRead
+  asRouteHandler(notificationCtrl.markAllAsRead)
 );
 
 /**
@@ -129,7 +129,7 @@ router.post(
   strictRateLimiter(), // Strict rate limiting for bulk operations
   validateBody(bulkNotificationActionSchema),
   trackManufacturerAction('bulk_notification_action'),
-  notificationCtrl.bulkNotificationAction
+  asRouteHandler(notificationCtrl.bulkNotificationAction)
 );
 
 /**
@@ -157,7 +157,7 @@ router.delete(
       })
   })),
   trackManufacturerAction('bulk_delete_notifications'),
-  notificationCtrl.bulkDeleteNotifications
+  asRouteHandler(notificationCtrl.bulkDeleteNotifications)
 );
 
 /**
@@ -182,7 +182,7 @@ router.get(
       })
   })),
   trackManufacturerAction('view_notifications_by_type'),
-  notificationCtrl.getNotificationsByType
+  asRouteHandler(notificationCtrl.getNotificationsByType)
 );
 
 /**
@@ -197,7 +197,7 @@ router.get(
   '/:id',
   validateParams(notificationParamsSchema),
   trackManufacturerAction('view_notification_details'),
-  notificationCtrl.getNotificationDetails
+  asRouteHandler(notificationCtrl.getNotificationDetails)
 );
 
 /**
@@ -212,7 +212,7 @@ router.put(
   '/:id/read',
   validateParams(notificationParamsSchema),
   trackManufacturerAction('mark_notification_read'),
-  notificationCtrl.readNotification
+  asRouteHandler(notificationCtrl.readNotification)
 );
 
 /**
@@ -229,7 +229,7 @@ router.delete(
   strictRateLimiter(), // Strict rate limiting for individual deletions
   validateParams(notificationParamsSchema),
   trackManufacturerAction('delete_notification'),
-  notificationCtrl.deleteNotification
+  asRouteHandler(notificationCtrl.deleteNotification)
 );
 
 // ===== NOTIFICATION MANAGEMENT & SETTINGS =====
@@ -287,7 +287,7 @@ router.post(
     data: Joi.object().optional()
   })),
   trackManufacturerAction('create_notification'),
-  notificationCtrl.createNotification
+  asRouteHandler(notificationCtrl.createNotification)
 );
 
 
@@ -409,7 +409,7 @@ router.delete(
       })
   })),
   trackManufacturerAction('cleanup_old_notifications'),
-  notificationCtrl.cleanupOldNotifications
+  asRouteHandler(notificationCtrl.cleanupOldNotifications)
 );
 
 // ===== HEALTH CHECK ROUTE =====

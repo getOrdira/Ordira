@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/manufacturerAccount.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ManufacturerAccountService } from '../services/business/manufacturerAccount.service';
@@ -13,7 +13,7 @@ const manufacturerAccountService = new ManufacturerAccountService();
 /**
  * Extended request interfaces for type safety
  */
-interface UpdateProfileRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface UpdateProfileRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     name?: string;
     description?: string;
@@ -40,7 +40,7 @@ interface UpdateProfileRequest extends Request, ManufacturerAuthRequest, Validat
   };
 }
 
-interface UpdateNotificationPreferencesRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface UpdateNotificationPreferencesRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     emailNotifications?: {
       invitations?: boolean;
@@ -70,7 +70,7 @@ interface UpdateNotificationPreferencesRequest extends Request, ManufacturerAuth
  * @returns { profile, stats, completeness }
  */
 export const getManufacturerProfile = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -154,7 +154,7 @@ export const updateManufacturerProfile = asyncHandler(async (
  * @returns { deleted, retentionPeriod }
  */
 export const deleteManufacturerAccount = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -197,7 +197,7 @@ export const deleteManufacturerAccount = asyncHandler(async (
  * @returns { profilePictureUrl, uploadedAt }
  */
 export const uploadProfilePicture = asyncHandler(async (
-  req: ManufacturerAuthRequest & { file?: Express.Multer.File },
+  req: UnifiedAuthRequest & { file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -251,7 +251,7 @@ export const uploadProfilePicture = asyncHandler(async (
  * @returns { verificationStatus, requirements, documents }
  */
 export const getVerificationStatus = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -284,7 +284,7 @@ export const getVerificationStatus = asyncHandler(async (
  * @returns { submissionId, status, reviewTime }
  */
 export const submitVerificationDocuments = asyncHandler(async (
-  req: ManufacturerAuthRequest & { files?: Express.Multer.File[] },
+  req: UnifiedAuthRequest & { files?: Express.Multer.File[] },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -328,7 +328,7 @@ export const submitVerificationDocuments = asyncHandler(async (
  * @returns { activities[], pagination }
  */
 export const getAccountActivity = asyncHandler(async (
-  req: ManufacturerAuthRequest & { 
+  req: UnifiedAuthRequest & { 
     query: { 
       page?: string; 
       limit?: string; 
@@ -429,7 +429,7 @@ export const updateNotificationPreferences = asyncHandler(async (
  * @returns { exportId, downloadUrl, expiresAt }
  */
 export const exportAccountData = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -467,7 +467,7 @@ export const exportAccountData = asyncHandler(async (
  * @returns { contractInfo }
  */
 export const deploySupplyChainContract = asyncHandler(async (
-  req: ManufacturerAuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -501,7 +501,7 @@ export const deploySupplyChainContract = asyncHandler(async (
  * @returns { contractInfo }
  */
 export const getSupplyChainContract = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -538,7 +538,7 @@ export const getSupplyChainContract = asyncHandler(async (
  * @returns { endpoint }
  */
 export const createSupplyChainEndpoint = asyncHandler(async (
-  req: ManufacturerAuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -571,7 +571,7 @@ export const createSupplyChainEndpoint = asyncHandler(async (
  * @returns { endpoints }
  */
 export const getSupplyChainEndpoints = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -600,7 +600,7 @@ export const getSupplyChainEndpoints = asyncHandler(async (
  * @returns { product }
  */
 export const registerSupplyChainProduct = asyncHandler(async (
-  req: ManufacturerAuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -633,7 +633,7 @@ export const registerSupplyChainProduct = asyncHandler(async (
  * @returns { products }
  */
 export const getSupplyChainProducts = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -662,7 +662,7 @@ export const getSupplyChainProducts = asyncHandler(async (
  * @returns { event }
  */
 export const logSupplyChainEvent = asyncHandler(async (
-  req: ManufacturerAuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -695,7 +695,7 @@ export const logSupplyChainEvent = asyncHandler(async (
  * @returns { events }
  */
 export const getSupplyChainProductEvents = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -729,7 +729,7 @@ export const getSupplyChainProductEvents = asyncHandler(async (
  * @returns { dashboard data }
  */
 export const getSupplyChainDashboard = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -758,7 +758,7 @@ export const getSupplyChainDashboard = asyncHandler(async (
  * @returns { qrCodeUrl, qrCodeData, productName }
  */
 export const generateProductQrCode = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -791,7 +791,7 @@ export const generateProductQrCode = asyncHandler(async (
  * @returns { results: Array<{ productId, success, qrCodeUrl?, error? }> }
  */
 export const generateBatchProductQrCodes = asyncHandler(async (
-  req: ManufacturerAuthRequest & ValidatedRequest,
+  req: UnifiedAuthRequest & ValidatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -838,7 +838,7 @@ export const generateBatchProductQrCodes = asyncHandler(async (
  * @returns { hasQrCode, qrCodeUrl?, generatedAt?, isActive?, productName }
  */
 export const getProductQrCodeInfo = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

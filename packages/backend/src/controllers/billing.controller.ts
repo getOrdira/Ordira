@@ -1,8 +1,7 @@
-// @ts-nocheck
 // src/controllers/billing.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import Stripe from 'stripe';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -15,7 +14,7 @@ import { clearPlanCache } from '../middleware/rateLimiter.middleware';
 import { Billing } from '../models/billing.model';
 
 // Enhanced request interfaces
-interface BillingRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface BillingRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     plan?: PlanKey;
     paymentMethodId?: string;
@@ -242,7 +241,7 @@ if (isDowngrade) {
  * Get comprehensive billing and subscription information
  */
 export async function getPlan(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -304,7 +303,7 @@ export async function getPlan(
  * Get detailed usage statistics and billing analytics
  */
 export async function getUsageStats(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

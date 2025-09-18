@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/controllers/brandSettings.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -12,7 +12,7 @@ import { TokenDiscountService } from '../services/external/tokenDiscount.service
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
-interface BrandSettingsRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface BrandSettingsRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     // Visual branding
     themeColor?: string;
@@ -80,7 +80,7 @@ interface BrandSettingsRequest extends Request, AuthRequest, TenantRequest, Vali
   };
 }
 
-interface WalletUpdateRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface WalletUpdateRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     certificateWallet: string;
     signature?: string;
@@ -88,19 +88,19 @@ interface WalletUpdateRequest extends AuthRequest, TenantRequest, ValidatedReque
   };
 }
 
-interface SubdomainRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface SubdomainRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     subdomain: string;
   };
 }
 
-interface DomainRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface DomainRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     customDomain: string;
   };
 }
 
-interface QuickBrandingRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface QuickBrandingRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     themeColor?: string;
     logoUrl?: string;
@@ -118,7 +118,7 @@ const tokenDiscountService = new TokenDiscountService();
  * Retrieve comprehensive brand settings with plan-based features
  */
 export async function getBrandSettings(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -402,7 +402,7 @@ export async function updateCertificateWallet(
  * @returns { logoUrl, uploadedAt }
  */
 export async function uploadBrandLogo(
-  req: AuthRequest & TenantRequest & { file?: Express.Multer.File },
+  req: UnifiedAuthRequest & TenantRequest & { file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -496,7 +496,7 @@ export async function uploadBrandLogo(
  * @returns { bannerUrl, uploadedAt }
  */
 export async function uploadBrandBanner(
-  req: AuthRequest & TenantRequest & { file?: Express.Multer.File },
+  req: UnifiedAuthRequest & TenantRequest & { file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -759,7 +759,7 @@ export async function setCustomDomain(
  * Remove custom domain
  */
 export async function removeCustomDomain(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1082,7 +1082,7 @@ export async function updateWixIntegration(
  * Remove integration configuration
  */
 export async function removeIntegration(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1131,7 +1131,7 @@ export async function removeIntegration(
  * Test integration connection
  */
 export async function testIntegration(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1183,7 +1183,7 @@ export async function testIntegration(
  * Export brand settings configuration
  */
 export async function exportBrandSettings(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

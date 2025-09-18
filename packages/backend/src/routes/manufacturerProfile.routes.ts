@@ -1,9 +1,9 @@
-// @ts-nocheck
+
 // src/routes/manufacturerProfile.routes.ts
 import { Router } from 'express';
 import Joi from 'joi';
 import { validateParams, validateQuery, validateBody } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import * as ctrl from '../controllers/manufacturerProfile.controller';
@@ -12,6 +12,7 @@ import {
   listManufacturerProfilesQuerySchema,
   manufacturerSearchQuerySchema
 } from '../validation/manufacturerProfile.validation';
+import { asRouteHandler } from '../utils/routeHelpers'; 
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.get(
   '/',
   validateQuery(listManufacturerProfilesQuerySchema),
   trackManufacturerAction('browse_profiles'),
-  ctrl.listManufacturerProfiles
+  asRouteHandler(ctrl.listManufacturerProfiles)
 );
 
 // Search manufacturers with advanced filtering
@@ -36,7 +37,7 @@ router.get(
   '/search',
   validateQuery(manufacturerSearchQuerySchema),
   trackManufacturerAction('search_profiles'),
-  ctrl.listManufacturerProfiles // Uses same controller method with search params
+  asRouteHandler(ctrl.listManufacturerProfiles) // Uses same controller method with search params
 );
 
 // Advanced search with POST for complex criteria
@@ -70,7 +71,7 @@ router.post(
     })
   })),
   trackManufacturerAction('advanced_search'),
-  ctrl.advancedManufacturerSearch
+  asRouteHandler(ctrl.advancedManufacturerSearch)
 );
 
 // Get featured/recommended manufacturers
@@ -81,14 +82,14 @@ router.get(
     industry: Joi.string().trim().max(100).optional()
   })),
   trackManufacturerAction('view_featured'),
-  ctrl.getFeaturedManufacturers
+  asRouteHandler(ctrl.getFeaturedManufacturers)
 );
 
 // Get manufacturer statistics/analytics
 router.get(
   '/stats',
   trackManufacturerAction('view_stats'),
-  ctrl.getManufacturerStats
+  asRouteHandler(ctrl.getManufacturerStats)
 );
 
 // Compare multiple manufacturers
@@ -107,7 +108,7 @@ router.post(
       })
   })),
   trackManufacturerAction('compare_manufacturers'),
-  ctrl.compareManufacturers
+  asRouteHandler(ctrl.compareManufacturers)
 );
 
 // ===== SPECIFIC MANUFACTURER PROFILE =====
@@ -120,7 +121,7 @@ router.get(
   })),
   validateQuery(listManufacturerProfilesQuerySchema),
   trackManufacturerAction('browse_by_industry'),
-  ctrl.getManufacturersByIndustry
+  asRouteHandler(ctrl.getManufacturersByIndustry)
 );
 
 // Get specific manufacturer's public profile
@@ -128,7 +129,7 @@ router.get(
   '/:id',
   validateParams(manufacturerProfileParamsSchema),
   trackManufacturerAction('view_profile_detail'),
-  ctrl.getManufacturerProfile
+  asRouteHandler(ctrl.getManufacturerProfile)
 );
 
 export default router;

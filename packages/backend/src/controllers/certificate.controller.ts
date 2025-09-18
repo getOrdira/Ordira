@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/controllers/certificate.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -17,7 +17,7 @@ import { Certificate } from '../models/certificate.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 
 // ✨ Enhanced request interfaces with Web3 support
-interface CertificateRequest extends Request, AuthRequest, TenantRequest, ValidatedRequest {
+interface CertificateRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     productId: string;
     recipient: string;
@@ -51,7 +51,7 @@ interface CertificateRequest extends Request, AuthRequest, TenantRequest, Valida
   };
 }
 
-interface BatchCertificateRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface BatchCertificateRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     productId: string;
     recipients: Array<{
@@ -71,7 +71,7 @@ interface BatchCertificateRequest extends AuthRequest, TenantRequest, ValidatedR
   };
 }
 
-interface CertificateSearchRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface CertificateSearchRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   query: {
     page?: string;
     limit?: string;
@@ -91,7 +91,7 @@ interface CertificateSearchRequest extends AuthRequest, TenantRequest, Validated
 }
 
 // ✨ New interfaces for Web3 operations
-interface TransferRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface TransferRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     certificateIds: string[];
     brandWallet?: string;
@@ -104,7 +104,7 @@ interface TransferRequest extends AuthRequest, TenantRequest, ValidatedRequest {
   };
 }
 
-interface Web3AnalyticsRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface Web3AnalyticsRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   query: {
     timeframe?: string;
     groupBy?: string;
@@ -113,7 +113,7 @@ interface Web3AnalyticsRequest extends AuthRequest, TenantRequest, ValidatedRequ
   };
 }
 
-interface revokeCertificateRequest extends AuthRequest, TenantRequest, ValidatedRequest {
+interface revokeCertificateRequest extends UnifiedAuthRequest, TenantRequest, ValidatedRequest {
   body: {
     reason?: string;
     notifyRecipient?: boolean;
@@ -521,7 +521,7 @@ export async function transferCertificates(
  * Retry failed NFT transfers
  */
 export async function retryFailedTransfers(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -705,7 +705,7 @@ export async function listCertificates(
  * Get detailed certificate information with Web3 data
  */
 export async function getCertificate(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1022,7 +1022,7 @@ export async function createBatchCertificates(
  * Revoke an issued certificate with blockchain integration
  */
 export async function revokeCertificate(
-  req: AuthRequest & TenantRequest & revokeCertificateRequest,
+  req: UnifiedAuthRequest & TenantRequest & revokeCertificateRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1120,7 +1120,7 @@ export async function revokeCertificate(
  * Get certificates pending transfer
  */
 export async function getPendingTransfers(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -1169,7 +1169,7 @@ export async function getPendingTransfers(
  * Get batch certificate processing progress with Web3 metrics
  */
 export async function getBatchProgress(
-  req: AuthRequest & TenantRequest,
+  req: UnifiedAuthRequest & TenantRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

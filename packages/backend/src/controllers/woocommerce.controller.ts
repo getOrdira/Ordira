@@ -1,8 +1,7 @@
-// @ts-nocheck
 // src/controllers/woocommerce.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { WooCommerceService } from '../services/external/woocommerce.service';
@@ -14,7 +13,7 @@ const wooCommerceService = new WooCommerceService();
 /**
  * Extended request interfaces for type safety
  */
-interface TenantWooRequest extends Request, AuthRequest {
+interface TenantWooRequest extends Request, UnifiedAuthRequest {
   tenant?: { business: { toString: () => string } };
 }
 

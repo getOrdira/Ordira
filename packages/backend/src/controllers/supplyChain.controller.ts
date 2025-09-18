@@ -1,7 +1,6 @@
-// @ts-nocheck
 // src/controllers/supplyChain.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { SupplyChainEvent } from '../models/supplyChainEvent.model';
@@ -19,7 +18,7 @@ const analyticsService = new AnalyticsBusinessService();
 const qrCodeService = new QrCodeService();
 const redisClient = new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
-interface SupplyChainRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface SupplyChainRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     productId: string;
     eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
@@ -33,13 +32,13 @@ interface SupplyChainRequest extends Request, ManufacturerAuthRequest, Validated
   };
 }
 
-interface ContractDeploymentRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface ContractDeploymentRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     manufacturerName: string;
   };
 }
 
-interface EndpointRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface EndpointRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     name: string;
     eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
@@ -47,7 +46,7 @@ interface EndpointRequest extends Request, ManufacturerAuthRequest, ValidatedReq
   };
 }
 
-interface ProductRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface ProductRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     productId: string;
     name: string;
@@ -55,7 +54,7 @@ interface ProductRequest extends Request, ManufacturerAuthRequest, ValidatedRequ
   };
 }
 
-interface QrScanRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface QrScanRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     qrCodeData: string;
     eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
@@ -70,7 +69,7 @@ interface QrScanRequest extends Request, ManufacturerAuthRequest, ValidatedReque
   };
 }
 
-interface BatchQrCodeRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface BatchQrCodeRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     productIds: string[];
     batchName?: string;
@@ -86,7 +85,7 @@ interface BatchQrCodeRequest extends Request, ManufacturerAuthRequest, Validated
   };
 }
 
-interface LocationRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface LocationRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   body: {
     name: string;
     description?: string;
@@ -156,7 +155,7 @@ export const logEvent = asyncHandler(async (
  * Get supply chain events for a product
  */
 export const getEvents = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -180,7 +179,7 @@ export const getEvents = asyncHandler(async (
  * Get tracking data for a product
  */
 export const getTrackingData = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -251,7 +250,7 @@ export const deployContract = asyncHandler(async (
  * Get supply chain contract information
  */
 export const getContract = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -321,7 +320,7 @@ export const createEndpoint = asyncHandler(async (
  * Get all endpoints
  */
 export const getEndpoints = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -388,7 +387,7 @@ export const registerProduct = asyncHandler(async (
  * Get all registered products
  */
 export const getProducts = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -419,7 +418,7 @@ export const getProducts = asyncHandler(async (
  * Get events for a specific product
  */
 export const getProductEvents = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -812,7 +811,7 @@ export const createLocation = asyncHandler(async (
  * Get all locations for the manufacturer
  */
 export const getLocations = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -852,7 +851,7 @@ export const getLocations = asyncHandler(async (
  * Get specific location details
  */
 export const getLocation = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -909,7 +908,7 @@ export const updateLocation = asyncHandler(async (
  * Deactivate location (soft delete)
  */
 export const deleteLocation = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -937,7 +936,7 @@ export const deleteLocation = asyncHandler(async (
  * Find locations within radius of given coordinates
  */
 export const getNearbyLocations = asyncHandler(async (
-  req: ManufacturerAuthRequest & { query: { lat: string; lng: string; radius?: string } },
+  req: UnifiedAuthRequest & { query: { lat: string; lng: string; radius?: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -971,7 +970,7 @@ export const getNearbyLocations = asyncHandler(async (
  * Get location statistics for manufacturer
  */
 export const getLocationStats = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -1034,7 +1033,7 @@ export const getLocationStats = asyncHandler(async (
  * Get current rate limit information for the manufacturer
  */
 export async function getRateLimitInfo(
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {

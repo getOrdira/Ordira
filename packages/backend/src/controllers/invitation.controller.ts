@@ -1,9 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/invitation.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { InvitationService } from '../services/business/invitation.service';
@@ -14,12 +13,12 @@ const invitationService = new InvitationService();
 /**
  * Extended request interfaces for type safety
  */
-interface BrandInviteRequest extends Request, AuthRequest, ValidatedRequest {
+interface BrandInviteRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   tenant?: { business: { toString: () => string } };
   validatedBody: { manufacturerId: string };
 }
 
-interface ManufacturerInviteRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface ManufacturerInviteRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: { accept: boolean };
   validatedParams: { inviteId: string };
 }
@@ -72,7 +71,7 @@ export const sendInviteAsBrand = asyncHandler(async (
  * @optional query params: { status?: string, page?: number, limit?: number }
  */
 export const listInvitesForBrand = asyncHandler(async (
-  req: AuthRequest & { tenant?: { business: { toString: () => string } } },
+  req: UnifiedAuthRequest & { tenant?: { business: { toString: () => string } } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -112,7 +111,7 @@ export const listInvitesForBrand = asyncHandler(async (
  * @optional query params: { status?: string, page?: number, limit?: number }
  */
 export const listInvitesForManufacturer = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -198,7 +197,7 @@ export const respondToInvite = asyncHandler(async (
  * @requires params: { inviteId: string }
  */
 export const cancelInvite = asyncHandler(async (
-  req: AuthRequest & { 
+  req: UnifiedAuthRequest & { 
     tenant?: { business: { toString: () => string } };
     params: { inviteId: string };
   },
@@ -236,7 +235,7 @@ export const cancelInvite = asyncHandler(async (
  * @requires params: { inviteId: string }
  */
 export const getInvitationDetails = asyncHandler(async (
-  req: (AuthRequest | ManufacturerAuthRequest) & { params: { inviteId: string } },
+  req: UnifiedAuthRequest & { params: { inviteId: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {

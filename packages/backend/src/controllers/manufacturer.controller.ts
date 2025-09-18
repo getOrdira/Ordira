@@ -1,8 +1,8 @@
-// @ts-nocheck
+
 // src/controllers/manufacturer.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { ManufacturerAuthRequest } from '../middleware/manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ManufacturerService } from '../services/business/manufacturer.service';
@@ -31,7 +31,7 @@ interface LoginRequest extends Request, ValidatedRequest{
   };
 }
 
-interface UpdateProfileRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface UpdateProfileRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedBody: {
     name?: string;
     description?: string;
@@ -42,7 +42,7 @@ interface UpdateProfileRequest extends Request, ManufacturerAuthRequest, Validat
   };
 }
 
-interface ManufacturerBrandRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface ManufacturerBrandRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedParams: { brandSettingsId: string };
   query: {
     includeAnalytics?: string;
@@ -50,7 +50,7 @@ interface ManufacturerBrandRequest extends Request, ManufacturerAuthRequest, Val
   };
 }
 
-interface ConnectionRequest extends Request, ManufacturerAuthRequest, ValidatedRequest {
+interface ConnectionRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedParams: { brandId: string };
   validatedBody: {
     message?: string;
@@ -202,7 +202,7 @@ export const updateProfile = asyncHandler(async (
  * @returns { profile, stats, recommendations }
  */
 export const getProfile = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -233,7 +233,7 @@ export const getProfile = asyncHandler(async (
  * @returns { brands[], connectionStats, analytics }
  */
 export const listBrandsForManufacturer = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -354,7 +354,7 @@ export const getComprehensiveAnalytics = asyncHandler(async (
  * @returns { status, history, nextSteps }
  */
 export const getConnectionStatus = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -390,7 +390,7 @@ export const getConnectionStatus = asyncHandler(async (
  * @returns { canConnect, requirements, recommendations }
  */
 export const canConnectToBrand = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -554,7 +554,7 @@ export const searchManufacturers = asyncHandler(async (
  * @returns { stats, recentActivity, notifications, insights }
  */
 export const getDashboardSummary = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -586,7 +586,7 @@ export const getDashboardSummary = asyncHandler(async (
  * @returns { token, expiresAt }
  */
 export const refreshToken = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -626,7 +626,7 @@ export const refreshToken = asyncHandler(async (
  * @returns { success }
  */
 export const logout = asyncHandler(async (
-  req: ManufacturerAuthRequest,
+  req: UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

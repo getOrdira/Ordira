@@ -1,11 +1,11 @@
-// @ts-nocheck
 // src/routes/integrations/woocommerce.routes.ts
 
 import { Router } from 'express';
 import express from 'express';
 import { resolveTenant, TenantRequest } from '../../middleware/tenant.middleware';
-import { authenticate, AuthRequest } from '../../middleware/auth.middleware';
+import { authenticate, UnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
 import { validateBody, validateQuery, ValidatedRequest } from '../../middleware/validation.middleware';
+import { asRouteHandler } from '../../utils/routeHelpers';
 import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../../middleware/metrics.middleware';
 import * as wooCtrl from '../../controllers/woocommerce.controller';
@@ -15,7 +15,7 @@ const router = Router();
 
 // ===== EXTENDED REQUEST INTERFACES =====
 
-interface WooCommerceTenantRequest extends AuthRequest, TenantRequest {}
+interface WooCommerceTenantRequest extends UnifiedAuthRequest, TenantRequest {}
 
 interface WooCommerceValidatedRequest extends WooCommerceTenantRequest, ValidatedRequest {}
 
@@ -156,7 +156,7 @@ router.post(
   strictRateLimiter(), // Prevent connection abuse
   validateBody(wooCommerceConnectSchema),
   trackManufacturerAction('connect_woocommerce'),
-  wooCtrl.connectWooCommerce
+  asRouteHandler(wooCtrl.connectWooCommerce)
 );
 
 /**
@@ -171,7 +171,7 @@ router.get(
   authenticate,
   resolveTenant,
   trackManufacturerAction('view_woocommerce_status'),
-  wooCtrl.getConnectionStatus
+  asRouteHandler(wooCtrl.getConnectionStatus)
 );
 
 /**
@@ -187,7 +187,7 @@ router.delete(
   resolveTenant,
   strictRateLimiter(), // Security for disconnection
   trackManufacturerAction('disconnect_woocommerce'),
-  wooCtrl.disconnectWooCommerce
+  asRouteHandler(wooCtrl.disconnectWooCommerce)
 );
 
 // ===== DATA SYNCHRONIZATION =====
@@ -207,7 +207,7 @@ router.post(
   strictRateLimiter(), // Prevent sync spam
   validateBody(wooCommerceSyncSchema),
   trackManufacturerAction('sync_woocommerce_data'),
-  wooCtrl.syncWooCommerceData
+  asRouteHandler(wooCtrl.syncWooCommerceData)
 );
 
 /**
@@ -282,7 +282,7 @@ router.post(
   '/webhook',
   express.json({ limit: '1mb' }),
   dynamicRateLimiter(), // Handle webhook traffic
-  wooCtrl.handleOrderWebhook
+  asRouteHandler(wooCtrl.handleOrderWebhook)
 );
 
 /**
@@ -298,7 +298,7 @@ router.post(
   '/webhook/orders',
   express.json({ limit: '1mb' }),
   dynamicRateLimiter(), // Handle order webhook traffic
-  wooCtrl.handleOrderWebhook
+  asRouteHandler(wooCtrl.handleOrderWebhook)
 );
 
 /**
@@ -314,7 +314,7 @@ router.post(
   '/webhook/products',
   express.json({ limit: '1mb' }),
   dynamicRateLimiter(), // Handle product webhook traffic
-  wooCtrl.handleOrderWebhook // Reuse handler, it determines event type
+  asRouteHandler(wooCtrl.handleOrderWebhook) // Reuse handler, it determines event type
 );
 
 /**
@@ -327,7 +327,7 @@ router.post(
   (req, res, next) => {
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
-    wooCtrl.handleOrderWebhook(req as any, res, next);
+    asRouteHandler(wooCtrl.handleOrderWebhook)(req, res, next);
   }
 );
 
@@ -338,7 +338,7 @@ router.post(
   (req, res, next) => {
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
-    wooCtrl.handleOrderWebhook(req as any, res, next);
+    asRouteHandler(wooCtrl.handleOrderWebhook)(req, res, next);
   }
 );
 
@@ -375,7 +375,7 @@ router.get(
           to: req.query.endDate || new Date().toISOString()
         },
         metrics,
-        note: 'This endpoint can be enhanced to use wooCtrl.getWooCommerceAnalytics'
+        note: 'This endpoint can be enhanced to use (wooCtrl.getWooCommerceAnalytics)'
       }
     });
   }
@@ -481,7 +481,7 @@ router.get(
   resolveTenant,
   strictRateLimiter(), // Prevent connection test spam
   trackManufacturerAction('test_woocommerce_connection'),
-  wooCtrl.testWooCommerceConnection
+  asRouteHandler(wooCtrl.testWooCommerceConnection)
 );
 
 /**
@@ -496,7 +496,7 @@ router.get(
   authenticate,
   resolveTenant,
   trackManufacturerAction('view_woocommerce_store_info'),
-  wooCtrl.getStoreInfo
+  asRouteHandler(wooCtrl.getStoreInfo)
 );
 
 /**
@@ -511,7 +511,7 @@ router.get(
   authenticate,
   resolveTenant,
   trackManufacturerAction('view_woocommerce_setup_guide'),
-  wooCtrl.getSetupGuide
+  asRouteHandler(wooCtrl.getSetupGuide)
 );
 
 /**

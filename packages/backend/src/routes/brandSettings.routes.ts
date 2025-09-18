@@ -1,8 +1,8 @@
-// @ts-nocheck
 // src/routes/brandSettings.routes.ts
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate, requireBusiness } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { uploadMiddleware } from '../middleware/upload.middleware';
@@ -18,7 +18,6 @@ import {
   wixIntegrationSchema
 } from '../validation/brandSettings.validation';
 import Joi from 'joi';
-import { RequestHandler } from 'express';
 
 const router = Router();
 
@@ -31,7 +30,7 @@ const safeUploadMiddleware = {
 router.use(dynamicRateLimiter());
 
 // Apply authentication to all routes
-router.use(authenticate);
+router.use(authenticate, requireBusiness);
 
 // Apply tenant resolution for plan-based features
 router.use(resolveTenant);
@@ -42,7 +41,7 @@ router.use(resolveTenant);
  */
 router.get(
   '/',
-  settingsCtrl.getBrandSettings
+  asRouteHandler(settingsCtrl.getBrandSettings)
 );
 
 /**
@@ -52,7 +51,7 @@ router.get(
 router.put(
   '/',
   validateBody(updateBrandSettingsSchema),
-  settingsCtrl.updateBrandSettings
+  asRouteHandler(settingsCtrl.updateBrandSettings)
 );
 
 /**
@@ -64,7 +63,7 @@ router.put(
   strictRateLimiter(),
   requireTenantPlan(['premium', 'enterprise']),
   validateBody(certificateWalletSchema),
-  settingsCtrl.updateCertificateWallet
+  asRouteHandler(settingsCtrl.updateCertificateWallet)
 );
 
 /**
@@ -73,7 +72,7 @@ router.put(
 router.put(
   '/quick-branding',
   validateBody(quickBrandingSchema),
-  settingsCtrl.updateQuickBranding
+  asRouteHandler(settingsCtrl.updateQuickBranding)
 );
 
 /**
@@ -85,7 +84,7 @@ router.post(
   strictRateLimiter(), // Strict rate limiting for uploads
   ...safeUploadMiddleware.singleImage,
   trackManufacturerAction('upload_brand_logo'),
-  settingsCtrl.uploadBrandLogo
+  asRouteHandler(settingsCtrl.uploadBrandLogo)
 );
 
 /**
@@ -97,7 +96,7 @@ router.post(
   strictRateLimiter(), // Strict rate limiting for uploads
   ...safeUploadMiddleware.singleImage,
   trackManufacturerAction('upload_brand_banner'),
-  settingsCtrl.uploadBrandBanner
+  asRouteHandler(settingsCtrl.uploadBrandBanner)
 );
 
 /**
@@ -120,7 +119,7 @@ router.put(
         'any.required': 'Subdomain is required'
       })
   })),
-  settingsCtrl.updateSubdomain
+  asRouteHandler(settingsCtrl.updateSubdomain)
 );
 
 /**
@@ -143,7 +142,7 @@ router.post(
         'any.required': 'Subdomain is required'
       })
   })),
-  settingsCtrl.validateSubdomain
+  asRouteHandler(settingsCtrl.validateSubdomain)
 );
 
 /**
@@ -164,7 +163,7 @@ router.put(
         'any.required': 'Custom domain is required'
       })
   })),
-  settingsCtrl.setCustomDomain
+  asRouteHandler(settingsCtrl.setCustomDomain)
 );
 
 /**
@@ -175,7 +174,7 @@ router.put(
 router.delete(
   '/custom-domain',
   strictRateLimiter(),
-  settingsCtrl.removeCustomDomain
+  asRouteHandler(settingsCtrl.removeCustomDomain)
 );
 
 /**
@@ -196,7 +195,7 @@ router.post(
         'any.required': 'Domain is required for verification'
       })
   })),
-  settingsCtrl.verifyCustomDomain
+  asRouteHandler(settingsCtrl.verifyCustomDomain)
 );
 
 // === SHOPIFY INTEGRATION ===
@@ -210,7 +209,7 @@ router.post(
   '/integrations/shopify',
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(shopifyIntegrationSchema),
-  settingsCtrl.configureShopifyIntegration
+  asRouteHandler(settingsCtrl.configureShopifyIntegration)
 );
 
 /**
@@ -222,7 +221,7 @@ router.put(
   '/integrations/shopify',
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(shopifyIntegrationSchema),
-  settingsCtrl.updateShopifyIntegration
+  asRouteHandler(settingsCtrl.updateShopifyIntegration)
 );
 
 // === WOOCOMMERCE INTEGRATION ===
@@ -236,7 +235,7 @@ router.post(
   '/integrations/woocommerce',
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(wooCommerceIntegrationSchema),
-  settingsCtrl.configureWooCommerceIntegration
+  asRouteHandler(settingsCtrl.configureWooCommerceIntegration)
 );
 
 /**
@@ -248,7 +247,7 @@ router.put(
   '/integrations/woocommerce',
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(wooCommerceIntegrationSchema),
-  settingsCtrl.updateWooCommerceIntegration
+  asRouteHandler(settingsCtrl.updateWooCommerceIntegration)
 );
 
 // === WIX INTEGRATION ===
@@ -262,7 +261,7 @@ router.post(
   '/integrations/wix',
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(wixIntegrationSchema),
-  settingsCtrl.configureWixIntegration
+  asRouteHandler(settingsCtrl.configureWixIntegration)
 );
 
 /**
@@ -274,7 +273,7 @@ router.put(
   '/integrations/wix',
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(wixIntegrationSchema),
-  settingsCtrl.updateWixIntegration
+  asRouteHandler(settingsCtrl.updateWixIntegration)
 );
 
 // === INTEGRATION MANAGEMENT ===
@@ -295,7 +294,7 @@ router.delete(
         'any.required': 'Integration type is required'
       })
   })),
-  settingsCtrl.removeIntegration
+  asRouteHandler(settingsCtrl.removeIntegration)
 );
 
 /**
@@ -315,7 +314,7 @@ router.post(
         'any.required': 'Integration type is required'
       })
   })),
-  settingsCtrl.testIntegration
+  asRouteHandler(settingsCtrl.testIntegration)
 );
 
 /**
@@ -338,7 +337,7 @@ router.get(
         'boolean.base': 'includeSensitive must be a boolean value'
       })
   })),
-  settingsCtrl.exportBrandSettings
+  asRouteHandler(settingsCtrl.exportBrandSettings)
 );
 
 /**
@@ -363,7 +362,7 @@ router.get(
         'any.required': 'Business ID is required'
       })
   })),
-  settingsCtrl.getPublicBrandSettings
+  asRouteHandler(settingsCtrl.getPublicBrandSettings)
 );
 
 export default router;

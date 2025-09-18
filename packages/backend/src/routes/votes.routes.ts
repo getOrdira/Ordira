@@ -1,8 +1,9 @@
-// @ts-nocheck
+
 // src/routes/votes.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { asRouteHandler } from '../utils/routeHelpers';
+import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as votesCtrl from '../controllers/votes.controller';
 import {
@@ -37,8 +38,8 @@ router.post(
   '/deploy',
   strictRateLimiter(), // Prevent contract deployment spam
   validateBody(deployVotingContractSchema),
-  votesCtrl.deployVotingContract
-);
+  ((asRouteHandler(votesCtrl.deployVotingContract))
+));
 
 // ===== PROPOSAL MANAGEMENT =====
 
@@ -54,8 +55,8 @@ router.post(
   '/proposals',
   strictRateLimiter(), // Prevent proposal spam
   validateBody(createProposalSchema),
-  votesCtrl.createProposal
-);
+  ((asRouteHandler(votesCtrl.createProposal))
+));
 
 /**
  * GET /api/votes/proposals
@@ -68,8 +69,8 @@ router.post(
 router.get(
   '/proposals',
   validateQuery(listProposalsQuerySchema),
-  votesCtrl.listProposals
-);
+  ((asRouteHandler(votesCtrl.listProposals))
+));
 
 /**
  * GET /api/votes/proposals/:proposalId
@@ -82,8 +83,8 @@ router.get(
 router.get(
   '/proposals/:proposalId',
   validateParams(proposalParamsSchema),
-  votesCtrl.getProposalDetails
-);
+  ((asRouteHandler(votesCtrl.getProposalDetails))
+));
 
 // ===== PROPOSAL ANALYTICS =====
 
@@ -98,8 +99,8 @@ router.get(
 router.get(
   '/proposals/:proposalId/results',
   validateParams(proposalParamsSchema),
-  votesCtrl.getProposalResults
-);
+  ((asRouteHandler(votesCtrl.getProposalResults))
+));
 
 // ===== VOTING OPERATIONS =====
 
@@ -115,8 +116,8 @@ router.post(
   '/',
   strictRateLimiter(), // Prevent vote manipulation
   validateBody(submitVoteSchema),
-  votesCtrl.submitVote
-);
+  ((asRouteHandler(votesCtrl.submitVote))
+));
 
 /**
  * GET /api/votes
@@ -129,8 +130,8 @@ router.post(
 router.get(
   '/',
   validateQuery(listVotesQuerySchema),
-  votesCtrl.listVotes
-);
+  ((asRouteHandler(votesCtrl.listVotes))
+));
 
 /**
  * GET /api/votes/my-votes
@@ -143,8 +144,8 @@ router.get(
 router.get(
   '/my-votes',
   validateQuery(listVotesQuerySchema),
-  votesCtrl.getMyVotes
-);
+  ((asRouteHandler(votesCtrl.getMyVotes))
+));
 
 // ===== VOTING ANALYTICS =====
 
@@ -159,8 +160,8 @@ router.get(
 router.get(
   '/stats',
   validateQuery(votingStatsQuerySchema),
-  votesCtrl.getVotingStats
-);
+  ((asRouteHandler(votesCtrl.getVotingStats))
+));
 
 /**
  * GET /api/votes/analytics
@@ -173,8 +174,8 @@ router.get(
 router.get(
   '/analytics',
   validateQuery(votingStatsQuerySchema),
-  votesCtrl.getVotingAnalytics
-);
+  ((asRouteHandler(votesCtrl.getVotingAnalytics))
+));
 
 // ===== ADMIN OPERATIONS =====
 
@@ -188,7 +189,7 @@ router.get(
 router.post(
   '/force-submit',
   strictRateLimiter(), // Security for forced submissions
-  votesCtrl.forceSubmitPendingVotes
-);
+  ((asRouteHandler(votesCtrl.forceSubmitPendingVotes))
+));
 
 export default router;
