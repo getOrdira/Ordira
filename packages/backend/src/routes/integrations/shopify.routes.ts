@@ -4,7 +4,7 @@ import express from 'express';
 import { resolveTenant, TenantRequest } from '../../middleware/tenant.middleware';
 import { authenticate, UnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
 import { validateBody, validateQuery, validateParams, ValidatedRequest } from '../../middleware/validation.middleware';
-import { asRouteHandler } from '../../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../../utils/routeHelpers'; 
 import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../../middleware/metrics.middleware';
 import * as shopifyCtrl from '../../controllers/shopify.controller';
@@ -146,7 +146,7 @@ router.post(
   '/connect',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent OAuth flow abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent OAuth flow abuse
   validateBody(shopifyConnectSchema),
   trackManufacturerAction('initiate_shopify_connection'),
   asRouteHandler(shopifyCtrl.connectShopify)
@@ -162,7 +162,7 @@ router.post(
  */
 router.get(
   '/oauth/callback',
-  dynamicRateLimiter(), // Handle legitimate OAuth callbacks
+  asRateLimitHandler(dynamicRateLimiter()), // Handle legitimate OAuth callbacks
   validateQuery(shopifyCallbackSchema),
   asRouteHandler(shopifyCtrl.oauthCallback)
 );
@@ -195,7 +195,7 @@ router.delete(
   '/disconnect',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Security for disconnection
+  asRateLimitHandler(strictRateLimiter()), // Security for disconnection
   trackManufacturerAction('disconnect_shopify'),
   asRouteHandler(shopifyCtrl.disconnectShopify)
 );
@@ -215,7 +215,7 @@ router.post(
   '/sync',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent sync spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent sync spam
   validateBody(shopifySyncSchema),
   trackManufacturerAction('sync_shopify_data'),
   asRouteHandler(shopifyCtrl.syncShopifyData)
@@ -270,7 +270,7 @@ router.get(
 router.post(
   '/webhook',
   express.raw({ type: 'application/json', limit: '1mb' }),
-  dynamicRateLimiter(), // Handle webhook traffic
+  asRateLimitHandler(dynamicRateLimiter()), // Handle webhook traffic
   asRouteHandler(shopifyCtrl.handleWebhook)
 );
 
@@ -286,7 +286,7 @@ router.post(
 router.post(
   '/webhook/orders',
   express.raw({ type: 'application/json', limit: '1mb' }),
-  dynamicRateLimiter(), // Handle order webhook traffic
+  asRateLimitHandler(dynamicRateLimiter()), // Handle order webhook traffic
   asRouteHandler(shopifyCtrl.handleWebhook)
 );
 
@@ -296,7 +296,7 @@ router.post(
 router.post(
   '/webhook/orders/create',
   express.raw({ type: 'application/json', limit: '1mb' }),
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   (req, res, next) => {
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
@@ -307,7 +307,7 @@ router.post(
 router.post(
   '/webhook/orders/updated',
   express.raw({ type: 'application/json', limit: '1mb' }),
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   (req, res, next) => {
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
@@ -423,7 +423,7 @@ router.get(
   '/test',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent connection test spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent connection test spam
   trackManufacturerAction('test_shopify_connection'),
   asRouteHandler(shopifyCtrl.testShopifyConnection)
 );
@@ -526,7 +526,7 @@ router.post(
   '/products/sync',
   authenticate,
   resolveTenant,
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   validateBody(Joi.object({
     productIds: Joi.array()
       .items(Joi.string().pattern(/^\d+$/))

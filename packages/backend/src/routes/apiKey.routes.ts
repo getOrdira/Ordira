@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as apiKeyCtrl from '../controllers/apiKey.controller';
 import Joi from 'joi';
@@ -164,7 +164,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Lowered from premium+ to growth+
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(createApiKeySchema),
   asRouteHandler(apiKeyCtrl.createKey)
 );
@@ -179,7 +179,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   asRouteHandler(apiKeyCtrl.listKeys)
 );
 
@@ -193,7 +193,7 @@ router.put(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   validateBody(updateApiKeySchema),
   asRouteHandler(apiKeyCtrl.updateKey)
@@ -209,7 +209,7 @@ router.delete(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   asRouteHandler(apiKeyCtrl.revokeKey)
 );
@@ -224,7 +224,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']), // Higher plan for detailed usage stats
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   validateQuery(usageQuerySchema),
   asRouteHandler(apiKeyCtrl.getKeyUsage)
@@ -240,7 +240,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']), // Premium+ for key rotation
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   asRouteHandler(apiKeyCtrl.rotateKey)
 );
@@ -259,7 +259,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   asRouteHandler(apiKeyCtrl.getKeyDetails)
 );
@@ -274,7 +274,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(apiKeyParamsSchema),
   asRouteHandler(apiKeyCtrl.testKey)
 );
@@ -289,7 +289,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     action: Joi.string().valid('revoke', 'activate', 'deactivate').required(),
     keyIds: Joi.array()
@@ -318,7 +318,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateQuery(Joi.object({
     keyId: Joi.string().trim().optional(),
     action: Joi.string().valid('created', 'updated', 'revoked', 'rotated', 'used').optional(),
@@ -340,7 +340,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['enterprise']),
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     format: Joi.string().valid('json', 'csv').default('json').optional(),
     includeUsageStats: Joi.boolean().default(false).optional(),

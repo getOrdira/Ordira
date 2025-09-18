@@ -1,13 +1,13 @@
-// @ts-nocheck
 // src/controllers/brandProfile.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { BrandProfileService } from '../services/business/brandProfile.service';
+import { isUnifiedAuthRequest, safeString } from '../utils/typeGuards';
 
 // Enhanced request interfaces
-interface BrandProfileRequest extends Request, ValidatedRequest{
+interface BrandProfileRequest extends Request, UnifiedAuthRequest, ValidatedRequest{
   params: {
     id?: string;
     brandId?: string;
@@ -335,7 +335,7 @@ export async function reportBrand(
       reason,
       description,
       evidence,
-      reportedBy: (req as any).userId || 'anonymous',
+      reportedBy: isUnifiedAuthRequest(req) ? safeString(req.userId, 'anonymous') : 'anonymous',
       reportMetadata: {
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],

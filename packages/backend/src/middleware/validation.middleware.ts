@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import Joi, { ObjectSchema, ValidationError } from 'joi';
 import { Types } from 'mongoose';
 
@@ -27,8 +27,10 @@ export interface RequiredValidatedRequest {
  */
 export function asValidatedHandler<T extends ValidatedRequest>(
   handler: (req: T, res: Response, next: NextFunction) => void | Promise<void>
-) {
-  return handler as any;
+): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    return handler(req as unknown as T, res, next);
+  };
 }
 
 /**
@@ -498,7 +500,7 @@ export function validateMultiple(validations: {
         let validationError: string | null = null;
         const mockRes = {
           status: () => ({ json: (data: any) => { validationError = data.message; } })
-        } as any;
+        } as unknown as Response;
 
         middleware(req, mockRes, (err?: any) => {
           if (err || validationError) {

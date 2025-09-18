@@ -5,7 +5,7 @@ import express from 'express';
 import { resolveTenant, TenantRequest } from '../../middleware/tenant.middleware';
 import { authenticate, UnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
 import { validateBody, validateQuery, ValidatedRequest } from '../../middleware/validation.middleware';
-import { asRouteHandler } from '../../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../../utils/routeHelpers'; 
 import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../../middleware/metrics.middleware';
 import * as wooCtrl from '../../controllers/woocommerce.controller';
@@ -153,7 +153,7 @@ router.post(
   '/connect',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent connection abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent connection abuse
   validateBody(wooCommerceConnectSchema),
   trackManufacturerAction('connect_woocommerce'),
   asRouteHandler(wooCtrl.connectWooCommerce)
@@ -185,7 +185,7 @@ router.delete(
   '/disconnect',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Security for disconnection
+  asRateLimitHandler(strictRateLimiter()), // Security for disconnection
   trackManufacturerAction('disconnect_woocommerce'),
   asRouteHandler(wooCtrl.disconnectWooCommerce)
 );
@@ -204,7 +204,7 @@ router.post(
   '/sync',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent sync spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent sync spam
   validateBody(wooCommerceSyncSchema),
   trackManufacturerAction('sync_woocommerce_data'),
   asRouteHandler(wooCtrl.syncWooCommerceData)
@@ -281,7 +281,7 @@ router.get(
 router.post(
   '/webhook',
   express.json({ limit: '1mb' }),
-  dynamicRateLimiter(), // Handle webhook traffic
+  asRateLimitHandler(dynamicRateLimiter()), // Handle webhook traffic
   asRouteHandler(wooCtrl.handleOrderWebhook)
 );
 
@@ -297,7 +297,7 @@ router.post(
 router.post(
   '/webhook/orders',
   express.json({ limit: '1mb' }),
-  dynamicRateLimiter(), // Handle order webhook traffic
+  asRateLimitHandler(dynamicRateLimiter()), // Handle order webhook traffic
   asRouteHandler(wooCtrl.handleOrderWebhook)
 );
 
@@ -313,7 +313,7 @@ router.post(
 router.post(
   '/webhook/products',
   express.json({ limit: '1mb' }),
-  dynamicRateLimiter(), // Handle product webhook traffic
+  asRateLimitHandler(dynamicRateLimiter()), // Handle product webhook traffic
   asRouteHandler(wooCtrl.handleOrderWebhook) // Reuse handler, it determines event type
 );
 
@@ -323,7 +323,7 @@ router.post(
 router.post(
   '/webhook/orders/create',
   express.json({ limit: '1mb' }),
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   (req, res, next) => {
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
@@ -334,7 +334,7 @@ router.post(
 router.post(
   '/webhook/orders/updated',
   express.json({ limit: '1mb' }),
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   (req, res, next) => {
     // Add deprecation warning
     res.set('X-API-Deprecation-Warning', 'This endpoint is deprecated. Use /webhook/orders instead.');
@@ -449,7 +449,7 @@ router.post(
   '/webhooks/register',
   authenticate,
   resolveTenant,
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   validateBody(wooCommerceWebhookConfigSchema),
   trackManufacturerAction('register_woocommerce_webhook'),
   (req: WooCommerceValidatedRequest, res, next) => {
@@ -479,7 +479,7 @@ router.get(
   '/test',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent connection test spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent connection test spam
   trackManufacturerAction('test_woocommerce_connection'),
   asRouteHandler(wooCtrl.testWooCommerceConnection)
 );
@@ -567,7 +567,7 @@ router.post(
   '/validate',
   authenticate,
   resolveTenant,
-  dynamicRateLimiter(), // Allow reasonable testing of credentials
+  asRateLimitHandler(dynamicRateLimiter()), // Allow reasonable testing of credentials
   validateBody(wooCommerceValidationSchema),
   trackManufacturerAction('validate_woocommerce_credentials'),
   async (req: WooCommerceValidatedRequest, res, next) => {
@@ -608,7 +608,7 @@ router.put(
   '/webhooks/update-urls',
   authenticate,
   resolveTenant,
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   trackManufacturerAction('update_woocommerce_webhook_urls'),
   (req: WooCommerceTenantRequest, res, next) => {
     // This would use the updateWebhookUrls method from the service
@@ -637,7 +637,7 @@ router.post(
   '/products/sync',
   authenticate,
   resolveTenant,
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()  ),
   validateBody(Joi.object({
     productIds: Joi.array()
       .items(Joi.number().integer().positive())

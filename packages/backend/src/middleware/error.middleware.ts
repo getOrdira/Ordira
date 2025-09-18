@@ -1,6 +1,7 @@
 // src/middleware/error.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import { hasErrorMessage, isOperationalError, hasStatusCode } from '../utils/typeGuards';
 
 /**
  * Custom error interface for structured error handling
@@ -36,8 +37,8 @@ export function getErrorMessage(error: unknown): string {
     return error;
   }
   
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as any).message);
+  if (hasErrorMessage(error)) {
+    return error.message;
   }
   
   return 'An unknown error occurred';
@@ -56,15 +57,14 @@ export function getErrorStack(error: unknown): string | undefined {
 /**
  * Determine if error is operational (expected) or programming error
  */
-export function isOperationalError(error: unknown): boolean {
-  if (error && typeof error === 'object' && 'isOperational' in error) {
-    return Boolean((error as any).isOperational);
+export function isOperationalErrorType(error: unknown): boolean {
+  if (isOperationalError(error)) {
+    return error.isOperational;
   }
   
   // Consider errors with statusCode as operational
-  if (error && typeof error === 'object' && 'statusCode' in error) {
-    const statusCode = (error as any).statusCode;
-    return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500;
+  if (hasStatusCode(error)) {
+    return error.statusCode >= 400 && error.statusCode < 500;
   }
   
   return false;
@@ -233,7 +233,7 @@ export function normalizeError(error: unknown): AppError {
   
   // MongoDB/Mongoose errors
   if (error && typeof error === 'object') {
-    const errorObj = error as any;
+    const errorObj = error as Record<string, any>;
     
     if (errorObj.name === 'ValidationError') {
       return handleMongooseValidationError(errorObj);
@@ -326,7 +326,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   
   // Add additional context in development
   if (!isProduction && status >= 500) {
-    (response as any).stack = getErrorStack(normalizedError);
+    (response as Record<string, any>).stack = getErrorStack(normalizedError);
   }
   
   res.status(status).json(response);

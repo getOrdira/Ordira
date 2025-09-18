@@ -420,8 +420,8 @@ export const getMediaByCategory = asyncHandler(async (
   }
 
   // Get media by category through service
-  const media = await mediaService.getMediaByCategory(businessId, category as any);
-  const categoryStats = await mediaService.getCategoryStatistics(businessId, category as any);
+  const media = await mediaService.getMediaByCategory(businessId, category);
+  const categoryStats = await mediaService.getCategoryStatistics(businessId, category);
 
   // Return standardized response
   res.json({

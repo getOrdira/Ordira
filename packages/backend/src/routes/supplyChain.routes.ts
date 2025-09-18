@@ -15,7 +15,7 @@ import {
   batchQrCodeSchema,
   supplyChainQuerySchema
 } from '../validation/supplyChain.validation';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers'; 
 
 const router = Router();
 
@@ -31,7 +31,7 @@ const router = Router();
  */
 router.post(
   '/deploy',
-  strictRateLimiter(), // Strict rate limiting for contract deployment
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for contract deployment
   authenticate, requireManufacturer,
   validateBody(contractDeploymentSchema),
   asRouteHandler(supplyChainCtrl.deployContract)
@@ -60,7 +60,7 @@ router.get(
  */
 router.post(
   '/endpoints',
-  dynamicRateLimiter(), // Dynamic rate limiting based on manufacturer plan
+  asRateLimitHandler(dynamicRateLimiter()), // Dynamic rate limiting based on manufacturer plan
   authenticate, requireManufacturer,
   validateBody(endpointSchema),
   asRouteHandler(supplyChainCtrl.createEndpoint)
@@ -89,7 +89,7 @@ router.get(
  */
 router.post(
   '/products',
-  dynamicRateLimiter(), // Dynamic rate limiting based on manufacturer plan
+  asRateLimitHandler(dynamicRateLimiter()), // Dynamic rate limiting based on manufacturer plan
   authenticate, requireManufacturer,
   validateBody(productSchema),
   asRouteHandler(supplyChainCtrl.registerProduct)
@@ -211,7 +211,7 @@ router.post(
  */
 router.post(
   '/locations',
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   authenticate, requireManufacturer,
   validateBody(locationSchema),
   asRouteHandler(supplyChainCtrl.createLocation)
@@ -256,7 +256,7 @@ router.get(
  */
 router.put(
   '/locations/:id',
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   authenticate, requireManufacturer,
   validateBody(locationSchema),
   asRouteHandler(supplyChainCtrl.updateLocation)
@@ -272,7 +272,7 @@ router.put(
  */
 router.delete(
   '/locations/:id',
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter()),
   authenticate, requireManufacturer,
   asRouteHandler(supplyChainCtrl.deleteLocation)
 );

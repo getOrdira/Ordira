@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, TenantRequest } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
 // Import individual integration routers
 import shopifyRouter from './integrations/shopify.routes';
@@ -56,7 +57,7 @@ const bulkSyncSchema = Joi.object({
 // ===== GLOBAL MIDDLEWARE =====
 
 // Apply dynamic rate limiting to all integration routes
-integrationsRouter.use(dynamicRateLimiter());
+integrationsRouter.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== INTEGRATION OVERVIEW & MANAGEMENT =====
 
@@ -256,7 +257,7 @@ integrationsRouter.post(
   '/test',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent connection test spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent connection test spam
   validateBody(integrationTestSchema),
   trackManufacturerAction('test_all_integrations'),
   async (req: IntegrationsTenantRequest, res, next) => {
@@ -333,7 +334,7 @@ integrationsRouter.post(
   '/sync',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent bulk sync spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent bulk sync spam
   validateBody(bulkSyncSchema),
   trackManufacturerAction('bulk_sync_integrations'),
   async (req: IntegrationsTenantRequest, res, next) => {

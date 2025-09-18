@@ -1,4 +1,3 @@
-// @ts-nocheck
 // src/controllers/brandAccount.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';

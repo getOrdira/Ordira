@@ -14,7 +14,7 @@ import {
   certificateParamsSchema,
   listCertificatesQuerySchema
 } from '../validation/certificate.validation';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import Joi from 'joi';
 
 
@@ -138,7 +138,7 @@ const web3AnalyticsQuerySchema = Joi.object({
 const router = Router();
 
 // Apply dynamic rate limiting to all certificate routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -189,7 +189,7 @@ router.get(
  */
 router.post(
   '/',
-  strictRateLimiter(), // Prevent certificate creation abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent certificate creation abuse
   enforcePlanLimits('certificates'), // Enforce certificate limits
   validateBody(createCertificateSchema),
   asRouteHandler(certCtrl.createCertificate)
@@ -207,7 +207,7 @@ router.post(
  */
 router.post(
   '/batch',
-  strictRateLimiter(), // Very strict for resource-intensive batch operations
+  asRateLimitHandler(strictRateLimiter()), // Very strict for resource-intensive batch operations
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Batch requires Growth+ plans
   enforcePlanLimits('certificates'), // Enforce certificate limits
   validateBody(batchCreateCertificatesSchema),
@@ -242,7 +242,7 @@ router.get(
  */
 router.post(
   '/transfer',
-  strictRateLimiter(), // Security for wallet transfers
+  asRateLimitHandler(strictRateLimiter()), // Security for wallet transfers
   requireWeb3Plan, // Web3 features require Premium+ plans
   validateBody(transferCertificatesSchema),
   asRouteHandler(certCtrl.transferCertificates)
@@ -259,7 +259,7 @@ router.post(
  */
 router.post(
   '/retry-failed',
-  strictRateLimiter(), // Prevent retry spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent retry spam
   requireWeb3Plan, // Web3 features require Premium+ plans
   asRouteHandler(certCtrl.retryFailedTransfers)
 );
@@ -291,7 +291,7 @@ router.get(
  */
 router.put(
   '/:id/transfer',
-  strictRateLimiter(), // Security for ownership changes
+  asRateLimitHandler(strictRateLimiter()), // Security for ownership changes
   validateParams(certificateParamsSchema),
   validateBody(transferSingleCertificateSchema),
   asRouteHandler(certCtrl.transferCertificates)
@@ -307,7 +307,7 @@ router.put(
  */
 router.post(
   '/:id/revoke',
-  strictRateLimiter(), // Security for certificate revocation
+  asRateLimitHandler(strictRateLimiter()), // Security for certificate revocation
   validateParams(certificateParamsSchema),
   validateBody(revokeCertificateSchema),
   asRouteHandler(certCtrl.revokeCertificate)
@@ -323,7 +323,7 @@ router.post(
  */
 router.delete(
   '/:id',
-  strictRateLimiter(), // Security for permanent deletion
+  asRateLimitHandler(strictRateLimiter() ), // Security for permanent deletion
   validateParams(certificateParamsSchema),
   asRouteHandler(certCtrl.revokeCertificate) // Uses same controller as revoke but with permanent flag
 );

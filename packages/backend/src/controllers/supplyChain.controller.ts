@@ -12,6 +12,7 @@ import { Product } from '../models/product.model';
 import { Location } from '../models/location.model';
 import { QrCodeService } from '../services/external/qrCode.service';
 import redis from 'ioredis';
+import { hasCreatedAt, hasSupplyChainSettings } from '../utils/typeGuards';
 
 // Initialize services
 const analyticsService = new AnalyticsBusinessService();
@@ -198,7 +199,7 @@ export const getTrackingData = asyncHandler(async (
     lastEvent: events[events.length - 1] || null,
     timeline: events.map(event => ({
       eventType: event.eventType,
-      timestamp: (event as any).createdAt,
+      timestamp: hasCreatedAt(event) ? event.createdAt : new Date(),
       location: event.eventData?.location,
       txHash: event.txHash
     })),
@@ -274,7 +275,7 @@ export const getContract = asyncHandler(async (
     data: {
       contractAddress,
       stats,
-      deployedAt: (brandSettings as any).supplyChainSettings?.contractDeployedAt
+      deployedAt: hasSupplyChainSettings(brandSettings) ? brandSettings.supplyChainSettings?.contractDeployedAt : undefined
     }
   });
 });
@@ -575,7 +576,7 @@ export const scanQrCode = asyncHandler(async (
         event: {
           id: event._id,
           eventType: event.eventType,
-          timestamp: (event as any).createdAt,
+          timestamp: hasCreatedAt(event) ? event.createdAt : new Date(),
           location: event.eventData?.location,
           txHash: event.txHash
         },

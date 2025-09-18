@@ -6,6 +6,7 @@ import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { AuthService } from '../services/business/auth.service';
 import { ManufacturerService } from '../services/business/manufacturer.service';
 import { NotificationsService } from '../services/external/notifications.service';
+import { getRequestBody, safeString, safeBoolean } from '../utils/typeGuards';
 import { 
   RegisterBusinessInput,
   VerifyBusinessInput,
@@ -130,7 +131,7 @@ export async function registerBusinessHandler(
   console.error('Business registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
     ip: getClientIp(req),
-    email: (req.body as any)?.email, // ← Use type assertion
+    email: safeString(getRequestBody(req)?.email),
     timestamp: new Date()
   });
   
@@ -180,7 +181,7 @@ export async function verifyBusinessHandler(
 } catch (error) {
   // Log failed verification attempts for security
   console.warn('Business verification failed:', {
-    businessId: (req.body as any)?.businessId, // ← Use type assertion
+    businessId: safeString(getRequestBody(req)?.businessId),
     ip: getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
@@ -208,7 +209,7 @@ export async function loginBusinessHandler(
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
-      deviceFingerprint: (req.body as any).deviceFingerprint
+      deviceFingerprint: safeString(getRequestBody(req)?.deviceFingerprint)
     };
 
     // Enhanced login with security checks
@@ -785,8 +786,8 @@ export async function loginUserHandler(
     // Safely extract properties
     const email = loginData.email;
     const password = loginData.password;
-    const rememberMe = (loginData as any).rememberMe || false;
-    const deviceFingerprint = (loginData as any).deviceFingerprint;
+    const rememberMe = safeBoolean(getRequestBody(req)?.rememberMe, false);
+    const deviceFingerprint = safeString(getRequestBody(req)?.deviceFingerprint);
     
     // Enhanced security context
     const securityContext = {
@@ -833,7 +834,7 @@ export async function loginUserHandler(
     });
   } catch (error) {
     console.warn('User login failed:', {
-      email: (req.body as any)?.email,
+      email: safeString(getRequestBody(req)?.email),
       ip: getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()

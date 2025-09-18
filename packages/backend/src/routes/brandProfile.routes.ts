@@ -10,12 +10,12 @@ import {
   brandProfileQuerySchema 
 } from '../validation/brandProfile.validation';
 import Joi from 'joi';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
 const router = Router();
 
 // Apply dynamic rate limiting to all brand profile routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -99,7 +99,7 @@ router.get(
  */
 router.post(
   '/recommendations/feedback',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   validateBody(Joi.object({
     brandId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
     feedback: Joi.string().valid('positive', 'negative', 'neutral').required(),
@@ -163,7 +163,7 @@ router.get(
  */
 router.post(
   '/:id/report',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   validateParams(brandProfileParamsSchema),
   validateBody(Joi.object({
     reason: Joi.string().valid(

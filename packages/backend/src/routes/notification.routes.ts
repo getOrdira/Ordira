@@ -15,7 +15,7 @@ import {
   notificationValidationSchemas
 } from '../validation/notification.validation';
 import Joi from 'joi';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
 // ===== DUAL AUTHENTICATION INTERFACE =====
 interface DualUnifiedAuthRequest extends Request {
@@ -28,7 +28,7 @@ interface DualUnifiedAuthRequest extends Request {
 const router = Router();
 
 // Apply dynamic rate limiting to all notification routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== DUAL AUTHENTICATION MIDDLEWARE =====
 // Supports both business and manufacturer authentication
@@ -126,7 +126,7 @@ router.put(
  */
 router.post(
   '/bulk',
-  strictRateLimiter(), // Strict rate limiting for bulk operations
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for bulk operations
   validateBody(bulkNotificationActionSchema),
   trackManufacturerAction('bulk_notification_action'),
   asRouteHandler(notificationCtrl.bulkNotificationAction)
@@ -143,7 +143,7 @@ router.post(
  */
 router.delete(
   '/bulk',
-  strictRateLimiter(), // Strict rate limiting for bulk deletions
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for bulk deletions
   validateBody(Joi.object({
     notificationIds: Joi.array()
       .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
@@ -226,7 +226,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  strictRateLimiter(), // Strict rate limiting for individual deletions
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for individual deletions
   validateParams(notificationParamsSchema),
   trackManufacturerAction('delete_notification'),
   asRouteHandler(notificationCtrl.deleteNotification)
@@ -245,7 +245,7 @@ router.delete(
  */
 router.post(
   '/',
-  strictRateLimiter(), // Strict rate limiting for creation
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for creation
   validateBody(Joi.object({
     recipientId: Joi.string()
       .pattern(/^[0-9a-fA-F]{24}$/)
@@ -395,7 +395,7 @@ router.put(
  */
 router.delete(
   '/cleanup',
-  strictRateLimiter(), // Strict rate limiting for cleanup
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for cleanup
   validateQuery(Joi.object({
     daysToKeep: Joi.number()
       .integer()

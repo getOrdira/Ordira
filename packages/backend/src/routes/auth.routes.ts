@@ -2,7 +2,7 @@
 
 import { Router } from 'express';
 import { validateBody, validateParams } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { authenticate, refreshToken } from '../middleware/unifiedAuth.middleware';
 import * as authCtrl from '../controllers/auth.controller';
@@ -73,7 +73,7 @@ const resetPasswordSchema = Joi.object({
  */
 router.post(
   '/register/business',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(authValidationSchemas.registerBusiness),
   asRouteHandler(authCtrl.registerBusinessHandler)
 );
@@ -85,7 +85,7 @@ router.post(
  */
 router.post(
   '/verify/business',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(authValidationSchemas.verifyBusiness),
   asRouteHandler(authCtrl.verifyBusinessHandler)
 );
@@ -97,7 +97,7 @@ router.post(
  */
 router.post(
   '/login/business',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(authValidationSchemas.loginBusiness),
   asRouteHandler(authCtrl.loginBusinessHandler)
 );
@@ -109,7 +109,7 @@ router.post(
  */
 router.post(
   '/register/user',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(authValidationSchemas.registerUser),
   asRouteHandler(authCtrl.registerUserHandler)
 );
@@ -121,7 +121,7 @@ router.post(
  */
 router.post(
   '/verify/user',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(authValidationSchemas.verifyUser),
   asRouteHandler(authCtrl.verifyUserHandler)
 );
@@ -133,7 +133,7 @@ router.post(
  */
 router.post(
   '/login/user',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(authValidationSchemas.loginUser),
   asRouteHandler(authCtrl.loginUserHandler)
 );
@@ -149,7 +149,7 @@ router.post(
  */
 router.post(
   '/forgot-password',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(forgotPasswordSchema),
   asRouteHandler(authCtrl.forgotPasswordHandler)
 );
@@ -161,7 +161,7 @@ router.post(
  */
 router.post(
   '/reset-password',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(resetPasswordSchema),
   asRouteHandler(authCtrl.resetPasswordHandler)
 );
@@ -178,7 +178,7 @@ router.post(
 router.post(
   '/refresh',
   authenticate, // Uses auth middleware as per controller implementation
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(refreshTokenSchema),
   asRouteHandler(authCtrl.refreshTokenHandler)
 );
@@ -191,7 +191,7 @@ router.post(
 router.post(
   '/logout',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   asRouteHandler(authCtrl.logoutHandler)
 );
 
@@ -203,7 +203,7 @@ router.post(
 router.get(
   '/me',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   asRouteHandler(authCtrl.getCurrentUserHandler)
 );
 
@@ -219,7 +219,7 @@ router.get(
 router.post(
   '/change-password',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(changePasswordSchema),
   asRouteHandler(authCtrl.changePasswordHandler)
 );
@@ -231,7 +231,7 @@ router.post(
  */
 router.post(
   '/resend-verification',
-  strictRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(strictRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     email: Joi.string().email().optional(),
     businessId: Joi.string().optional(),
@@ -247,7 +247,7 @@ router.post(
  */
 router.post(
   '/check-email',
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     email: Joi.string().email().required()
   })),
@@ -261,7 +261,7 @@ router.post(
  */
 router.post(
   '/validate-password',
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     password: Joi.string().required()
   })),
@@ -280,7 +280,7 @@ router.post(
 router.get(
   '/sessions',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   asRouteHandler(authCtrl.getActiveSessionsHandler)
 );
 
@@ -292,7 +292,7 @@ router.get(
 router.delete(
   '/sessions/:sessionId',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateParams(Joi.object({
     sessionId: Joi.string().required()
   })),
@@ -307,7 +307,7 @@ router.delete(
 router.post(
   '/sessions/revoke-all',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     currentPassword: Joi.string().required(),
     reason: Joi.string().max(200).optional()
@@ -327,7 +327,7 @@ router.post(
 router.get(
   '/login-history',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   asRouteHandler(authCtrl.getLoginHistoryHandler)
 );
 
@@ -339,7 +339,7 @@ router.get(
 router.get(
   '/security-events',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   asRouteHandler(authCtrl.getSecurityEventsHandler)
 );
 
@@ -351,7 +351,7 @@ router.get(
 router.put(
   '/security-preferences',
   authenticate,
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   validateBody(Joi.object({
     emailNotifications: Joi.object({
       loginAlerts: Joi.boolean().default(true),
@@ -374,7 +374,7 @@ router.put(
  */
 router.get(
   '/health',
-  dynamicRateLimiter(), // Fixed: No parameters
+  asRateLimitHandler(dynamicRateLimiter()), // Fixed: No parameters
   (req, res) => {
     res.json({
       success: true,

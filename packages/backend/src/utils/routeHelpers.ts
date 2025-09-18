@@ -1,5 +1,6 @@
 // src/utils/routeHelpers.ts
 import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { RateLimitRequestHandler } from 'express-rate-limit';
 
 /**
  * Type-safe route handler wrapper that properly handles custom request interfaces
@@ -27,6 +28,14 @@ export function createValidatedRouteHandler<T extends Request = Request>(
     }
     return handler(req as T, res, next);
   };
+}
+
+/**
+ * Rate limiter compatibility helper
+ * Converts RateLimitRequestHandler to RequestHandler for Express compatibility
+ */
+export function asRateLimitHandler(rateLimiter: RateLimitRequestHandler): RequestHandler {
+  return rateLimiter as unknown as RequestHandler;
 }
 
 /**

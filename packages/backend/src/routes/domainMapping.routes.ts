@@ -14,8 +14,8 @@ import {
   domainVerificationSchema,
   updateDomainConfigSchema
 } from '../validation/domainMapping.validation';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
-// Additional validation schemas for enhanced routes
 import Joi from 'joi';
 
 // Domain ID parameter schema
@@ -95,7 +95,7 @@ const renewCertificateSchema = Joi.object({
 const router = Router();
 
 // Apply dynamic rate limiting to all domain mapping routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -146,7 +146,7 @@ router.get(
  */
 router.post(
   '/',
-  strictRateLimiter(), // Prevent domain mapping abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent domain mapping abuse
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Custom domains require Growth+
   validateBody(addDomainSchema),
   domainCtrl.addDomainMapping
@@ -162,7 +162,7 @@ router.post(
  */
 router.put(
   '/:domainId',
-  strictRateLimiter(), // Security for configuration changes
+  asRateLimitHandler(strictRateLimiter()), // Security for configuration changes
   validateParams(domainIdParamsSchema),
   validateBody(updateDomainConfigSchema),
   domainCtrl.updateDomainMapping
@@ -178,7 +178,7 @@ router.put(
  */
 router.delete(
   '/:domainId',
-  strictRateLimiter(), // Security for domain removal
+  asRateLimitHandler(strictRateLimiter()), // Security for domain removal
   validateParams(domainIdParamsSchema),
   domainCtrl.removeDomainMapping
 );
@@ -195,7 +195,7 @@ router.delete(
  */
 router.post(
   '/:domainId/verify',
-  strictRateLimiter(), // Prevent verification abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent verification abuse
   validateParams(domainIdParamsSchema),
   validateBody(verifyDomainSchema),
   domainCtrl.verifyDomain
@@ -228,7 +228,7 @@ router.get(
  */
 router.post(
   '/:domainId/renew-certificate',
-  strictRateLimiter(), // Prevent certificate renewal abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent certificate renewal abuse
   requireTenantPlan(['premium', 'enterprise']), // Advanced SSL features require Premium+
   validateParams(domainIdParamsSchema),
   validateBody(renewCertificateSchema),
@@ -281,7 +281,7 @@ router.get(
  */
 router.post(
   '/:domainId/test',
-  strictRateLimiter(), // Prevent test spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent test spam
   validateParams(domainIdParamsSchema),
   domainCtrl.testDomain
 );
@@ -297,7 +297,7 @@ router.post(
  */
 router.post(
   '/:domainId/health-check',
-  strictRateLimiter(), // Prevent health check abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent health check abuse
   requireTenantPlan(['premium', 'enterprise']), // Manual health checks require Premium+
   validateParams(domainIdParamsSchema),
   domainCtrl.getDomainHealth

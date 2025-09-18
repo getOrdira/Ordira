@@ -2,7 +2,7 @@
 // src/routes/emailGating.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
@@ -46,7 +46,7 @@ const customerIdParamsSchema = Joi.object({
 const router = Router();
 
 // Apply dynamic rate limiting to all email gating routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes (requires brand/business authentication)
 router.use(authenticate);
@@ -111,7 +111,7 @@ router.get(
  */
 router.post(
   '/customers',
-  strictRateLimiter(), // Prevent abuse of customer imports
+  asRateLimitHandler(strictRateLimiter()), // Prevent abuse of customer imports
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Customer management requires Growth+
   validateBody(customersImportSchema),
   asRouteHandler(emailGatingCtrl.addCustomers)
@@ -127,7 +127,7 @@ router.post(
  */
 router.delete(
   '/customers/:customerId',
-  strictRateLimiter(), // Security for customer deletion
+  asRateLimitHandler(strictRateLimiter()), // Security for customer deletion
   validateParams(customerIdParamsSchema),
   asRouteHandler(emailGatingCtrl.deleteCustomer)
 );
@@ -145,7 +145,7 @@ router.delete(
  */
 router.post(
   '/customers/import-csv',
-  strictRateLimiter(), // Prevent abuse of bulk CSV imports
+  asRateLimitHandler(strictRateLimiter()), // Prevent abuse of bulk CSV imports
   requireTenantPlan(['growth', 'premium', 'enterprise']), // Bulk imports require Growth+
   validateBody(csvImportSchema),
   asRouteHandler(emailGatingCtrl.importFromCSV)
@@ -161,7 +161,7 @@ router.post(
  */
 router.post(
   '/customers/sync-shopify',
-  strictRateLimiter(), // Prevent sync abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent sync abuse
   requireTenantPlan(['premium', 'enterprise']), // Advanced integrations require Premium+
   asRouteHandler(emailGatingCtrl.syncFromShopify)
 );
@@ -193,7 +193,7 @@ router.get(
  */
 router.post(
   '/customers/:customerId/revoke',
-  strictRateLimiter(), // Security for access revocation
+  asRateLimitHandler(strictRateLimiter()), // Security for access revocation
   validateParams(customerIdParamsSchema),
   validateBody(customerAccessActionSchema),
   asRouteHandler(emailGatingCtrl.revokeCustomerAccess)
@@ -209,7 +209,7 @@ router.post(
  */
 router.post(
   '/customers/:customerId/restore',
-  strictRateLimiter(), // Security for access restoration
+  asRateLimitHandler(strictRateLimiter()), // Security for access restoration
   validateParams(customerIdParamsSchema),
   asRouteHandler(emailGatingCtrl.restoreCustomerAccess)
 );
@@ -224,7 +224,7 @@ router.post(
  */
 router.put(
   '/customers/bulk-access',
-  strictRateLimiter(), // Prevent abuse of bulk access operations
+  asRateLimitHandler(strictRateLimiter()), // Prevent abuse of bulk access operations
   validateBody(bulkAccessSchema),
   asRouteHandler(emailGatingCtrl.bulkUpdateAccess)
 );
@@ -313,7 +313,7 @@ router.get(
  */
 router.post(
   '/legacy/allowed-customers',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   requireTenantPlan(['growth', 'premium', 'enterprise']),
   validateBody(customersImportSchema),
   (req, res, next) => {

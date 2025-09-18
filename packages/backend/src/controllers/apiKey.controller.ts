@@ -1,4 +1,3 @@
-// @ts-nocheck
 // src/controllers/apiKey.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
@@ -7,6 +6,7 @@ import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { ApiKeyService } from '../services/business/apiKey.service';
 import { BillingService } from '../services/external/billing.service';
+import { isApiKeyObject, safeString } from '../utils/typeGuards';
 
 // Enhanced request interfaces
 interface ApiKeyRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
@@ -299,13 +299,20 @@ export async function bulkUpdateKeys(
       return;
     }
 
-    const results = {
+    const results: {
+      action: string;
+      processed: number;
+      successful: number;
+      failed: number;
+      errors: Array<{ keyId: string; error: string }>;
+      results: any[];
+    } = {
       action,
       processed: 0,
       successful: 0,
       failed: 0,
-      errors: [] as any[],
-      results: [] as any[]
+      errors: [],
+      results: []
     };
 
     // Process each key
@@ -466,12 +473,18 @@ export async function exportKeys(
                         keyIds : 
                         (await apiKeyService.listApiKeys(businessId)).map((k: any) => k.keyId);
 
-    const exportData = {
+    const exportData: {
+      exportedAt: string;
+      businessId: string;
+      totalKeys: number;
+      format: string;
+      keys: any[];
+    } = {
       exportedAt: new Date().toISOString(),
       businessId,
       totalKeys: keysToExport.length,
       format,
-      keys: [] as any[]
+      keys: []
     };
 
     // Collect data for each key
@@ -555,9 +568,9 @@ export async function listKeys(
     // Add enhanced metadata
     const enhancedKeys = await Promise.all(
       keys.map(async (apiKey) => {
-        // Use type assertion to access properties safely
-        const keyData = apiKey as any;
-        const keyIdentifier = keyData.keyId || keyData.key || keyData._id?.toString();
+        // Use type guard to access properties safely
+        const keyData = isApiKeyObject(apiKey) ? apiKey : apiKey as any;
+        const keyIdentifier = keyData.keyId || keyData.key || (keyData._id ? keyData._id.toString() : '');
         
         const usage = await apiKeyService.getKeyUsageStats(keyIdentifier, '30d');
         

@@ -1,7 +1,7 @@
 // src/routes/products.routes.ts
 import { Router, Request, RequestHandler } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate, requireVerifiedManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
@@ -104,7 +104,7 @@ interface DualUnifiedAuthRequest extends Request {
 const router = Router();
 
 // Apply dynamic rate limiting to all product routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== PUBLIC PRODUCT DISCOVERY (NO AUTHENTICATION) =====
 
@@ -245,7 +245,7 @@ router.get(
  */
 router.post(
   '/',
-  strictRateLimiter(), // Prevent product spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent product spam
   validateBody(createProductSchema),
   trackManufacturerAction('create_product'),
   asRouteHandler(productCtrl.createProduct)
@@ -262,7 +262,7 @@ router.post(
  */
 router.post(
   '/quick',
-  strictRateLimiter(), // Prevent product spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent product spam
   validateBody(quickCreateProductSchema),
   trackManufacturerAction('quick_create_product'),
   asRouteHandler(productCtrl.createProduct)
@@ -324,7 +324,7 @@ router.put(
  */
 router.post(
   '/:id/images',
-  strictRateLimiter(), // Strict rate limiting for uploads
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for uploads
   validateParams(productParamsSchema),
   ...safeUploadMiddleware.multipleImages,
   trackManufacturerAction('upload_product_images'),
@@ -342,7 +342,7 @@ router.post(
  */
 router.delete(
   '/:id',
-  strictRateLimiter(), // Security for deletions
+  asRateLimitHandler(strictRateLimiter()), // Security for deletions
   validateParams(productParamsSchema),
   trackManufacturerAction('delete_product'),
   asRouteHandler(productCtrl.deleteProduct)
@@ -361,7 +361,7 @@ router.delete(
  */
 router.post(
   '/:id/vote',
-  strictRateLimiter(), // Prevent vote spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent vote spam
   validateParams(productParamsSchema),
   trackManufacturerAction('vote_for_product'),
   asRouteHandler(productCtrl.voteForProduct)
@@ -378,7 +378,7 @@ router.post(
  */
 router.post(
   '/:id/certificate',
-  strictRateLimiter(), // Security for certificate addition
+  asRateLimitHandler(strictRateLimiter()), // Security for certificate addition
   validateParams(productParamsSchema),
   trackManufacturerAction('add_product_certificate'),
   asRouteHandler(productCtrl.addProductCertificate)
@@ -397,7 +397,7 @@ router.post(
  */
 router.put(
   '/bulk',
-  strictRateLimiter(), // Very strict for bulk operations
+  asRateLimitHandler(strictRateLimiter()), // Very strict for bulk operations
   validateBody(bulkProductsSchema),
   trackManufacturerAction('bulk_update_products'),
   asRouteHandler(productCtrl.bulkUpdateProducts)
@@ -416,7 +416,7 @@ router.put(
 router.delete(
   '/bulk',
   requireVerifiedManufacturer, // Extra security requirement
-  strictRateLimiter(), // Extra strict for bulk deletions
+  asRateLimitHandler(strictRateLimiter()), // Extra strict for bulk deletions
   validateBody(Joi.object({
     productIds: bulkProductsSchema.extract('productIds')
   })),
@@ -451,7 +451,7 @@ router.delete(
  */
 router.post(
   '/import/shopify',
-  strictRateLimiter(), // Prevent import abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent import abuse
   validateBody(Joi.object({
     shopUrl: Joi.string().uri().required(),
     accessToken: Joi.string().required(),
@@ -492,7 +492,7 @@ router.post(
  */
 router.post(
   '/import/woocommerce',
-  strictRateLimiter(), // Prevent import abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent import abuse
   validateBody(Joi.object({
     storeUrl: Joi.string().uri().required(),
     consumerKey: Joi.string().required(),
@@ -532,7 +532,7 @@ router.post(
  */
 router.post(
   '/import/csv',
-  strictRateLimiter(), // Prevent import abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent import abuse
   validateBody(Joi.object({
     csvData: Joi.string().required(),
     mappingConfig: Joi.object({

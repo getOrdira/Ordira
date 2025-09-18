@@ -12,12 +12,12 @@ import {
   listManufacturerProfilesQuerySchema,
   manufacturerSearchQuerySchema
 } from '../validation/manufacturerProfile.validation';
-import { asRouteHandler } from '../utils/routeHelpers'; 
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';   
 
 const router = Router();
 
 // Apply dynamic rate limiting to all manufacturer profile routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== PUBLIC MANUFACTURER DISCOVERY =====
 

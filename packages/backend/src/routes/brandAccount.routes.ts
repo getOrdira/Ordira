@@ -15,7 +15,7 @@ import {
   exportAccountDataSchema,
   analyticsQuerySchema
 } from '../validation/brandAccount.validation';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
 const router = Router();
 const safeUploadMiddleware = {
@@ -23,7 +23,7 @@ const safeUploadMiddleware = {
 };
 
 // Apply dynamic rate limiting to all brand account routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -72,7 +72,7 @@ router.post(
  */
 router.post(
   '/verification',
-  strictRateLimiter(), // Prevent verification spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent verification spam
   validateBody(submitVerificationSchema),
   asRouteHandler(ctrl.submitVerification)
 );
@@ -94,7 +94,7 @@ router.get(
  */
 router.post(
   '/deactivate',
-  strictRateLimiter(), // Prevent accidental deactivation spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent accidental deactivation spam
   validateBody(deactivateAccountSchema),
   asRouteHandler(ctrl.deactivateAccount)
 );
@@ -119,7 +119,7 @@ router.get(
  */
 router.post(
   '/export',
-  strictRateLimiter(), // Prevent export abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent export abuse
   validateBody(exportAccountDataSchema),
   asRouteHandler(ctrl.exportAccountData)
 );

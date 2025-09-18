@@ -5,6 +5,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ProductService } from '../services/business/product.service';
+import { hasViewCount } from '../utils/typeGuards';
 
 // Initialize service
 const productService = new ProductService();
@@ -261,7 +262,7 @@ export const getProduct = asyncHandler(async (
     data: {
       product,
       analytics: {
-        views: (product as any).viewCount || 0,
+        views: hasViewCount(product) ? product.viewCount : 0,
         votes: product.voteCount || 0,
         certificates: product.certificateCount || 0,
         engagementScore: ((product.voteCount || 0) * 2) + ((product.certificateCount || 0) * 3)

@@ -20,12 +20,12 @@ import {
   cancelSubscriptionSchema,
   usageStatsQuerySchema
 } from '../validation/billing.validation';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
 const router = Router();
 
 // Apply dynamic rate limiting to all billing routes (plan-based limits)
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication and tenant resolution to all routes except webhooks
 router.use('/webhook', (req, res, next) => next()); // Skip middleware for webhooks
@@ -42,7 +42,7 @@ router.get(
 // Change plan (requires auth, tenant & validation, with strict rate limiting for security)
 router.put(
   '/plan',
-  strictRateLimiter(), // Extra protection for plan changes
+  asRateLimitHandler(strictRateLimiter()), // Extra protection for plan changes
   validateBody(changePlanSchema),
   asRouteHandler(changePlan)
 );
@@ -57,7 +57,7 @@ router.get(
 // Create checkout session (requires auth, tenant & validation, with strict rate limiting)
 router.post(
   '/checkout-session',
-  strictRateLimiter(), // Prevent checkout session abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent checkout session abuse
   validateBody(checkoutSessionSchema),
   asRouteHandler(createCheckoutSession)
 );
@@ -65,7 +65,7 @@ router.post(
 // Update payment method (requires auth, tenant & validation, with strict rate limiting)
 router.put(
   '/payment-method',
-  strictRateLimiter(), // Prevent payment method abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent payment method abuse
   validateBody(updatePaymentMethodSchema),
   asRouteHandler(updatePaymentMethod)
 );
@@ -73,7 +73,7 @@ router.put(
 // Cancel subscription (requires auth, tenant & validation, with strict rate limiting)
 router.post(
   '/cancel',
-  strictRateLimiter(), // Prevent cancellation abuse
+  asRateLimitHandler(strictRateLimiter()  ), // Prevent cancellation abuse
   validateBody(cancelSubscriptionSchema),
   asRouteHandler(cancelSubscription)
 );

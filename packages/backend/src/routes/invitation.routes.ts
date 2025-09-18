@@ -1,7 +1,7 @@
 // src/routes/invitation.routes.ts
 import { Router, Request } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate, UnifiedAuthRequest, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, TenantRequest } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
@@ -14,6 +14,7 @@ import {
   listInvitesQuerySchema,
   bulkInviteSchema
 } from '../validation/invitation.validation';
+
 
 const router = Router();
 
@@ -41,7 +42,7 @@ interface DualUnifiedAuthRequest extends Request {
 // ===== GLOBAL MIDDLEWARE =====
 
 // Apply dynamic rate limiting to all invitation routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== OVERVIEW & ANALYTICS ROUTES =====
 
@@ -230,7 +231,7 @@ router.post(
   '/brand',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Prevent invitation spam
+  asRateLimitHandler(strictRateLimiter() ), // Prevent invitation spam
   validateBody(sendInviteSchema),
   trackManufacturerAction('send_invitation'),
   asRouteHandler(((invCtrl.sendInviteAsBrand)))
@@ -281,7 +282,7 @@ router.put(
   '/brand/:inviteId',
   authenticate,
   resolveTenant,
-  dynamicRateLimiter(),
+  asRateLimitHandler(dynamicRateLimiter() ),
   validateParams(inviteParamsSchema),
   validateBody(sendInviteSchema.fork(['manufacturerId'], (schema) => schema.optional())),
   trackManufacturerAction('update_invitation'),
@@ -311,7 +312,7 @@ router.delete(
   '/brand/:inviteId',
   authenticate,
   resolveTenant,
-  strictRateLimiter(), // Security for cancellation
+  asRateLimitHandler(strictRateLimiter() ), // Security for cancellation
   validateParams(inviteParamsSchema),
   trackManufacturerAction('cancel_invitation'),
   asRouteHandler(invCtrl.cancelInvite)
@@ -425,7 +426,7 @@ router.get(
  */
 router.post(
   '/manufacturer/:inviteId/respond',
-  strictRateLimiter(), // Prevent response spam
+  asRateLimitHandler(strictRateLimiter() ), // Prevent response spam
   validateParams(inviteParamsSchema),
   validateBody(respondToInviteSchema),
   trackManufacturerAction('respond_to_invitation'),
@@ -442,7 +443,7 @@ router.post(
  */
 router.post(
   '/manufacturer/:inviteId/counter-offer',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter() ),
   validateParams(inviteParamsSchema),
   validateBody(respondToInviteSchema.keys({
     counterOffer: require('joi').object({
@@ -744,7 +745,7 @@ router.delete(
       });
     });
   },
-  strictRateLimiter(), // Security for disconnection
+  asRateLimitHandler(strictRateLimiter() ), // Security for disconnection
   validateParams(require('joi').object({
     partnerId: require('joi').string().pattern(/^[0-9a-fA-F]{24}$/).required()
   })),

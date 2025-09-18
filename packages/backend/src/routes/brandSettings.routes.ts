@@ -1,7 +1,7 @@
 // src/routes/brandSettings.routes.ts
 import { Router, RequestHandler } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate, requireBusiness } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
@@ -27,7 +27,7 @@ const safeUploadMiddleware = {
 };
 
 // Apply dynamic rate limiting to all brand settings routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate, requireBusiness);
@@ -60,7 +60,7 @@ router.put(
  */
 router.put(
   '/certificate-wallet',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   requireTenantPlan(['premium', 'enterprise']),
   validateBody(certificateWalletSchema),
   asRouteHandler(settingsCtrl.updateCertificateWallet)
@@ -81,7 +81,7 @@ router.put(
  */
 router.post(
   '/logo',
-  strictRateLimiter(), // Strict rate limiting for uploads
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for uploads
   ...safeUploadMiddleware.singleImage,
   trackManufacturerAction('upload_brand_logo'),
   asRouteHandler(settingsCtrl.uploadBrandLogo)
@@ -93,7 +93,7 @@ router.post(
  */
 router.post(
   '/banner',
-  strictRateLimiter(), // Strict rate limiting for uploads
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for uploads
   ...safeUploadMiddleware.singleImage,
   trackManufacturerAction('upload_brand_banner'),
   asRouteHandler(settingsCtrl.uploadBrandBanner)
@@ -152,7 +152,7 @@ router.post(
  */
 router.put(
   '/custom-domain',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   requireTenantPlan(['premium', 'enterprise']),
   validateBody(Joi.object({
     customDomain: Joi.string()
@@ -173,7 +173,7 @@ router.put(
  */
 router.delete(
   '/custom-domain',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   asRouteHandler(settingsCtrl.removeCustomDomain)
 );
 
@@ -184,7 +184,7 @@ router.delete(
  */
 router.post(
   '/custom-domain/verify',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   requireTenantPlan(['premium', 'enterprise']),
   validateBody(Joi.object({
     customDomain: Joi.string()
@@ -304,7 +304,7 @@ router.delete(
  */
 router.post(
   '/integrations/:type/test',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   validateParams(Joi.object({
     type: Joi.string()
       .valid('shopify', 'woocommerce', 'wix')

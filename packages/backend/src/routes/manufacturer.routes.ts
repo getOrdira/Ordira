@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate, requireVerifiedManufacturer, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -22,14 +22,14 @@ import {
 const router = Router();
 
 // Apply dynamic rate limiting to all manufacturer routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== PUBLIC AUTHENTICATION ROUTES =====
 
 // Register new manufacturer account (strict rate limiting to prevent abuse)
 router.post(
   '/register',
-  strictRateLimiter(), // Prevent registration spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent registration spam
   validateBody(registerManufacturerSchema),
   trackManufacturerAction('register'),
   asRouteHandler(mfgCtrl.register)
@@ -38,7 +38,7 @@ router.post(
 // Manufacturer login (strict rate limiting to prevent brute force)
 router.post(
   '/login',
-  strictRateLimiter(), // Prevent brute force attacks
+  asRateLimitHandler(strictRateLimiter()), // Prevent brute force attacks
   validateBody(loginManufacturerSchema),
   trackManufacturerAction('login'),
   asRouteHandler(mfgCtrl.login)
@@ -47,7 +47,7 @@ router.post(
 // Verify manufacturer token (utility endpoint)
 router.post(
   '/verify-token',
-  strictRateLimiter(),
+  asRateLimitHandler(strictRateLimiter()),
   asRouteHandler(mfgCtrl.verifyToken)
 );
 

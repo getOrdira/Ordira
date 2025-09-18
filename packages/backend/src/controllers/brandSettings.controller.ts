@@ -1,4 +1,3 @@
-// @ts-nocheck
 // src/controllers/brandSettings.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
@@ -10,6 +9,7 @@ import { BillingService } from '../services/external/billing.service';
 import { NotificationsService } from '../services/external/notifications.service';
 import { TokenDiscountService } from '../services/external/tokenDiscount.service';
 import { clearTenantCache } from '../middleware/tenant.middleware';
+import { hasShopifyAccessToken } from '../utils/typeGuards';
 
 // Enhanced request interfaces
 interface BrandSettingsRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
@@ -1156,7 +1156,7 @@ export async function testIntegration(
     if (type === 'shopify' && settings.shopifyDomain) {
       testResult = await brandSettingsService.testShopifyConnection({
         shopifyDomain: settings.shopifyDomain,
-        shopifyAccessToken: (settings as any).shopifyAccessToken
+        shopifyAccessToken: hasShopifyAccessToken(settings) ? settings.shopifyAccessToken : undefined
       });
     }
 

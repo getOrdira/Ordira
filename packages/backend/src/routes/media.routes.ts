@@ -3,7 +3,7 @@
 import { Router, RequestHandler } from 'express';
 import Joi from 'joi';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers'; 
 import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from '../middleware/upload.middleware';
@@ -25,7 +25,7 @@ const safeUploadMiddleware = {
 };
 
 // Apply dynamic rate limiting to all media routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // ===== AUTHENTICATION MIDDLEWARE =====
 
@@ -60,7 +60,7 @@ router.use((req: any, res, next) => {
 // Upload single media file (strict rate limiting to prevent abuse)
 router.post(
   '/upload',
-  strictRateLimiter(), // Prevent upload spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent upload spam
   validateUploadOrigin,
   ...safeUploadMiddleware.singleImage, // Use predefined single image middleware
   validateBody(uploadMediaSchema),
@@ -72,7 +72,7 @@ router.post(
 // Upload multiple media files (extra strict rate limiting)
 router.post(
   '/upload/batch',
-  strictRateLimiter(), // Very strict for batch uploads
+  asRateLimitHandler(strictRateLimiter()), // Very strict for batch uploads
   validateUploadOrigin,
   ...safeUploadMiddleware.multipleImages, // Use predefined multiple images middleware
   validateBody(uploadMediaSchema),
@@ -112,7 +112,7 @@ router.put(
 // Delete single media file (strict rate limiting)
 router.delete(
   '/:mediaId',
-  strictRateLimiter(), // Security for deletions
+  asRateLimitHandler(strictRateLimiter()), // Security for deletions
   validateParams(mediaParamsSchema),
   trackManufacturerAction('delete_media'),
   asRouteHandler(mediaCtrl.deleteMedia)
@@ -149,7 +149,7 @@ router.get(
 // Bulk delete media files (extra strict rate limiting)
 router.delete(
   '/bulk',
-  strictRateLimiter(), // Very strict for bulk operations
+  asRateLimitHandler(strictRateLimiter()), // Very strict for bulk operations
   validateBody(bulkDeleteMediaSchema),
   trackManufacturerAction('bulk_delete_media'),
   async (req: any, res, next) => {

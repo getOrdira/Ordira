@@ -1,5 +1,5 @@
-import rateLimit from 'express-rate-limit';
-import { Request, Response, NextFunction } from 'express';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
 import { PlanKey, PLAN_DEFINITIONS } from '../constants/plans';
@@ -7,6 +7,10 @@ import { ManufacturerPlanKey, MANUFACTURER_PLAN_DEFINITIONS } from '../constants
 import { AuthRequest } from './auth.middleware';
 import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
 import redis from 'ioredis';
+
+// Type compatibility helper for express-rate-limit
+type CompatibleRequest = Parameters<RateLimitRequestHandler>[0];
+type CompatibleResponse = Parameters<RateLimitRequestHandler>[1];
 
 
 
@@ -206,15 +210,15 @@ function getUserType(req: Request): 'brand' | 'manufacturer' | 'user' | 'anonymo
 /**
  * Dynamic rate limiter that adjusts limits based on user plan and type
  */
-export function dynamicRateLimiter(): any {
-  return (rateLimit as any)({
+export function dynamicRateLimiter(): RateLimitRequestHandler {
+  return rateLimit({
     // Remove the static windowMs and max - we'll use dynamic ones
     
     // Custom key generator
-    keyGenerator: generateRateLimitKey,
+    keyGenerator: (req: CompatibleRequest) => generateRateLimitKey(req as unknown as Request),
 
     // Dynamic rate limit based on user
-    skip: async (req: Request) => {
+    skip: async (req: CompatibleRequest) => {
       // Skip rate limiting for health checks and metrics
       if (req.path === '/health' || req.path === '/metrics') {
         return true;
@@ -223,15 +227,15 @@ export function dynamicRateLimiter(): any {
     },
 
     // Custom rate limit logic (keep only this max property)
-    max: async (req: Request) => {
-      const userType = getUserType(req);
+    max: async (req: CompatibleRequest) => {
+      const userType = getUserType(req as unknown as Request);
       
       if (userType === 'anonymous') {
         return DEFAULT_RATE_LIMIT.burst;
       }
 
-      const manufacturerReq = req as ManufacturerAuthRequest;
-      const authReq = req as AuthRequest;
+      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
+      const authReq = req as unknown as AuthRequest;
       const userId = manufacturerReq.userId || authReq.userId;
 
       if (!userId) {
@@ -251,9 +255,9 @@ export function dynamicRateLimiter(): any {
     windowMs: DEFAULT_RATE_LIMIT.window * 60 * 1000,
 
     // Custom handler for rate limit exceeded
-    handler: (req: Request, res: Response) => {
-      const userType = getUserType(req);
-      const key = generateRateLimitKey(req);
+    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+      const userType = getUserType(req as unknown as Request);
+      const key = generateRateLimitKey(req as unknown as Request);
       
       console.warn(`Rate limit exceeded for ${userType} ${key} on ${req.method} ${req.path}`);
       
@@ -274,14 +278,14 @@ export function dynamicRateLimiter(): any {
 /**
  * Strict rate limiter for sensitive endpoints (auth, payments, etc.)
  */
-export function strictRateLimiter(): any {
-  return (rateLimit as any)({
+export function strictRateLimiter(): RateLimitRequestHandler {
+  return rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // 5 attempts per window
-    keyGenerator: generateRateLimitKey,
+    keyGenerator: (req: CompatibleRequest) => generateRateLimitKey(req as unknown as Request),
     
-    handler: (req: Request, res: Response) => {
-      const key = generateRateLimitKey(req);
+    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+      const key = generateRateLimitKey(req as unknown as Request);
       console.warn(`Strict rate limit exceeded for ${key} on ${req.method} ${req.path}`);
       
       res.status(429).json({
@@ -300,16 +304,16 @@ export function strictRateLimiter(): any {
 /**
  * API-specific rate limiter for external integrations
  */
-export function apiRateLimiter(): any {
-  return (rateLimit as any)({
+export function apiRateLimiter(): RateLimitRequestHandler {
+  return rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: async (req: Request) => {
-      const userType = getUserType(req);
+    max: async (req: CompatibleRequest) => {
+      const userType = getUserType(req as unknown as Request);
       
       if (userType === 'anonymous') return 10; // Very restrictive for anonymous
       
-      const manufacturerReq = req as ManufacturerAuthRequest;
-      const authReq = req as AuthRequest;
+      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
+      const authReq = req as unknown as AuthRequest;
       const userId = manufacturerReq.userId || authReq.userId;
 
       if (userId) {
@@ -320,12 +324,12 @@ export function apiRateLimiter(): any {
       return 20; // Default for authenticated users
     },
     
-    keyGenerator: (req: Request) => {
-      const baseKey = generateRateLimitKey(req);
+    keyGenerator: (req: CompatibleRequest) => {
+      const baseKey = generateRateLimitKey(req as unknown as Request);
       return `api:${baseKey}`;
     },
 
-    handler: (req: Request, res: Response) => {
+    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
       res.status(429).json({
         error: 'API rate limit exceeded',
         message: 'Too many API requests. Please reduce your request frequency.',
@@ -348,11 +352,11 @@ export function clearPlanCache(userId: string): void {
 /**
  * Supply chain event rate limiter with plan-based limits and abuse prevention
  */
-export function supplyChainRateLimiter(): any {
-  return (rateLimit as any)({
+export function supplyChainRateLimiter(): RateLimitRequestHandler {
+  return rateLimit({
     windowMs: 60 * 1000, // 1 minute window
-    max: async (req: Request) => {
-      const manufacturerReq = req as ManufacturerAuthRequest;
+    max: async (req: CompatibleRequest) => {
+      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
       if (!manufacturerReq.userId || !manufacturerReq.manufacturer) {
         return 0; // No access for non-manufacturers
       }
@@ -370,12 +374,12 @@ export function supplyChainRateLimiter(): any {
       }
     },
     
-    keyGenerator: (req: Request) => {
-      const manufacturerReq = req as ManufacturerAuthRequest;
+    keyGenerator: (req: CompatibleRequest) => {
+      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
       return `supply-chain:${manufacturerReq.userId}`;
     },
 
-    skip: async (req: Request) => {
+    skip: async (req: CompatibleRequest) => {
       // Skip rate limiting for health checks
       if (req.path === '/health' || req.path === '/metrics') {
         return true;
@@ -383,8 +387,8 @@ export function supplyChainRateLimiter(): any {
       return false;
     },
 
-    handler: (req: Request, res: Response) => {
-      const manufacturerReq = req as ManufacturerAuthRequest;
+    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
       const key = `supply-chain:${manufacturerReq.userId}`;
       
       console.warn(`Supply chain rate limit exceeded for manufacturer ${manufacturerReq.userId} on ${req.method} ${req.path}`);
@@ -409,7 +413,7 @@ export function supplyChainRateLimiter(): any {
 /**
  * Enhanced supply chain rate limiter with multiple time windows and cooldown
  */
-export function enhancedSupplyChainRateLimiter(): any {
+export function enhancedSupplyChainRateLimiter(): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const manufacturerReq = req as ManufacturerAuthRequest;
     
@@ -549,8 +553,8 @@ export function warmupPlanCache() {
     const userType = getUserType(req);
     
     if (userType !== 'anonymous') {
-      const manufacturerReq = req as ManufacturerAuthRequest;
-      const authReq = req as AuthRequest;
+      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
+      const authReq = req as unknown as AuthRequest;
       const userId = manufacturerReq.userId || authReq.userId;
 
       if (userId && !planCache.has(userId)) {

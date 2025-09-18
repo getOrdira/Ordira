@@ -12,7 +12,7 @@ import {
   quickUpdateManufacturerSchema,
   manufacturerVerificationSchema
 } from '../validation/manufacturerAccount.validation';
-import { asRouteHandler } from '../utils/routeHelpers';	
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';	
 
 const router = Router();
 const safeUploadMiddleware = {
@@ -21,7 +21,7 @@ const safeUploadMiddleware = {
 };
 
 // Apply dynamic rate limiting to all manufacturer account routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply manufacturer authentication to all routes
 router.use(authenticate, requireManufacturer);
@@ -46,7 +46,7 @@ router.put(
 // Delete manufacturer account (soft delete)
 router.delete(
   '/',
-  strictRateLimiter(), // Strict rate limiting for account deletion
+  asRateLimitHandler(strictRateLimiter()), // Strict rate limiting for account deletion
   trackManufacturerAction('delete_account'),
   ctrl.deleteManufacturerAccount
 );
@@ -73,7 +73,7 @@ router.get(
 // Submit verification documents
 router.post(
   '/verification/submit',
-  strictRateLimiter(), // Prevent verification spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent verification spam
   ...safeUploadMiddleware.multipleImages, // Use predefined multipleImages middleware
   trackManufacturerAction('submit_verification'),
   ctrl.submitVerificationDocuments
@@ -130,7 +130,7 @@ router.put(
 // Export account data
 router.get(
   '/export',
-  strictRateLimiter(), // Limit data export requests
+  asRateLimitHandler(strictRateLimiter()), // Limit data export requests
   trackManufacturerAction('request_data_export'),
   asRouteHandler(ctrl.exportAccountData)  
 );

@@ -3,13 +3,13 @@ import { Router } from 'express';
 import { authenticate, requirePermission } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
 import SecurityAuditController from '../controllers/securityAudit.controller';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 
 const router = Router();
 const securityAuditController = new SecurityAuditController();
 
 // Apply rate limiting to all security audit routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // All routes require authentication
 router.use(authenticate);

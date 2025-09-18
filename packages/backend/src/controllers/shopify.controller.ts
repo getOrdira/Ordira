@@ -456,10 +456,14 @@ export const syncShopifyData = asyncHandler(async (
   const syncStartTime = Date.now();
 
   let syncResult;
-  const syncResults = {
-    products: null as any,
-    orders: null as any,
-    customers: null as any
+  const syncResults: {
+    products: any;
+    orders: any;
+    customers: any;
+  } = {
+    products: null,
+    orders: null,
+    customers: null
   };
 
   try {

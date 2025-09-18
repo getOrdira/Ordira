@@ -2,7 +2,7 @@
 // src/routes/votes.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as votesCtrl from '../controllers/votes.controller';
@@ -19,7 +19,7 @@ import {
 const router = Router();
 
 // Apply dynamic rate limiting to all voting routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -36,7 +36,7 @@ router.use(authenticate);
  */
 router.post(
   '/deploy',
-  strictRateLimiter(), // Prevent contract deployment spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent contract deployment spam
   validateBody(deployVotingContractSchema),
   ((asRouteHandler(votesCtrl.deployVotingContract))
 ));
@@ -53,7 +53,7 @@ router.post(
  */
 router.post(
   '/proposals',
-  strictRateLimiter(), // Prevent proposal spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent proposal spam
   validateBody(createProposalSchema),
   ((asRouteHandler(votesCtrl.createProposal))
 ));
@@ -114,7 +114,7 @@ router.get(
  */
 router.post(
   '/',
-  strictRateLimiter(), // Prevent vote manipulation
+  asRateLimitHandler(strictRateLimiter()), // Prevent vote manipulation
   validateBody(submitVoteSchema),
   ((asRouteHandler(votesCtrl.submitVote))
 ));
@@ -188,7 +188,7 @@ router.get(
  */
 router.post(
   '/force-submit',
-  strictRateLimiter(), // Security for forced submissions
+  asRateLimitHandler(strictRateLimiter()), // Security for forced submissions
   ((asRouteHandler(votesCtrl.forceSubmitPendingVotes))
 ));
 

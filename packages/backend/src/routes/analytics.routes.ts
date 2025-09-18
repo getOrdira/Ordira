@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { validateQuery, validateParams, validateBody } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { dynamicRateLimiter } from '../middleware/rateLimiter.middleware';
 import * as analyticsCtrl from '../controllers/analytics.controller';
 import Joi from 'joi';
@@ -182,7 +182,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(baseAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getDashboardAnalytics)
 );
@@ -197,7 +197,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(votesAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getVotesAnalytics)
 );
@@ -211,7 +211,7 @@ router.get(
   '/products',
   resolveTenant,
   authenticate,
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(baseAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getProductAnalytics)
 );
@@ -226,7 +226,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(transactionsAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getTransactionsAnalytics)
 );
@@ -241,7 +241,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(certificateAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getNftAnalytics)
 );
@@ -256,7 +256,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(baseAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getEngagementAnalytics)
 );
@@ -271,7 +271,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   asRouteHandler(analyticsCtrl.getDashboardAnalytics)
 );
 
@@ -287,7 +287,7 @@ router.get(
 router.get(
   '/manufacturer',
   authenticate, requireManufacturer,
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(manufacturerAnalyticsQuerySchema),
   asRouteHandler(analyticsCtrl.getManufacturerAnalytics)
 );
@@ -300,7 +300,7 @@ router.get(
 router.get(
   '/manufacturer/brands/:brandId',
   authenticate, requireManufacturer,
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateParams(Joi.object({
     brandId: Joi.string().hex().length(24).required()
   })),
@@ -322,7 +322,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateParams(Joi.object({
     proposalId: Joi.string().trim().max(100).required() // Updated for flexible proposal IDs
   })),
@@ -339,7 +339,7 @@ router.get(
   '/products/:productId',
   resolveTenant,
   authenticate,
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateParams(Joi.object({
     productId: Joi.string().trim().max(100).required()
   })),
@@ -361,7 +361,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateBody(exportAnalyticsSchema),
   asRouteHandler(analyticsCtrl.exportAnalytics)
 );
@@ -376,7 +376,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateBody(customReportSchema),
   asRouteHandler(analyticsCtrl.generateCustomReport)
 );
@@ -391,7 +391,7 @@ router.post(
   resolveTenant,
   authenticate,
   requireTenantPlan(['premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateBody(comparativeAnalyticsSchema),
   asRouteHandler(analyticsCtrl.getComparativeAnalytics)
 );
@@ -410,7 +410,7 @@ router.get(
   resolveTenant,
   authenticate,
   requireTenantPlan(['growth', 'premium', 'enterprise']),
-  dynamicRateLimiter(), // FIXED: No parameters
+  asRateLimitHandler(dynamicRateLimiter()),
   validateQuery(certificateAnalyticsQuerySchema),
   (req, res, next) => {
     // Add deprecation warning header

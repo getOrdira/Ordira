@@ -6,6 +6,7 @@ import { ManufacturerAccountService } from '../services/business/manufacturerAcc
 import { Location } from '../models/location.model';
 import { SupplyChainEvent } from '../models/supplyChainEvent.model';
 import { Product } from '../models/product.model';
+import { hasCreatedAt, hasMongoDocumentProperties } from '../utils/typeGuards';
 
 // Initialize service
 const manufacturerAccountService = new ManufacturerAccountService();
@@ -72,8 +73,8 @@ export const getSupplyChainOverview = asyncHandler(async (
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const recentActivity = {
-      last24Hours: recentEvents.filter(e => (e as any).createdAt >= last24Hours).length,
-      last7Days: recentEvents.filter(e => (e as any).createdAt >= last7Days).length,
+      last24Hours: recentEvents.filter(e => hasCreatedAt(e) && e.createdAt >= last24Hours).length,
+      last7Days: recentEvents.filter(e => hasCreatedAt(e) && e.createdAt >= last7Days).length,
       total: recentEvents.length
     };
 
@@ -120,9 +121,9 @@ export const getSupplyChainOverview = asyncHandler(async (
         recentEvents: recentEvents.map(event => ({
           id: event._id,
           eventType: event.eventType,
-          productName: (event as any).product?.title || 'Unknown Product',
+          productName: (event as Record<string, any>).product?.title || 'Unknown Product',
           location: event.eventData?.location,
-          timestamp: (event as any).createdAt,
+          timestamp: hasCreatedAt(event) ? event.createdAt : new Date(),
           txHash: event.txHash
         })),
         locations: locations.map(location => ({
@@ -140,7 +141,7 @@ export const getSupplyChainOverview = asyncHandler(async (
           title: product.title,
           hasQrCode: !!product.supplyChainQrCode?.isActive,
           qrCodeGeneratedAt: product.supplyChainQrCode?.generatedAt,
-          createdAt: (product as any).createdAt
+          createdAt: hasCreatedAt(product) ? product.createdAt : new Date()
         })),
         dashboard: dashboardData,
         generatedAt: new Date().toISOString()
@@ -193,7 +194,7 @@ export const getSupplyChainAnalytics = asyncHandler(async (
     // Group events by time period
     const groupedEvents: Record<string, any[]> = {};
     events.forEach(event => {
-      const eventDate = new Date((event as any).createdAt);
+      const eventDate = new Date(hasCreatedAt(event) ? event.createdAt : new Date());
       let key: string;
       
       switch (groupBy) {
@@ -241,7 +242,7 @@ export const getSupplyChainAnalytics = asyncHandler(async (
         events: eventGroup.map(event => ({
           eventType: event.eventType,
           location: event.eventData?.location,
-          timestamp: (event as any).createdAt
+          timestamp: hasCreatedAt(event) ? event.createdAt : new Date()
         }))
       })),
       trends: {

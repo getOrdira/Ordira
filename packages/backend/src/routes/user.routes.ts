@@ -1,7 +1,7 @@
 // src/routes/user.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers'; 
 import { authenticate, requireUser } from '../middleware/unifiedAuth.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { metricsMiddleware, trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -23,7 +23,7 @@ const router = Router();
 // ===== GLOBAL MIDDLEWARE FOR USER ROUTES =====
 
 // Apply dynamic rate limiting to all user routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply metrics tracking to all user routes
 router.use(metricsMiddleware);
@@ -70,7 +70,7 @@ const proposalIdParamsSchema = Joi.object({
  */
 router.post(
   '/register',
-  strictRateLimiter(), // Prevent registration abuse and spam accounts
+  asRateLimitHandler(strictRateLimiter()), // Prevent registration abuse and spam accounts
   validateBody(registerUserSchema),
   asRouteHandler(userCtrl.registerUser)
 );
@@ -86,7 +86,7 @@ router.post(
  */
 router.post(
   '/login',
-  strictRateLimiter(), // Prevent brute force attacks
+  asRateLimitHandler(strictRateLimiter()), // Prevent brute force attacks
   validateBody(loginUserSchema),
   asRouteHandler(userCtrl.loginUser)
 );
@@ -102,7 +102,7 @@ router.post(
  */
 router.post(
   '/verify',
-  strictRateLimiter(), // Prevent verification code spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent verification code spam
   validateBody(verifyUserSchema),
   asRouteHandler(userCtrl.verifyUser)
 );
@@ -118,7 +118,7 @@ router.post(
  */
 router.post(
   '/forgot-password',
-  strictRateLimiter(), // Prevent password reset abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent password reset abuse
   validateBody(forgotPasswordSchema),
   asRouteHandler(userCtrl.forgotPassword)
 );
@@ -134,7 +134,7 @@ router.post(
  */
 router.post(
   '/reset-password',
-  strictRateLimiter(), // Prevent reset abuse
+  asRateLimitHandler(strictRateLimiter()), // Prevent reset abuse
   validateBody(resetPasswordSchema),
   asRouteHandler(userCtrl.resetPassword)
 );
@@ -150,7 +150,7 @@ router.post(
  */
 router.post(
   '/resend-verification',
-  strictRateLimiter(), // Prevent verification email spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent verification email spam
   validateBody(resendVerificationSchema),
   asRouteHandler(userCtrl.resendVerification)
 );
@@ -201,7 +201,7 @@ router.put(
  */
 router.delete(
   '/profile',
-  strictRateLimiter(), // Security for irreversible account actions
+  asRateLimitHandler(strictRateLimiter()), // Security for irreversible account actions
   asRouteHandler(userCtrl.deleteUserAccount)
 );
 

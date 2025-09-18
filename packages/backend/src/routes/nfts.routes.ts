@@ -2,7 +2,7 @@
 // src/routes/nfts.routes.ts
 import { Router } from 'express';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
-import { asRouteHandler } from '../utils/routeHelpers';
+import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, requireTenantPlan } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
@@ -80,7 +80,7 @@ const verificationQuerySchema = Joi.object({
 const router = Router();
 
 // Apply dynamic rate limiting to all NFT routes
-router.use(dynamicRateLimiter());
+router.use(asRateLimitHandler(dynamicRateLimiter()));
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -103,7 +103,7 @@ router.use(resolveTenant);
 router.post(
   '/deploy',
   requireTenantPlan(['premium', 'enterprise']), // NFT contracts require premium plans
-  strictRateLimiter(), // Prevent contract deployment spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent contract deployment spam
   validateBody(deployNftSchema),
   trackManufacturerAction('deploy_nft_contract'),
   asRouteHandler(nftsCtrl.deployNft)
@@ -139,7 +139,7 @@ router.get(
 router.post(
   '/mint',
   requireTenantPlan(['premium', 'enterprise']), // NFT minting requires premium plans
-  strictRateLimiter(), // Prevent minting spam
+  asRateLimitHandler(strictRateLimiter()), // Prevent minting spam
   validateBody(mintNftSchema),
   trackManufacturerAction('mint_nft'),
   asRouteHandler(nftsCtrl.mintNft)
@@ -173,7 +173,7 @@ router.get(
  */
 router.post(
   '/transfer',
-  strictRateLimiter(), // Security for transfers
+  asRateLimitHandler(strictRateLimiter()), // Security for transfers
   validateBody(transferNftSchema),
   trackManufacturerAction('transfer_nft'),
   asRouteHandler(nftsCtrl.transferNft)
@@ -229,7 +229,7 @@ router.get(
  */
 router.delete(
   '/:tokenId',
-  strictRateLimiter(), // Security for burning
+  asRateLimitHandler(strictRateLimiter() ), // Security for burning
   validateParams(tokenIdParamsSchema),
   validateBody(burnNftSchema.fork(['owner'], (schema) => schema.optional()))  , // Make owner optional since it's from tenant
   trackManufacturerAction('burn_nft'),

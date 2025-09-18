@@ -6,6 +6,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { NotificationService } from '../services/business/notification.service';
+import { hasPriority } from '../utils/typeGuards';
 
 // Initialize service
 const notificationService = new NotificationService();
@@ -384,8 +385,8 @@ export const getUnreadCount = asyncHandler(async (
       hasUnread: count > 0,
       breakdown: {
         byType: typeBreakdown,
-        urgent: unreadNotifications.filter(n => (n as any).priority === 'urgent').length,
-        high: unreadNotifications.filter(n => (n as any).priority === 'high').length,
+        urgent: unreadNotifications.filter(n => hasPriority(n) && n.priority === 'urgent').length,
+        high: unreadNotifications.filter(n => hasPriority(n) && n.priority === 'high').length,
         recent: unreadNotifications.filter(n => 
           new Date(n.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000
         ).length
