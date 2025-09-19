@@ -3,13 +3,13 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
-import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from './unifiedAuth.middleware';
 import { Manufacturer } from '../models/manufacturer.model';
 import { BrandSettings } from '../models/brandSettings.model';
 import { MANUFACTURER_PLAN_DEFINITIONS, ManufacturerPlanKey } from '../constants/manufacturerPlans';
 import { createAppError } from './error.middleware';
 
-export interface ManufacturerPlanLimitsRequest extends ManufacturerAuthRequest {
+export interface ManufacturerPlanLimitsRequest extends UnifiedAuthRequest {
   manufacturerPlan?: ManufacturerPlanKey;
   planLimits?: {
     brandConnections: number;

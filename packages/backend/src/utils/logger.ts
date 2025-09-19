@@ -1,5 +1,6 @@
 // src/utils/logger.ts
 import { Request, Response } from 'express';
+import { sanitizeObject, sanitizeString, sanitizeError, sanitizeRequestData, createSafeSummary } from './dataSanitizer';
 
 // ===== TYPE DEFINITIONS =====
 
@@ -80,8 +81,8 @@ class StructuredLogger {
     const logEntry: StructuredLog = {
       timestamp: new Date().toISOString(),
       level,
-      message,
-      context,
+      message: sanitizeString(message),
+      context: context ? sanitizeObject(context) : undefined,
       service: this.service,
       version: this.version,
       environment: this.environment
@@ -89,12 +90,12 @@ class StructuredLogger {
 
     // Add error details if provided
     if (error) {
-      const extendedError = error as ExtendedError;
+      const sanitizedError = sanitizeError(error);
       logEntry.error = {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        code: extendedError.code || extendedError.statusCode
+        name: sanitizedError.name,
+        message: sanitizedError.message,
+        stack: sanitizedError.stack,
+        code: sanitizedError.code || sanitizedError.statusCode
       };
     }
 
@@ -133,14 +134,20 @@ class StructuredLogger {
   // ===== REQUEST/RESPONSE LOGGING =====
 
   logRequest(req: Request, context?: LogContext): void {
-    this.info('HTTP Request', {
-      ...context,
+    const sanitizedReq = sanitizeRequestData({
       method: req.method,
       endpoint: req.path,
       url: req.url,
       ip: req.ip,
       userAgent: req.headers['user-agent'],
-      requestId: req.headers['x-request-id'] as string
+      requestId: req.headers['x-request-id'] as string,
+      headers: req.headers,
+      body: req.body
+    });
+
+    this.info('HTTP Request', {
+      ...context,
+      ...sanitizedReq
     });
   }
 
@@ -220,8 +227,8 @@ class StructuredLogger {
     this.warn('Validation Error', {
       ...context,
       event: 'validation.error',
-      field,
-      value: String(value).substring(0, 100) // Truncate for security
+      field: sanitizeString(field),
+      value: createSafeSummary(value, 100) // Safe truncation with sanitization
     });
   }
 
@@ -243,6 +250,32 @@ class StructuredLogger {
     };
   }
 
+  /**
+   * Log with automatic sanitization of sensitive data
+   */
+  logSafe(level: LogLevel, message: string, data?: any, context?: LogContext): void {
+    const sanitizedData = data ? sanitizeObject(data) : undefined;
+    const logContext = {
+      ...context,
+      ...(sanitizedData && { data: sanitizedData })
+    };
+    
+    this.log(level, message, logContext);
+  }
+
+  /**
+   * Log configuration data safely (for config service)
+   */
+  logConfigSafe(message: string, configData?: any, context?: LogContext): void {
+    const sanitizedConfig = configData ? sanitizeObject(configData) : undefined;
+    const logContext = {
+      ...context,
+      ...(sanitizedConfig && { config: sanitizedConfig })
+    };
+    
+    this.info(message, logContext);
+  }
+
   // ===== BATCH LOGGING =====
 
   logBatch(level: LogLevel, messages: Array<{ message: string; context?: LogContext }>): void {
@@ -260,6 +293,18 @@ export const logError = (error: Error, context?: LogContext) => logger.logError(
 export const logInfo = (message: string, context?: LogContext) => logger.info(message, context);
 export const logWarn = (message: string, context?: LogContext) => logger.warn(message, context);
 export const logDebug = (message: string, context?: LogContext) => logger.debug(message, context);
+
+// ===== SAFE LOGGING CONVENIENCE FUNCTIONS =====
+export const logSafe = (level: LogLevel, message: string, data?: any, context?: LogContext) => 
+  logger.logSafe(level, message, data, context);
+export const logSafeInfo = (message: string, data?: any, context?: LogContext) => 
+  logger.logSafe(LogLevel.INFO, message, data, context);
+export const logSafeWarn = (message: string, data?: any, context?: LogContext) => 
+  logger.logSafe(LogLevel.WARN, message, data, context);
+export const logSafeError = (message: string, data?: any, context?: LogContext) => 
+  logger.logSafe(LogLevel.ERROR, message, data, context);
+export const logConfigSafe = (message: string, configData?: any, context?: LogContext) => 
+  logger.logConfigSafe(message, configData, context);
 
 // ===== REQUEST LOGGING MIDDLEWARE =====
 export const requestLoggingMiddleware = (req: Request, res: Response, next: Function) => {

@@ -1,6 +1,6 @@
 // services/external/woocommerce.service.ts
 import axios from 'axios';
-import { logger } from '../../utils/logger';
+import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
@@ -222,7 +222,7 @@ export class WooCommerceService {
 
       return `${baseUrl}?${params.toString()}`;
     } catch (error: any) {
-      logger.error('Generate WooCommerce install URL error:', error);
+      logSafeError('Generate WooCommerce install URL error', { error: error.message });
       
       if (error.statusCode) {
         throw error;
@@ -282,7 +282,7 @@ export class WooCommerceService {
         throw createAppError('Failed to save WooCommerce credentials', 500, 'SAVE_CREDENTIALS_FAILED');
       }
 
-      logger.info('WooCommerce integration completed for business ${businessId}');
+      logSafeInfo('WooCommerce integration completed', { businessId });
 
       return {
         connected: true,
@@ -297,7 +297,7 @@ export class WooCommerceService {
         webhooksRegistered: webhookResult.registered
       };
     } catch (error: any) {
-      logger.error('Setup WooCommerce integration error:', error);
+      logSafeError('Setup WooCommerce integration error', { error: error.message, businessId });
       
       if (error.statusCode) {
         throw error;

@@ -5,8 +5,7 @@ import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
 import { PlanKey, PLAN_DEFINITIONS } from '../constants/plans';
 import { ManufacturerPlanKey, MANUFACTURER_PLAN_DEFINITIONS } from '../constants/manufacturerPlans';
-import { AuthRequest } from './auth.middleware';
-import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
+import { UnifiedAuthRequest } from './unifiedAuth.middleware';
 import redis from 'ioredis';
 
 // Type compatibility helper for express-rate-limit
@@ -172,15 +171,9 @@ async function getUserRateLimit(userId: string, userType: 'brand' | 'manufacture
  */
 function generateRateLimitKey(req: Request): string {
   // Check for manufacturer auth first
-  const manufacturerReq = req as ManufacturerAuthRequest;
-  if (manufacturerReq.userId && manufacturerReq.manufacturer) {
-    return `mfg:${manufacturerReq.userId}`;
-  }
-
-  // Check for regular auth
-  const authReq = req as AuthRequest;
-  if (authReq.userId) {
-    return `user:${authReq.userId}`;
+  const unifiedReq = req as UnifiedAuthRequest;
+  if (unifiedReq.userId && unifiedReq.userType) {
+    return `${unifiedReq.userType}:${unifiedReq.userId}`;
   }
 
   // Fall back to IP address for unauthenticated requests
@@ -196,13 +189,18 @@ function generateRateLimitKey(req: Request): string {
  * Determine user type for rate limiting
  */
 function getUserType(req: Request): 'brand' | 'manufacturer' | 'user' | 'anonymous' {
-  const manufacturerReq = req as ManufacturerAuthRequest;
-  if (manufacturerReq.manufacturer) return 'manufacturer';
-  
-  const authReq = req as AuthRequest;
-  if (authReq.userId) {
-    // Check if this is a customer/user or business based on userType
-    return authReq.userType === 'user' ? 'user' : 'brand';
+  const unifiedReq = req as UnifiedAuthRequest;
+  if (unifiedReq.userId && unifiedReq.userType) {
+    switch (unifiedReq.userType) {
+      case 'manufacturer':
+        return 'manufacturer';
+      case 'business':
+        return 'brand';
+      case 'user':
+        return 'user';
+      default:
+        return 'anonymous';
+    }
   }
   
   return 'anonymous';
@@ -235,9 +233,8 @@ export function dynamicRateLimiter(): RateLimitRequestHandler {
         return DEFAULT_RATE_LIMIT.burst;
       }
 
-      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
-      const authReq = req as unknown as AuthRequest;
-      const userId = manufacturerReq.userId || authReq.userId;
+      const unifiedReq = req as unknown as UnifiedAuthRequest;
+      const userId = unifiedReq.userId;
 
       if (!userId) {
         return DEFAULT_RATE_LIMIT.burst;
@@ -313,9 +310,8 @@ export function apiRateLimiter(): RateLimitRequestHandler {
       
       if (userType === 'anonymous') return 10; // Very restrictive for anonymous
       
-      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
-      const authReq = req as unknown as AuthRequest;
-      const userId = manufacturerReq.userId || authReq.userId;
+      const unifiedReq = req as unknown as UnifiedAuthRequest;
+      const userId = unifiedReq.userId;
 
       if (userId) {
         const limits = await getUserRateLimit(userId, userType);
@@ -357,14 +353,14 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute window
     max: async (req: CompatibleRequest) => {
-      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
-      if (!manufacturerReq.userId || !manufacturerReq.manufacturer) {
+      const unifiedReq = req as unknown as UnifiedAuthRequest;
+      if (!unifiedReq.userId || unifiedReq.userType !== 'manufacturer') {
         return 0; // No access for non-manufacturers
       }
 
       try {
         // Get manufacturer's plan
-        const manufacturer = await Manufacturer.findById(manufacturerReq.userId).select('plan');
+        const manufacturer = await Manufacturer.findById(unifiedReq.userId).select('plan');
         const plan = manufacturer?.plan || 'starter';
         const limits = SUPPLY_CHAIN_RATE_LIMITS[plan as ManufacturerPlanKey];
         
@@ -376,8 +372,8 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
     },
     
     keyGenerator: (req: CompatibleRequest) => {
-      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
-      return `supply-chain:${manufacturerReq.userId}`;
+      const unifiedReq = req as unknown as UnifiedAuthRequest;
+      return `supply-chain:${unifiedReq.userId}`;
     },
 
     skip: async (req: CompatibleRequest) => {
@@ -389,8 +385,8 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
     },
 
     handler: (req: CompatibleRequest, res: CompatibleResponse) => {
-      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
-      const key = `supply-chain:${manufacturerReq.userId}`;
+      const unifiedReq = req as unknown as UnifiedAuthRequest;
+      const key = `supply-chain:${unifiedReq.userId}`;
       
       logger.warn('Supply chain rate limit exceeded for manufacturer ${manufacturerReq.userId} on ${req.method} ${req.path}');
       
@@ -416,9 +412,9 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
  */
 export function enhancedSupplyChainRateLimiter(): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const manufacturerReq = req as ManufacturerAuthRequest;
+    const unifiedReq = req as UnifiedAuthRequest;
     
-    if (!manufacturerReq.userId || !manufacturerReq.manufacturer) {
+    if (!unifiedReq.userId || unifiedReq.userType !== 'manufacturer') {
       res.status(401).json({
         error: 'Manufacturer authentication required',
         code: 'MANUFACTURER_AUTH_REQUIRED'
@@ -428,15 +424,15 @@ export function enhancedSupplyChainRateLimiter(): RequestHandler {
 
     try {
       // Get manufacturer's plan and limits
-      const manufacturer = await Manufacturer.findById(manufacturerReq.userId).select('plan');
+      const manufacturer = await Manufacturer.findById(unifiedReq.userId).select('plan');
       const plan = manufacturer?.plan || 'starter';
       const limits = SUPPLY_CHAIN_RATE_LIMITS[plan as ManufacturerPlanKey];
       
       const now = Date.now();
-      const minuteKey = `sc:${manufacturerReq.userId}:min:${Math.floor(now / 60000)}`;
-      const hourKey = `sc:${manufacturerReq.userId}:hour:${Math.floor(now / 3600000)}`;
-      const dayKey = `sc:${manufacturerReq.userId}:day:${Math.floor(now / 86400000)}`;
-      const cooldownKey = `sc:${manufacturerReq.userId}:cooldown`;
+      const minuteKey = `sc:${unifiedReq.userId}:min:${Math.floor(now / 60000)}`;
+      const hourKey = `sc:${unifiedReq.userId}:hour:${Math.floor(now / 3600000)}`;
+      const dayKey = `sc:${unifiedReq.userId}:day:${Math.floor(now / 86400000)}`;
+      const cooldownKey = `sc:${unifiedReq.userId}:cooldown`;
       
       // Check cooldown period
       const lastEvent = await redisClient.get(cooldownKey);
@@ -554,9 +550,8 @@ export function warmupPlanCache() {
     const userType = getUserType(req);
     
     if (userType !== 'anonymous') {
-      const manufacturerReq = req as unknown as ManufacturerAuthRequest;
-      const authReq = req as unknown as AuthRequest;
-      const userId = manufacturerReq.userId || authReq.userId;
+      const unifiedReq = req as unknown as UnifiedAuthRequest;
+      const userId = unifiedReq.userId;
 
       if (userId && !planCache.has(userId)) {
         // Preload user's rate limit configuration

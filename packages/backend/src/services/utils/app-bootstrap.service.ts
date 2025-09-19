@@ -425,7 +425,7 @@ export class AppBootstrapService {
 
     // Setup route middleware
     const { resolveTenant, requireTenantSetup, requireTenantPlan, tenantCorsMiddleware } = require('../../middleware/tenant.middleware');
-    const { authenticate } = require('../../middleware/auth.middleware');
+    const { authenticate } = require('../../middleware/unifiedAuth.middleware');
     const { dynamicRateLimiter, strictRateLimiter } = require('../../middleware/rateLimiter.middleware');
 
     // Public routes

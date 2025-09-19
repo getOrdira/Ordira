@@ -1,7 +1,8 @@
 // src/services/utils/config.service.ts
 
 import Joi from 'joi';
-import { logger } from '../../utils/logger';
+import { logger, logConfigSafe } from '../../utils/logger';
+import { sanitizeEnvironmentVariables } from '../../utils/dataSanitizer';
 
 /**
  * Centralized configuration service for managing all environment variables and settings
@@ -100,9 +101,13 @@ export class ConfigService {
     const { error, value } = schema.validate(process.env, { abortEarly: false });
     
     if (error) {
-      logger.error('❌ Environment validation error:');
-      error.details.forEach(detail => {
-        logger.error(`  ${detail.path.join('.')}: ${detail.message}`);
+      logConfigSafe('❌ Environment validation error', {
+        errorCount: error.details.length,
+        errors: error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message,
+          type: detail.type
+        }))
       });
       process.exit(1);
     }
@@ -400,6 +405,28 @@ export class ConfigService {
 
     const validator = serviceValidators[serviceName];
     return validator ? validator() : false;
+  }
+
+  /**
+   * Log configuration status safely (without exposing sensitive data)
+   */
+  public logConfigurationStatus(): void {
+    const sanitizedEnv = sanitizeEnvironmentVariables(process.env);
+    
+    logConfigSafe('🔧 Configuration loaded successfully', {
+      environment: this.config.NODE_ENV,
+      platform: this.isRender() ? 'Render' : 'Other',
+      services: {
+        database: this.validateService('database'),
+        auth: this.validateService('auth'),
+        blockchain: this.validateService('blockchain'),
+        payment: this.validateService('payment'),
+        upload: this.validateService('upload'),
+        email: this.validateService('email'),
+        sms: this.validateService('sms')
+      },
+      environmentVariables: Object.keys(sanitizedEnv).length
+    });
   }
 
   /**

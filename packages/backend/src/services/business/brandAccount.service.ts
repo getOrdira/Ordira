@@ -1,6 +1,6 @@
 // src/services/business/brandAccount.service.ts
 import { Business, IBusiness } from '../../models/business.model';
-import { logger } from '../utils/logger';
+import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import { ethers } from 'ethers';
 import { TokenDiscountService } from '../external/tokenDiscount.service';
 import { BrandSettings } from '../../models/brandSettings.model';
@@ -323,11 +323,11 @@ async verifyPassword(businessId: string, password: string): Promise<boolean> {
     const isValid = await business.comparePassword(password);
     
     // Log password verification attempt
-    logger.info('Password verification attempt for business ${businessId}: ${isValid ? ', success' : 'failed'}`);
+    logSafeInfo('Password verification attempt', { businessId, success: isValid });
     
     return isValid;
   } catch (error) {
-    logger.error('Error verifying password:', error);
+    logSafeError('Error verifying password', { error: error.message, businessId });
     throw error;
   }
 }

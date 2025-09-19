@@ -1,6 +1,6 @@
 // services/external/wix.service.ts
 import axios from 'axios';
-import { logger } from '../../utils/logger';
+import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
@@ -169,7 +169,7 @@ export class WixService {
 
       return authUrl;
     } catch (error: any) {
-      logger.error('Generate Wix install URL error:', error);
+      logSafeError('Generate Wix install URL error', { error: error.message });
       
       if (error.statusCode) {
         throw error;
@@ -243,7 +243,7 @@ export class WixService {
         throw createAppError('Failed to save Wix credentials', 500, 'SAVE_CREDENTIALS_FAILED');
       }
 
-      logger.info('Wix integration completed for business ${state}');
+      logSafeInfo('Wix integration completed', { businessId: state });
 
       return {
         instanceId: instance_id,

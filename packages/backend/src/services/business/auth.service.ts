@@ -1,7 +1,7 @@
 // src/services/business/auth.service.ts
 
 import bcrypt from 'bcrypt';
-import { logger } from '../../utils/logger';
+import { logger, logSafeError } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
 import { Business } from '../../models/business.model';
 import { User } from '../../models/user.model';
@@ -431,7 +431,7 @@ export class AuthService {
       await this.notificationsService.sendEmailCode(biz.email, emailCode);
       this.logSecurityEvent('REGISTER_BUSINESS', normalizedData.email, true);
     } catch (error) {
-      logger.error('Failed to send verification email to ${UtilsService.maskEmail(biz.email)}:', error);
+      logSafeError('Failed to send verification email', { email: UtilsService.maskEmail(biz.email), error: error.message });
       // Don't throw here - business is created, just log the issue
     }
 

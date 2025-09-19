@@ -1,6 +1,6 @@
 // src/services/external/shopify.service.ts
 import axios from 'axios';
-import { logger } from '../../utils/logger';
+import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
@@ -182,7 +182,7 @@ export class ShopifyService {
         throw new ShopifyError('Failed to save Shopify credentials', 500);
       }
 
-      logger.info('Shopify integration completed for business ${state}');
+      logSafeInfo('Shopify integration completed', { businessId: state });
     } catch (error: any) {
       if (error instanceof ShopifyError) {
         throw error;
@@ -566,7 +566,7 @@ export class ShopifyService {
       
       return computed === hmacHeader;
     } catch (error) {
-      logger.error('Error validating webhook signature:', error);
+      logSafeError('Error validating webhook signature', { error: error.message });
       return false;
     }
   }

@@ -2,14 +2,14 @@
 // src/middleware/planLimits.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
-import { AuthRequest } from './auth.middleware';
+import { UnifiedAuthRequest } from './unifiedAuth.middleware';
 import { TenantRequest } from './tenant.middleware';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Billing } from '../models/billing.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 import { createAppError } from './error.middleware';
 
-export interface PlanLimitsRequest extends AuthRequest, TenantRequest {
+export interface PlanLimitsRequest extends UnifiedAuthRequest, TenantRequest {
   planLimits?: {
     plan: PlanKey;
     limits: typeof PLAN_DEFINITIONS[PlanKey];

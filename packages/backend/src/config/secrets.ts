@@ -1,18 +1,21 @@
 // src/config/secrets.ts
-import { logger } from '../utils/logger';
+import { logger, logConfigSafe } from '../utils/logger';
+import { sanitizeEnvironmentVariables } from '../utils/dataSanitizer';
 
 export async function loadSecrets(): Promise<void> {
   const nodeEnv = process.env.NODE_ENV;
   const isRender = process.env.RENDER;
 
   if (nodeEnv === 'development' || nodeEnv === 'test') {
-    logger.info('🔧 Development mode - using local .env file');
+    logConfigSafe('🔧 Development mode - using local .env file');
     return;
   }
 
   if (isRender) {
-    logger.info('🚀 Render platform detected - using Render environment variables');
-    logger.info('   All secrets managed through Render dashboard');
+    logConfigSafe('🚀 Render platform detected - using Render environment variables', {
+      platform: 'Render',
+      secretsManagement: 'Render dashboard'
+    });
     
     // Validate that critical environment variables are present
     const requiredVars = [
@@ -25,15 +28,24 @@ export async function loadSecrets(): Promise<void> {
     const missingVars = requiredVars.filter(varName => !process.env[varName]);
     
     if (missingVars.length > 0) {
+      logConfigSafe('❌ Missing required environment variables', {
+        missingVariables: missingVars,
+        platform: 'Render'
+      });
       throw new Error(`Missing required environment variables in Render: ${missingVars.join(', ')}`);
     }
 
-    logger.info('✅ All required environment variables are present');
+    logConfigSafe('✅ All required environment variables are present', {
+      requiredVariablesCount: requiredVars.length,
+      platform: 'Render'
+    });
     return;
   }
 
   // For other platforms, ensure critical variables are set
-  logger.info('🌐 Using system environment variables');
+  logConfigSafe('🌐 Using system environment variables', {
+    platform: 'System'
+  });
   const requiredVars = [
     'MONGODB_URI',
     'JWT_SECRET',
@@ -44,6 +56,15 @@ export async function loadSecrets(): Promise<void> {
   const missingVars = requiredVars.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
+    logConfigSafe('❌ Missing required environment variables', {
+      missingVariables: missingVars,
+      platform: 'System'
+    });
     throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
   }
+
+  logConfigSafe('✅ All required environment variables are present', {
+    requiredVariablesCount: requiredVars.length,
+    platform: 'System'
+  });
 }

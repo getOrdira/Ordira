@@ -3,7 +3,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { EmailGatingService } from '../services/business/emailGating.service';
-import { AuthRequest } from './auth.middleware';
+import { UnifiedAuthRequest } from './unifiedAuth.middleware';
 
 const emailGatingService = new EmailGatingService();
 
@@ -14,7 +14,7 @@ export interface EmailGatingResult {
   settings?: any;
 }
 
-export interface EmailGatingRequest extends Request {
+export interface EmailGatingRequest extends UnifiedAuthRequest {
   emailGating?: EmailGatingResult;
   user?: {
     email?: string;
