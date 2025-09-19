@@ -5,6 +5,7 @@ import { NftCertificate } from '../../models/nftCertificate.model';
 import { BillingService } from '../external/billing.service';
 import { NotificationService } from './notification.service';
 import { Business } from '../../models/business.model';
+import { logger } from '../../utils/logger'; 
 
 export interface SubscriptionSummary {
   id: string;
