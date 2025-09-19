@@ -528,7 +528,7 @@ UserSchema.methods.addVote = function(voteData: {
     brandInteraction.lastInteraction = new Date();
   } else {
     this.brandInteractions.push({
-      businessId: voteData.businessId as any,
+      businessId: voteData.businessId,
       firstInteraction: new Date(),
       lastInteraction: new Date(),
       totalVotes: 1,
@@ -550,7 +550,7 @@ UserSchema.methods.updateBrandInteraction = function(businessId: string): Promis
     interaction.lastInteraction = new Date();
   } else {
     this.brandInteractions.push({
-      businessId: businessId as any,
+      businessId: new Types.ObjectId(businessId),
       firstInteraction: new Date(),
       lastInteraction: new Date(),
       totalVotes: 0,

@@ -1,5 +1,6 @@
 // src/services/business/usageTracking.service.ts
 import { Billing } from '../../models/billing.model';
+import { logger } from '../utils/logger';
 import { Business } from '../../models/business.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../../constants/plans';
 import { createAppError } from '../../middleware/error.middleware';
@@ -50,9 +51,9 @@ export class UsageTrackingService {
         throw createAppError('Failed to update usage tracking', 500, 'USAGE_UPDATE_FAILED');
       }
 
-      console.log(`Usage updated for business ${businessId}:`, usageUpdate);
+      logger.info('Usage updated for business ${businessId}:', usageUpdate);
     } catch (error: any) {
-      console.error('Usage tracking update error:', error);
+      logger.error('Usage tracking update error:', error);
       if (error.statusCode) {
         throw error;
       }
@@ -108,7 +109,7 @@ export class UsageTrackingService {
         }
       };
     } catch (error: any) {
-      console.error('Get usage limits error:', error);
+      logger.error('Get usage limits error:', error);
       if (error.statusCode) {
         throw error;
       }
@@ -144,7 +145,7 @@ export class UsageTrackingService {
         overage: overage > 0 ? overage : undefined
       };
     } catch (error: any) {
-      console.error('Check limits error:', error);
+      logger.error('Check limits error:', error);
       throw error;
     }
   }
@@ -166,9 +167,9 @@ export class UsageTrackingService {
         }
       );
 
-      console.log(`Monthly usage reset for business ${businessId}`);
+      logger.info('Monthly usage reset for business ${businessId}');
     } catch (error: any) {
-      console.error('Reset monthly usage error:', error);
+      logger.error('Reset monthly usage error:', error);
       throw createAppError(`Failed to reset usage: ${error.message}`, 500, 'USAGE_RESET_ERROR');
     }
   }
@@ -201,7 +202,7 @@ export class UsageTrackingService {
         recommendations
       };
     } catch (error: any) {
-      console.error('Get usage analytics error:', error);
+      logger.error('Get usage analytics error:', error);
       throw error;
     }
   }

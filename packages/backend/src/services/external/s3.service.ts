@@ -1,5 +1,6 @@
 // src/services/external/s3.service.ts
 import AWS from 'aws-sdk';
+import { logger } from '../../utils/logger'; 
 import { Readable } from 'stream';
 import path from 'path';
 import crypto from 'crypto';
@@ -102,7 +103,7 @@ export class S3Service {
       };
     } catch (error) {
       // Log detailed error for debugging but don't expose sensitive info
-      console.error('S3 upload failed:', {
+      logger.error('S3 upload failed:', {
         businessId: options.businessId,
         filename: options.filename,
         error: error.message,
@@ -148,7 +149,7 @@ export class S3Service {
       };
     } catch (error) {
       // Log detailed error for debugging but don't expose sensitive info
-      console.error('S3 stream upload failed:', {
+      logger.error('S3 stream upload failed:', {
         businessId: options.businessId,
         filename: options.filename,
         error: error.message,
@@ -503,7 +504,7 @@ export class S3Service {
 
     } catch (error) {
       // Log detailed error for debugging
-      console.error('S3 validation failed:', {
+      logger.error('S3 validation failed:', {
         error: error.message,
         code: error.code,
         statusCode: error.statusCode

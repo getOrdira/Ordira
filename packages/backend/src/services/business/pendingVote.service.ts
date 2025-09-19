@@ -1,6 +1,7 @@
 // src/services/business/pendingVote.service.ts
 
 import { PendingVote, IPendingVote } from '../../models/pendingVote.model';
+import { logger } from '../../utils/logger';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { VotingService } from '../blockchain/voting.service';
 import { createAppError } from '../../middleware/error.middleware';
@@ -259,7 +260,7 @@ async listPendingVotes(
       processed: processedCount
     };
   } catch (error: any) {
-    console.error('List pending votes error:', error);
+    logger.error('List pending votes error:', error);
     throw createAppError(`Failed to list pending votes: ${error.message}`, 500, 'LIST_PENDING_VOTES_FAILED');
   }
 };
@@ -270,17 +271,12 @@ async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVot
     if (!vote) return null;
 
     // Create a compatible object for validation methods
-    const voteForValidation = {
+    const voteForValidation: IPendingVote = {
       ...vote,
-      _id: vote._id,
-      businessId: vote.businessId,
-      proposalId: vote.proposalId,
-      userId: vote.userId,
-      voteId: vote.voteId,
-      selectedProductId: vote.selectedProductId,
-      isProcessed: vote.isProcessed,
-      createdAt: vote.createdAt
-    } as any; // Cast to bypass strict typing for validation methods
+      isVerified: false,
+      hasValidSignature: vote.userSignature ? true : false,
+      isExpired: false
+    } as unknown as IPendingVote;
 
     return {
       id: vote._id.toString(),
@@ -303,7 +299,7 @@ async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVot
       estimatedConfirmationTime: '2-5 minutes'
     };
   } catch (error: any) {
-    console.error('Get pending vote by ID error:', error);
+    logger.error('Get pending vote by ID error:', error);
     throw createAppError(`Failed to get pending vote: ${error.message}`, 500, 'GET_PENDING_VOTE_FAILED');
   }
 };
@@ -361,7 +357,7 @@ async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVot
         gasOptimization: 75 // Estimated optimization percentage
       };
     } catch (error: any) {
-      console.error('Get pending vote stats error:', error);
+      logger.error('Get pending vote stats error:', error);
       throw createAppError(`Failed to get pending vote stats: ${error.message}`, 500, 'GET_STATS_FAILED');
     }
   }
@@ -409,7 +405,7 @@ async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVot
       recommendedAction: this.getRecommendedAction(pendingCount, batchThreshold)
     };
   } catch (error: any) {
-    console.error('Get batching info error:', error);
+    logger.error('Get batching info error:', error);
     throw createAppError(`Failed to get batching info: ${error.message}`, 500, 'GET_BATCHING_INFO_FAILED');
   }
 };
@@ -446,7 +442,7 @@ async getPendingVoteById(voteId: string, businessId: string): Promise<PendingVot
         };
       });
     } catch (error: any) {
-      console.error('Get proposal breakdown error:', error);
+      logger.error('Get proposal breakdown error:', error);
       throw createAppError(`Failed to get proposal breakdown: ${error.message}`, 500, 'GET_PROPOSAL_BREAKDOWN_FAILED');
     }
   }
@@ -553,7 +549,7 @@ async processBatch(
         }))
       };
     } catch (blockchainError: any) {
-      console.error('Blockchain batch processing error:', blockchainError);
+      logger.error('Blockchain batch processing error:', blockchainError);
       
       return {
         success: false,
@@ -567,7 +563,7 @@ async processBatch(
       };
     }
   } catch (error: any) {
-    console.error('Process batch error:', error);
+    logger.error('Process batch error:', error);
     throw createAppError(`Failed to process batch: ${error.message}`, 500, 'PROCESS_BATCH_FAILED');
   }
 };
@@ -602,7 +598,7 @@ async processBatch(
         lastUpdatedAt: new Date()
       };
     } catch (error: any) {
-      console.error('Update batch config error:', error);
+      logger.error('Update batch config error:', error);
       throw createAppError(`Failed to update batch config: ${error.message}`, 500, 'UPDATE_CONFIG_FAILED');
     }
   }
@@ -626,7 +622,7 @@ async processBatch(
         userExperienceImpact: 'Users will see votes confirmed faster with auto-processing'
       };
     } catch (error: any) {
-      console.error('Get optimization recommendations error:', error);
+      logger.error('Get optimization recommendations error:', error);
       throw createAppError(`Failed to get recommendations: ${error.message}`, 500, 'GET_RECOMMENDATIONS_FAILED');
     }
   }
@@ -691,7 +687,7 @@ async validatePendingVotes(
       blockers
     };
   } catch (error: any) {
-    console.error('Validate pending votes error:', error);
+    logger.error('Validate pending votes error:', error);
     throw createAppError(`Failed to validate pending votes: ${error.message}`, 500, 'VALIDATION_FAILED');
   }
 }
@@ -709,11 +705,11 @@ async validatePendingVotes(
       });
 
       // Log deletion for audit
-      console.log(`Deleted ${result.deletedCount} pending votes for business ${businessId}. Reason: ${reason || 'No reason provided'}`);
+      logger.info(`Deleted ${result.deletedCount} pending votes for business ${businessId}. Reason: ${reason || 'No reason provided'}`);
 
       return { deletedCount: result.deletedCount };
     } catch (error: any) {
-      console.error('Delete pending votes error:', error);
+      logger.error('Delete pending votes error:', error);
       throw createAppError(`Failed to delete pending votes: ${error.message}`, 500, 'DELETE_FAILED');
     }
   }
@@ -744,7 +740,7 @@ async validatePendingVotes(
 
       return { sameProposal, sameUser, totalForProposal };
     } catch (error: any) {
-      console.error('Get related votes error:', error);
+      logger.error('Get related votes error:', error);
       return { sameProposal: 0, sameUser: 0, totalForProposal: 0 };
     }
   }
@@ -764,7 +760,7 @@ async validatePendingVotes(
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
       };
     } catch (error: any) {
-      console.error('Get proposal info error:', error);
+      logger.error('Get proposal info error:', error);
       return null;
     }
   }
@@ -815,7 +811,7 @@ async validatePendingVotes(
         autoProcessingEnabled: true
       };
     } catch (error: any) {
-      console.error('Trigger auto processing error:', error);
+      logger.error('Trigger auto processing error:', error);
       return {
         triggered: false,
         reason: `Auto-processing failed: ${error.message}`,

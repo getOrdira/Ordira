@@ -1,5 +1,6 @@
 // services/blockchain/contracts.service.ts
 import { Contract, formatUnits } from 'ethers';
+import { logger } from '../utils/logger';
 import { BlockchainProviderService } from './provider.service';
 import { TokenBalance, TransactionReceipt, NetworkInfo } from '../types/blockchain.types';
 import erc20Abi from '../../abi/erc20Minimal.json';
@@ -89,7 +90,7 @@ export class BlockchainContractsService {
       second: '2-digit'
     });
 
-    console.log(`[BLOCKCHAIN] ${timestamp} - ${operation} - ${success ? 'SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata)}` : ''}`);
+    logger.info('[BLOCKCHAIN] ${timestamp} - ${operation} - ${success ? ', SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata);}` : ''}`);
   }
 
   /** ─────────────────────────────────────────────────────────────────────────── */

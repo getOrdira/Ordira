@@ -1,5 +1,6 @@
 // src/cache/domainCache.ts
 import { BrandSettings } from '../models/brandSettings.model';
+import { logger } from '../utils/logger';
 import { Manufacturer } from '../models/manufacturer.model';
 
 let allowedDomains = new Set<string>();
@@ -31,7 +32,7 @@ async function reloadCache() {
 
   // 3) Swap in the new set
   allowedDomains = newSet;
-  console.log(`Domain cache reloaded: ${allowedDomains.size} entries`);
+  logger.info('Domain cache reloaded: ${allowedDomains.size} entries');
 }
 
 /**

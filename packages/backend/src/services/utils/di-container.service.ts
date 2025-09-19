@@ -35,7 +35,7 @@ export class DIContainer {
     
     if (singleton) {
       // For singletons, we'll instantiate on first resolve
-      this.services.set(token, { instance: null as any, singleton: true });
+      this.services.set(token, { instance: null as T | null, singleton: true });
     }
   }
 
@@ -50,7 +50,7 @@ export class DIContainer {
     this.factories.set(token, factory);
     
     if (singleton) {
-      this.services.set(token, { instance: null as any, singleton: true });
+      this.services.set(token, { instance: null as T | null, singleton: true });
     }
   }
 

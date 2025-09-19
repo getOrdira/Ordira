@@ -2,9 +2,11 @@
 // src/middleware/performance.middleware.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { performance } from 'perf_hooks';
 import { performanceService } from '../services/external/performance.service';
 import { cacheService } from '../services/external/cache.service';
+import { hasPerformanceTracking } from '../utils/typeGuards';
 
 export interface PerformanceRequest extends Request {
   startTime?: number;
@@ -88,7 +90,7 @@ export function cacheMiddleware(ttl: number = 300, keyGenerator?: (req: Request)
       
       next();
     } catch (error) {
-      console.error('Cache middleware error:', error);
+      logger.error('Cache middleware error:', error);
       next();
     }
   };
@@ -118,7 +120,7 @@ export function compressionMiddleware(req: Request, res: Response, next: NextFun
 export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 10MB default
   return (req: Request, res: Response, next: NextFunction): void => {
     // Skip if already processed or response sent
-    if ((req as any).__sizeChecked || res.headersSent) {
+    if (hasPerformanceTracking(req) && req.__sizeChecked || res.headersSent) {
       return next();
     }
     
@@ -127,7 +129,8 @@ export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 1
     
     if (contentLength > maxSize) {
       if (!res.headersSent) {
-        (req as any).__sizeChecked = true;
+        // Mark as checked using type assertion since we know the structure
+        (req as Request & { __sizeChecked: boolean }).__sizeChecked = true;
         res.status(413).json({
           error: 'Request entity too large',
           maxSize: `${Math.round(maxSize / 1024 / 1024)}MB`,
@@ -137,7 +140,8 @@ export function requestSizeMiddleware(maxSize: number = 10 * 1024 * 1024) { // 1
       return;
     }
     
-    (req as any).__sizeChecked = true;
+    // Mark as checked using type assertion since we know the structure
+    (req as Request & { __sizeChecked: boolean }).__sizeChecked = true;
     next();
   };
 }
@@ -218,7 +222,7 @@ export function memoryMonitoringMiddleware(req: Request, res: Response, next: Ne
   const now = Date.now();
   if (percentage >= 95 && now - lastMemoryWarning > MEMORY_WARNING_THROTTLE) {
     lastMemoryWarning = now;
-    console.warn(`⚠️ High memory usage detected: { heapUsed: ${heapUsedMB}, heapTotal: ${heapTotalMB}, percentage: ${percentage} }`);
+    logger.warn('⚠️ High memory usage detected: { heapUsed: ${heapUsedMB}, heapTotal: ${heapTotalMB}, percentage: ${percentage} }');
     
     if (!res.headersSent) {
       res.set('X-Memory-Warning', 'High memory usage detected');

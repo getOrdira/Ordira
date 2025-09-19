@@ -1,5 +1,6 @@
 // src/controllers/supplyChainDashboard.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { ManufacturerAccountService } from '../services/business/manufacturerAccount.service';
@@ -149,7 +150,7 @@ export const getSupplyChainOverview = asyncHandler(async (
     });
 
   } catch (error: any) {
-    console.error('Supply chain overview error:', error);
+    logger.error('Supply chain overview error:', error);
     next(error);
   }
 });
@@ -261,7 +262,7 @@ export const getSupplyChainAnalytics = asyncHandler(async (
     });
 
   } catch (error: any) {
-    console.error('Supply chain analytics error:', error);
+    logger.error('Supply chain analytics error:', error);
     next(error);
   }
 });
@@ -366,7 +367,7 @@ export const getQuickActions = asyncHandler(async (
     });
 
   } catch (error: any) {
-    console.error('Quick actions error:', error);
+    logger.error('Quick actions error:', error);
     next(error);
   }
 });

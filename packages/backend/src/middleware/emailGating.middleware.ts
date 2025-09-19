@@ -1,6 +1,7 @@
 // @ts-nocheck
 // src/middleware/emailGating.middleware.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { EmailGatingService } from '../services/business/emailGating.service';
 import { AuthRequest } from './auth.middleware';
 
@@ -66,7 +67,7 @@ export async function checkEmailGating(
 
     next();
   } catch (error) {
-    console.error('Email gating check error:', error);
+    logger.error('Email gating check error:', error);
     // On error, allow access (fail open) but log the issue
     req.emailGating = { allowed: true, reason: 'Check failed - allowed by default' };
     next();
@@ -86,7 +87,7 @@ export function logEmailGatingAttempt(
   res.send = function(data) {
     // Log the attempt result
     if (req.emailGating) {
-      console.log(`Email gating check: ${req.emailGating.allowed ? 'ALLOWED' : 'DENIED'} - ${req.body.email || 'no email'}`);
+      logger.info(`Email gating check: ${req.emailGating.allowed ? 'ALLOWED' : 'DENIED'} - ${req.body.email || 'no email'}`);
     }
     
     return originalSend.call(this, data);

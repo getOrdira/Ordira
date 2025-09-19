@@ -1,6 +1,7 @@
 // src/controllers/wix.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -395,7 +396,7 @@ export const handleOrderWebhook = asyncHandler(async (
       break;
     default:
       // Log unknown webhook events but don't fail
-      console.log(`Received unknown Wix webhook event: ${eventType}`);
+      logger.info('Received unknown Wix webhook event: ${eventType}');
       processResult = { processed: false, reason: 'Unknown event type' };
   }
 

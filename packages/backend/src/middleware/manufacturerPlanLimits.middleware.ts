@@ -2,6 +2,7 @@
 // src/middleware/manufacturerPlanLimits.middleware.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { ManufacturerAuthRequest } from './manufacturerAuth.middleware';
 import { Manufacturer } from '../models/manufacturer.model';
 import { BrandSettings } from '../models/brandSettings.model';
@@ -58,7 +59,7 @@ export function enforceManufacturerPlanLimits() {
 
       next();
     } catch (error) {
-      console.error('Manufacturer plan limits middleware error:', error);
+      logger.error('Manufacturer plan limits middleware error:', error);
       next(error);
     }
   };
@@ -99,7 +100,7 @@ export function requireBrandConnectionLimit() {
 
       next();
     } catch (error) {
-      console.error('Brand connection limit check error:', error);
+      logger.error('Brand connection limit check error:', error);
       next(error);
     }
   };
@@ -140,7 +141,7 @@ export function requireSupplyChainProductLimit() {
 
       next();
     } catch (error) {
-      console.error('Supply chain product limit check error:', error);
+      logger.error('Supply chain product limit check error:', error);
       next(error);
     }
   };
@@ -181,7 +182,7 @@ export function requireSupplyChainEndpointLimit() {
 
       next();
     } catch (error) {
-      console.error('Supply chain endpoint limit check error:', error);
+      logger.error('Supply chain endpoint limit check error:', error);
       next(error);
     }
   };
@@ -222,7 +223,7 @@ export function requireSupplyChainEventLimit() {
 
       next();
     } catch (error) {
-      console.error('Supply chain event limit check error:', error);
+      logger.error('Supply chain event limit check error:', error);
       next(error);
     }
   };
@@ -271,7 +272,7 @@ async function getCurrentUsage(manufacturerId: string): Promise<{
       profileViews
     };
   } catch (error) {
-    console.error('Error getting current usage:', error);
+    logger.error('Error getting current usage:', error);
     // Return zero usage on error to prevent blocking
     return {
       brandConnections: 0,
@@ -356,7 +357,7 @@ export function applySearchVisibilityLimits() {
       res.locals.searchResults = finalResults;
       next();
     } catch (error) {
-      console.error('Search visibility limits error:', error);
+      logger.error('Search visibility limits error:', error);
       next(error);
     }
   };

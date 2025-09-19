@@ -1,5 +1,6 @@
 // src/services/business/notification.service.ts
 import { Notification, INotification } from '../../models/notification.model';
+import { logger } from '../../utils/logger';
 import { Types } from 'mongoose';
 import { Business } from '../../models/business.model';
 
@@ -444,10 +445,10 @@ async sendSubscriptionWelcome(businessId: string, tier: string): Promise<void> {
       data: templateData
     });
 
-    console.log(`Subscription welcome sent to: ${business.email} for ${tier} plan`);
+    logger.info('Subscription welcome sent to: ${business.email} for ${tier} plan');
 
   } catch (error) {
-    console.error('Failed to send subscription welcome:', error);
+    logger.error('Failed to send subscription welcome:', error);
     // Don't throw - this shouldn't break subscription creation
   }
 }
@@ -492,10 +493,10 @@ async sendCancellationNotification(
       data: templateData  // Use 'data' not 'templateData'
     });
 
-    console.log(`Cancellation notification sent to: ${business.email}`);
+    logger.info('Cancellation notification sent to: ${business.email}');
 
   } catch (error) {
-    console.error('Failed to send cancellation notification:', error);
+    logger.error('Failed to send cancellation notification:', error);
   }
 }
 
@@ -523,10 +524,10 @@ async sendAccountDeletionConfirmation(email: string, reason?: string): Promise<v
       data: templateData
     });
 
-    console.log(`Account deletion confirmation sent to: ${email}`);
+    logger.info('Account deletion confirmation sent to: ${email}');
 
   } catch (error) {
-    console.error('Failed to send account deletion confirmation:', error);
+    logger.error('Failed to send account deletion confirmation:', error);
     // Don't throw - this shouldn't break account deletion
   }
 }
@@ -793,7 +794,7 @@ private getProfileChangeEmailTemplate(
   }): Promise<void> {
     try {
       // Implement with your email service (SendGrid, AWS SES, etc.)
-      console.log(`Sending email: ${emailData.subject} to ${emailData.to}`);
+      logger.info('Sending email: ${emailData.subject} to ${emailData.to}');
       
       // Example with SendGrid:
       // await this.sendgrid.send({
@@ -805,7 +806,7 @@ private getProfileChangeEmailTemplate(
       // });
       
     } catch (error) {
-      console.error('Email sending failed:', error);
+      logger.error('Email sending failed:', error);
       throw error;
     }
   }

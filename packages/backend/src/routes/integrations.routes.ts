@@ -1,6 +1,7 @@
 
 // src/routes/integrations.routes.ts
 import { Router } from 'express';
+import { logger } from '../utils/logger';
 import { validateBody, validateQuery } from '../middleware/validation.middleware';
 import { authenticate } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, TenantRequest } from '../middleware/tenant.middleware';
@@ -541,7 +542,7 @@ integrationsRouter.use('/wix', wixRouter);
  */
 integrationsRouter.use((error: any, req: any, res: any, next: any) => {
   // Log integration-specific errors
-  console.error('Integration Error:', {
+  logger.error('Integration Error:', {
     path: req.path,
     method: req.method,
     error: error.message,

@@ -1,6 +1,7 @@
 // src/services/business/manufacturer.service.ts
 
 import bcrypt from 'bcrypt';
+import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
 import { Manufacturer } from '../../models/manufacturer.model';
 import { BrandSettings } from '../../models/brandSettings.model';
@@ -115,7 +116,7 @@ export class ManufacturerService {
 
   private logSecurityEvent(event: string, identifier: string, success: boolean): void {
     const maskedIdentifier = UtilsService.maskEmail(identifier);
-    console.log(`[MANUFACTURER] ${event} - ${maskedIdentifier} - ${success ? 'SUCCESS' : 'FAILED'}`);
+    logger.info('[MANUFACTURER] ${event} - ${maskedIdentifier} - ${success ? ', SUCCESS' : 'FAILED'}`);
   }
 
   private calculateProfileCompleteness(manufacturer: any): number {
@@ -241,7 +242,7 @@ private async getProductDemandAnalysis(brandIds: string[], startDate?: Date): Pr
       recommendedForProduction: opportunities.slice(0, 5) // Top 5 recommendations
     };
   } catch (error) {
-    console.error('Get product demand analysis error:', error);
+    logger.error('Get product demand analysis error:', error);
     return {
       totalProducts: 0,
       opportunities: [],
@@ -287,7 +288,7 @@ private async getMarketInsights(brandIds: string[], timeframe: string): Promise<
       }
     };
   } catch (error) {
-    console.error('Get market insights error:', error);
+    logger.error('Get market insights error:', error);
     return {
       trends: { growthRate: '0%', direction: 'stable' },
       marketPosition: 'unknown',
@@ -754,7 +755,7 @@ async getConnectionStatus(manufacturerId: string, brandId: string): Promise<{
     };
 
   } catch (error) {
-    console.error('Error getting connection status:', error);
+    logger.error('Error getting connection status:', error);
     return {
       status: 'none',
       connectedAt: undefined,
@@ -854,7 +855,7 @@ async canConnectToBrand(manufacturerId: string, brandId: string): Promise<{
     };
 
   } catch (error) {
-    console.error('Error checking if manufacturer can connect to brand:', error);
+    logger.error('Error checking if manufacturer can connect to brand:', error);
     return {
       canConnect: false,
       reason: 'Error checking connection eligibility'
@@ -930,7 +931,7 @@ async createConnectionRequest(
     // await ConnectionRequest.create(connectionRequest);
 
     // For now, just log the request
-    console.log('Connection request created:', connectionRequest);
+    logger.info('Connection request created:', connectionRequest);
 
     // Send notification to brand (you might want to use your notifications service)
     // await notificationsService.sendConnectionRequestNotification(brandId, connectionRequest);
@@ -948,7 +949,7 @@ async createConnectionRequest(
     };
 
   } catch (error) {
-    console.error('Error creating connection request:', error);
+    logger.error('Error creating connection request:', error);
     return {
       success: false,
       message: 'Failed to create connection request'
@@ -977,7 +978,7 @@ async getConnectionRequestStatus(manufacturerId: string, brandId: string): Promi
     };
 
   } catch (error) {
-    console.error('Error getting connection request status:', error);
+    logger.error('Error getting connection request status:', error);
     return {
       hasActiveRequest: false
     };
@@ -1119,7 +1120,7 @@ async getManufacturerAnalytics(
 
     return analytics;
   } catch (error) {
-    console.error('Get manufacturer analytics error:', error);
+    logger.error('Get manufacturer analytics error:', error);
     throw new Error(`Failed to get manufacturer analytics: ${error.message}`);
   }
 }

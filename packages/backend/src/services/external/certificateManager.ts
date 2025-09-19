@@ -4,6 +4,42 @@ import fs from 'fs/promises';
 import path from 'path';
 import acme, { forge } from 'acme-client';
 
+// Define proper types for ACME challenges
+type ChallengeStatus = 'pending' | 'processing' | 'valid' | 'invalid';
+
+interface HttpChallenge {
+  type: 'http-01';
+  token: string;
+  url: string;
+  status: ChallengeStatus;
+}
+
+interface DnsChallenge {
+  type: 'dns-01';
+  token: string;
+  url: string;
+  status: ChallengeStatus;
+}
+
+interface TlsAlpnChallenge {
+  type: 'tls-alpn-01';
+  token: string;
+  url: string;
+  status: ChallengeStatus;
+}
+
+type Challenge = HttpChallenge | DnsChallenge | TlsAlpnChallenge;
+
+// Type guard to validate challenge type
+function isValidChallengeType(type: string): type is 'dns-01' | 'http-01' | 'tls-alpn-01' {
+  return ['dns-01', 'http-01', 'tls-alpn-01'].includes(type);
+}
+
+// Type guard to check if challenge is HTTP-01
+function isHttpChallenge(challenge: { type: string; token: string; url: string; status: string }): challenge is HttpChallenge {
+  return challenge.type === 'http-01';
+}
+
 const CERT_DIR = process.env.CERT_STORAGE_DIR || 'certs';
 const CHALLENGE_DIR = process.env.ACME_CHALLENGE_DIR || 
                       path.join('.well-known', 'acme-challenge');
@@ -31,21 +67,23 @@ export class CertificateManagerService {
 
     const authzs = await client.getAuthorizations(order);
     for (const auth of authzs) {
-      const challenge = (auth.challenges as any[])
-        .find((c) => c.type === 'http-01');
-      if (!challenge) {
+      const challenges = auth.challenges as Array<{ type: string; token: string; url: string; status: string }>;
+      const httpChallenge = challenges.find(isHttpChallenge);
+      
+      if (!httpChallenge) {
         throw new Error(
           `No HTTP-01 challenge found for ${auth.identifier.value}`
         );
       }
 
-      const keyAuth = await client.getChallengeKeyAuthorization(challenge);
-      const tokenFile = path.join(challengePath, challenge.token);
+      // Now httpChallenge is properly typed as HttpChallenge
+      const keyAuth = await client.getChallengeKeyAuthorization(httpChallenge);
+      const tokenFile = path.join(challengePath, httpChallenge.token);
       await fs.writeFile(tokenFile, keyAuth, 'utf-8');
 
-      await client.verifyChallenge(auth, challenge);
-      await client.completeChallenge(challenge);
-      await client.waitForValidStatus(challenge);
+      await client.verifyChallenge(auth, httpChallenge);
+      await client.completeChallenge(httpChallenge);
+      await client.waitForValidStatus(httpChallenge);
 
       await fs.unlink(tokenFile);
     }

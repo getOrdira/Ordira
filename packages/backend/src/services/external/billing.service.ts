@@ -1,5 +1,6 @@
 // src/services/external/billing.service.ts
 import Stripe from 'stripe';
+import { logger } from '../../utils/logger'; 
 import { Business } from '../../models/business.model';
 import { Billing } from '../../models/billing.model';
 import { NotificationsService } from './notifications.service';
@@ -60,7 +61,7 @@ export class BillingService {
         try {
           stripeSubscription = await this.stripe.subscriptions.retrieve(billing.stripeSubscriptionId);
         } catch (error) {
-          console.warn('Failed to retrieve Stripe subscription:', error);
+          logger.warn('Failed to retrieve Stripe subscription:', error);
         }
       }
 
@@ -70,7 +71,7 @@ export class BillingService {
         try {
           stripeCustomer = await this.stripe.customers.retrieve(billing.stripeCustomerId);
         } catch (error) {
-          console.warn('Failed to retrieve Stripe customer:', error);
+          logger.warn('Failed to retrieve Stripe customer:', error);
         }
       }
 
@@ -84,7 +85,7 @@ export class BillingService {
           : null
       };
     } catch (error) {
-      console.error('Failed to get billing info:', error);
+      logger.error('Failed to get billing info:', error);
       throw error;
     }
   }
@@ -114,7 +115,7 @@ export class BillingService {
             coupon: '' // Empty string removes the coupon
           });
 
-          console.log(`Removed customer-level discount for business ${businessId}`);
+          logger.info('Removed customer-level discount for business ${businessId}');
           subscriptionUpdated = true;
         }
 
@@ -122,11 +123,11 @@ export class BillingService {
         if (subscription.discount) {
           // Note: You cannot directly remove a discount from a subscription
           // But we can log it and handle it in the billing record
-          console.log(`Subscription ${billing.stripeSubscriptionId} has subscription-level discount that cannot be directly removed`);
+          logger.info('Subscription ${billing.stripeSubscriptionId} has subscription-level discount that cannot be directly removed');
         }
 
       } catch (stripeError) {
-        console.warn('Failed to remove Stripe discounts:', stripeError);
+        logger.warn('Failed to remove Stripe discounts:', stripeError);
         // Continue with local cleanup even if Stripe update fails
       }
     }
@@ -140,7 +141,7 @@ export class BillingService {
       discountRemovalReason: 'manual_removal'
     });
 
-    console.log(`Token discounts removed for business ${businessId}:`, {
+    logger.info('Token discounts removed for business ${businessId}:', {
       stripeUpdated: subscriptionUpdated,
       localRecordUpdated: true,
       subscriptionId: billing.stripeSubscriptionId
@@ -160,7 +161,7 @@ export class BillingService {
       }
     };
   } catch (error) {
-    console.error('Error removing token discounts:', error);
+    logger.error('Error removing token discounts:', error);
     throw { 
       statusCode: 500, 
       message: 'Failed to remove token discounts',
@@ -255,7 +256,7 @@ export class BillingService {
       };
 
     } catch (error) {
-      console.error('Error validating downgrade:', error);
+      logger.error('Error validating downgrade:', error);
       
       return {
         allowed: false,
@@ -357,7 +358,7 @@ export class BillingService {
         discountUpdates.discountAppliedAt = new Date();
         subscriptionUpdated = true;
       } catch (discountError) {
-        console.warn('Failed to apply token discount to subscription:', discountError);
+        logger.warn('Failed to apply token discount to subscription:', discountError);
         discountUpdates.discountApplicationError = discountError instanceof Error ? discountError.message : 'Unknown error';
       }
     }
@@ -388,7 +389,7 @@ export class BillingService {
     };
 
     // Log the update with safe property access
-    console.log(`Billing token discounts updated for business ${businessId}:`, {
+    logger.info('Billing token discounts updated for business ${businessId}:', {
       hasDiscounts: result.hasDiscounts,
       subscriptionUpdated,
       discountType: getDiscountType(tokenDiscounts),
@@ -401,7 +402,7 @@ export class BillingService {
 
     return result;
   } catch (error) {
-    console.error('Error updating billing token discounts:', error);
+    logger.error('Error updating billing token discounts:', error);
     throw { 
       statusCode: 500, 
       message: 'Failed to update billing token discounts',
@@ -453,7 +454,7 @@ export class BillingService {
 
   async processRenewal(subscriptionId: string): Promise<any> {
     try {
-      console.log(`Processing renewal for subscription: ${subscriptionId}`);
+      logger.info('Processing renewal for subscription: ${subscriptionId}');
 
       // Get subscription details from Stripe
       const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
@@ -504,7 +505,7 @@ export class BillingService {
       }
 
       // Log successful renewal
-      console.log(`Renewal processed successfully for business: ${businessId}`);
+      logger.info('Renewal processed successfully for business: ${businessId}');
 
       return {
         subscriptionId,
@@ -517,7 +518,7 @@ export class BillingService {
       };
 
     } catch (error) {
-      console.error('Renewal processing failed:', {
+      logger.error('Renewal processing failed:', {
         subscriptionId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -672,7 +673,7 @@ async chargeOverage(
       totalOverageCharges: (billing.totalOverageCharges || 0) + amount
     });
 
-    console.log(`Overage charge processed: ${description} - $${(amount/100).toFixed(2)} for business ${businessId}`);
+    logger.info('Overage charge processed: ${description} - $${(amount/100).toFixed(2)} for business ${businessId}');
 
     return {
       success: true,
@@ -682,7 +683,7 @@ async chargeOverage(
     };
 
   } catch (error: any) {
-    console.error('Overage charging failed:', {
+    logger.error('Overage charging failed:', {
       businessId,
       amount,
       description,
@@ -761,7 +762,7 @@ async createOneTimeInvoice(
     };
 
   } catch (error: any) {
-    console.error('One-time invoice creation failed:', error);
+    logger.error('One-time invoice creation failed:', error);
     return {
       success: false,
       totalAmount: items.reduce((sum, item) => sum + (item.amount * (item.quantity || 1)), 0),
@@ -823,7 +824,7 @@ async getOverageHistory(
     return overageHistory.slice(0, limit);
 
   } catch (error) {
-    console.error('Failed to get overage history:', error);
+    logger.error('Failed to get overage history:', error);
     return [];
   }
 }
@@ -866,7 +867,7 @@ async isOverageBillingEnabled(businessId: string): Promise<{
     };
 
   } catch (error) {
-    console.error('Error checking overage billing status:', error);
+    logger.error('Error checking overage billing status:', error);
     return { 
       enabled: false, 
       reason: 'Unable to check overage billing status' 
@@ -882,9 +883,9 @@ async trackVoteUsage(businessId: string, voteId: string): Promise<void> {
     // This is a placeholder implementation
     try {
       // Add your billing tracking logic here
-      console.log(`Tracked vote usage for business ${businessId}, vote ${voteId}`);
+      logger.info('Tracked vote usage for business ${businessId}, vote ${voteId}');
     } catch (error) {
-      console.error('Error tracking vote usage:', error);
+      logger.error('Error tracking vote usage:', error);
       throw new Error('Failed to track vote usage in billing system');
     }
   }
@@ -1133,7 +1134,7 @@ getOverageRates(plan: string): {
     try {
       return await this.stripe.subscriptions.retrieve(billing.stripeSubscriptionId);
     } catch (error) {
-      console.warn('Failed to retrieve Stripe subscription:', error);
+      logger.warn('Failed to retrieve Stripe subscription:', error);
       return null;
     }
   }
@@ -1149,7 +1150,7 @@ getOverageRates(plan: string): {
       });
       return paymentMethods.data;
     } catch (error) {
-      console.warn('Failed to retrieve payment methods:', error);
+      logger.warn('Failed to retrieve payment methods:', error);
       return [];
     }
   }
@@ -1165,7 +1166,7 @@ getOverageRates(plan: string): {
       });
       return invoices.data;
     } catch (error) {
-      console.warn('Failed to retrieve invoices:', error);
+      logger.warn('Failed to retrieve invoices:', error);
       return [];
     }
   }
@@ -1175,7 +1176,7 @@ getOverageRates(plan: string): {
     // Get brand settings with Web3 configuration (wallet info is in brandSettings, not business)
     const brandSettings = await BrandSettings.findOne({ business: businessId });
     if (!brandSettings?.web3Settings?.certificateWallet || !brandSettings.web3Settings.walletVerified) {
-      console.log(`No verified wallet found for business ${businessId}:`, {
+      logger.info('No verified wallet found for business ${businessId}:', {
         hasWallet: !!brandSettings?.web3Settings?.certificateWallet,
         isVerified: brandSettings?.web3Settings?.walletVerified || false,
         walletAddress: brandSettings?.web3Settings?.certificateWallet || null
@@ -1223,7 +1224,7 @@ getOverageRates(plan: string): {
     
     // Log successful discount check with safe property access
     if (discounts) {
-      console.log(`Token discounts found for business ${businessId}:`, {
+      logger.info('Token discounts found for business ${businessId}:', {
         walletAddress: brandSettings.web3Settings.certificateWallet,
         discountType: getDiscountType(discounts),
         discountValue: getDiscountValue(discounts),
@@ -1236,12 +1237,12 @@ getOverageRates(plan: string): {
         objectKeys: typeof discounts === 'object' && discounts !== null ? Object.keys(discounts) : null
       });
     } else {
-      console.log(`No token discounts available for business ${businessId} with wallet ${brandSettings.web3Settings.certificateWallet}`);
+      logger.info('No token discounts available for business ${businessId} with wallet ${brandSettings.web3Settings.certificateWallet}');
     }
     
     return discounts;
   } catch (error) {
-    console.warn(`Token discount check failed for business ${businessId}:`, error);
+    logger.warn('Token discount check failed for business ${businessId}:', error);
     return null;
   }
 }
@@ -1253,7 +1254,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
 
   const planPricing = this.getPlanPricing(plan);
   if (!planPricing) {
-    console.warn(`No pricing found for plan: ${plan}`);
+    logger.warn('No pricing found for plan: ${plan}');
     return { monthlySavings: 0, annualSavings: 0, currency: 'usd' };
   }
 
@@ -1265,7 +1266,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
   } else if (tokenDiscount.type === 'fixed_amount') {
     discountAmount = tokenDiscount.discount / 100; // Convert from cents
   } else {
-    console.warn(`Unknown discount type: ${tokenDiscount.type}`);
+    logger.warn('Unknown discount type: ${tokenDiscount.type}');
   }
 
   const savings = {
@@ -1280,7 +1281,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
     savingsPercentage: monthlyPrice > 0 ? Math.round((discountAmount / monthlyPrice) * 100) : 0
   };
 
-  console.log(`Calculated potential savings for plan ${plan}:`, savings);
+  logger.info('Calculated potential savings for plan ${plan}:', savings);
   
   return savings;
 }
@@ -1294,9 +1295,9 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
       coupon: tokenDiscount.stripeDiscountId // Apply to customer, affects all subscriptions
     });
 
-      console.log(`Applied token discount to subscription: ${subscriptionId}`);
+      logger.info('Applied token discount to subscription: ${subscriptionId}');
     } catch (error) {
-      console.error('Failed to apply token discount:', error);
+      logger.error('Failed to apply token discount:', error);
       // Don't throw - renewal should continue even if discount fails
     }
   }
@@ -1309,9 +1310,9 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
         loyaltyDiscountScheduled: true
       });
 
-      console.log(`Loyalty discount scheduled for business: ${businessId}`);
+      logger.info('Loyalty discount scheduled for business: ${businessId}');
     } catch (error) {
-      console.error('Failed to schedule loyalty discount:', error);
+      logger.error('Failed to schedule loyalty discount:', error);
     }
   }
 
@@ -1319,7 +1320,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
     try {
       await this.notificationsService.sendPlanChangeNotification(email, fromPlan, toPlan);
     } catch (error) {
-      console.error('Failed to send plan change notification:', error);
+      logger.error('Failed to send plan change notification:', error);
     }
   }
 
@@ -1327,7 +1328,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
     try {
       await this.notificationsService.sendRenewalConfirmation(email, plan, amount);
     } catch (error) {
-      console.error('Failed to send renewal confirmation:', error);
+      logger.error('Failed to send renewal confirmation:', error);
     }
   }
 
@@ -1335,7 +1336,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
     try {
       await this.notificationsService.sendCancellationConfirmation(email, plan);
     } catch (error) {
-      console.error('Failed to send cancellation confirmation:', error);
+      logger.error('Failed to send cancellation confirmation:', error);
     }
   }
 
@@ -1343,7 +1344,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
     try {
       await this.notificationsService.sendPaymentFailedNotification(email, invoiceId);
     } catch (error) {
-      console.error('Failed to send payment failed notification:', error);
+      logger.error('Failed to send payment failed notification:', error);
     }
   }
 }

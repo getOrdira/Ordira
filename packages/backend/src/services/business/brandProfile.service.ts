@@ -1,5 +1,6 @@
 // src/services/business/brandProfile.service.ts
 import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
+import { logger } from '../utils/logger';
 import { IBusiness } from '../../models/business.model';
 import { Business } from '../../models/business.model';
 
@@ -137,17 +138,17 @@ export class BrandProfileService {
     ];
     return recommendations.slice(0, limit);
   } catch (error) {
-    console.error('Error getting recommendations:', error);
+    logger.error('Error getting recommendations:', error);
     return [];
   }
 }
 
 async recordRecommendationFeedback(businessId: string, recommendationId: string, feedback: any): Promise<void> {
   try {
-    console.log(`Recording feedback for ${recommendationId}:`, feedback);
+    logger.info('Recording feedback for ${recommendationId}:', feedback);
     // Implementation for storing feedback
   } catch (error) {
-    console.error('Error recording feedback:', error);
+    logger.error('Error recording feedback:', error);
   }
 }
 
@@ -165,7 +166,7 @@ async createBrandReport(businessId: string, options?: any): Promise<any> {
       summary: 'Brand report generated successfully'
     };
   } catch (error) {
-    console.error('Error creating brand report:', error);
+    logger.error('Error creating brand report:', error);
     throw error;
   }
 }
@@ -185,7 +186,7 @@ async getEcosystemAnalytics(options?: any): Promise<any> {
       }
     };
   } catch (error) {
-    console.error('Error getting ecosystem analytics:', error);
+    logger.error('Error getting ecosystem analytics:', error);
     return {};
   }
 }
@@ -200,7 +201,7 @@ async getPopularSearchTerms(options?: { limit?: number }): Promise<any[]> {
     ];
     return terms.slice(0, limit);
   } catch (error) {
-    console.error('Error getting popular terms:', error);
+    logger.error('Error getting popular terms:', error);
     return [];
   }
 }
@@ -214,7 +215,7 @@ async getTrendingSearchTerms(options?: { limit?: number }): Promise<any[]> {
     ];
     return terms.slice(0, limit);
   } catch (error) {
-    console.error('Error getting trending terms:', error);
+    logger.error('Error getting trending terms:', error);
     return [];
   }
 }
@@ -237,7 +238,7 @@ async getSearchSuggestions(query: string, options?: { limit?: number }): Promise
       category: b.industry
     }));
   } catch (error) {
-    console.error('Error getting search suggestions:', error);
+    logger.error('Error getting search suggestions:', error);
     return [];
   }
 }
@@ -255,7 +256,7 @@ async getSpotlightBrand(criteria?: any): Promise<any> {
       spotlightReason: 'High engagement'
     };
   } catch (error) {
-    console.error('Error getting spotlight brand:', error);
+    logger.error('Error getting spotlight brand:', error);
     return null;
   }
 }
@@ -269,7 +270,7 @@ async getFeaturedCategories(options?: { limit?: number }): Promise<any[]> {
     ];
     return categories.slice(0, options?.limit || 8);
   } catch (error) {
-    console.error('Error getting featured categories:', error);
+    logger.error('Error getting featured categories:', error);
     return [];
   }
 }
@@ -287,7 +288,7 @@ async getNewestBrands(options?: { limit?: number }): Promise<any[]> {
       isNew: true
     }));
   } catch (error) {
-    console.error('Error getting newest brands:', error);
+    logger.error('Error getting newest brands:', error);
     return [];
   }
 }
@@ -305,7 +306,7 @@ async getTrendingBrands(options?: { limit?: number }): Promise<any[]> {
       trending: true
     }));
   } catch (error) {
-    console.error('Error getting trending brands:', error);
+    logger.error('Error getting trending brands:', error);
     return [];
   }
 }
@@ -326,7 +327,7 @@ async getFeaturedBrands(options?: { limit?: number }): Promise<any[]> {
       featured: true
     }));
   } catch (error) {
-    console.error('Error getting featured brands:', error);
+    logger.error('Error getting featured brands:', error);
     return [];
   }
 }
@@ -381,7 +382,7 @@ async getConnectionOpportunities(
 
     return results.sort((a, b) => b.compatibilityScore - a.compatibilityScore);
   } catch (error) {
-    console.error('Error getting connection opportunities:', error);
+    logger.error('Error getting connection opportunities:', error);
     return [];
   }
 }
@@ -487,7 +488,7 @@ async calculateCompatibilityScore(brandId1: string, brandId2: string): Promise<{
       recommendations
     };
   } catch (error) {
-    console.error('Error calculating compatibility:', error);
+    logger.error('Error calculating compatibility:', error);
     return {
       score: 0,
       factors: [],
@@ -512,7 +513,7 @@ async getBrandProfileForManufacturer(brandId: string, manufacturerId?: string): 
       connectionStatus: 'none'
     };
   } catch (error) {
-    console.error('Error getting brand profile for manufacturer:', error);
+    logger.error('Error getting brand profile for manufacturer:', error);
     throw error;
   }
 }
@@ -538,7 +539,7 @@ async getIndustryPeers(businessId: string, options?: { limit?: number }): Promis
       relationship: 'industry_peer'
     }));
   } catch (error) {
-    console.error('Error getting industry peers:', error);
+    logger.error('Error getting industry peers:', error);
     return [];
   }
 }
@@ -573,9 +574,9 @@ async trackProfileView(
       { $inc: { profileViews: 1 } }
     );
 
-    console.log(`Profile view tracked: ${profileId} by ${viewerId} (${type})`);
+    logger.info('Profile view tracked: ${profileId} by ${viewerId} (${type})');
   } catch (error) {
-    console.error('Error tracking profile view:', error);
+    logger.error('Error tracking profile view:', error);
   }
 }
 
@@ -609,7 +610,7 @@ async getRelatedBrands(businessId: string, options?: {
 
     return related.map(brand => brand.toObject());
   } catch (error) {
-    console.error('Error getting related brands:', error);
+    logger.error('Error getting related brands:', error);
     return [];
   }
 }
@@ -628,7 +629,7 @@ async getPublicAnalytics(businessId: string): Promise<any> {
       profileCompleteness: 85
     };
   } catch (error) {
-    console.error('Error getting public analytics:', error);
+    logger.error('Error getting public analytics:', error);
     return {};
   }
 }
@@ -654,7 +655,7 @@ async getDetailedBrandProfile(businessId: string): Promise<any> {
       }
     };
   } catch (error) {
-    console.error('Error getting detailed brand profile:', error);
+    logger.error('Error getting detailed brand profile:', error);
     throw error;
   }
 }
@@ -728,7 +729,7 @@ async getBrandAggregations(filterOptions?: {
       }
     };
   } catch (error) {
-    console.error('Error getting brand aggregations:', error);
+    logger.error('Error getting brand aggregations:', error);
     return {
       total: 0,
       verified: 0,
@@ -788,7 +789,7 @@ async getEnhancedBrandProfiles(filters?: any): Promise<any> {
       }
     };
   } catch (error) {
-    console.error('Error getting enhanced brand profiles:', error);
+    logger.error('Error getting enhanced brand profiles:', error);
     throw error;
   }
 }

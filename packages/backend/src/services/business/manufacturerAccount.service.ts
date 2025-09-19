@@ -1,6 +1,7 @@
 // src/services/business/manufacturerAccount.service.ts
 
 import { Manufacturer, IManufacturer } from '../../models/manufacturer.model';
+import { logger } from '../../utils/logger';
 import { Media } from '../../models/media.model';
 import { Notification } from '../../models/notification.model';
 import { MediaService } from './media.service';
@@ -257,7 +258,7 @@ export class ManufacturerAccountService {
       const updateData: Partial<IManufacturer> = {};
       allowedFields.forEach(field => {
         if (field in data && data[field as keyof IManufacturer] !== undefined) {
-          (updateData as any)[field] = data[field as keyof IManufacturer];
+          (updateData as Record<string, any>)[field] = data[field as keyof IManufacturer];
         }
       });
 
@@ -818,7 +819,7 @@ export class ManufacturerAccountService {
       });
     } catch (error) {
       // Log activity errors shouldn't break the main operation
-      console.warn('Failed to log activity:', error);
+      logger.warn('Failed to log activity:', error);
     }
   }
 

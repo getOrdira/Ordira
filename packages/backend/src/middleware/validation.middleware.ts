@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { logger } from '../utils/logger';
 import Joi, { ObjectSchema, ValidationError } from 'joi';
 import { Types } from 'mongoose';
 
@@ -456,7 +457,7 @@ export function validate(
 
       next();
     } catch (err) {
-      console.error('Validation middleware error:', err);
+      logger.error('Validation middleware error:', err);
       return res.status(500).json({
         error: 'Internal validation error',
         code: 'VALIDATION_INTERNAL_ERROR'

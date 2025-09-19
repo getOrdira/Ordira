@@ -1,9 +1,12 @@
 // src/models/notification.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface INotification extends Document {
   business?: Types.ObjectId; // References Business model
   manufacturer?: Types.ObjectId; // References Manufacturer model
+  recipientType?: 'business' | 'manufacturer' | 'user';
+  recipientId?: string;
   type: string;
   message: string;
   data?: any;
@@ -782,23 +785,23 @@ NotificationSchema.pre('save', function(next) {
 NotificationSchema.post('save', function(doc) {
   // Log high priority notifications (remove doc.isNew as it's not available in post-save)
   if (doc.priority === 'urgent') {
-    console.log(`Urgent notification created: ${doc.type} for ${(doc as any).recipientType} ${(doc as any).recipientId}`);
+    logger.info(`Urgent notification created: ${doc.type} for ${doc.recipientType || 'unknown'} ${doc.recipientId || 'unknown'}`);
   }
   
   // Log delivery failures
   if (doc.isModified('deliveryStatus') && doc.deliveryStatus === 'failed') {
-    console.log(`Notification delivery failed: ${doc._id} - ${doc.deliveryError}`);
+    logger.info(`Notification delivery failed: ${doc._id} - ${doc.deliveryError}`);
   }
   
   // Log bulk notification completion
   if (doc.bulkNotification && doc.isModified('deliveryStatus') && doc.deliveryStatus === 'delivered') {
-    console.log(`Bulk notification delivered: Batch ${doc.batchId}`);
+    logger.info(`Bulk notification delivered: Batch ${doc.batchId}`);
   }
 });
 
 // Pre-remove middleware for cleanup logging
 NotificationSchema.pre('remove', function(this: INotification, next) {
-  console.log(`Removing notification: ${this.type} for ${(this as any).recipientType}`);
+  logger.info(`Removing notification: ${this.type} for ${this.recipientType || 'unknown'}`);
   next();
 });
 

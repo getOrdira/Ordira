@@ -1,5 +1,6 @@
 // src/controllers/brandSettings.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -176,7 +177,7 @@ export async function getBrandSettings(
       }
     });
   } catch (error) {
-    console.error('Get brand settings error:', error);
+    logger.error('Get brand settings error:', error);
     next(error);
   }
 }
@@ -271,7 +272,7 @@ export async function updateBrandSettings(
       message: 'Brand settings updated successfully'
     });
   } catch (error) {
-    console.error('Update brand settings error:', error);
+    logger.error('Update brand settings error:', error);
     next(error);
   }
 }
@@ -388,7 +389,7 @@ export async function updateCertificateWallet(
       message: 'Certificate wallet updated successfully'
     });
   } catch (error) {
-    console.error('Update certificate wallet error:', error);
+    logger.error('Update certificate wallet error:', error);
     next(error);
   }
 }
@@ -482,7 +483,7 @@ export async function uploadBrandLogo(
       }
     });
   } catch (error) {
-    console.error('Upload brand logo error:', error);
+    logger.error('Upload brand logo error:', error);
     next(error);
   }
 }
@@ -580,7 +581,7 @@ export async function uploadBrandBanner(
       }
     });
   } catch (error) {
-    console.error('Upload brand banner error:', error);
+    logger.error('Upload brand banner error:', error);
     next(error);
   }
 }
@@ -616,7 +617,7 @@ export async function updateQuickBranding(
       message: 'Branding updated successfully'
     });
   } catch (error) {
-    console.error('Update quick branding error:', error);
+    logger.error('Update quick branding error:', error);
     next(error);
   }
 }
@@ -650,7 +651,7 @@ export async function updateSubdomain(
       message: 'Subdomain updated successfully'
     });
   } catch (error) {
-    console.error('Update subdomain error:', error);
+    logger.error('Update subdomain error:', error);
     if (error.statusCode === 409) {
       res.status(409).json({
         error: 'Subdomain already taken',
@@ -686,7 +687,7 @@ export async function validateSubdomain(
         'Subdomain is invalid or already taken'
     });
   } catch (error) {
-    console.error('Validate subdomain error:', error);
+    logger.error('Validate subdomain error:', error);
     next(error);
   }
 }
@@ -749,7 +750,7 @@ export async function setCustomDomain(
       message: 'Custom domain configured successfully'
     });
   } catch (error) {
-    console.error('Set custom domain error:', error);
+    logger.error('Set custom domain error:', error);
     next(error);
   }
 }
@@ -782,7 +783,7 @@ export async function removeCustomDomain(
       message: 'Custom domain removed successfully'
     });
   } catch (error) {
-    console.error('Remove custom domain error:', error);
+    logger.error('Remove custom domain error:', error);
     if (error.statusCode === 404) {
       res.status(404).json({
         error: 'Brand settings not found',
@@ -819,7 +820,7 @@ export async function verifyCustomDomain(
       }
     });
   } catch (error) {
-    console.error('Verify custom domain error:', error);
+    logger.error('Verify custom domain error:', error);
     next(error);
   }
 }
@@ -887,7 +888,7 @@ export async function configureShopifyIntegration(
       ]
     });
   } catch (error) {
-    console.error('Configure Shopify integration error:', error);
+    logger.error('Configure Shopify integration error:', error);
     next(error);
   }
 }
@@ -916,7 +917,7 @@ export async function updateShopifyIntegration(
       message: 'Shopify integration updated successfully'
     });
   } catch (error) {
-    console.error('Update Shopify integration error:', error);
+    logger.error('Update Shopify integration error:', error);
     next(error);
   }
 }
@@ -961,7 +962,7 @@ export async function configureWooCommerceIntegration(
       message: 'WooCommerce integration configured successfully'
     });
   } catch (error) {
-    console.error('Configure WooCommerce integration error:', error);
+    logger.error('Configure WooCommerce integration error:', error);
     next(error);
   }
 }
@@ -990,7 +991,7 @@ export async function updateWooCommerceIntegration(
       message: 'WooCommerce integration updated successfully'
     });
   } catch (error) {
-    console.error('Update WooCommerce integration error:', error);
+    logger.error('Update WooCommerce integration error:', error);
     next(error);
   }
 }
@@ -1039,7 +1040,7 @@ export async function configureWixIntegration(
       message: 'Wix integration configured successfully'
     });
   } catch (error) {
-    console.error('Configure Wix integration error:', error);
+    logger.error('Configure Wix integration error:', error);
     next(error);
   }
 }
@@ -1072,7 +1073,7 @@ export async function updateWixIntegration(
       message: 'Wix integration updated successfully'
     });
   } catch (error) {
-    console.error('Update Wix integration error:', error);
+    logger.error('Update Wix integration error:', error);
     next(error);
   }
 }
@@ -1121,7 +1122,7 @@ export async function removeIntegration(
       message: `${type} integration removed successfully`
     });
   } catch (error) {
-    console.error('Remove integration error:', error);
+    logger.error('Remove integration error:', error);
     next(error);
   }
 }
@@ -1173,7 +1174,7 @@ export async function testIntegration(
       }
     });
   } catch (error) {
-    console.error('Test integration error:', error);
+    logger.error('Test integration error:', error);
     next(error);
   }
 }
@@ -1224,7 +1225,7 @@ export async function exportBrandSettings(
       res.send(exportData);
     }
   } catch (error) {
-    console.error('Export brand settings error:', error);
+    logger.error('Export brand settings error:', error);
     next(error);
   }
 }
@@ -1257,7 +1258,7 @@ export async function getPublicBrandSettings(
       settings: publicSettings
     });
   } catch (error) {
-    console.error('Get public brand settings error:', error);
+    logger.error('Get public brand settings error:', error);
     if (error.statusCode === 404) {
       res.status(404).json({
         error: 'Brand settings not found',

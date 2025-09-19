@@ -1,5 +1,6 @@
 // src/controllers/domainMapping.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -195,7 +196,7 @@ export async function addDomainMapping(
       }
     });
   } catch (error) {
-    console.error('Add domain mapping error:', error);
+    logger.error('Add domain mapping error:', error);
     next(error);
   }
 }
@@ -258,7 +259,7 @@ export async function listDomainMappings(
       }
     });
   } catch (error) {
-    console.error('List domain mappings error:', error);
+    logger.error('List domain mappings error:', error);
     next(error);
   }
 }
@@ -323,7 +324,7 @@ export async function getDomainMapping(
       troubleshooting: generateTroubleshootingSteps(mapping)
     });
   } catch (error) {
-    console.error('Get domain mapping error:', error);
+    logger.error('Get domain mapping error:', error);
     next(error);
   }
 }
@@ -420,7 +421,7 @@ export async function verifyDomain(
       ]
     });
   } catch (error) {
-    console.error('Verify domain error:', error);
+    logger.error('Verify domain error:', error);
     next(error);
   }
 }
@@ -484,7 +485,7 @@ export async function updateDomainMapping(
       message: 'Domain mapping updated successfully'
     });
   } catch (error) {
-    console.error('Update domain mapping error:', error);
+    logger.error('Update domain mapping error:', error);
     next(error);
   }
 }
@@ -560,7 +561,7 @@ export async function removeDomainMapping(
       message: 'Domain mapping removed successfully'
     });
   } catch (error) {
-    console.error('Remove domain mapping error:', error);
+    logger.error('Remove domain mapping error:', error);
     next(error);
   }
 }
@@ -625,7 +626,7 @@ export async function renewCertificate(
       message: 'SSL certificate renewed successfully'
     });
   } catch (error) {
-    console.error('Renew certificate error:', error);
+    logger.error('Renew certificate error:', error);
     next(error);
   }
 }
@@ -675,7 +676,7 @@ export async function getDomainHealth(
       lastChecked: healthCheck.timestamp
     });
   } catch (error) {
-    console.error('Get domain health error:', error);
+    logger.error('Get domain health error:', error);
     next(error);
   }
 }
@@ -737,7 +738,7 @@ export async function getDomainAnalytics(
       }
     });
   } catch (error) {
-    console.error('Get domain analytics error:', error);
+    logger.error('Get domain analytics error:', error);
     next(error);
   }
 }
@@ -786,7 +787,7 @@ export async function testDomain(
       testedAt: testResults.timestamp
     });
   } catch (error) {
-    console.error('Test domain error:', error);
+    logger.error('Test domain error:', error);
     next(error);
   }
 }

@@ -1,5 +1,6 @@
 // services/external/wix.service.ts
 import axios from 'axios';
+import { logger } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
@@ -168,7 +169,7 @@ export class WixService {
 
       return authUrl;
     } catch (error: any) {
-      console.error('Generate Wix install URL error:', error);
+      logger.error('Generate Wix install URL error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -242,7 +243,7 @@ export class WixService {
         throw createAppError('Failed to save Wix credentials', 500, 'SAVE_CREDENTIALS_FAILED');
       }
 
-      console.log(`Wix integration completed for business ${state}`);
+      logger.info('Wix integration completed for business ${state}');
 
       return {
         instanceId: instance_id,
@@ -251,7 +252,7 @@ export class WixService {
         connectedAt
       };
     } catch (error: any) {
-      console.error('Exchange Wix code error:', error);
+      logger.error('Exchange Wix code error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -318,7 +319,7 @@ export class WixService {
         }
       };
     } catch (error: any) {
-      console.error('Get Wix connection status error:', error);
+      logger.error('Get Wix connection status error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -355,7 +356,7 @@ export class WixService {
             );
             webhooksRemoved++;
           } catch (deleteError: any) {
-            console.warn(`Failed to delete webhook ${webhook.id}:`, deleteError.message);
+            logger.warn('Failed to delete webhook ${webhook.id}:', deleteError.message);
           }
         }
         
@@ -363,7 +364,7 @@ export class WixService {
           cleanupActions.push(`Removed ${webhooksRemoved} webhooks`);
         }
       } catch (error: any) {
-        console.warn('Failed to remove Wix webhooks:', error.message);
+        logger.warn('Failed to remove Wix webhooks:', error.message);
         cleanupActions.push('Webhook cleanup failed (non-critical)');
       }
 
@@ -396,7 +397,7 @@ export class WixService {
         dataCleared: true
       };
     } catch (error: any) {
-      console.error('Disconnect Wix error:', error);
+      logger.error('Disconnect Wix error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -473,7 +474,7 @@ export class WixService {
         duration 
       };
     } catch (error: any) {
-      console.error('Sync Wix products error:', error);
+      logger.error('Sync Wix products error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -573,7 +574,7 @@ export class WixService {
         duration 
       };
     } catch (error: any) {
-      console.error('Sync Wix orders error:', error);
+      logger.error('Sync Wix orders error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -613,7 +614,7 @@ export class WixService {
         errors: result.errors
       };
     } catch (error: any) {
-      console.error('Process order webhook error:', error);
+      logger.error('Process order webhook error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -650,7 +651,7 @@ export class WixService {
         reason: 'Integration cleaned up successfully'
       };
     } catch (error: any) {
-      console.error('Handle app removal error:', error);
+      logger.error('Handle app removal error:', error);
       
       return {
         processed: false,
@@ -719,7 +720,7 @@ export class WixService {
 
       return mockAnalytics;
     } catch (error: any) {
-      console.error('Get Wix analytics error:', error);
+      logger.error('Get Wix analytics error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -793,7 +794,7 @@ export class WixService {
         };
       }
     } catch (error: any) {
-      console.error('Test Wix connection error:', error);
+      logger.error('Test Wix connection error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -852,7 +853,7 @@ export class WixService {
         } catch (error: any) {
           const errorMsg = `Failed to register webhook ${webhook.event}: ${error.response?.data?.message || error.message}`;
           errors.push(errorMsg);
-          console.warn(errorMsg);
+          logger.warn(errorMsg); 
         }
       }
 
@@ -942,7 +943,7 @@ export class WixService {
       
       return computed === signature;
     } catch (error) {
-      console.error('Error validating webhook signature:', error);
+      logger.error('Error validating webhook signature:', error);
       return false;
     }
   }
@@ -992,7 +993,7 @@ export class WixService {
         throw createAppError('Failed to update Wix credentials', 500, 'UPDATE_CREDENTIALS_FAILED');
       }
     } catch (error: any) {
-      console.error('Refresh Wix token error:', error);
+      logger.error('Refresh Wix token error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1063,7 +1064,7 @@ export class WixService {
         health
       };
     } catch (error: any) {
-      console.error('Get webhook status error:', error);
+      logger.error('Get webhook status error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1117,7 +1118,7 @@ export class WixService {
         registered: true
       };
     } catch (error: any) {
-      console.error('Register webhook error:', error);
+      logger.error('Register webhook error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1161,7 +1162,7 @@ export class WixService {
         unregistered: true
       };
     } catch (error: any) {
-      console.error('Unregister webhook error:', error);
+      logger.error('Unregister webhook error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1218,7 +1219,7 @@ export class WixService {
         status: siteData.siteStatus || 'unknown'
       };
     } catch (error: any) {
-      console.error('Get store info error:', error);
+      logger.error('Get store info error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1309,7 +1310,7 @@ export class WixService {
         recommendations
       };
     } catch (error: any) {
-      console.error('Get connection health error:', error);
+      logger.error('Get connection health error:', error);
       
       return {
         overall: 'critical',
@@ -1377,7 +1378,7 @@ export class WixService {
         generatedAt: new Date()
       };
     } catch (error: any) {
-      console.error('Export integration data error:', error);
+      logger.error('Export integration data error:', error);
       
       if (error.statusCode) {
         throw error;

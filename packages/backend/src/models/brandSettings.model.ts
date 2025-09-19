@@ -1,4 +1,5 @@
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IBrandSettings extends Document {
   business: Types.ObjectId;
@@ -349,6 +350,7 @@ export interface IBrandSettings extends Document {
   canTransferToBrand(): boolean;
   getTransferSettings(): any;
   validateWalletAddress(address: string): boolean;
+  getEmailGatingRulesCount(): number;
   isWithinBusinessHours(): boolean;
   canTransferNow(): { allowed: boolean; reason?: string };
   updateTransferAnalytics(transferData: any): Promise<void>;
@@ -1583,7 +1585,7 @@ BrandSettingsSchema.virtual('emailGatingStatus').get(function(this: IBrandSettin
   return {
     enabled: gating.enabled || false,
     mode: gating.mode || 'disabled',
-    rulesCount: (this as any).getEmailGatingRulesCount(),
+    rulesCount: this.getEmailGatingRulesCount(),
     totalChecked,
     successRate: totalChecked > 0 ? Math.round((totalAllowed / totalChecked) * 100) : 0,
     lastActivity: analytics?.lastResetDate
@@ -2382,25 +2384,25 @@ BrandSettingsSchema.post('save', function(doc) {
   // Emit events for real-time updates
   if (doc.isModified('certificateWallet') || doc.isModified('web3Settings.certificateWallet')) {
     process.nextTick(() => {
-      console.log(`Brand ${doc.business} wallet updated: ${wallet ? 'connected' : 'disconnected'}`);
+      logger.info(`Brand ${doc.business} wallet updated: ${wallet ? 'connected' : 'disconnected'}`);
     });
   }
   
   if (doc.isModified('web3Settings.walletVerified')) {
     process.nextTick(() => {
-      console.log(`Brand ${doc.business} wallet verification: ${doc.web3Settings?.walletVerified ? 'verified' : 'unverified'}`);
+      logger.info(`Brand ${doc.business} wallet verification: ${doc.web3Settings?.walletVerified ? 'verified' : 'unverified'}`);
     });
   }
   
   if (doc.isModified('transferPreferences')) {
     process.nextTick(() => {
-      console.log(`Brand ${doc.business} transfer preferences updated`);
+      logger.info(`Brand ${doc.business} transfer preferences updated`);
     });
   }
   
   if (doc.isModified('emailGating')) {
     process.nextTick(() => {
-      console.log(`Brand ${doc.business} email gating settings updated: ${doc.emailGating?.enabled ? 'enabled' : 'disabled'} (${doc.emailGating?.mode || 'disabled'})`);
+      logger.info(`Brand ${doc.business} email gating settings updated: ${doc.emailGating?.enabled ? 'enabled' : 'disabled'} (${doc.emailGating?.mode || 'disabled'})`);
     });
   }
   
@@ -2408,7 +2410,7 @@ BrandSettingsSchema.post('save', function(doc) {
   if (doc.isModified('web3Settings') || doc.isModified('transferPreferences') || doc.isModified('certificateWallet') || doc.isModified('emailGating')) {
     process.nextTick(() => {
       // Clear business settings cache
-      console.log(`Clearing cache for business ${doc.business}`);
+      logger.info(`Clearing cache for business ${doc.business}`);
     });
   }
 });
@@ -2417,7 +2419,7 @@ BrandSettingsSchema.post('save', function(doc) {
  * Pre-remove hook for cleanup (document-level)
  */
 BrandSettingsSchema.pre('remove', function(this: IBrandSettings, next) {
-  console.log(`Removing brand settings for business ${this.business}`);
+  logger.info('Removing brand settings for business ${this.business}');
   // Could trigger cleanup of related data, cancel pending transfers, clear email gating rules, etc.
   next();
 });
@@ -2426,7 +2428,7 @@ BrandSettingsSchema.pre('remove', function(this: IBrandSettings, next) {
  * Pre-deleteOne hook for cleanup (query-level)
  */
 BrandSettingsSchema.pre('deleteOne', function(next) {
-  console.log('Removing brand settings via deleteOne query');
+  logger.info('Removing brand settings via deleteOne query');
   // For query-level hooks, you'd need to find the document first if you need its data
   next();
 });
@@ -2435,7 +2437,7 @@ BrandSettingsSchema.pre('deleteOne', function(next) {
  * Pre-findOneAndDelete hook for cleanup (query-level)
  */
 BrandSettingsSchema.pre('findOneAndDelete', function(next) {
-  console.log('Removing brand settings via findOneAndDelete query');
+  logger.info('Removing brand settings via findOneAndDelete query');
   // For query-level hooks, you'd need to find the document first if you need its data
   next();
 });

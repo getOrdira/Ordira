@@ -6,6 +6,7 @@
  */
 
 import { monitoringService } from './monitoring.service';
+import { logger } from '../../utils/logger';
 
 export interface SecurityVulnerability {
   id: string;
@@ -59,7 +60,7 @@ export class SecurityScanService {
     const scanId = `scan-${Date.now()}`;
     const startTime = Date.now();
     
-    console.log(`🔍 Starting security scan: ${scanId}`);
+    logger.info('🔍 Starting security scan: ${scanId}');
 
     try {
       const vulnerabilities: SecurityVulnerability[] = [];
@@ -112,12 +113,12 @@ export class SecurityScanService {
         }
       ]);
 
-      console.log(`✅ Security scan completed: ${scanId} (${scanTime}ms, ${vulnerabilities.length} vulnerabilities)`);
+      logger.info('✅ Security scan completed: ${scanId} (${scanTime}ms, ${vulnerabilities.length} vulnerabilities)');
       
       return result;
 
     } catch (error) {
-      console.error(`❌ Security scan failed: ${scanId}`, error);
+      logger.error('❌ Security scan failed: ${scanId}', error);
       
       const result: SecurityScanResult = {
         scanId,
@@ -447,7 +448,7 @@ export class SecurityScanService {
       try {
         await this.performSecurityScan();
       } catch (error) {
-        console.error('Periodic security scan failed:', error);
+        logger.error('Periodic security scan failed:', error);
       }
     }, 60 * 60 * 1000); // 1 hour
 
@@ -456,7 +457,7 @@ export class SecurityScanService {
       try {
         await this.performSecurityScan();
       } catch (error) {
-        console.error('Initial security scan failed:', error);
+        logger.error('Initial security scan failed:', error);
       }
     }, 30000);
   }

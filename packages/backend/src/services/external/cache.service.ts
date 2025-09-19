@@ -1,6 +1,7 @@
 // src/services/external/cache.service.ts
 
 import Redis from 'ioredis';
+import { logger } from '../../utils/logger'; 
 import { createAppError } from '../../middleware/error.middleware';
 
 export interface CacheOptions {
@@ -31,16 +32,16 @@ export class CacheService {
 
   constructor() {
     // Debug Redis URL
-    console.log('🔍 Redis URL check:', process.env.REDIS_URL ? 'Found' : 'Not found');
+    logger.info('🔍 Redis URL check:', { context: process.env.REDIS_URL ? 'Found' : 'Not found' });  
     
     // Only initialize Redis if REDIS_URL is provided
     if (!process.env.REDIS_URL) {
-      console.log('⚠️ No REDIS_URL provided, Redis caching disabled');
+      logger.info('⚠️ No REDIS_URL provided, Redis caching disabled');
       return;
     }
     
-    console.log('✅ REDIS_URL found, initializing Redis connection...');
-    console.log('🔗 Redis URL:', process.env.REDIS_URL?.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
+    logger.info('✅ REDIS_URL found, initializing Redis connection...');
+    logger.info('🔗 Redis URL:', { context: process.env.REDIS_URL?.replace(/\/\/.*@/, '//***:***@') });  // Hide credentials in logs
 
     // Parse REDIS_URL properly
     let redisConfig;
@@ -61,9 +62,9 @@ export class CacheService {
           enableReadyCheck: true,
           retryDelayOnFailover: 100
         };
-        console.log('🔗 Parsed Redis config:', { host: redisConfig.host, port: redisConfig.port, db: redisConfig.db });
+        logger.info('🔗 Parsed Redis config:', { host: redisConfig.host, port: redisConfig.port, db: redisConfig.db });
       } catch (error) {
-        console.error('❌ Failed to parse REDIS_URL:', error);
+        logger.error('❌ Failed to parse REDIS_URL:', error);
         redisConfig = {
           host: 'localhost',
           port: 6379,
@@ -99,24 +100,24 @@ export class CacheService {
 
   private setupEventHandlers(): void {
     this.redis.on('connect', () => {
-      console.log('✅ Redis connected');
+      logger.info('✅ Redis connected');
     });
 
     this.redis.on('error', (error) => {
-      console.error('❌ Redis error:', error);
+      logger.error('❌ Redis error:', error);
       // Don't crash the app on Redis errors
     });
 
     this.redis.on('ready', () => {
-      console.log('🚀 Redis ready for operations');
+      logger.info('🚀 Redis ready for operations');
     });
 
     this.redis.on('close', () => {
-      console.log('⚠️ Redis connection closed');
+      logger.info('⚠️ Redis connection closed');
     });
 
     this.redis.on('reconnecting', () => {
-      console.log('🔄 Redis reconnecting...');
+      logger.info('🔄 Redis reconnecting...');
     });
   }
 
@@ -145,7 +146,7 @@ export class CacheService {
       
       return value as T;
     } catch (error) {
-      console.error('Cache get error:', error);
+      logger.error('Cache get error:', error);
       this.stats.misses++;
       return null;
     }
@@ -176,7 +177,7 @@ export class CacheService {
 
       return true;
     } catch (error) {
-      console.error('Cache set error:', error);
+      logger.error('Cache set error:', error);
       return false;
     }
   }
@@ -193,7 +194,7 @@ export class CacheService {
       const result = await this.redis.del(fullKey);
       return result > 0;
     } catch (error) {
-      console.error('Cache delete error:', error);
+      logger.error('Cache delete error:', error);
       return false;
     }
   }
@@ -209,7 +210,7 @@ export class CacheService {
       const result = await this.redis.exists(fullKey);
       return result === 1;
     } catch (error) {
-      console.error('Cache exists error:', error);
+      logger.error('Cache exists error:', error);
       return false;
     }
   }
@@ -238,7 +239,7 @@ export class CacheService {
         }
       });
     } catch (error) {
-      console.error('Cache mget error:', error);
+      logger.error('Cache mget error:', error);
       return keys.map(() => null);
     }
   }
@@ -267,7 +268,7 @@ export class CacheService {
       await pipeline.exec();
       return true;
     } catch (error) {
-      console.error('Cache mset error:', error);
+      logger.error('Cache mset error:', error);
       return false;
     }
   }
@@ -289,7 +290,7 @@ export class CacheService {
       
       return result;
     } catch (error) {
-      console.error('Cache increment error:', error);
+      logger.error('Cache increment error:', error);
       return 0;
     }
   }
@@ -305,7 +306,7 @@ export class CacheService {
       const result = await this.redis.expire(fullKey, ttl);
       return result === 1;
     } catch (error) {
-      console.error('Cache expire error:', error);
+      logger.error('Cache expire error:', error);
       return false;
     }
   }
@@ -320,7 +321,7 @@ export class CacheService {
       const fullPattern = this.buildKey(pattern, prefix);
       return await this.redis.keys(fullPattern);
     } catch (error) {
-      console.error('Cache keys error:', error);
+      logger.error('Cache keys error:', error);
       return [];
     }
   }
@@ -344,7 +345,7 @@ export class CacheService {
         return 1; // Return 1 to indicate success
       }
     } catch (error) {
-      console.error('Cache clear error:', error);
+      logger.error('Cache clear error:', error);
       return 0;
     }
   }
@@ -384,7 +385,7 @@ export class CacheService {
         connectedClients: clientsMatch ? parseInt(clientsMatch[1]) : 0
       };
     } catch (error) {
-      console.error('Cache stats error:', error);
+      logger.error('Cache stats error:', error);
       return {
         hits: this.stats.hits,
         misses: this.stats.misses,
@@ -431,7 +432,7 @@ export class CacheService {
     try {
       await this.redis.quit();
     } catch (error) {
-      console.error('Redis disconnect error:', error);
+      logger.error('Redis disconnect error:', error);
     }
   }
 

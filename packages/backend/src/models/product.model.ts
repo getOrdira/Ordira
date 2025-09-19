@@ -1,5 +1,6 @@
 // src/models/product.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IProduct extends Document {
   // Core product information
@@ -545,7 +546,7 @@ ProductSchema.methods.generateSupplyChainQrCode = async function(): Promise<IPro
     
     return this.save();
   } catch (error) {
-    console.error('Failed to generate supply chain QR code:', error);
+    logger.error('Failed to generate supply chain QR code:', error);
     throw new Error('Failed to generate QR code for product tracking');
   }
 };

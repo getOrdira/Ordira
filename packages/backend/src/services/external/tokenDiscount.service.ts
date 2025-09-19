@@ -1,5 +1,6 @@
 // services/external/tokenDiscount.service.ts
 import { JsonRpcProvider, Contract, formatUnits } from 'ethers';
+import { logger } from '../../utils/logger';
 import Stripe from 'stripe';
 import erc20Abi from '../../abi/erc20Minimal.json';
 import { TOKEN_DISCOUNT_TIERS } from '../../constants/tokenDiscounts';
@@ -59,7 +60,7 @@ export class TokenDiscountService {
       const raw = await tokenContract.balanceOf(walletAddress);
       return parseFloat(formatUnits(raw, 18));
     } catch (error) {
-      console.error(`Error checking token balance for ${walletAddress}:`, error);
+      logger.error('Error checking token balance for ${walletAddress}:', { error });
       throw new Error('Failed to fetch wallet balance');
     }
   }
@@ -91,7 +92,7 @@ export class TokenDiscountService {
 
       return eligibleDiscounts;
     } catch (error) {
-      console.error('Error getting available discounts:', error);
+      logger.error('Error getting available discounts:', { error });
       return [];
     }
   }
@@ -125,7 +126,7 @@ export class TokenDiscountService {
         reason
       };
     } catch (error) {
-      console.error('Error checking discount eligibility:', error);
+      logger.error('Error checking discount eligibility:', { error });
       return {
         eligible: false,
         balance: 0,
@@ -143,7 +144,7 @@ export class TokenDiscountService {
       const balance = await this.getWalletBalance(walletAddress);
       return this.getCouponForBalance(balance);
     } catch (error) {
-      console.error('Error getting coupon for wallet:', error);
+      logger.error('Error getting coupon for wallet:', { error });
       return undefined;
     }
   }
@@ -186,7 +187,7 @@ export class TokenDiscountService {
         nextTierDiscount: nextTier?.discountPercentage
       };
     } catch (error) {
-      console.error('Error getting discount info:', error);
+      logger.error('Error getting discount info:', { error });
       return null;
     }
   }
@@ -259,7 +260,7 @@ export class TokenDiscountService {
       };
 
     } catch (error) {
-      console.error('Error applying discount to customer:', error);
+      logger.error('Error applying discount to customer:', { error });
       return {
         couponId: '',
         discountId: '',
@@ -290,7 +291,7 @@ export class TokenDiscountService {
       }
       return true;
     } catch (error) {
-      console.error('Error removing discount:', error);
+      logger.error('Error removing discount:', { error });
       return false;
     }
   }
@@ -403,7 +404,7 @@ export class TokenDiscountService {
       };
 
     } catch (error) {
-      console.error('Error getting discount usage stats:', error);
+      logger.error('Error getting discount usage stats:', { error });
       return {
         totalApplications: 0,
         totalSavings: 0,
@@ -474,7 +475,7 @@ export class TokenDiscountService {
       };
 
     } catch (error) {
-      console.error('Error calculating potential savings:', error);
+      logger.error('Error calculating potential savings:', { error });
       return {
         currentDiscount: 0,
         monthlySavings: 0,

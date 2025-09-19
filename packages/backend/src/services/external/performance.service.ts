@@ -1,6 +1,7 @@
 // src/services/external/performance.service.ts
 
 import { Request, Response } from 'express';
+import { logger } from '../../utils/logger';
 import { performance } from 'perf_hooks';
 import { cacheService } from './cache.service';
 import { databaseService } from './database.service';
@@ -79,7 +80,7 @@ export class PerformanceService {
       setInterval(() => {
         const memUsage = process.memoryUsage();
         if (memUsage.heapUsed / memUsage.heapTotal > 0.9) {
-          console.warn('⚠️ High memory usage detected:', {
+          logger.warn('⚠️ High memory usage detected:', {
             heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
             heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
             percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100)
@@ -125,7 +126,7 @@ export class PerformanceService {
 
     // Track slow requests
     if (responseTime > 1000) {
-      console.warn(`🐌 Slow request detected: ${req.method} ${req.path} (${responseTime.toFixed(2)}ms)`);
+      logger.warn('🐌 Slow request detected: ${req.method} ${req.path} (${responseTime.toFixed(2)}ms)');
     }
 
     this.metrics.push(metrics);

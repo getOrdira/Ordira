@@ -289,7 +289,7 @@ AllowedCustomerSchema.methods.revokeAccess = function(
   this.accessRevokedAt = new Date();
   this.accessRevokedReason = reason;
   if (revokedBy) {
-    this.accessRevokedBy = revokedBy as any;
+    this.accessRevokedBy = new Types.ObjectId(revokedBy);
   }
   return this.save();
 };

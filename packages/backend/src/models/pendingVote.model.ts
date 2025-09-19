@@ -22,6 +22,9 @@ export interface IPendingVote extends Document {
   isVerified: boolean;
   createdAt: Date;
   voteChoice?: string;
+  
+  // Instance methods
+  generateVoteHash(): string;
 }
 
 const PendingVoteSchema = new Schema<IPendingVote>({
@@ -244,10 +247,10 @@ PendingVoteSchema.statics.cleanupProcessed = function(olderThanHours: number = 2
 };
 
 // Pre-save middleware
-PendingVoteSchema.pre('save', function(next) {
+PendingVoteSchema.pre('save', function(this: IPendingVote, next) {
   // Generate verification hash if not present
   if (this.isNew && !this.verificationHash) {
-    this.verificationHash = (this as any).generateVoteHash();
+    this.verificationHash = this.generateVoteHash();
   }
   
   // Set processedAt when marking as processed

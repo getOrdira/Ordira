@@ -1,11 +1,13 @@
 // src/routes/invitation.routes.ts
 import { Router, Request } from 'express';
+import { logger } from '../utils/logger';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
 import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate, UnifiedAuthRequest, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant, TenantRequest } from '../middleware/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { isUnifiedAuthRequest } from '../utils/typeGuards';
 import * as invCtrl from '../controllers/invitation.controller';
 import {
   sendInviteSchema,
@@ -60,7 +62,7 @@ router.get(
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
         (req as DualUnifiedAuthRequest).userType = 'brand';
-        return resolveTenant(req as any, res, next);
+        return resolveTenant(req, res, next);
       }
       
       // If brand auth fails, try manufacturer authentication
@@ -141,7 +143,7 @@ router.get(
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
         (req as DualUnifiedAuthRequest).userType = 'brand';
-        return resolveTenant(req as any, res, next);
+        return resolveTenant(req, res, next);
       }
       
       requireManufacturer(req, res, (mfgErr) => {
@@ -545,7 +547,7 @@ router.get(
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
         (req as DualUnifiedAuthRequest).userType = 'brand';
-        return resolveTenant(req as any, res, next);
+        return resolveTenant(req, res, next);
       }
       
       requireManufacturer(req, res, (mfgErr) => {
@@ -662,7 +664,7 @@ router.get(
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
         (req as DualUnifiedAuthRequest).userType = 'brand';
-        return resolveTenant(req as any, res, next);
+        return resolveTenant(req, res, next);
       }
       
       requireManufacturer(req, res, (mfgErr) => {
@@ -729,7 +731,7 @@ router.delete(
     authenticate(req, res, (brandErr) => {
       if (!brandErr) {
         (req as DualUnifiedAuthRequest).userType = 'brand';
-        return resolveTenant(req as any, res, next);
+        return resolveTenant(req, res, next);
       }
       
       requireManufacturer(req, res, (mfgErr) => {
@@ -876,7 +878,7 @@ router.put(
  */
 router.use((error: any, req: any, res: any, next: any) => {
   // Log invitation-specific errors
-  console.error('Invitation Error:', {
+  logger.error('Invitation Error:', {
     path: req.path,
     method: req.method,
     error: error.message,

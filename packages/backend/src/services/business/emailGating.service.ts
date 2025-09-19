@@ -6,6 +6,7 @@ import { NotificationService } from './notification.service';
 import { NotificationsService } from '../external/notifications.service';
 import { ShopifyService } from '../external/shopify.service';
 import { UtilsService } from '../utils/utils.service';
+import { logger } from '../../utils/logger'; 
 
 export interface CustomerImportData {
   email: string;

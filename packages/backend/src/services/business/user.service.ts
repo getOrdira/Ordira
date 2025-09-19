@@ -1,5 +1,6 @@
 // src/services/business/user.service.ts
 import { User, IUser } from '../../models/user.model';
+import { logger } from '../utils/logger';
 import { NotificationService } from './notification.service';
 import { AnalyticsBusinessService } from './analytics.service';
 import { UtilsService } from '../utils/utils.service';
@@ -159,10 +160,10 @@ export class UserService {
     
     // Fix 3: Replace sendUserWelcome with simple logging or remove entirely
     try {
-      console.log(`User created successfully: ${user.email} (${user.firstName || 'Unknown'})`);
+      logger.info('User created successfully: ${user.email} (${user.firstName || ', Unknown'});`);
       // If you have a working welcome method, use that instead
     } catch (error) {
-      console.warn('Failed to log user creation:', error);
+      logger.warn('Failed to log user creation:', error);
     }
 
     return this.mapToSummary(user);
@@ -208,10 +209,10 @@ export class UserService {
       
       // Fix 4: Replace sendAccountSuspensionNotice with logging or working method
       try {
-        console.log(`User suspended: ${user.email} - Reason: ${data.suspensionReason || 'Terms violation'}`);
+        logger.info('User suspended: ${user.email} - Reason: ${data.suspensionReason || ', Terms violation'}`);
         // If you have a working suspension notification method, use that instead
       } catch (error) {
-        console.warn('Failed to log user suspension:', error);
+        logger.warn('Failed to log user suspension:', error);
       }
     }
 
@@ -481,7 +482,7 @@ async recordBrandInteraction(userId: string, businessId: string, type: string): 
       timestamp: new Date()
     });
   } catch (error) {
-    console.warn('Failed to record brand interaction:', error);
+    logger.warn('Failed to record brand interaction:', error);
     // Don't throw - analytics shouldn't break functionality
   }
 }

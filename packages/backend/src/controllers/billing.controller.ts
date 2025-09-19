@@ -1,5 +1,6 @@
 // src/controllers/billing.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import Stripe from 'stripe';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
@@ -137,7 +138,7 @@ if (req.tenant?.web3Settings?.certificateWallet) {
       ]
     });
   } catch (error) {
-    console.error('Checkout session creation error:', error);
+    logger.error('Checkout session creation error:', error);
     next(error);
   }
 }
@@ -215,7 +216,7 @@ if (isDowngrade) {
     );
 
     // Log plan change for analytics
-    console.log(`Plan changed: ${businessId} from ${currentPlan} to ${plan}`);
+    logger.info('Plan changed: ${businessId} from ${currentPlan} to ${plan}');
 
     res.json({
       success: true,
@@ -231,7 +232,7 @@ if (isDowngrade) {
       message: `Successfully ${isDowngrade ? 'downgraded' : 'upgraded'} to ${plan} plan`
     });
   } catch (error) {
-    console.error('Plan change error:', error);
+    logger.error('Plan change error:', error);
     next(error);
   }
 }
@@ -293,7 +294,7 @@ export async function getPlan(
       recommendations: generatePlanRecommendations(usageStats, billingInfo.plan)
     });
   } catch (error) {
-    console.error('Get plan error:', error);
+    logger.error('Get plan error:', error);
     next(error);
   }
 }
@@ -329,7 +330,7 @@ export async function getUsageStats(
       recommendations: generateUsageRecommendations(usage, planLimits, projections)
     });
   } catch (error) {
-    console.error('Usage stats error:', error);
+    logger.error('Usage stats error:', error);
     next(error);
   }
 }
@@ -368,7 +369,7 @@ const result = await billingService.updatePaymentMethod(businessId, paymentMetho
       message: 'Payment method updated successfully'
     });
   } catch (error) {
-    console.error('Payment method update error:', error);
+    logger.error('Payment method update error:', error);
     next(error);
   }
 }
@@ -408,7 +409,7 @@ export async function cancelSubscription(
         'Subscription will be canceled at the end of the current period'
     });
   } catch (error) {
-    console.error('Subscription cancellation error:', error);
+    logger.error('Subscription cancellation error:', error);
     next(error);
   }
 }
@@ -429,7 +430,7 @@ export async function handleStripeWebhook(
     // Verify webhook signature
     event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
   } catch (error: any) {
-    console.error('Webhook signature verification failed:', error.message);
+    logger.error('Webhook signature verification failed:', error.message);
      res.status(400).json({ 
       error: `Webhook Error: ${error.message}`,
       code: 'WEBHOOK_VERIFICATION_FAILED'
@@ -461,11 +462,11 @@ export async function handleStripeWebhook(
         break;
         
       default:
-        console.log(`Unhandled webhook event type: ${event.type}`);
+        logger.info('Unhandled webhook event type: ${event.type}');
     }
 
     // Log webhook processing
-    console.log(`Webhook processed: ${event.type} - ${event.id}`);
+    logger.info('Webhook processed: ${event.type} - ${event.id}');
 
     res.json({ 
       received: true,
@@ -474,7 +475,7 @@ export async function handleStripeWebhook(
       processed: true
     });
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    logger.error('Webhook processing error:', error);
     res.status(500).json({ 
       error: 'Webhook processing failed',
       eventType: event.type,
@@ -490,7 +491,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
     const businessId = invoice.metadata?.businessId;
     
     if (!businessId) {
-      console.error('No businessId found in invoice metadata:', invoice.id);
+      logger.error('No businessId found in invoice metadata', { invoiceId: invoice.id });
       return;
     }
 
@@ -523,9 +524,9 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
       clearPlanCache(businessId);
     }
 
-    console.log(`Payment succeeded for business ${businessId}, subscription ${subscriptionId}`);
+    logger.info('Payment succeeded for business ${businessId}, subscription ${subscriptionId}');
   } catch (error) {
-    console.error('Error handling payment succeeded webhook:', error);
+    logger.error('Error handling payment succeeded webhook:', error);
     throw error; // Re-throw to trigger webhook retry
   }
 }
@@ -714,7 +715,7 @@ async function calculateCouponDiscount(couponCode: string, amount: number): Prom
       return coupon.amount_off / 100; // Convert cents to dollars
     }
   } catch (error) {
-    console.warn('Invalid coupon code:', couponCode);
+    logger.warn('Invalid coupon code:', { couponCode: couponCode });  
   }
   return 0;
 }

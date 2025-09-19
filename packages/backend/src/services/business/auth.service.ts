@@ -1,6 +1,7 @@
 // src/services/business/auth.service.ts
 
 import bcrypt from 'bcrypt';
+import { logger } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
 import { Business } from '../../models/business.model';
 import { User } from '../../models/user.model';
@@ -127,7 +128,7 @@ export class AuthService {
       // If using Redis
       // return !!(await redis.get(`blacklist:${token}`));
     } catch (error) {
-      console.warn('Failed to check token blacklist:', error);
+      logger.warn('Failed to check token blacklist:', error);
       return false; // Assume not blacklisted if check fails
     }
   }
@@ -159,9 +160,9 @@ export class AuthService {
         additionalData: additionalData ? { ...additionalData } : undefined
       });
     } catch (error) {
-      console.error('Failed to log security event:', error);
+      logger.error('Failed to log security event:', error);
       // Fallback to console logging
-      console.log(`Security Event: ${event}`, {
+      logger.info('Security Event: ${event}', {
         identifier: UtilsService.maskEmail(identifier),
         success,
         timestamp: new Date(),
@@ -240,7 +241,7 @@ export class AuthService {
 
       return null;
     } catch (error) {
-      console.error('Failed to extract user ID:', error);
+      logger.error('Failed to extract user ID:', error);
       return null;
     }
   }
@@ -260,7 +261,7 @@ export class AuthService {
 
       return null;
     } catch (error) {
-      console.error('Failed to determine user type:', error);
+      logger.error('Failed to determine user type:', error);
       return null;
     }
   }
@@ -314,7 +315,7 @@ export class AuthService {
         expiresAt: this.getTokenExpiration(token)
       });
     } catch (error) {
-      console.warn('Failed to blacklist token:', error);
+      logger.warn('Failed to blacklist token:', error);
       // Don't throw - token refresh should still work
     }
   }
@@ -369,7 +370,7 @@ export class AuthService {
 
       return businessAttempts + userAttempts;
     } catch (error) {
-      console.warn('Failed to check password reset rate limit:', error);
+      logger.warn('Failed to check password reset rate limit:', error);
       return 0; // Allow if check fails
     }
   }
@@ -430,7 +431,7 @@ export class AuthService {
       await this.notificationsService.sendEmailCode(biz.email, emailCode);
       this.logSecurityEvent('REGISTER_BUSINESS', normalizedData.email, true);
     } catch (error) {
-      console.error(`Failed to send verification email to ${UtilsService.maskEmail(biz.email)}:`, error);
+      logger.error('Failed to send verification email to ${UtilsService.maskEmail(biz.email)}:', error);
       // Don't throw here - business is created, just log the issue
     }
 
@@ -954,7 +955,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
         await this.emailGatingService.grantVotingAccess(normalized, businessId, 'registration');
       }
     } catch (error) {
-      console.error(`Failed to send verification email to ${UtilsService.maskEmail(normalized)}:`, error);
+      logger.error('Failed to send verification email to ${UtilsService.maskEmail(normalized)}:', error);
     }
   }
 
@@ -1168,7 +1169,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
 
     // Log the password reset attempt with security context
     if (securityContext) {
-      console.log('Password reset attempt initiated:', {
+      logger.info('Password reset attempt initiated:', {
         email: UtilsService.maskEmail(normalized),
         ip: securityContext.ipAddress,
         userAgent: securityContext.userAgent,
@@ -1223,7 +1224,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
         securityContext
       });
     } catch (error) {
-      console.error(`Failed to send password reset email to ${UtilsService.maskEmail(normalized)}:`, {
+      logger.error('Failed to send password reset email to ${UtilsService.maskEmail(normalized)}:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         securityContext
       });
@@ -1242,7 +1243,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
 
     // Log password reset confirmation attempt
     if (securityContext) {
-      console.log('Password reset confirmation attempt:', {
+      logger.info('Password reset confirmation attempt:', {
         email: UtilsService.maskEmail(normalized),
         ip: securityContext.ipAddress,
         userAgent: securityContext.userAgent,
@@ -1381,7 +1382,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
       await this.addTokenToBlacklist(token, userId);
       this.logSecurityEvent('TOKEN_INVALIDATED', userId, true);
     } catch (error) {
-      console.error('Token invalidation failed:', error);
+      logger.error('Token invalidation failed:', error);
       this.logSecurityEvent('TOKEN_INVALIDATION_FAILED', userId, false);
       throw error;
     }
@@ -1407,7 +1408,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
   async refreshToken(currentToken: string, userId: string): Promise<string> {
     try {
       // Verify the current token is valid
-      const decoded = jwt.verify(currentToken, JWT_SECRET) as any;
+      const decoded = jwt.verify(currentToken, JWT_SECRET) as { userId: string; userType: string; [key: string]: any };
       
       // Check if the token belongs to the requesting user
       if (decoded.sub !== userId) {
@@ -1485,7 +1486,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
       await this.notificationsService.sendEmailCode(biz.email, emailCode);
       this.logSecurityEvent('RESEND_BUSINESS_VERIFICATION', biz.email, true);
     } catch (error) {
-      console.error(`Failed to resend verification email to ${UtilsService.maskEmail(biz.email)}:`, error);
+      logger.error('Failed to resend verification email to ${UtilsService.maskEmail(biz.email)}:', error);
       throw { statusCode: 500, message: 'Failed to send verification email.' };
     }
   }
@@ -1508,7 +1509,7 @@ async initiatePasswordReset(data: PasswordResetInput): Promise<void> {
       await this.notificationsService.sendEmailCode(normalized, emailCode);
       this.logSecurityEvent('RESEND_USER_VERIFICATION', normalized, true);
     } catch (error) {
-      console.error(`Failed to resend verification email to ${UtilsService.maskEmail(normalized)}:`, error);
+      logger.error('Failed to resend verification email to ${UtilsService.maskEmail(normalized)}:', error);
       throw { statusCode: 500, message: 'Failed to send verification email.' };
     }
   }

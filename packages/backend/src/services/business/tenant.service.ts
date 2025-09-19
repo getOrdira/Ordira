@@ -1,6 +1,7 @@
 // src/services/business/tenant.service.ts
 
 import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
+import { logger } from '../../utils/logger'; 
 import { Business } from '../../models/business.model';
 import { configService } from '../utils/config.service';
 
@@ -156,7 +157,7 @@ export class TenantService {
 
       return { settings: null, business: null, cacheHit: false };
     } catch (error) {
-      console.error('Error fetching tenant settings:', error);
+      logger.error('Error fetching tenant settings:', error);
       return { settings: null, business: null, cacheHit: false };
     }
   }
@@ -323,7 +324,7 @@ export class TenantService {
         await this.getTenantSettings(identifier, true);
         await this.getTenantSettings(identifier, false);
       } catch (error) {
-        console.warn(`Failed to warmup cache for ${identifier}:`, error);
+        logger.warn('Failed to warmup cache for ${identifier}:', error);
       }
     }
   }
@@ -338,7 +339,7 @@ export class TenantService {
         select: 'businessName email isEmailVerified plan status createdAt'
       });
     } catch (error) {
-      console.error('Error fetching tenant by business ID:', error);
+      logger.error('Error fetching tenant by business ID:', error);
       return null;
     }
   }
@@ -384,7 +385,7 @@ export class TenantService {
 
       return tenantSettings;
     } catch (error) {
-      console.error('Error creating tenant settings:', error);
+      logger.error('Error creating tenant settings:', error);
       throw error;
     }
   }
@@ -416,7 +417,7 @@ export class TenantService {
 
       return tenant;
     } catch (error) {
-      console.error('Error updating tenant settings:', error);
+      logger.error('Error updating tenant settings:', error);
       throw error;
     }
   }
@@ -441,7 +442,7 @@ export class TenantService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting tenant settings:', error);
+      logger.error('Error deleting tenant settings:', error);
       throw error;
     }
   }
@@ -506,7 +507,7 @@ export class TenantService {
         totalPages: Math.ceil(total / limit)
       };
     } catch (error) {
-      console.error('Error fetching all tenants:', error);
+      logger.error('Error fetching all tenants:', error);
       throw error;
     }
   }
@@ -580,7 +581,7 @@ export class TenantService {
         tenantsByPlan
       };
     } catch (error) {
-      console.error('Error fetching tenant analytics:', error);
+      logger.error('Error fetching tenant analytics:', error);
       throw error;
     }
   }

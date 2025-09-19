@@ -1,6 +1,7 @@
 // src/services/business/storage.service.ts
 
 import fs from 'fs/promises';
+import { logger } from '../utils/logger';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Media, IMedia } from '../../models/media.model';
@@ -101,7 +102,7 @@ export class StorageService {
       const crypto = await import('crypto');
       return crypto.createHash('md5').update(buffer).digest('hex');
     } catch (error) {
-      console.warn('Could not calculate file checksum:', error);
+      logger.warn('Could not calculate file checksum:', error);
       return '';
     }
   }
@@ -109,7 +110,7 @@ export class StorageService {
   private logStorageEvent(event: string, businessId: string, filename: string, success: boolean, provider?: string): void {
     const maskedBusinessId = businessId.substring(0, 8) + '***';
     const storageInfo = provider ? ` [${provider.toUpperCase()}]` : '';
-    console.log(`[STORAGE]${storageInfo} ${event} - Business: ${maskedBusinessId} - File: ${filename} - ${success ? 'SUCCESS' : 'FAILED'}`);
+    logger.info('[STORAGE]${storageInfo} ${event} - Business: ${maskedBusinessId} - File: ${filename} - ${success ? ', SUCCESS' : 'FAILED'}`);
   }
 
   private async ensureDirectoryExists(dirPath: string): Promise<void> {
@@ -164,7 +165,7 @@ export class StorageService {
 
     // Validate safe characters
     if (!UtilsService.containsOnlyAllowedChars(filename, 'a-zA-Z0-9\\s\\-_\\.\\(\\)')) {
-      console.warn(`Filename contains special characters that will be sanitized: ${filename}`);
+      logger.warn('Filename contains special characters that will be sanitized: ${filename}');
     }
   }
 
@@ -214,7 +215,7 @@ export class StorageService {
         }
       }
     } catch (error) {
-      console.warn(`Could not read directory ${dir}:`, error);
+      logger.warn('Could not read directory ${dir}:', error);
     }
 
     return files;
@@ -451,7 +452,7 @@ export class StorageService {
         await fs.unlink(fullPath);
       }
     } catch (error) {
-      console.warn(`Could not delete file ${media.url}:`, error);
+      logger.warn('Could not delete file ${media.url}:', error);
     }
 
     await media.updateOne({ isActive: false, deletedAt: new Date() });
@@ -470,7 +471,7 @@ export class StorageService {
       try {
         s3Stats = await S3Service.getStorageStats(businessId);
       } catch (error) {
-        console.warn('Could not get S3 storage stats:', error);
+        logger.warn('Could not get S3 storage stats:', error);
       }
     }
 
@@ -709,7 +710,7 @@ export class StorageService {
       try {
         await S3Service.updateMetadata(media.metadata.s3Key, updates.metadata);
       } catch (error) {
-        console.warn('Failed to update S3 metadata:', error);
+        logger.warn('Failed to update S3 metadata:', error);
       }
     }
 
@@ -757,7 +758,7 @@ export class StorageService {
             const fullPath = path.resolve(UPLOAD_DIR, media.url.replace('/uploads/', ''));
             await fs.unlink(fullPath);
           } catch (error) {
-            console.warn(`Could not delete file ${media.url}:`, error);
+            logger.warn('Could not delete file ${media.url}:', error);
           }
         }
 
@@ -952,7 +953,7 @@ export class StorageService {
 
     if (USE_S3) {
       // For S3, we rely on the database records as the source of truth
-      console.log('S3 orphan cleanup: Using database records as source of truth');
+      logger.info('S3 orphan cleanup: Using database records as source of truth');
       return { cleaned: 0, errors: [] };
     }
 

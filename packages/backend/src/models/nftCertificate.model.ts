@@ -1,6 +1,7 @@
 // src/models/nftCertificate.model.ts
 
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface INftCertificate extends Document {
   business: Types.ObjectId; // References Business model
@@ -510,7 +511,7 @@ NftCertificateSchema.methods.updateBlockchainData = function(
       const cost = (BigInt(gasUsed) * BigInt(gasPrice)).toString();
       this.totalCost = cost;
     } catch (error) {
-      console.warn('Failed to calculate total cost:', error);
+      logger.warn('Failed to calculate total cost:', error);
     }
   }
   
@@ -585,7 +586,7 @@ NftCertificateSchema.methods.calculateTotalCost = function(): string {
     try {
       return (BigInt(this.gasUsed) * BigInt(this.gasPrice)).toString();
     } catch (error) {
-      console.warn('Failed to calculate total cost:', error);
+      logger.warn('Failed to calculate total cost:', error);
     }
   }
   return this.totalCost || '0';
@@ -795,22 +796,22 @@ NftCertificateSchema.pre('save', function(next) {
 NftCertificateSchema.post('save', function(doc) {
   // Log minting events
   if (this.isNew && doc.status === 'minted') {
-    console.log(`NFT Certificate minted: Token ${doc.tokenId} for business ${doc.business}`);
+    logger.info('NFT Certificate minted: Token ${doc.tokenId} for business ${doc.business}');
   }
   
   // Log transfer events
   if (this.isModified('transferredToBrand') && doc.transferredToBrand) {
-    console.log(`NFT Certificate transferred to brand: Token ${doc.tokenId}`);
+    logger.info('NFT Certificate transferred to brand: Token ${doc.tokenId}');
   }
   
   // Log failed transfers
   if (this.isModified('transferFailed') && doc.transferFailed) {
-    console.log(`NFT Certificate transfer failed: Token ${doc.tokenId} - ${doc.transferError}`);
+    logger.info('NFT Certificate transfer failed: Token ${doc.tokenId} - ${doc.transferError}');
   }
   
   // Log revocations
   if (this.isModified('revoked') && doc.revoked) {
-    console.log(`NFT Certificate revoked: Token ${doc.tokenId} - ${doc.revokedReason}`);
+    logger.info('NFT Certificate revoked: Token ${doc.tokenId} - ${doc.revokedReason}');
   }
 });
 
@@ -818,7 +819,7 @@ NftCertificateSchema.post('save', function(doc) {
  * Pre-remove hook for cleanup (document-level)
  */
 NftCertificateSchema.pre('remove', function(this: INftCertificate, next) {
-  console.log(`Removing NFT certificate: Token ${this.tokenId}`);
+  logger.info('Removing NFT certificate: Token ${this.tokenId}');
   next();
 });
 
@@ -830,10 +831,10 @@ NftCertificateSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
     // Get the document that will be deleted
     const doc = await this.model.findOne(this.getQuery()) as INftCertificate;
     if (doc) {
-      console.log(`Removing NFT certificate: Token ${doc.tokenId}`);
+      logger.info('Removing NFT certificate: Token ${doc.tokenId}');
     }
   } catch (error) {
-    console.error('Error in pre-delete hook:', error);
+    logger.error('Error in pre-delete hook:', error);
   }
 });
 

@@ -1,5 +1,6 @@
 // src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -118,7 +119,7 @@ export async function registerBusinessHandler(
     }
 
     // Log successful registration for analytics
-    console.log(`Business registration: ${result.businessId} from IP: ${securityContext.ipAddress}`);
+    logger.info('Business registration: ${result.businessId} from IP: ${securityContext.ipAddress}');
 
  res.status(201).json({
   businessId: result.businessId,
@@ -128,7 +129,7 @@ export async function registerBusinessHandler(
 });
 } catch (error) {
   // Enhanced error logging with context
-  console.error('Business registration error:', {
+  logger.error('Business registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
     ip: getClientIp(req),
     email: safeString(getRequestBody(req)?.email),
@@ -166,7 +167,7 @@ export async function verifyBusinessHandler(
     });
 
     // Log successful verification
-    console.log(`Business verified: ${verificationData.businessId} from IP: ${securityContext.ipAddress}`);
+    logger.info('Business verified: ${verificationData.businessId} from IP: ${securityContext.ipAddress}');
 
     res.json({
   token: result.token,
@@ -180,7 +181,7 @@ export async function verifyBusinessHandler(
 });
 } catch (error) {
   // Log failed verification attempts for security
-  console.warn('Business verification failed:', {
+  logger.warn('Business verification failed:', {
     businessId: safeString(getRequestBody(req)?.businessId),
     ip: getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
@@ -219,7 +220,7 @@ export async function loginBusinessHandler(
     });
 
     // Log successful login
-    console.log(`Business login successful from IP: ${securityContext.ipAddress}`, {
+    logger.info('Business login successful from IP: ${securityContext.ipAddress}', {
       token: result.token ? 'present' : 'missing',
       timestamp: new Date(),
       userAgent: securityContext.userAgent
@@ -253,7 +254,7 @@ export async function loginBusinessHandler(
     });
   } catch (error) {
     // Enhanced error logging for security monitoring
-    console.warn('Business login failed:', {
+    logger.warn('Business login failed:', {
       identifier: (req.body as LoginBusinessInput)?.emailOrPhone,
       ip: getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -299,7 +300,7 @@ export async function registerUserHandler(
     );
 
     // Log successful registration
-    console.log(`User registration: ${registrationData.email} from IP: ${securityContext.ipAddress}`);
+    logger.info('User registration: ${registrationData.email} from IP: ${securityContext.ipAddress}');
 
     res.status(201).json({
   message: 'User registered successfully. Please check your email for verification instructions.',
@@ -307,7 +308,7 @@ export async function registerUserHandler(
   email: registrationData.email
 });
 } catch (error) {
-  console.error('User registration error:', {
+  logger.error('User registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
     ip: getClientIp(req),
     email: req.body?.email,
@@ -345,7 +346,7 @@ export async function verifyUserHandler(
     });
 
     // Log successful verification
-    console.log(`User verified: ${verificationData.email} from IP: ${securityContext.ipAddress}`);
+    logger.info('User verified: ${verificationData.email} from IP: ${securityContext.ipAddress}');
 
     res.json({
   token: result.token,
@@ -358,7 +359,7 @@ export async function verifyUserHandler(
   }
 });
 } catch (error) {
-  console.warn('User verification failed:', {
+  logger.warn('User verification failed:', {
     email: req.body?.email,
     ip: getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
@@ -405,14 +406,14 @@ export async function changePasswordHandler(
     });
 
     // Log successful password change
-    console.log(`Password changed for user ${userId} from IP: ${securityContext.ipAddress}`);
+    logger.info('Password changed for user ${userId} from IP: ${securityContext.ipAddress}');
 
     res.json({
       message: 'Password changed successfully',
       changedAt: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error);
     next(error);
   }
 }
@@ -450,7 +451,7 @@ export async function resendVerificationHandler(
     }
 
     // Log resend attempt
-    console.log(`Verification resent from IP: ${securityContext.ipAddress}`, {
+    logger.info('Verification resent from IP: ${securityContext.ipAddress}', {
       identifier: email || businessId,
       type: type || 'user'
     });
@@ -461,7 +462,7 @@ export async function resendVerificationHandler(
       estimatedDelivery: '2-5 minutes'
     });
   } catch (error) {
-    console.error('Resend verification error:', error);
+    logger.error('Resend verification error:', error);
     next(error);
   }
 }
@@ -495,7 +496,7 @@ export async function checkEmailAvailabilityHandler(
       suggestions: availability.suggestions || []
     });
   } catch (error) {
-    console.error('Check email availability error:', error);
+    logger.error('Check email availability error:', error);
     next(error);
   }
 }
@@ -531,7 +532,7 @@ export async function validatePasswordStrengthHandler(
       isValid: validation.isValid
     });
   } catch (error) {
-    console.error('Validate password error:', error);
+    logger.error('Validate password error:', error);
     next(error);
   }
 }
@@ -570,7 +571,7 @@ export async function getActiveSessionsHandler(
       currentSession: enhancedSessions.find((s: any) => s.isCurrent)
     });
   } catch (error) {
-    console.error('Get active sessions error:', error);
+    logger.error('Get active sessions error:', error);
     next(error);
   }
 }
@@ -599,7 +600,7 @@ export async function revokeSessionHandler(
     await authService.revokeSession(userId, sessionId);
 
     // Log session revocation
-    console.log(`Session revoked: ${sessionId} by user ${userId} from IP: ${getClientIp(req)}`);
+    logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${getClientIp(req)}');
 
     res.json({
       message: 'Session revoked successfully',
@@ -607,7 +608,7 @@ export async function revokeSessionHandler(
       revokedAt: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Revoke session error:', error);
+    logger.error('Revoke session error:', error);
     next(error);
   }
 }
@@ -647,7 +648,7 @@ export async function revokeAllSessionsHandler(
     const revokedCount = await authService.revokeAllSessions(userId, currentToken);
 
     // Log mass session revocation
-    console.log(`All sessions revoked for user ${userId} from IP: ${getClientIp(req)}`, {
+    logger.info('All sessions revoked for user ${userId} from IP: ${getClientIp(req)}', {
       revokedCount,
       reason: reason || 'user_request'
     });
@@ -659,7 +660,7 @@ export async function revokeAllSessionsHandler(
       revokedAt: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Revoke all sessions error:', error);
+    logger.error('Revoke all sessions error:', error);
     next(error);
   }
 }
@@ -694,7 +695,7 @@ export async function getLoginHistoryHandler(
       }
     });
   } catch (error) {
-    console.error('Get login history error:', error);
+    logger.error('Get login history error:', error);
     next(error);
   }
 }
@@ -728,7 +729,7 @@ export async function getSecurityEventsHandler(
       }
     });
   } catch (error) {
-    console.error('Get security events error:', error);
+    logger.error('Get security events error:', error);
     next(error);
   }
 }
@@ -749,7 +750,7 @@ export async function updateSecurityPreferencesHandler(
     const updatedPreferences = await authService.updateSecurityPreferences(userId, preferences);
 
     // Log security preference update
-    console.log(`Security preferences updated for user ${userId} from IP: ${getClientIp(req)}`);
+    logger.info('Security preferences updated for user ${userId} from IP: ${getClientIp(req)}');
 
     res.json({
       message: 'Security preferences updated successfully',
@@ -757,7 +758,7 @@ export async function updateSecurityPreferencesHandler(
       updatedAt: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Update security preferences error:', error);
+    logger.error('Update security preferences error:', error);
     next(error);
   }
 }
@@ -807,7 +808,7 @@ export async function loginUserHandler(
     });
 
     // Log successful login
-    console.log(`User login: ${email} from IP: ${securityContext.ipAddress}`);
+    logger.info('User login: ${email} from IP: ${securityContext.ipAddress}');
 
     // Set secure cookie if remember me is enabled
     if (rememberMe && result.rememberToken) {
@@ -833,8 +834,8 @@ export async function loginUserHandler(
       }
     });
   } catch (error) {
-    console.warn('User login failed:', {
-      email: safeString(getRequestBody(req)?.email),
+    logger.warn('User login failed:', {
+      email: safeString(getRequestBody(req)?.email), 
       ip: getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
@@ -874,7 +875,7 @@ export async function forgotPasswordHandler(
     });
   } catch (error) {
     // Log for security monitoring but don't expose details
-    console.warn('Password reset attempt:', {
+    logger.warn('Password reset attempt:', {
       identifier: req.body?.email || req.body?.phone,
       ip: getClientIp(req),
       timestamp: new Date()
@@ -913,14 +914,14 @@ export async function resetPasswordHandler(
     });
 
     // Log successful password reset
-    console.log(`Password reset completed from IP: ${securityContext.ipAddress}`);
+    logger.info('Password reset completed from IP: ${securityContext.ipAddress}');
 
     res.json({
       message: 'Password reset successfully. You can now login with your new password.',
       nextStep: 'login'
     });
   } catch (error) {
-  console.warn('Password reset failed:', {
+  logger.warn('Password reset failed:', {
     token: req.body?.token?.substring(0, 8) + '...',
     ip: getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
@@ -953,13 +954,13 @@ export async function logoutHandler(
     res.clearCookie('remember_token');
 
     // Log logout
-    console.log(`User logout: ${userId} from IP: ${getClientIp(req)}`);
+    logger.info('User logout: ${userId} from IP: ${getClientIp(req)}');
 
     res.json({
       message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error('Logout error:', error);
     next(error);
   }
 }
@@ -994,7 +995,7 @@ export async function refreshTokenHandler(
       refreshedAt: new Date()
     });
   } catch (error) {
-    console.error('Token refresh error:', error);
+    logger.error('Token refresh error:', error);
     next(error);
   }
 }
@@ -1024,7 +1025,7 @@ export async function getCurrentUserHandler(
       }
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+    logger.error('Get current user error:', error);
     next(error);
   }
 }

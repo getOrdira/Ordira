@@ -1,5 +1,6 @@
 // src/services/business/certificate.service.ts
 import { Certificate, ICertificate } from '../../models/certificate.model';
+import { logger } from '../../utils/logger'; 
 import { BrandSettings } from '../../models/brandSettings.model';
 import { Business } from '../../models/business.model';
 import { NftService } from '../blockchain/nft.service';
@@ -112,6 +113,14 @@ type BatchProgress = {
   }>;
 };
 
+type CertificateMetadata = {
+  s3Keys?: {
+    original?: string;
+    thumbnail?: string;
+  };
+  imageUrl?: string;
+};
+
 export class CertificateService {
   private nftService = new NftService();
   private notificationsService = new NotificationsService();
@@ -166,7 +175,7 @@ export class CertificateService {
           certificateImageUrl = imageMedia.url;
           certificateImageS3Key = imageMedia.s3Key;
         } catch (imageError) {
-          console.warn('Certificate image upload failed:', imageError);
+          logger.warn('Certificate image upload failed:', imageError);
           // Continue without image rather than failing the entire certificate
         }
       }
@@ -260,12 +269,19 @@ export class CertificateService {
       );
 
       // Update analytics
-      (this.analyticsService as any).recordCertificateCreation(businessId, cert._id.toString());
+      await this.analyticsService.trackEvent('certificate_created', {
+        businessId,
+        certificateId: cert._id.toString(),
+        productId: input.productId,
+        recipient: input.recipient,
+        tokenId: mintResult.tokenId,
+        txHash: mintResult.txHash
+      });
 
       return cert;
 
     } catch (error: any) {
-      console.error('Certificate creation failed:', error);
+      logger.error('Certificate creation failed:', error);
       throw new Error(`Failed to create certificate: ${error.message}`);
     }
   }
@@ -402,7 +418,7 @@ export class CertificateService {
 
       return uploadResult.url;
     } catch (error: any) {
-      console.warn('Default certificate image generation failed:', error);
+      logger.warn('Default certificate image generation failed:', error);
       // Return a fallback placeholder
       return `${process.env.FRONTEND_URL}/api/certificates/placeholder/${options.certificateLevel}`;
     }
@@ -495,7 +511,7 @@ export class CertificateService {
       );
 
     } catch (transferError: any) {
-      console.error('Auto-transfer failed:', transferError);
+      logger.error('Auto-transfer failed:', transferError);
       
       // Update certificate with transfer failure
       await Certificate.findByIdAndUpdate(certificate._id, {
@@ -633,7 +649,7 @@ export class CertificateService {
         try {
           await S3Service.deleteFile(oldImageS3Key);
         } catch (deleteError) {
-          console.warn('Failed to delete old certificate image:', deleteError);
+          logger.warn('Failed to delete old certificate image:', deleteError);
         }
       }
 
@@ -680,7 +696,7 @@ export class CertificateService {
         try {
           await S3Service.deleteFile(oldMetadataS3Key);
         } catch (deleteError) {
-          console.warn('Failed to delete old certificate metadata:', deleteError);
+          logger.warn('Failed to delete old certificate metadata:', deleteError);
         }
       }
 
@@ -692,7 +708,7 @@ export class CertificateService {
 
       return { success: true, imageUrl: imageMedia.url };
     } catch (error: any) {
-      console.error('Certificate image update failed:', error);
+      logger.error('Certificate image update failed:', error);
       return { success: false };
     }
   }
@@ -703,7 +719,7 @@ export class CertificateService {
   async deleteCertificateAssets(certificateId: string, businessId: string): Promise<void> {
     try {
       const certificate = await this.getCertificate(certificateId, businessId);
-      const s3Keys = (certificate.metadata as any)?.s3Keys;
+      const s3Keys = (certificate.metadata as CertificateMetadata)?.s3Keys;
 
       if (s3Keys) {
         const keysToDelete = Object.values(s3Keys).filter(Boolean) as string[];
@@ -712,12 +728,12 @@ export class CertificateService {
           const deleteResult = await S3Service.deleteFiles(keysToDelete);
           
           if (deleteResult.errors.length > 0) {
-            console.warn('Some certificate assets could not be deleted:', deleteResult.errors);
+            logger.warn('Some certificate assets could not be deleted:', deleteResult.errors);
           }
         }
       }
     } catch (error: any) {
-      console.error('Certificate asset cleanup failed:', error);
+      logger.error('Certificate asset cleanup failed:', error);
     }
   }
 
@@ -737,7 +753,7 @@ export class CertificateService {
       // For now, return true as a placeholder
       return true;
     } catch (error) {
-      console.error('Product ownership validation error:', error);
+      logger.error('Product ownership validation error:', error);
       return false;
     }
   }
@@ -841,7 +857,7 @@ export class CertificateService {
         errors: job.errors?.slice(0, 10) || []
       };
     } catch (error: any) {
-      console.error('Get batch progress error:', error);
+      logger.error('Get batch progress error:', error);
       return null;
     }
   }
@@ -1020,7 +1036,7 @@ export class CertificateService {
         deliveryId
       };
     } catch (error: any) {
-      console.error('Certificate delivery error:', error);
+      logger.error('Certificate delivery error:', error);
       return { 
         success: false, 
         message: `Delivery failed: ${error.message}`
@@ -1059,7 +1075,7 @@ export class CertificateService {
         scheduledId
       };
     } catch (error: any) {
-      console.error('Schedule delivery error:', error);
+      logger.error('Schedule delivery error:', error);
       return {
         success: false,
         message: `Scheduling failed: ${error.message}`
@@ -1115,7 +1131,7 @@ export class CertificateService {
         successful++;
 
       } catch (error: any) {
-        console.error(`Retry failed for certificate ${cert._id}:`, error);
+        logger.error('Retry failed for certificate ${cert._id}:', error);
         
         await Certificate.findByIdAndUpdate(cert._id, {
           transferAttempts: (cert.transferAttempts || 0) + 1,
@@ -1222,7 +1238,7 @@ export class CertificateService {
   }
 
   private async storeBatchJob(job: any): Promise<void> {
-    console.log('Storing batch job:', job.id);
+    logger.info('Storing batch job:', job.id);
   }
 
   private async getBatchJob(jobId: string): Promise<any> {
@@ -1237,15 +1253,15 @@ export class CertificateService {
   }
 
 private async processBatchJob(jobId: string): Promise<void> {
-    console.log('Processing batch job:', jobId);
+    logger.info('Processing batch job', { jobId });
   }
 
   private async storeScheduledDelivery(deliveryData: any): Promise<void> {
-    console.log('Storing scheduled delivery:', deliveryData.scheduledId);
+    logger.info('Storing scheduled delivery:', deliveryData.scheduledId);
   }
 
   private async sendWeb3DeliveryNotification(certificate: ICertificate, deliveryData: any): Promise<void> {
-    const imageUrl = (certificate.metadata as any)?.imageUrl;
+    const imageUrl = (certificate.metadata as CertificateMetadata)?.imageUrl;
     const blockchainLink = certificate.txHash ? `https://basescan.io/tx/${certificate.txHash}` : null;
     
     let message = `Your certificate has been minted on the blockchain! Token ID: ${certificate.tokenId}`;
@@ -1260,7 +1276,7 @@ private async processBatchJob(jobId: string): Promise<void> {
   }
 
   private async sendStandardDeliveryNotification(certificate: ICertificate, deliveryData: any): Promise<void> {
-    const imageUrl = (certificate.metadata as any)?.imageUrl;
+    const imageUrl = (certificate.metadata as CertificateMetadata)?.imageUrl;
     
     let message = `Your certificate is ready for viewing. Certificate ID: ${certificate._id}`;
     if (imageUrl) {

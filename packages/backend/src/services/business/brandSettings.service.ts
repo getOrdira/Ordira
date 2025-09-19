@@ -1,5 +1,6 @@
 // src/services/business/brandSettings.service.ts
 import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
+import { logger } from '../../utils/logger'; 
 import { Business } from '../../models/business.model';
 import * as certificateManager from '../external/certificateManager';
 
@@ -11,6 +12,13 @@ export interface EnhancedBrandSettings extends IBrandSettings {
   customDomain?: string | null;
   domainStatus?: DomainStatus;
 }
+
+type ExtendedBrandSettings = IBrandSettings & {
+  shopifyDomain?: string;
+  wooDomain?: string;
+  wixDomain?: string;
+  enableSsl?: boolean;
+};
 
 export interface IntegrationStatus {
   shopify: boolean;
@@ -116,9 +124,9 @@ export class BrandSettingsService {
     const settings = await this.getSettings(businessId);
     
     return {
-      shopify: !!(settings as any).shopifyDomain,
-      woocommerce: !!(settings as any).wooDomain,
-      wix: !!(settings as any).wixDomain,
+      shopify: !!(settings as ExtendedBrandSettings).shopifyDomain,
+      woocommerce: !!(settings as ExtendedBrandSettings).wooDomain,
+      wix: !!(settings as ExtendedBrandSettings).wixDomain,
       lastSync: settings.updatedAt,
       errors: []
     };
@@ -139,7 +147,7 @@ export class BrandSettingsService {
       customDomain: {
         configured: !!settings.customDomain,
         verified: !!settings.customDomain, // Simplified - assume verified if set
-        sslEnabled: !!(settings as any).enableSsl,
+        sslEnabled: !!(settings as ExtendedBrandSettings).enableSsl,
         url: settings.customDomain ? `https://${settings.customDomain}` : undefined
       }
     };
@@ -187,7 +195,7 @@ export class BrandSettingsService {
       try {
         await certificateManager.provisionCertForHost(data.customDomain);
       } catch (err) {
-        console.error(`SSL provisioning failed for ${data.customDomain}:`, err);
+        logger.error('SSL provisioning failed for ${data.customDomain}:', err);
       }
     }
 
@@ -534,7 +542,7 @@ export class BrandSettingsService {
       try {
         await certificateManager.provisionCertForHost(data.customDomain);
       } catch (err) {
-        console.error(`SSL provisioning failed for ${data.customDomain}:`, err);
+        logger.error('SSL provisioning failed for ${data.customDomain}:', err);
       }
     }
 

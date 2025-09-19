@@ -1,5 +1,6 @@
 // src/services/business/apiKey.service.ts
 import crypto from 'crypto';
+import { logger } from '../../utils/logger';
 import bcrypt from 'bcrypt';
 import { ApiKey } from '../../models/apiKey.model';
 
@@ -236,7 +237,7 @@ export class ApiKeyService {
   async logUsage(keyId: string, usageData: any) {
     // TODO: Implement usage logging
     // This would store usage data for analytics
-    console.log(`API Key ${keyId} used:`, usageData);
+    logger.info('API Key ${keyId} used:', usageData);
   }
 
   async hasPermission(keyId: string, permission: string): Promise<boolean> {
@@ -326,8 +327,8 @@ async bulkUpdateApiKeys(
   options: { reason?: string; updatedBy?: string } = {}
 ) {
   const results = {
-    successful: [] as any[],
-    failed: [] as any[],
+    successful: [] as Array<{ keyId: string; action: string; result: any }>,
+    failed: [] as Array<{ keyId: string; error: string }>,
     summary: { total: keyIds.length, success: 0, failed: 0 }
   };
 
@@ -358,11 +359,11 @@ async bulkUpdateApiKeys(
           break;
       }
 
-      results.successful.push({ keyId, result });
+      results.successful.push({ keyId, action: action, result });
       results.summary.success++;
       
     } catch (error: any) {
-      results.failed.push({ 
+      results.failed.push({   
         keyId, 
         error: error.message || 'Unknown error' 
       });
@@ -442,11 +443,25 @@ async exportApiKeys(
     exportedAt: new Date().toISOString(),
     businessId,
     totalKeys: apiKeys.length,
-    keys: [] as any[]
+    keys: [] as Array<{ keyId: string; name: string; description?: string; permissions: string[]; isActive: boolean; createdAt: Date; expiresAt?: Date; rateLimits: any; allowedOrigins?: string[]; planLevel: string; revoked: boolean }>
   };
 
   for (const apiKey of apiKeys) {
-    const keyData: any = {
+    const keyData: {
+      keyId: string;
+      name: string;
+      description?: string;
+      permissions: string[];
+      isActive: boolean;
+      createdAt: Date;
+      expiresAt?: Date;
+      rateLimits: any;
+      allowedOrigins?: string[];
+      planLevel: string;
+      revoked: boolean;
+      usageStats?: any;
+      auditLog?: any;
+    } = {
       keyId: apiKey.keyId,
       name: apiKey.name,
       description: apiKey.description,
@@ -456,12 +471,13 @@ async exportApiKeys(
       expiresAt: apiKey.expiresAt,
       rateLimits: apiKey.rateLimits,
       allowedOrigins: apiKey.allowedOrigins,
-      planLevel: apiKey.planLevel
+      planLevel: apiKey.planLevel,
+      revoked: apiKey.revoked
     };
 
     // Include usage stats if requested
     if (includeUsageStats) {
-      keyData.usageStats = await this.getKeyUsageStats(apiKey.keyId, 'all');
+      keyData.usageStats  = await this.getKeyUsageStats(apiKey.keyId, 'all');   
     }
 
     // Include audit log if requested

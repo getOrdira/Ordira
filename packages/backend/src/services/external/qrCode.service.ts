@@ -1,5 +1,6 @@
 // src/services/external/qrCode.service.ts
 import * as QRCode from 'qrcode';
+import { logger } from '../../utils/logger'; 
 const { createCanvas, loadImage } = require('canvas');
 
 export interface QrCodeOptions {
@@ -84,7 +85,7 @@ export class QrCodeService {
       return result;
 
     } catch (error: any) {
-      console.error('QR code generation failed:', error);
+      logger.error('QR code generation failed:', error);
       throw new Error(`Failed to generate QR code: ${error.message}`);
     }
   }
@@ -132,7 +133,7 @@ export class QrCodeService {
       return canvas.toDataURL('image/png');
 
     } catch (error: any) {
-      console.error('QR code with logo generation failed:', error);
+      logger.error('QR code with logo generation failed:', error);
       throw new Error(`Failed to generate QR code with logo: ${error.message}`);
     }
   }

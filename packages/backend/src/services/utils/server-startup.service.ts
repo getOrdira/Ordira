@@ -5,6 +5,7 @@
  */
 
 import { Server } from 'http';
+import { logger } from '../../utils/logger';
 import { Application } from 'express';
 import * as Sentry from '@sentry/node';
 import { monitoringService } from '../external/monitoring.service';
@@ -18,7 +19,7 @@ export class ServerStartupService {
    * Start the HTTP server
    */
   async start(app: Application, port: number = 4000): Promise<Server> {
-    console.log('🚀 Starting HTTP server...');
+    logger.info('🚀 Starting HTTP server...');
 
     try {
       this.server = app.listen(port, '0.0.0.0', () => {
@@ -37,11 +38,11 @@ export class ServerStartupService {
       // Start background services
       this.startBackgroundServices();
 
-      console.log('✅ HTTP server started successfully');
+      logger.info('✅ HTTP server started successfully');
       return this.server;
 
     } catch (error) {
-      console.error('❌ Failed to start HTTP server:', error);
+      logger.error('❌ Failed to start HTTP server:', error);
       
       if (process.env.SENTRY_DSN) {
         Sentry.captureException(error);
@@ -55,14 +56,14 @@ export class ServerStartupService {
    * Log server startup information
    */
   private logServerStartup(port: number): void {
-    console.log(`
+    logger.info(`
 🚀 Ordira Platform Server Started!
 ┌────────────────────────────────────────────────────────────────────┐
 │ 📡 Server:     http://0.0.0.0:${port}                                │
 │ 🌐 Environment: ${process.env.NODE_ENV}                               │
 │ 📊 Metrics:    http://0.0.0.0:${port}/metrics                       │
 │ 💊 Health:     http://0.0.0.0:${port}/health                        │
-│ 🔧 Version:    ${process.env.npm_package_version || '1.0.0'}         │
+│ 🔧 Version:    ${process.env.npm_package_version || ', 1.0.0'}         │
 └────────────────────────────────────────────────────────────────────┘
 
 ✅ Features Enabled:
@@ -106,7 +107,7 @@ export class ServerStartupService {
     this.server.keepAliveTimeout = 61000; // 61 seconds
     this.server.headersTimeout = 62000; // 62 seconds
 
-    console.log('✅ Server timeouts configured');
+    logger.info('✅ Server timeouts configured');
   }
 
   /**
@@ -115,33 +116,33 @@ export class ServerStartupService {
   private setupGracefulShutdown(): void {
     const gracefulShutdown = (signal: string) => {
       if (this.isShuttingDown) {
-        console.log('⚠️ Shutdown already in progress, forcing exit...');
+        logger.info('⚠️ Shutdown already in progress, forcing exit...');
         process.exit(1);
       }
 
       this.isShuttingDown = true;
-      console.log(`\n📡 Received ${signal}. Starting graceful shutdown...`);
+      logger.info('\n📡 Received ${signal}. Starting graceful shutdown...');
       
       if (this.server) {
         this.server.close(async () => {
-          console.log('📡 HTTP server closed');
+          logger.info('📡 HTTP server closed');
           
           try {
             // Close database connections
             const mongoose = require('mongoose');
             await mongoose.connection.close();
-            console.log('📡 MongoDB connection closed');
+            logger.info('📡 MongoDB connection closed');
           } catch (error) {
-            console.error('⚠️ Error closing MongoDB:', error);
+            logger.error('⚠️ Error closing MongoDB:', error);
           }
           
-          console.log('📡 Graceful shutdown complete');
+          logger.info('📡 Graceful shutdown complete');
           process.exit(0);
         });
         
         // Force close after 30 seconds
         setTimeout(() => {
-          console.error('⚠️ Forced shutdown after timeout');
+          logger.error('⚠️ Forced shutdown after timeout');
           process.exit(1);
         }, 30000);
       } else {
@@ -153,7 +154,7 @@ export class ServerStartupService {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-    console.log('✅ Graceful shutdown handlers registered');
+    logger.info('✅ Graceful shutdown handlers registered');
   }
 
   /**
@@ -162,7 +163,7 @@ export class ServerStartupService {
   private setupProcessErrorHandlers(): void {
     // Unhandled promise rejection handler
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('⚠️ Unhandled Promise Rejection at:', promise, 'reason:', reason);
+      logger.error('⚠️ Unhandled Promise Rejection', { promise: promise?.toString(), reason: reason?.toString() });
       
       // Record metrics
       monitoringService.recordMetric({
@@ -181,7 +182,7 @@ export class ServerStartupService {
 
     // Uncaught exception handler
     process.on('uncaughtException', (error) => {
-      console.error('⚠️ Uncaught Exception:', error);
+      logger.error('⚠️ Uncaught Exception:', error);
       
       // Record metrics
       monitoringService.recordMetric({
@@ -200,14 +201,14 @@ export class ServerStartupService {
       process.exit(1);
     });
 
-    console.log('✅ Process error handlers registered');
+    logger.info('✅ Process error handlers registered');
   }
 
   /**
    * Start background services
    */
   private startBackgroundServices(): void {
-    console.log('🔄 Starting background services...');
+    logger.info('🔄 Starting background services...');
 
     // Start periodic security scans
     this.startPeriodicSecurityScans();
@@ -218,7 +219,7 @@ export class ServerStartupService {
     // Start performance monitoring
     this.startPerformanceMonitoring();
 
-    console.log('✅ Background services started');
+    logger.info('✅ Background services started');
   }
 
   /**
@@ -244,14 +245,14 @@ export class ServerStartupService {
         // Log critical vulnerabilities
         const criticalVulns = result.vulnerabilities.filter(v => v.severity === 'critical');
         if (criticalVulns.length > 0) {
-          console.warn(`🚨 Critical security vulnerabilities detected: ${criticalVulns.length}`);
+          logger.warn('🚨 Critical security vulnerabilities detected: ${criticalVulns.length}');
           criticalVulns.forEach(vuln => {
-            console.warn(`   - ${vuln.title}: ${vuln.description}`);
+            logger.warn('   - ${vuln.title}: ${vuln.description}');
           });
         }
 
       } catch (error) {
-        console.error('❌ Periodic security scan failed:', error);
+        logger.error('❌ Periodic security scan failed:', error);
         
         monitoringService.recordMetric({
           name: 'security_scan_failed',
@@ -261,7 +262,7 @@ export class ServerStartupService {
       }
     }, 60 * 60 * 1000); // 1 hour
 
-    console.log('✅ Periodic security scans started');
+    logger.info('✅ Periodic security scans started');
   }
 
   /**
@@ -309,18 +310,18 @@ export class ServerStartupService {
 
         // Log health status if not healthy
         if (health.status !== 'healthy') {
-          console.warn(`⚠️ System health: ${health.status}`);
+          logger.warn('⚠️ System health: ${health.status}');
           if (health.alerts.length > 0) {
-            console.warn(`   Active alerts: ${health.alerts.length}`);
+            logger.warn('   Active alerts: ${health.alerts.length}');
           }
         }
 
       } catch (error) {
-        console.error('❌ System health monitoring failed:', error);
+        logger.error('❌ System health monitoring failed:', error);
       }
     }, 30000); // 30 seconds
 
-    console.log('✅ System health monitoring started');
+    logger.info('✅ System health monitoring started');
   }
 
   /**
@@ -343,22 +344,22 @@ export class ServerStartupService {
         const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
         
         if (memUsagePercent > 80) {
-          console.warn(`⚠️ High memory usage: ${memUsagePercent.toFixed(2)}%`);
+          logger.warn('⚠️ High memory usage: ${memUsagePercent.toFixed(2)}%');
         }
 
         // Check for open circuit breakers
         Object.entries(circuitStats).forEach(([name, stats]) => {
-          if ((stats as any).state === 'OPEN') {
-            console.warn(`⚠️ Circuit breaker '${name}' is OPEN`);
+          if ((stats as { state?: string }).state === 'OPEN') {
+            logger.warn(`⚠️ Circuit breaker '${name}' is OPEN`);
           }
         });
 
       } catch (error) {
-        console.error('❌ Performance monitoring failed:', error);
+        logger.error('❌ Performance monitoring failed:', error);
       }
     }, 60000); // 1 minute
 
-    console.log('✅ Performance monitoring started');
+    logger.info('✅ Performance monitoring started');
   }
 
   /**
@@ -386,7 +387,7 @@ export class ServerStartupService {
     if (this.server) {
       return new Promise((resolve) => {
         this.server!.close(() => {
-          console.log('📡 Server stopped');
+          logger.info('📡 Server stopped');
           resolve();
         });
       });

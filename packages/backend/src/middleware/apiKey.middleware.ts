@@ -1,8 +1,9 @@
 // @ts-nocheck
 // src/middleware/apiKey.middleware.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { ApiKeyService } from '../services/business/apiKey.service';
-import { createAppError, createUnauthorizedError, createRateLimitError } from './error.middleware';
+import { createAppError } from './error.middleware';
 
 const apiKeyService = new ApiKeyService();
 
@@ -34,29 +35,29 @@ export async function authenticateApiKey(
                    req.query.api_key;
 
     if (!apiKey || typeof apiKey !== 'string') {
-      throw createUnauthorizedError('API key is required. Provide it via X-API-Key header, Authorization header, or api_key query parameter.');
+      throw createAppError('API key is required. Provide it via X-API-Key header, Authorization header, or api_key query parameter.', 401, 'UNAUTHORIZED');
     }
 
     // Validate API key format
     if (!isValidApiKeyFormat(apiKey)) {
-      throw createUnauthorizedError('Invalid API key format');
+      throw createAppError('Invalid API key format', 401, 'UNAUTHORIZED');
     }
 
     // Verify API key and get associated business
     const apiKeyDoc = await apiKeyService.verifyApiKey(apiKey);
     
     if (!apiKeyDoc || !apiKeyDoc.business) {
-      throw createUnauthorizedError('Invalid or revoked API key');
+      throw createAppError('Invalid or revoked API key', 401, 'UNAUTHORIZED');
     }
 
     // Check if API key is active
     if (apiKeyDoc.isActive === false) {
-      throw createUnauthorizedError('API key has been deactivated');
+      throw createAppError('API key has been deactivated', 401, 'UNAUTHORIZED');
     }
 
     // Check expiration
     if (apiKeyDoc.expiresAt && apiKeyDoc.expiresAt < new Date()) {
-      throw createUnauthorizedError('API key has expired');
+      throw createAppError('API key has expired', 401, 'UNAUTHORIZED');
     }
 
     // Check rate limits
@@ -69,8 +70,10 @@ export async function authenticateApiKey(
         'X-RateLimit-Reset': rateLimitResult.resetTime.toISOString()
       });
       
-      throw createRateLimitError(
-        `Rate limit exceeded. Limit: ${rateLimitResult.limit} requests per hour. Reset at: ${rateLimitResult.resetTime.toISOString()}`
+      throw createAppError(
+        `Rate limit exceeded. Limit: ${rateLimitResult.limit} requests per hour. Reset at: ${rateLimitResult.resetTime.toISOString()}`,
+        429,
+        'RATE_LIMIT_EXCEEDED'
       );
     }
 
@@ -81,7 +84,7 @@ export async function authenticateApiKey(
     if (apiKeyDoc.allowedOrigins && apiKeyDoc.allowedOrigins.length > 0) {
       const origin = req.headers.origin;
       if (origin && !apiKeyDoc.allowedOrigins.includes(origin)) {
-        throw createUnauthorizedError('Origin not authorized for this API key');
+        throw createAppError('Origin not authorized for this API key', 403, 'FORBIDDEN');
       }
     }
 
@@ -103,7 +106,7 @@ export async function authenticateApiKey(
 
     // Log API key usage (async, don't wait)
     logApiKeyUsage(apiKeyDoc._id.toString(), req).catch(err => {
-      console.error('Failed to log API key usage:', err);
+      logger.error('Failed to log API key usage:', err);
     });
 
     next();
@@ -141,7 +144,7 @@ async function checkRateLimit(apiKeyId: string, hourlyLimit: number = 1000): Pro
       resetTime: result.resetTime
     };
   } catch (error) {
-    console.error('Rate limit check failed:', error);
+    logger.error('Rate limit check failed:', error);
     // On error, allow the request but log the issue
     return {
       allowed: true,
@@ -208,7 +211,7 @@ function isIPInCIDR(ip: string, cidr: string): boolean {
     
     return true;
   } catch (error) {
-    console.error('CIDR check failed:', error);
+    logger.error('CIDR check failed:', error);
     return false;
   }
 }
@@ -227,7 +230,7 @@ async function logApiKeyUsage(apiKeyId: string, req: Request): Promise<void> {
     });
   } catch (error) {
     // Don't throw errors for logging failures
-    console.error('Failed to log API key usage:', error);
+    logger.error('Failed to log API key usage:', error);
   }
 }
 
@@ -238,12 +241,12 @@ export function requireApiKeyPermission(permission: string) {
   return async (req: ApiKeyRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.apiKeyId) {
-        throw createUnauthorizedError('API key authentication required');
+        throw createAppError('API key authentication required', 401, 'UNAUTHORIZED');
       }
 
       const hasPermission = await apiKeyService.hasPermission(req.apiKeyId, permission);
       if (!hasPermission) {
-        throw createUnauthorizedError(`API key does not have required permission: ${permission}`);
+        throw createAppError(`API key does not have required permission: ${permission}`, 403, 'FORBIDDEN');
       }
 
       next();
@@ -260,12 +263,12 @@ export function requireApiKeyScope(scope: string) {
   return async (req: ApiKeyRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.apiKeyId) {
-        throw createUnauthorizedError('API key authentication required');
+        throw createAppError('API key authentication required', 401, 'UNAUTHORIZED');
       }
 
       const hasScope = await apiKeyService.hasScope(req.apiKeyId, scope);
       if (!hasScope) {
-        throw createUnauthorizedError(`API key does not have required scope: ${scope}`);
+        throw createAppError(`API key does not have required scope: ${scope}`, 403, 'FORBIDDEN');
       }
 
       next();

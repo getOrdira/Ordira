@@ -5,6 +5,7 @@
  */
 
 import mongoose from 'mongoose';
+import { logger } from '../../utils/logger';
 import { configService } from './config.service';
 import { container, SERVICE_TOKENS } from './di-container.service';
 import { monitoringService } from '../external/monitoring.service';
@@ -14,7 +15,7 @@ export class DatabaseInitService {
    * Initialize database connection and services
    */
   async initialize(): Promise<void> {
-    console.log('🗄️ Initializing database connection...');
+    logger.info('🗄️ Initializing database connection...');
 
     try {
       // Configure Mongoose settings
@@ -25,7 +26,7 @@ export class DatabaseInitService {
       
       // Connect to MongoDB
       await mongoose.connect(dbConfig.mongodb.uri, dbConfig.mongodb.options);
-      console.log('✅ Connected to MongoDB with optimized configuration');
+      logger.info('✅ Connected to MongoDB with optimized configuration');
 
       // Initialize database services
       await this.initializeDatabaseServices();
@@ -36,10 +37,10 @@ export class DatabaseInitService {
       // Start domain cache polling
       this.startDomainCachePolling();
 
-      console.log('✅ Database initialization completed');
+      logger.info('✅ Database initialization completed');
 
     } catch (error) {
-      console.error('❌ Database initialization failed:', error);
+      logger.error('❌ Database initialization failed:', error);
       throw error;
     }
   }
@@ -48,21 +49,21 @@ export class DatabaseInitService {
    * Initialize database-related services
    */
   private async initializeDatabaseServices(): Promise<void> {
-    console.log('🔧 Initializing database services...');
+    logger.info('🔧 Initializing database services...');
 
     try {
       // Initialize database service
       const { databaseService } = await import('../external/database.service');
       await databaseService.createOptimizedIndexes();
-      console.log('✅ Database indexes optimized');
+      logger.info('✅ Database indexes optimized');
 
       // Test cache connection
       const { cacheService } = await import('../external/cache.service');
       const cacheHealth = await cacheService.healthCheck();
       if (cacheHealth.healthy) {
-        console.log('✅ Redis cache connected');
+        logger.info('✅ Redis cache connected');
       } else {
-        console.warn('⚠️ Redis cache connection failed, continuing without cache');
+        logger.warn('⚠️ Redis cache connection failed, continuing without cache');
       }
 
       // Record database metrics
@@ -73,7 +74,7 @@ export class DatabaseInitService {
       });
 
     } catch (error) {
-      console.error('❌ Database services initialization failed:', error);
+      logger.error('❌ Database services initialization failed:', error);
       throw error;
     }
   }
@@ -82,16 +83,16 @@ export class DatabaseInitService {
    * Create optimized database indexes
    */
   private async createOptimizedIndexes(): Promise<void> {
-    console.log('📊 Creating optimized database indexes...');
+    logger.info('📊 Creating optimized database indexes...');
 
     try {
       // Get models from container
-      const User = container.resolve(SERVICE_TOKENS.USER_MODEL) as any;
-      const Business = container.resolve(SERVICE_TOKENS.BUSINESS_MODEL) as any;
-      const Manufacturer = container.resolve(SERVICE_TOKENS.MANUFACTURER_MODEL) as any;
-      const BrandSettings = container.resolve(SERVICE_TOKENS.BRAND_SETTINGS_MODEL) as any;
-      const VotingRecord = container.resolve(SERVICE_TOKENS.VOTING_RECORD_MODEL) as any;
-      const Certificate = container.resolve(SERVICE_TOKENS.CERTIFICATE_MODEL) as any;
+      const User = container.resolve(SERVICE_TOKENS.USER_MODEL) as typeof import('../../models/user.model').User;
+      const Business = container.resolve(SERVICE_TOKENS.BUSINESS_MODEL) as typeof import('../../models/business.model').Business;
+      const Manufacturer = container.resolve(SERVICE_TOKENS.MANUFACTURER_MODEL) as typeof import('../../models/manufacturer.model').Manufacturer;
+      const BrandSettings = container.resolve(SERVICE_TOKENS.BRAND_SETTINGS_MODEL) as typeof import('../../models/brandSettings.model').BrandSettings;
+      const VotingRecord = container.resolve(SERVICE_TOKENS.VOTING_RECORD_MODEL) as typeof import('../../models/votingRecord.model').VotingRecord;
+      const Certificate = container.resolve(SERVICE_TOKENS.CERTIFICATE_MODEL) as typeof import('../../models/certificate.model').Certificate;
 
       // Create indexes for User model
       await User.collection.createIndex({ email: 1 }, { unique: true });
@@ -131,7 +132,7 @@ export class DatabaseInitService {
       await Certificate.collection.createIndex({ tokenId: 1 }, { unique: true, sparse: true });
       await Certificate.collection.createIndex({ createdAt: -1 });
 
-      console.log('✅ Database indexes created successfully');
+      logger.info('✅ Database indexes created successfully');
 
       // Record index creation metrics
       monitoringService.recordMetric({
@@ -141,7 +142,7 @@ export class DatabaseInitService {
       });
 
     } catch (error) {
-      console.error('❌ Database index creation failed:', error);
+      logger.error('❌ Database index creation failed:', error);
       
       monitoringService.recordMetric({
         name: 'database_indexes_created',
@@ -157,12 +158,12 @@ export class DatabaseInitService {
    * Start domain cache polling
    */
   private startDomainCachePolling(): void {
-    console.log('🌐 Starting domain cache polling...');
+    logger.info('🌐 Starting domain cache polling...');
 
     try {
       const { startDomainCachePolling } = require('../../cache/domainCache');
       startDomainCachePolling();
-      console.log('✅ Domain cache polling started');
+      logger.info('✅ Domain cache polling started');
 
       monitoringService.recordMetric({
         name: 'domain_cache_polling_started',
@@ -171,7 +172,7 @@ export class DatabaseInitService {
       });
 
     } catch (error) {
-      console.error('❌ Domain cache polling failed:', error);
+      logger.error('❌ Domain cache polling failed:', error);
       
       monitoringService.recordMetric({
         name: 'domain_cache_polling_started',
@@ -185,11 +186,11 @@ export class DatabaseInitService {
    * Gracefully close database connections
    */
   async close(): Promise<void> {
-    console.log('📡 Closing database connections...');
+    logger.info('📡 Closing database connections...');
 
     try {
       await mongoose.connection.close();
-      console.log('✅ MongoDB connection closed');
+      logger.info('✅ MongoDB connection closed');
 
       monitoringService.recordMetric({
         name: 'database_connection_status',
@@ -198,7 +199,7 @@ export class DatabaseInitService {
       });
 
     } catch (error) {
-      console.error('❌ Error closing MongoDB connection:', error);
+      logger.error('❌ Error closing MongoDB connection:', error);
       throw error;
     }
   }

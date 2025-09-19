@@ -1,7 +1,8 @@
 // src/middleware/auth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
-import { createAppError, createUnauthorizedError, createForbiddenError } from './error.middleware';
+import { createAppError } from './error.middleware';
 import { Manufacturer } from '../models/manufacturer.model';
 import { Business } from '../models/business.model';
 import { User } from '../models/user.model';
@@ -62,35 +63,35 @@ export async function authenticate(
     const authHeader = req.headers.authorization;
     
     if (!authHeader) {
-      throw createUnauthorizedError('No Authorization header provided');
+      throw createAppError('No Authorization header provided', 401, 'UNAUTHORIZED');
     }
 
     const [scheme, token] = authHeader.split(' ');
     
     if (scheme !== 'Bearer') {
-      throw createUnauthorizedError('Invalid authorization scheme. Use Bearer token');
+      throw createAppError('Invalid authorization scheme. Use Bearer token', 401, 'UNAUTHORIZED');
     }
     
     if (!token || token.trim() === '') {
-      throw createUnauthorizedError('No token provided in Authorization header');
+      throw createAppError('No token provided in Authorization header', 401, 'UNAUTHORIZED');
     }
 
     // Validate and decode token
     const validationResult = validateToken(token);
     
     if (!validationResult.valid || !validationResult.payload) {
-      throw createUnauthorizedError(validationResult.error || 'Invalid token');
+      throw createAppError(validationResult.error || 'Invalid token', 401, 'UNAUTHORIZED');
     }
 
     const payload = validationResult.payload;
 
     // Additional payload validation
     if (!payload.sub) {
-      throw createUnauthorizedError('Token missing subject (user ID)');
+      throw createAppError('Token missing subject (user ID)', 401, 'UNAUTHORIZED');
     }
 
     if (!payload.userType || !['business', 'manufacturer', 'user'].includes(payload.userType)) {
-      throw createUnauthorizedError('Token missing or invalid user type');
+      throw createAppError('Token missing or invalid user type', 401, 'UNAUTHORIZED');
     }
 
     // Check token freshness (optional)
@@ -98,7 +99,7 @@ export async function authenticate(
     const maxTokenAge = 24 * 60 * 60; // 24 hours
     
     if (tokenAge > maxTokenAge) {
-      throw createUnauthorizedError('Token is too old, please refresh');
+      throw createAppError('Token is too old, please refresh', 401, 'UNAUTHORIZED');
     }
 
     // Fetch user document based on user type
@@ -108,7 +109,7 @@ export async function authenticate(
         case 'manufacturer':
           userDocument = await Manufacturer.findById(payload.sub);
           if (userDocument && !userDocument.isAccountActive()) {
-            throw createUnauthorizedError('Account is deactivated');
+            throw createAppError('Account is deactivated', 401, 'UNAUTHORIZED');
           }
           // Update last login for manufacturers
           if (userDocument) {
@@ -126,12 +127,12 @@ export async function authenticate(
       if (error.message === 'Account is deactivated') {
         throw error;
       }
-      console.error('Error fetching user document:', error);
-      throw createUnauthorizedError('User not found');
+      logger.error('Error fetching user document:', error);
+      throw createAppError('User not found', 401, 'UNAUTHORIZED');
     }
 
     if (!userDocument) {
-      throw createUnauthorizedError('User not found');
+      throw createAppError('User not found', 401, 'UNAUTHORIZED');
     }
 
     // Attach user context to request
@@ -205,11 +206,11 @@ export function requireUserType(allowedTypes: ('business' | 'manufacturer' | 'us
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.userType) {
-        throw createUnauthorizedError('Authentication required');
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
       if (!allowedTypes.includes(req.userType)) {
-        throw createForbiddenError(`Access denied. Required user types: ${allowedTypes.join(', ')}`);
+        throw createAppError(`Access denied. Required user types: ${allowedTypes.join(', ')}`, 403, 'FORBIDDEN');
       }
 
       next();
@@ -226,13 +227,13 @@ export function requirePermission(permission: string) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.tokenPayload) {
-        throw createUnauthorizedError('Authentication required');
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
       const userPermissions = req.tokenPayload.permissions || [];
       
       if (!userPermissions.includes(permission) && !userPermissions.includes('*')) {
-        throw createForbiddenError(`Insufficient permissions. Required: ${permission}`);
+        throw createAppError(`Insufficient permissions. Required: ${permission}`, 403, 'FORBIDDEN');
       }
 
       next();
@@ -249,7 +250,7 @@ export function requireAllPermissions(permissions: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.tokenPayload) {
-        throw createUnauthorizedError('Authentication required');
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
       const userPermissions = req.tokenPayload.permissions || [];
@@ -262,7 +263,7 @@ export function requireAllPermissions(permissions: string[]) {
       const missingPermissions = permissions.filter(perm => !userPermissions.includes(perm));
       
       if (missingPermissions.length > 0) {
-        throw createForbiddenError(`Missing permissions: ${missingPermissions.join(', ')}`);
+        throw createAppError(`Missing permissions: ${missingPermissions.join(', ')}`, 403, 'FORBIDDEN');
       }
 
       next();
@@ -279,7 +280,7 @@ export function requireAnyPermission(permissions: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.tokenPayload) {
-        throw createUnauthorizedError('Authentication required');
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
       const userPermissions = req.tokenPayload.permissions || [];
@@ -292,7 +293,7 @@ export function requireAnyPermission(permissions: string[]) {
       const hasAnyPermission = permissions.some(perm => userPermissions.includes(perm));
       
       if (!hasAnyPermission) {
-        throw createForbiddenError(`Insufficient permissions. Required any of: ${permissions.join(', ')}`);
+        throw createAppError(`Insufficient permissions. Required any of: ${permissions.join(', ')}`, 403, 'FORBIDDEN');
       }
 
       next();
@@ -327,17 +328,17 @@ export function requireOwnership(userIdParam: string = 'userId') {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.userId) {
-        throw createUnauthorizedError('Authentication required');
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
       }
 
       const requestedUserId = req.params[userIdParam] || req.body[userIdParam] || req.query[userIdParam];
       
       if (!requestedUserId) {
-        throw createForbiddenError(`${userIdParam} parameter is required`);
+        throw createAppError(`${userIdParam} parameter is required`, 400, 'BAD_REQUEST');
       }
 
       if (req.userId !== requestedUserId) {
-        throw createForbiddenError('Access denied. You can only access your own resources');
+        throw createAppError('Access denied. You can only access your own resources', 403, 'FORBIDDEN');
       }
 
       next();
@@ -437,11 +438,11 @@ export function requireManufacturer(
 ): void {
   try {
     if (!req.userType || req.userType !== 'manufacturer') {
-      throw createForbiddenError('This endpoint requires manufacturer authentication');
+      throw createAppError('This endpoint requires manufacturer authentication', 403, 'FORBIDDEN');
     }
 
     if (!req.manufacturer) {
-      throw createUnauthorizedError('Manufacturer data not found');
+      throw createAppError('Manufacturer data not found', 401, 'UNAUTHORIZED');
     }
 
     next();
@@ -460,11 +461,11 @@ export function requireVerifiedManufacturer(
 ): void {
   try {
     if (!req.manufacturer) {
-      throw createUnauthorizedError('Manufacturer authentication required');
+      throw createAppError('Manufacturer authentication required', 401, 'UNAUTHORIZED');
     }
 
     if (!req.manufacturer.isVerified) {
-      throw createForbiddenError('This action requires a verified manufacturer account');
+      throw createAppError('This action requires a verified manufacturer account', 403, 'FORBIDDEN');
     }
 
     next();
@@ -484,13 +485,13 @@ export function requireBrandAccess(
 ): void {
   try {
     if (!req.manufacturer) {
-      throw createUnauthorizedError('Manufacturer authentication required');
+      throw createAppError('Manufacturer authentication required', 401, 'UNAUTHORIZED');
     }
 
     const brandId = req.params.brandId || req.body.brandId;
     
     if (!brandId) {
-      throw createForbiddenError('Brand ID is required');
+      throw createAppError('Brand ID is required', 400, 'BAD_REQUEST');
     }
 
     // Check if manufacturer has access to this brand
@@ -499,7 +500,7 @@ export function requireBrandAccess(
     );
 
     if (!hasAccess) {
-      throw createForbiddenError('Access denied to this brand');
+      throw createAppError('Access denied to this brand', 403, 'FORBIDDEN');
     }
 
     next();

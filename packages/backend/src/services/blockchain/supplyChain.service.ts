@@ -1,5 +1,6 @@
 // src/services/blockchain/supplyChain.service.ts
 import { BlockchainProviderService } from './provider.service';
+import { logger } from '../../utils/logger';
 import { BlockchainContractsService } from './contracts.service';
 import { UtilsService } from '../utils/utils.service';
 import { createAppError } from '../../middleware/error.middleware';
@@ -18,6 +19,8 @@ export interface SupplyChainDeployment {
   businessId: string;
   manufacturerName: string;
 }
+
+
 
 export interface EndpointData {
   name: string;
@@ -113,13 +116,13 @@ export class SupplyChainService {
       const factoryContract = await service.getSupplyChainFactoryContract();
 
       // Estimate gas for deployment
-      const gasEstimate = await (factoryContract as any).estimateGas.deploySupplyChain(
+      const gasEstimate = await (factoryContract as unknown as { estimateGas: { deploySupplyChain: (args: [string, string], options: { value: string }) => Promise<bigint> } }).estimateGas.deploySupplyChain(
         [businessId, manufacturerName],
         { value: '10000000000000000' } // 0.01 ETH deployment fee
       );
 
       // Deploy contract
-      const tx = await (factoryContract as any).write.deploySupplyChain(
+      const tx = await (factoryContract as unknown as { write: { deploySupplyChain: (args: [string, string], options: { value: string; gasLimit?: bigint }) => Promise<{ hash: string }> } }).write.deploySupplyChain(
         [businessId, manufacturerName],
         {
           value: '10000000000000000', // 0.01 ETH
@@ -155,7 +158,7 @@ export class SupplyChainService {
       };
 
     } catch (error: any) {
-      console.error('Deploy SupplyChain contract error:', error);
+      logger.error('Deploy SupplyChain contract error:', error);
       
       if (error instanceof SupplyChainError) {
         throw error;
@@ -188,7 +191,7 @@ export class SupplyChainService {
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
       
-      const tx = await (contract as any).write.createEndpoint([
+      const tx = await (contract as unknown as { write: { createEndpoint: (args: [string, string, string]) => Promise<{ hash: string }> } }).write.createEndpoint([
         endpointData.name,
         endpointData.eventType,
         endpointData.location
@@ -205,7 +208,7 @@ export class SupplyChainService {
       };
 
     } catch (error: any) {
-      console.error('Create endpoint error:', error);
+      logger.error('Create endpoint error:', error);
       throw new SupplyChainError(`Failed to create endpoint: ${error.message}`, 500);
     }
   }
@@ -223,7 +226,7 @@ export class SupplyChainService {
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
       
-      const tx = await (contract as any).write.registerProduct([
+      const tx = await (contract as unknown as { write: { registerProduct: (args: [string, string, string]) => Promise<{ hash: string }> } }).write.registerProduct([
         productData.productId,
         productData.name,
         productData.description
@@ -240,7 +243,7 @@ export class SupplyChainService {
       };
 
     } catch (error: any) {
-      console.error('Register product error:', error);
+      logger.error('Register product error:', error);
       throw new SupplyChainError(`Failed to register product: ${error.message}`, 500);
     }
   }
@@ -258,7 +261,7 @@ export class SupplyChainService {
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
       
-      const tx = await (contract as any).write.logEvent([
+      const tx = await (contract as unknown as { write: { logEvent: (args: [bigint, string, string, string, string]) => Promise<{ hash: string }> } }).write.logEvent([
         BigInt(eventData.endpointId),
         eventData.productId,
         eventData.eventType,
@@ -277,7 +280,7 @@ export class SupplyChainService {
       };
 
     } catch (error: any) {
-      console.error('Log event error:', error);
+      logger.error('Log event error:', error);
       throw new SupplyChainError(`Failed to log event: ${error.message}`, 500);
     }
   }
@@ -292,7 +295,7 @@ export class SupplyChainService {
       await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const stats = await (contract as any).read.getContractStats();
+      const stats = await (contract as unknown as { read: { getContractStats: () => Promise<[bigint, bigint, bigint, string, string]> } }).read.getContractStats();
 
       return {
         totalEvents: Number(stats[0]),
@@ -303,7 +306,7 @@ export class SupplyChainService {
       };
 
     } catch (error: any) {
-      console.error('Get contract stats error:', error);
+      logger.error('Get contract stats error:', error);
       throw new SupplyChainError(`Failed to get contract stats: ${error.message}`, 500);
     }
   }
@@ -316,11 +319,11 @@ export class SupplyChainService {
       await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const endpointIds = await (contract as any).read.getManufacturerEndpoints();
+      const endpointIds = await (contract as unknown as { read: { getManufacturerEndpoints: () => Promise<bigint[]> } }).read.getManufacturerEndpoints();
 
       const endpoints = [];
       for (const id of endpointIds) {
-        const endpoint = await (contract as any).read.getEndpoint([id]);
+        const endpoint = await (contract as unknown as { read: { getEndpoint: (args: [bigint]) => Promise<{ name: string; eventType: string; isActive: boolean; location?: string; eventCount?: bigint; createdAt?: bigint }> } }).read.getEndpoint([id]);
         endpoints.push({
           id: Number(id),
           name: endpoint.name,
@@ -335,7 +338,7 @@ export class SupplyChainService {
       return endpoints;
 
     } catch (error: any) {
-      console.error('Get endpoints error:', error);
+      logger.error('Get endpoints error:', error);
       throw new SupplyChainError(`Failed to get endpoints: ${error.message}`, 500);
     }
   }
@@ -348,11 +351,11 @@ export class SupplyChainService {
       await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const productIds = await (contract as any).read.getManufacturerProducts();
+      const productIds = await (contract as unknown as { read: { getManufacturerProducts: () => Promise<bigint[]> } }).read.getManufacturerProducts();
 
       const products = [];
       for (const id of productIds) {
-        const product = await (contract as any).read.getProduct([id]);
+        const product = await (contract as unknown as { read: { getProduct: (args: [bigint]) => Promise<{ productId: string; name: string; isActive: boolean; description?: string; totalEvents?: bigint; createdAt?: bigint }> } }).read.getProduct([id]);
         products.push({
           id: Number(id),
           productId: product.productId,
@@ -367,7 +370,7 @@ export class SupplyChainService {
       return products;
 
     } catch (error: any) {
-      console.error('Get products error:', error);
+      logger.error('Get products error:', error);
       throw new SupplyChainError(`Failed to get products: ${error.message}`, 500);
     }
   }
@@ -384,11 +387,11 @@ export class SupplyChainService {
       await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const eventIds = await (contract as any).read.getProductEvents([productId]);
+      const eventIds = await (contract as unknown as { read: { getProductEvents: (args: [string]) => Promise<bigint[]> } }).read.getProductEvents([productId]);
 
       const events = [];
       for (const id of eventIds) {
-        const event = await (contract as any).read.getEvent([id]);
+        const event = await (contract as unknown as { read: { getEvent: (args: [bigint]) => Promise<{ endpointId: bigint; productId: string; eventData: string; timestamp: bigint; eventType?: string; location?: string; details?: string; loggedBy?: string; isValid?: boolean }> } }).read.getEvent([id]);
         events.push({
           id: Number(id),
           eventType: event.eventType,
@@ -404,7 +407,7 @@ export class SupplyChainService {
       return events;
 
     } catch (error: any) {
-      console.error('Get product events error:', error);
+      logger.error('Get product events error:', error);
       throw new SupplyChainError(`Failed to get product events: ${error.message}`, 500);
     }
   }
@@ -434,7 +437,7 @@ export class SupplyChainService {
         { upsert: true }
       );
     } catch (error) {
-      console.error('Failed to store business contract mapping:', error);
+      logger.error('Failed to store business contract mapping:', error);
       // Don't throw - contract deployment should succeed even if mapping fails
     }
   }

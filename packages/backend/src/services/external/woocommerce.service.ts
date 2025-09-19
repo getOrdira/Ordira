@@ -1,5 +1,6 @@
 // services/external/woocommerce.service.ts
 import axios from 'axios';
+import { logger } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
@@ -221,7 +222,7 @@ export class WooCommerceService {
 
       return `${baseUrl}?${params.toString()}`;
     } catch (error: any) {
-      console.error('Generate WooCommerce install URL error:', error);
+      logger.error('Generate WooCommerce install URL error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -281,7 +282,7 @@ export class WooCommerceService {
         throw createAppError('Failed to save WooCommerce credentials', 500, 'SAVE_CREDENTIALS_FAILED');
       }
 
-      console.log(`WooCommerce integration completed for business ${businessId}`);
+      logger.info('WooCommerce integration completed for business ${businessId}');
 
       return {
         connected: true,
@@ -296,7 +297,7 @@ export class WooCommerceService {
         webhooksRegistered: webhookResult.registered
       };
     } catch (error: any) {
-      console.error('Setup WooCommerce integration error:', error);
+      logger.error('Setup WooCommerce integration error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -429,7 +430,7 @@ async testConnection(businessId: string): Promise<{
         }
       };
     } catch (error: any) {
-      console.error('Get WooCommerce connection status error:', error);
+      logger.error('Get WooCommerce connection status error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -461,7 +462,7 @@ async testConnection(businessId: string): Promise<{
             await this.removeWebhook(businessId, webhook.id.toString());
             webhooksRemoved++;
           } catch (deleteError: any) {
-            console.warn(`Failed to delete webhook ${webhook.id}:`, deleteError.message);
+            logger.warn('Failed to delete webhook ${webhook.id}:', deleteError.message);
           }
         }
         
@@ -469,7 +470,7 @@ async testConnection(businessId: string): Promise<{
           cleanupActions.push(`Removed ${webhooksRemoved} webhooks`);
         }
       } catch (error: any) {
-        console.warn('Failed to remove WooCommerce webhooks:', error.message);
+        logger.warn('Failed to remove WooCommerce webhooks:', error.message);
         cleanupActions.push('Webhook cleanup failed (non-critical)');
       }
 
@@ -502,7 +503,7 @@ async testConnection(businessId: string): Promise<{
         dataCleared: true
       };
     } catch (error: any) {
-      console.error('Disconnect WooCommerce error:', error);
+      logger.error('Disconnect WooCommerce error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -585,7 +586,7 @@ async testConnection(businessId: string): Promise<{
         duration 
       };
     } catch (error: any) {
-      console.error('Sync WooCommerce products error:', error);
+      logger.error('Sync WooCommerce products error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -679,7 +680,7 @@ async testConnection(businessId: string): Promise<{
         duration 
       };
     } catch (error: any) {
-      console.error('Sync WooCommerce orders error:', error);
+      logger.error('Sync WooCommerce orders error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -748,7 +749,7 @@ async testConnection(businessId: string): Promise<{
         duration 
       };
     } catch (error: any) {
-      console.error('Sync WooCommerce customers error:', error);
+      logger.error('Sync WooCommerce customers error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -780,7 +781,7 @@ async testConnection(businessId: string): Promise<{
         errors: result.errors
       };
     } catch (error: any) {
-      console.error('Process order webhook error:', error);
+      logger.error('Process order webhook error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -814,7 +815,7 @@ async testConnection(businessId: string): Promise<{
         reason: 'Product webhook processed successfully'
       };
     } catch (error: any) {
-      console.error('Process product webhook error:', error);
+      logger.error('Process product webhook error:', error);
       
       return {
         processed: false,
@@ -842,7 +843,7 @@ async testConnection(businessId: string): Promise<{
         reason: `${topic} delete webhook processed successfully`
       };
     } catch (error: any) {
-      console.error('Process delete webhook error:', error);
+      logger.error('Process delete webhook error:', error);
       
       return {
         processed: false,
@@ -913,7 +914,7 @@ async testConnection(businessId: string): Promise<{
 
       return mockAnalytics;
     } catch (error: any) {
-      console.error('Get WooCommerce analytics error:', error);
+      logger.error('Get WooCommerce analytics error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -968,7 +969,7 @@ async testConnection(businessId: string): Promise<{
         settings: systemData.settings || {}
       };
     } catch (error: any) {
-      console.error('Get WooCommerce store info error:', error);
+      logger.error('Get WooCommerce store info error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1047,7 +1048,7 @@ async testConnection(businessId: string): Promise<{
         health
       };
     } catch (error: any) {
-      console.error('Get webhook status error:', error);
+      logger.error('Get webhook status error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1104,7 +1105,7 @@ async testConnection(businessId: string): Promise<{
         registered: true
       };
     } catch (error: any) {
-      console.error('Register webhook error:', error);
+      logger.error('Register webhook error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1153,7 +1154,7 @@ async testConnection(businessId: string): Promise<{
         removed: true
       };
     } catch (error: any) {
-      console.error('Remove webhook error:', error);
+      logger.error('Remove webhook error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1234,7 +1235,7 @@ async testConnection(businessId: string): Promise<{
         } catch (error: any) {
           const errorMsg = `Failed to register webhook ${webhook.topic}: ${error.response?.data?.message || error.message}`;
           errors.push(errorMsg);
-          console.warn(errorMsg);
+          logger.warn(errorMsg); 
         }
       }
 
@@ -1365,7 +1366,7 @@ async testConnection(businessId: string): Promise<{
       
       return computed === hmacHeader;
     } catch (error) {
-      console.error('Error validating webhook signature:', error);
+      logger.error('Error validating webhook signature:', error);
       return false;
     }
   }
@@ -1484,7 +1485,7 @@ async testConnection(businessId: string): Promise<{
 
       return { updated, errors };
     } catch (error: any) {
-      console.error('Update webhook URLs error:', error);
+      logger.error('Update webhook URLs error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1574,7 +1575,7 @@ async testConnection(businessId: string): Promise<{
         recommendations
       };
     } catch (error: any) {
-      console.error('Get connection health error:', error);
+      logger.error('Get connection health error:', error);
       
       return {
         overall: 'critical',

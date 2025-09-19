@@ -1,5 +1,6 @@
 // src/controllers/certificate.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -143,7 +144,7 @@ async function getGlobalTransferAnalytics(): Promise<any> {
       // ... other metrics
     };
   } catch (error) {
-    console.error('Failed to get global transfer analytics:', error);
+    logger.error('Failed to get global transfer analytics:', error);
     return null;
   }
 }
@@ -299,7 +300,7 @@ export async function createCertificate(
       });
 
     } catch (error) {
-      console.error('NFT minting failed:', error);
+      logger.error('NFT minting failed:', error);
        res.status(500).json({
         error: 'Failed to mint NFT certificate',
         details: error.message,
@@ -315,7 +316,7 @@ export async function createCertificate(
     try {
       await usageTrackingService.updateUsage(businessId, { certificates: 1 });
     } catch (usageError) {
-      console.warn('Failed to update usage tracking:', usageError);
+      logger.warn('Failed to update usage tracking:', usageError);
       // Don't fail the certificate creation if usage tracking fails
     }
 
@@ -374,7 +375,7 @@ export async function createCertificate(
       nextSteps: getCertificateNextSteps(hasWeb3, shouldAutoTransfer, mintResult.transferScheduled)
     });
   } catch (error) {
-    console.error('Create certificate error:', error);
+    logger.error('Create certificate error:', error);
     next(error);
   }
 }
@@ -510,7 +511,7 @@ export async function transferCertificates(
       message: `${transferResults.length} certificates transferred successfully`
     });
   } catch (error) {
-    console.error('Transfer certificates error:', error);
+    logger.error('Transfer certificates error:', error);
     next(error);
   }
 }
@@ -550,7 +551,7 @@ export async function retryFailedTransfers(
       message: `Processed ${retryResults.processed} failed transfers`
     });
   } catch (error) {
-    console.error('Retry failed transfers error:', error);
+    logger.error('Retry failed transfers error:', error);
     next(error);
   }
 }
@@ -694,7 +695,7 @@ export async function listCertificates(
       }
     });
   } catch (error) {
-    console.error('List certificates error:', error);
+    logger.error('List certificates error:', error);
     next(error);
   }
 }
@@ -750,7 +751,7 @@ export async function getCertificate(
           transferExplorerUrl: certificate.transferTxHash ? `https://basescan.io/tx/${certificate.transferTxHash}` : null
         };
       } catch (error) {
-        console.warn(`Failed to get blockchain data for certificate ${id}:`, error.message);
+        logger.warn('Failed to get blockchain data for certificate ${id}:', error.message);
       }
     }
 
@@ -784,7 +785,7 @@ export async function getCertificate(
       }
     });
   } catch (error) {
-    console.error('Get certificate error:', error);
+    logger.error('Get certificate error:', error);
     next(error);
   }
 }
@@ -862,7 +863,7 @@ export async function getWeb3Analytics(
       }
     });
   } catch (error) {
-    console.error('Get Web3 analytics error:', error);
+    logger.error('Get Web3 analytics error:', error);
     next(error);
   }
 }
@@ -980,7 +981,7 @@ export async function createBatchCertificates(
     try {
       await usageTrackingService.updateUsage(businessId, { certificates: recipientCount });
     } catch (usageError) {
-      console.warn('Failed to update batch usage tracking:', usageError);
+      logger.warn('Failed to update batch usage tracking:', usageError);
       // Don't fail the batch creation if usage tracking fails
     }
 
@@ -1011,7 +1012,7 @@ export async function createBatchCertificates(
       }
     });
   } catch (error) {
-    console.error('Create batch certificates error:', error);
+    logger.error('Create batch certificates error:', error);
     next(error);
   }
 }
@@ -1061,9 +1062,9 @@ export async function revokeCertificate(
       try {
         // Note: Burning NFT would require a burn function in the contract
         // For now, we'll just mark as revoked in our system
-        console.log(`NFT burn requested for token ${certificate.tokenId} but not implemented`);
+        logger.info('NFT burn requested for token ${certificate.tokenId} but not implemented');
       } catch (error) {
-        console.warn(`Failed to burn NFT ${certificate.tokenId}:`, error.message);
+        logger.warn('Failed to burn NFT ${certificate.tokenId}:', error.message);
       }
     }
 
@@ -1109,7 +1110,7 @@ export async function revokeCertificate(
       message: 'Certificate revoked successfully'
     });
   } catch (error) {
-    console.error('Revoke certificate error:', error);
+    logger.error('Revoke certificate error:', error);
     next(error);
   }
 }
@@ -1158,7 +1159,7 @@ export async function getPendingTransfers(
       }
     });
   } catch (error) {
-    console.error('Get pending transfers error:', error);
+    logger.error('Get pending transfers error:', error);
     next(error);
   }
 }
@@ -1218,7 +1219,7 @@ export async function getBatchProgress(
       nextUpdate: new Date(Date.now() + 30000)
     });
   } catch (error) {
-    console.error('Get batch progress error:', error);
+    logger.error('Get batch progress error:', error);
     next(error);
   }
 }

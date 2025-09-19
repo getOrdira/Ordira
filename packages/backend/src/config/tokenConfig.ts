@@ -1,4 +1,6 @@
 // src/config/tokenConfig.ts
+
+import { logger } from '../utils/logger';
 /**
  * Token configuration management
  */
@@ -149,7 +151,7 @@ export function validateTokenConfigMiddleware(req: any, res: any, next: any): vo
   const validation = validateTokenConfig(config);
   
   if (!validation.valid) {
-    console.error('Token configuration validation failed:', validation.errors);
+    logger.error('Token configuration validation failed:', validation.errors);
     // In production, you might want to throw an error or use a fallback
   }
   

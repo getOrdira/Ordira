@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import client from 'prom-client';
 
 // Initialize default metrics collection
@@ -185,7 +186,7 @@ export function metricsMiddleware(
       activeConnections.dec();
       
     } catch (error) {
-      console.error('Error recording metrics:', error);
+      logger.error('Error recording metrics:', error);
       activeConnections.dec(); // Ensure we always decrement
     }
   });
@@ -237,7 +238,7 @@ export async function metricsHandler(req: Request, res: Response): Promise<void>
     const metrics = await register.metrics();
     res.end(metrics);
   } catch (error) {
-    console.error('Error generating metrics:', error);
+    logger.error('Error generating metrics:', error);
     res.status(500).end('Error generating metrics');
   }
 }
@@ -250,7 +251,7 @@ export async function getMetricsJSON(): Promise<any> {
     const metrics = await register.getMetricsAsJSON();
     return metrics;
   } catch (error) {
-    console.error('Error getting metrics as JSON:', error);
+    logger.error('Error getting metrics as JSON:', error);
     return { error: 'Failed to retrieve metrics' };
   }
 }

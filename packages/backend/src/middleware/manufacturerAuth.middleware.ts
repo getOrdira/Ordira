@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
 import { Manufacturer } from '../models/manufacturer.model';
 
@@ -92,7 +93,7 @@ export async function authenticateManufacturer(
     }
 
     // Log unexpected errors for debugging
-    console.error('Manufacturer authentication error:', error);
+    logger.error('Manufacturer authentication error:', error);
     return res.status(500).json({ 
       error: 'Internal server error during authentication.',
       code: 'AUTH_INTERNAL_ERROR'

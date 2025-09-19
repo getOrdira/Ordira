@@ -1,5 +1,6 @@
 // src/routes/products.routes.ts
 import { Router, Request, RequestHandler } from 'express';
+import { logger } from '../utils/logger';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.middleware';
 import { asRouteHandler, asRateLimitHandler } from '../utils/routeHelpers';
 import { authenticate, requireVerifiedManufacturer } from '../middleware/unifiedAuth.middleware';
@@ -637,7 +638,7 @@ router.get('/health', (req, res) => {
  */
 router.use((error: any, req: any, res: any, next: any) => {
   // Log product-specific errors
-  console.error('Product Error:', {
+  logger.error('Product Error:', {
     path: req.path,
     method: req.method,
     error: error.message,

@@ -10,6 +10,7 @@ import 'dotenv/config';
 
 // Import services
 import { AppBootstrapService } from './services/utils/app-bootstrap.service';
+import { logger } from './utils/logger'; 
 import { DatabaseInitService } from './services/utils/database-init.service';
 import { ServerStartupService } from './services/utils/server-startup.service';
 import { monitoringService } from './services/external/monitoring.service';
@@ -20,7 +21,7 @@ import { securityScanService } from './services/external/security-scan.service';
  */
 async function initializeApplication(): Promise<void> {
   try {
-    console.log('🚀 Starting Ordira Platform...');
+    logger.info('🚀 Starting Ordira Platform...');
 
     // Initialize database
     const databaseInit = new DatabaseInitService();
@@ -46,10 +47,10 @@ async function initializeApplication(): Promise<void> {
       }
     });
 
-    console.log('✅ Ordira Platform started successfully');
+    logger.info('✅ Ordira Platform started successfully');
 
   } catch (error) {
-    console.error('❌ Failed to start Ordira Platform:', error);
+    logger.error('❌ Failed to start Ordira Platform:', error);
     
     // Record startup failure
     monitoringService.recordMetric({

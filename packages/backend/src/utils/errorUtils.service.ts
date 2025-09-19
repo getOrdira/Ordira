@@ -1,4 +1,5 @@
 // src/utils/errorUtils.ts
+import { logger } from './logger';
 
 /**
  * Safely extract error message from unknown error types
@@ -14,7 +15,7 @@ export function getErrorMessage(error: unknown): string {
   }
   
   if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as any).message);
+    return String((error as { message: unknown }).message);
   }
   
   return 'An unknown error occurred';
@@ -35,7 +36,8 @@ export function getErrorStack(error: unknown): string | undefined {
  */
 export function getErrorCode(error: unknown): string | number | undefined {
   if (error && typeof error === 'object' && 'code' in error) {
-    return (error as any).code;
+    const code = (error as { code: unknown }).code;
+    return typeof code === 'string' || typeof code === 'number' ? code : undefined;
   }
   return undefined;
 }
@@ -62,7 +64,7 @@ export function logError(context: string, error: unknown, additionalData?: any):
   const errorStack = getErrorStack(error);
   const errorCode = getErrorCode(error);
   
-  console.error(`[${context}] Error:`, {
+  logger.error(`[${context}] Error:`, {
     message: errorMessage,
     code: errorCode,
     stack: errorStack,

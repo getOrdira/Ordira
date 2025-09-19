@@ -1,6 +1,7 @@
 
 // src/routes/notification.routes.ts
 import { Router } from 'express';
+import { logger } from '../utils/logger';
 import { validateParams, validateQuery, validateBody } from '../middleware/validation.middleware';
 import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
@@ -442,7 +443,7 @@ router.get('/health', (req, res) => {
  */
 router.use((error: any, req: any, res: any, next: any) => {
   // Log notification-specific errors
-  console.error('Notification Error:', {
+  logger.error('Notification Error:', {
     path: req.path,
     method: req.method,
     error: error.message,

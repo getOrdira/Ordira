@@ -1,5 +1,6 @@
 // src/models/domainMapping.model.ts
 import { Schema, model, Types, Document } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IDomainMapping extends Document {
   business: Types.ObjectId;
@@ -599,8 +600,8 @@ DomainMappingSchema.methods.setDNSRecords = function(records: any[]): Promise<ID
 /**
  * Update health status with timestamp
  */
-DomainMappingSchema.methods.updateHealthStatus = function(status: string): Promise<IDomainMapping> {
-  this.healthStatus = status as any;
+DomainMappingSchema.methods.updateHealthStatus = function(status: 'unknown' | 'healthy' | 'warning' | 'error'): Promise<IDomainMapping> {
+  this.healthStatus = status;
   this.lastHealthCheck = new Date();
   return this.save();
 };
@@ -919,7 +920,7 @@ DomainMappingSchema.pre('validate', function(next) {
 DomainMappingSchema.post('save', function(doc) {
   // Log important changes for analytics
   if (this.isModified('status')) {
-    console.log(`Domain ${doc.domain} status changed to ${doc.status}`);
+    logger.info('Domain ${doc.domain} status changed to ${doc.status}');
     
     // Emit real-time updates
     process.nextTick(() => {
@@ -933,16 +934,16 @@ DomainMappingSchema.post('save', function(doc) {
   }
   
   if (this.isModified('healthStatus')) {
-    console.log(`Domain ${doc.domain} health changed to ${doc.healthStatus}`);
+    logger.info('Domain ${doc.domain} health changed to ${doc.healthStatus}');
     
     // Send notifications for critical health issues
     if (doc.healthStatus === 'error') {
       process.nextTick(async () => {
         try {
           // Example: await notificationsService.sendDomainHealthAlert(doc.business, doc);
-          console.log(`Health alert sent for domain ${doc.domain}`);
+          logger.info('Health alert sent for domain ${doc.domain}');
         } catch (error) {
-          console.error(`Failed to send health alert for domain ${doc.domain}:`, error);
+          logger.error('Failed to send health alert for domain ${doc.domain}:', error);
         }
       });
     }
@@ -953,9 +954,9 @@ DomainMappingSchema.post('save', function(doc) {
     process.nextTick(async () => {
       try {
         // Example: await notificationsService.sendSSLExpirationWarning(doc.business, doc);
-        console.log(`SSL expiration warning sent for domain ${doc.domain}`);
+        logger.info('SSL expiration warning sent for domain ${doc.domain}');
       } catch (error) {
-        console.error(`Failed to send SSL warning for domain ${doc.domain}:`, error);
+        logger.error('Failed to send SSL warning for domain ${doc.domain}:', error);
       }
     });
   }
@@ -965,9 +966,9 @@ DomainMappingSchema.post('save', function(doc) {
     process.nextTick(async () => {
       try {
         // Example: await notificationsService.sendDomainVerificationSuccess(doc.business, doc);
-        console.log(`Verification success notification sent for domain ${doc.domain}`);
+        logger.info('Verification success notification sent for domain ${doc.domain}');
       } catch (error) {
-        console.error(`Failed to send verification success for domain ${doc.domain}:`, error);
+        logger.error('Failed to send verification success for domain ${doc.domain}:', error);
       }
     });
   }
@@ -977,9 +978,9 @@ DomainMappingSchema.post('save', function(doc) {
     process.nextTick(async () => {
       try {
         // Example: await domainCache.refreshDomainMapping(doc.domain, doc.business);
-        console.log(`Domain cache updated for ${doc.domain}`);
+        logger.info('Domain cache updated for ${doc.domain}');
       } catch (error) {
-        console.error(`Failed to update domain cache for ${doc.domain}:`, error);
+        logger.error('Failed to update domain cache for ${doc.domain}:', error);
       }
     });
   }
@@ -989,15 +990,15 @@ DomainMappingSchema.post('save', function(doc) {
  * Pre-remove hook for cleanup (document-level)
  */
 DomainMappingSchema.pre('remove', function(this: IDomainMapping, next) {
-  console.log(`Removing domain mapping for ${this.domain}`);
+  logger.info('Removing domain mapping for ${this.domain}');
   
   // Cancel any pending SSL certificate requests
   if (this.status === 'pending_verification') {
-    console.log(`Cancelling pending verification for ${this.domain}`);
+    logger.info('Cancelling pending verification for ${this.domain}');
   }
   
   // Log for audit trail
-  console.log(`Domain mapping ${this.domain} removed for business ${this.business}`);
+  logger.info('Domain mapping ${this.domain} removed for business ${this.business}');
   
   next();
 });
@@ -1010,18 +1011,18 @@ DomainMappingSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
     // Get the document that will be deleted
     const doc = await this.model.findOne(this.getQuery()) as IDomainMapping;
     if (doc) {
-      console.log(`Removing domain mapping for ${doc.domain}`);
+      logger.info('Removing domain mapping for ${doc.domain}');
       
       // Cancel any pending SSL certificate requests
       if (doc.status === 'pending_verification') {
-        console.log(`Cancelling pending verification for ${doc.domain}`);
+        logger.info('Cancelling pending verification for ${doc.domain}');
       }
       
       // Log for audit trail
-      console.log(`Domain mapping ${doc.domain} removed for business ${doc.business}`);
+      logger.info('Domain mapping ${doc.domain} removed for business ${doc.business}');
     }
   } catch (error) {
-    console.error('Error in pre-delete hook:', error);
+    logger.error('Error in pre-delete hook:', error);
   }
 });
 
@@ -1040,12 +1041,12 @@ DomainMappingSchema.post('remove', function(doc) {
       // Revoke SSL certificate if needed
       if (doc.sslEnabled && doc.certificateType === 'letsencrypt') {
         // Example: await sslService.revokeCertificate(doc.domain);
-        console.log(`SSL certificate revocation initiated for ${doc.domain}`);
+        logger.info('SSL certificate revocation initiated for ${doc.domain}');
       }
       
-      console.log(`Cleanup completed for removed domain ${doc.domain}`);
+      logger.info('Cleanup completed for removed domain ${doc.domain}');
     } catch (error) {
-      console.error(`Failed to complete cleanup for removed domain ${doc.domain}:`, error);
+      logger.error('Failed to complete cleanup for removed domain ${doc.domain}:', error);
     }
   });
 });

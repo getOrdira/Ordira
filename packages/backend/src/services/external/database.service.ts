@@ -1,6 +1,7 @@
 // src/services/external/database.service.ts
 
 import mongoose from 'mongoose';
+import { logger } from '../../utils/logger'; 
 import { createAppError } from '../../middleware/error.middleware';
 
 export interface DatabaseStats {
@@ -175,9 +176,9 @@ export class DatabaseService {
         { key: { 'location.coordinates': '2dsphere' } }
       ]);
 
-      console.log('✅ Optimized indexes created successfully');
+      logger.info('✅ Optimized indexes created successfully');
     } catch (error) {
-      console.error('❌ Failed to create optimized indexes:', error);
+      logger.error('❌ Failed to create optimized indexes:', error);
       throw createAppError('Failed to create optimized indexes', 500, 'INDEX_CREATION_ERROR');
     }
   }
@@ -226,7 +227,7 @@ export class DatabaseService {
 
       return slowQueries;
     } catch (error) {
-      console.error('Failed to get slow queries:', error);
+      logger.error('Failed to get slow queries:', error);
       return [];
     }
   }
@@ -241,9 +242,9 @@ export class DatabaseService {
         profile: level,
         slowms: slowMs
       });
-      console.log(`✅ Query profiling enabled (level: ${level}, slowms: ${slowMs})`);
+      logger.info('✅ Query profiling enabled (level: ${level}, slowms: ${slowMs})');
     } catch (error) {
-      console.error('Failed to enable profiling:', error);
+      logger.error('Failed to enable profiling:', error);
     }
   }
 
@@ -254,9 +255,9 @@ export class DatabaseService {
     try {
       const db = this.connection.connection.db;
       await db.command({ profile: 0 });
-      console.log('✅ Query profiling disabled');
+      logger.info('✅ Query profiling disabled');
     } catch (error) {
-      console.error('Failed to disable profiling:', error);
+      logger.error('Failed to disable profiling:', error);
     }
   }
 
@@ -283,9 +284,9 @@ export class DatabaseService {
         zlibCompressionLevel: 6
       });
 
-      console.log('✅ Connection pool optimized');
+      logger.info('✅ Connection pool optimized');
     } catch (error) {
-      console.error('❌ Failed to optimize connection pool:', error);
+      logger.error('❌ Failed to optimize connection pool:', error);
       throw createAppError('Failed to optimize connection pool', 500, 'CONNECTION_OPTIMIZATION_ERROR');
     }
   }

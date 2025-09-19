@@ -8,6 +8,7 @@ import { authenticate, requireManufacturer } from '../middleware/unifiedAuth.mid
 import { dynamicRateLimiter, strictRateLimiter } from '../middleware/rateLimiter.middleware';
 import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from '../middleware/upload.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { hasTenantContext } from '../utils/typeGuards';
 import * as mediaCtrl from '../controllers/media.controller';
 import {
   uploadMediaSchema,
@@ -156,7 +157,7 @@ router.delete(
     // Since bulk delete isn't in controller, we'll use individual delete in a loop
     try {
       const { mediaIds } = req.body;
-      const businessId = (req as any).tenant?.business?.toString();
+      const businessId = hasTenantContext(req) ? req.tenant.business.toString() : undefined;
       
       if (!businessId) {
         return res.status(400).json({
@@ -214,7 +215,7 @@ router.get(
   trackManufacturerAction('search_media'),
   async (req: any, res, next) => {
     try {
-      const businessId = (req as any).tenant?.business?.toString();
+      const businessId = hasTenantContext(req) ? req.tenant.business.toString() : undefined;
       if (!businessId) {
         return res.status(400).json({
           error: 'Business context not found',
@@ -226,8 +227,8 @@ router.get(
       const mediaService = new (require('../services/business/media.service').MediaService)();
       
       const results = await mediaService.searchMedia(businessId, q as string, {
-        category: category as any,
-        type: type as any,
+        category: category as 'profile' | 'product' | 'banner' | 'certificate' | 'document',
+        type: type as 'image' | 'video' | 'gif' | 'document',
         limit: parseInt(limit as string) || 20
       });
 
@@ -256,7 +257,7 @@ router.get(
   trackManufacturerAction('view_recent_media'),
   async (req: any, res, next) => {
     try {
-      const businessId = (req as any).tenant?.business?.toString();
+      const businessId = hasTenantContext(req) ? req.tenant.business.toString() : undefined;
       if (!businessId) {
         return res.status(400).json({
           error: 'Business context not found',

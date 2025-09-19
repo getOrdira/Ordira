@@ -1,5 +1,6 @@
 // src/models/media.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IMedia extends Document {
   url: string;
@@ -46,6 +47,11 @@ export interface IMedia extends Document {
   downloadCount?: number;
   lastAccessedAt?: Date;
   lastDownloadedAt?: Date;
+  
+  // Virtual properties
+  ageInDays?: number;
+  isExpired?: boolean;
+  popularityScore?: number;
   
   // Instance methods (aligned with service requirements)
   incrementDownloadCount(): Promise<IMedia>;
@@ -322,9 +328,9 @@ MediaSchema.virtual('ageInDays').get(function() {
   return Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 60 * 24));
 });
 
-MediaSchema.virtual('isExpired').get(function() {
+MediaSchema.virtual('isExpired').get(function(this: IMedia) {
   // Files older than 1 year are considered old
-  return (this as any).ageInDays > 365;
+  return (this.ageInDays || 0) > 365;
 });
 
 MediaSchema.virtual('popularityScore').get(function() {
@@ -712,15 +718,15 @@ MediaSchema.pre('save', function(next) {
 MediaSchema.post('save', function(doc) {
   if (this.isNew) {
     const storageType = doc.isStoredInS3() ? 'S3' : 'local';
-    console.log(`Media uploaded to ${storageType}: ${doc.filename} by ${doc.uploadedBy}`);
+    logger.info('Media uploaded to ${storageType}: ${doc.filename} by ${doc.uploadedBy}');
   }
   
   if (this.isModified('downloadCount')) {
-    console.log(`Media downloaded: ${doc.filename} (${doc.downloadCount} times)`);
+    logger.info('Media downloaded: ${doc.filename} (${doc.downloadCount} times)');
   }
   
   if (this.isModified('s3Key') && doc.s3Key) {
-    console.log(`Media migrated to S3: ${doc.filename} -> ${doc.s3Key}`);
+    logger.info('Media migrated to S3: ${doc.filename} -> ${doc.s3Key}');
   }
 });
 
@@ -729,7 +735,7 @@ MediaSchema.post('save', function(doc) {
  */
 MediaSchema.pre('remove', function(this: IMedia, next) {
   const storageInfo = this.isStoredInS3() ? `S3 key: ${this.s3Key}` : 'local storage';
-  console.log(`Removing media from ${storageInfo}: ${this.filename}`);
+  logger.info('Removing media from ${storageInfo}: ${this.filename}');
   next();
 });
 
@@ -742,10 +748,10 @@ MediaSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
     const doc = await this.model.findOne(this.getQuery()) as IMedia;
     if (doc) {
       const storageInfo = doc.isStoredInS3() ? `S3 key: ${doc.s3Key}` : 'local storage';
-      console.log(`Removing media from ${storageInfo}: ${doc.filename}`);
+      logger.info('Removing media from ${storageInfo}: ${doc.filename}');
     }
   } catch (error) {
-    console.error('Error in pre-delete hook:', error);
+    logger.error('Error in pre-delete hook:', error);
   }
 });
 

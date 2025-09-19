@@ -1,6 +1,7 @@
 // src/controllers/votes.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -326,7 +327,7 @@ export const submitVote = asyncHandler(async (
         batchSubmitted = true;
       }
     } catch (error: any) {
-      console.error('Failed to submit batch votes:', error);
+      logger.error('Failed to submit batch votes:', error);
       // Continue with individual vote recording even if batch fails
     }
   }

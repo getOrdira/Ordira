@@ -1,5 +1,6 @@
 // src/models/supplyChainEvent.model.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface ISupplyChainEvent extends Document {
   product: Types.ObjectId;
@@ -78,7 +79,7 @@ SupplyChainEventSchema.methods.logToBlockchain = async function(): Promise<ISupp
     this.txHash = result.txHash;
     this.blockNumber = result.blockNumber;
   } catch (error) {
-    console.error('Failed to log to blockchain:', error);
+    logger.error('Failed to log to blockchain:', error);
     // Don't throw - allow event to be saved without blockchain
   }
   

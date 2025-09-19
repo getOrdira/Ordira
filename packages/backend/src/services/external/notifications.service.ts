@@ -1,5 +1,6 @@
 // src/services/external/notifications.service.ts
 import nodemailer from 'nodemailer';
+import { logger } from '../../utils/logger'; 
 import { Business } from '../../models/business.model';
 import { Manufacturer } from '../../models/manufacturer.model';
 import { BrandSettings } from '../../models/brandSettings.model';
@@ -156,7 +157,7 @@ export class NotificationsService {
       minute: '2-digit'
     });
     
-    console.log(`[NOTIFICATIONS] ${timestamp} - ${event} - ${type} - ${maskedRecipient} - ${success ? 'SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata)}` : ''}`);
+    logger.info(`[NOTIFICATIONS] ${timestamp} - ${event} - ${type} - ${maskedRecipient} - ${success ? 'SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata)}` : ''}`);
   }
 
   private async retryEmailSend(
@@ -414,7 +415,7 @@ export class NotificationsService {
       });
 
     } catch (error) {
-      console.error('Failed to send transfer success notification:', error);
+      logger.error('Failed to send transfer success notification:', error);
       this.logNotificationEvent('TRANSFER_SUCCESS_NOTIFICATION', businessId, 'WEB3_TRANSFER', false, {
         error: error.message
       });
@@ -498,7 +499,7 @@ export class NotificationsService {
       });
 
     } catch (error) {
-      console.error('Failed to send transfer failure notification:', error);
+      logger.error('Failed to send transfer failure notification:', error);
       this.logNotificationEvent('TRANSFER_FAILURE_NOTIFICATION', businessId, 'WEB3_TRANSFER', false, {
         error: error.message
       });
@@ -506,11 +507,11 @@ export class NotificationsService {
   }
 
   async sendCertificateRevocationNotification(businessId: string, data: any): Promise<void> {
-  console.log('sendCertificateRevocationNotification called - stub implementation');
+  logger.info('sendCertificateRevocationNotification called - stub implementation');
 }
 
 async sendSettingsChangeNotification(businessId: string, changes: any): Promise<void> {
-  console.log('sendSettingsChangeNotification called - stub implementation');
+  logger.info('sendSettingsChangeNotification called - stub implementation');
 }
 
   /**
@@ -573,7 +574,7 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
       });
 
     } catch (error) {
-      console.error('Failed to send transfer retry notification:', error);
+      logger.error('Failed to send transfer retry notification:', error);
       this.logNotificationEvent('TRANSFER_RETRY_NOTIFICATION', businessId, 'WEB3_TRANSFER', false, {
         error: error.message
       });
@@ -632,7 +633,7 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
       });
 
     } catch (error) {
-      console.error('Failed to send wallet change notification:', error);
+      logger.error('Failed to send wallet change notification:', error);
       this.logNotificationEvent('WALLET_CHANGE_NOTIFICATION', businessId, 'WEB3_WALLET', false, {
         error: error.message
       });
@@ -685,7 +686,7 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
       });
 
     } catch (error) {
-      console.error('Failed to send webhook notification:', error);
+      logger.error('Failed to send webhook notification:', error);
       this.logNotificationEvent('WEBHOOK_NOTIFICATION', webhookUrl, 'WEBHOOK', false, {
         error: error.message
       });
@@ -1049,10 +1050,10 @@ async sendSettingsChangeNotification(businessId: string, changes: any): Promise<
       { priority: 'high', trackingEnabled: true }
     );
 
-    console.log(`Payment failure notification sent to: ${email} (attempt ${attemptCount})`);
+    logger.info('Payment failure notification sent to: ${email} (attempt ${attemptCount})');
 
   } catch (error) {
-    console.error('Failed to send payment failure notification:', {
+    logger.error('Failed to send payment failure notification:', {
       subscriptionIdOrEmail,
       error: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -1067,7 +1068,7 @@ async sendVotingContractDeployedNotification(businessId: string, data: {
   }): Promise<void> {
     // Implementation of notification sending logic
     // This is a placeholder implementation
-    console.log(`Contract deployment notification for business ${businessId}:`, data);
+    logger.info('Contract deployment notification for business ${businessId}:', data);
   }
 
   async sendProposalCreatedNotification(businessId: string, data: {
@@ -1075,7 +1076,7 @@ async sendVotingContractDeployedNotification(businessId: string, data: {
     description: string;
   }): Promise<void> {
     // Implement the notification logic here
-    console.log('Sending proposal created notification:', { businessId, data });
+    logger.info('Sending proposal created notification:', { businessId, data });
   }
 
 /**
@@ -1133,9 +1134,9 @@ async sendVerificationSubmissionConfirmation(
       submissionData
     });
 
-    console.log(`Verification submission confirmation sent for business ${businessId}: ${verificationType}`);
+    logger.info('Verification submission confirmation sent for business ${businessId}: ${verificationType}');
   } catch (error) {
-    console.error('Failed to send verification submission confirmation:', error);
+    logger.error('Failed to send verification submission confirmation:', error);
     this.logNotificationEvent('VERIFICATION_SUBMISSION_FAILED', businessId, 'VERIFICATION', false, {
       error: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -1199,9 +1200,9 @@ async sendAccountDeactivationConfirmation(
       reactivationPossible: deactivationData.reactivationPossible
     });
 
-    console.log(`Account deactivation confirmation sent for business ${businessId}`);
+    logger.info('Account deactivation confirmation sent for business ${businessId}');
   } catch (error) {
-    console.error('Failed to send account deactivation confirmation:', error);
+    logger.error('Failed to send account deactivation confirmation:', error);
     this.logNotificationEvent('ACCOUNT_DEACTIVATION_FAILED', businessId, 'ACCOUNT_MANAGEMENT', false, {
       error: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -1240,7 +1241,7 @@ async sendProfileChangeNotification(
     const significantChanges = changedFields.filter(field => significantFields.includes(field));
     
     if (significantChanges.length === 0) {
-      console.log(`No significant profile changes for business ${businessId}, skipping notification`);
+      logger.info('No significant profile changes for business ${businessId}, skipping notification');
       return;
     }
 
@@ -1275,9 +1276,9 @@ async sendProfileChangeNotification(
       securityRelevant: significantChanges.some(field => ['email', 'walletAddress'].includes(field))
     });
 
-    console.log(`Profile change notification sent for business ${businessId}: ${significantChanges.join(', ')}`);
+    logger.info(`Profile change notification sent for business ${businessId}: ${significantChanges.join(', ')}`);
   } catch (error) {
-    console.error('Failed to send profile change notification:', error);
+    logger.error('Failed to send profile change notification:', error);
     this.logNotificationEvent('PROFILE_CHANGE_FAILED', businessId, 'PROFILE_MANAGEMENT', false, {
       error: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -1364,10 +1365,10 @@ async sendProfileChangeNotification(
       { priority: 'normal', trackingEnabled: true }
     );
 
-    console.log(`Renewal confirmation sent successfully to: ${email}`);
+    logger.info('Renewal confirmation sent successfully to: ${email}');
 
   } catch (error) {
-    console.error('Failed to send renewal confirmation:', {
+    logger.error('Failed to send renewal confirmation:', {
       subscriptionIdOrEmail,
       error: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -1444,10 +1445,10 @@ async sendProfileChangeNotification(
       { priority: 'normal', trackingEnabled: true }
     );
 
-    console.log(`Cancellation confirmation sent to: ${email}`);
+    logger.info('Cancellation confirmation sent to: ${email}');
 
   } catch (error) {
-    console.error('Failed to send cancellation confirmation:', {
+    logger.error('Failed to send cancellation confirmation:', {
       businessIdOrEmail,
       error: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -1506,10 +1507,10 @@ async sendProfileChangeNotification(
       { priority: 'normal', trackingEnabled: true }
     );
 
-    console.log(`Plan change notification sent: ${email} changed from ${oldPlan} to ${newPlan}`);
+    logger.info('Plan change notification sent: ${email} changed from ${oldPlan} to ${newPlan}');
     
   } catch (error) {
-    console.error('Failed to send plan change notification:', {
+    logger.error('Failed to send plan change notification:', {
       email,
       oldPlan,
       newPlan,
@@ -1769,7 +1770,7 @@ async sendAccessRestoredNotification(email: string): Promise<void> {
       isConfigured: false,
       canConnect: false,
       errors: [] as string[],
-      serverInfo: undefined as any
+      serverInfo: undefined as Record<string, any> | undefined
     };
 
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -2818,7 +2819,7 @@ private getProfileChangeEmailTemplate(
     });
     return await stripe.subscriptions.retrieve(subscriptionId);
   } catch (error) {
-    console.error('Failed to get subscription details:', error);
+    logger.error('Failed to get subscription details:', error);
     throw error;
   }
 }

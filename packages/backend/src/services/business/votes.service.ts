@@ -1,5 +1,6 @@
 // services/business/votes.service.ts
 import { BrandSettings } from '../../models/brandSettings.model';
+import { logger } from '../../utils/logger'; 
 import { VotingRecord } from '../../models/votingRecord.model';
 import { PendingVote } from '../../models/pendingVote.model';
 import { VotingService } from '../blockchain/voting.service';
@@ -154,7 +155,7 @@ export class VotingBusinessService {
         });
       } catch (notificationError) {
         // Log but don't fail the deployment
-        console.warn(`Failed to send deployment notification for business ${businessId}:`, notificationError);
+        logger.warn('Failed to send deployment notification for business ${businessId}:', notificationError);
       }
 
       return {
@@ -165,7 +166,7 @@ export class VotingBusinessService {
         deploymentCost: 'estimated' // Would calculate based on gas
       };
     } catch (error: any) {
-      console.error('Deploy voting contract error:', error);
+      logger.error('Deploy voting contract error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -239,7 +240,7 @@ export class VotingBusinessService {
         // await Proposal.create(proposalData);
       } catch (dbError) {
         // Log but don't fail the proposal creation
-        console.warn(`Failed to store proposal metadata for ${proposalResult.proposalId}:`, dbError);
+        logger.warn('Failed to store proposal metadata for ${proposalResult.proposalId}:', dbError);
       }
 
       // Send notification
@@ -249,7 +250,7 @@ export class VotingBusinessService {
           description: description.trim()
         });
       } catch (notificationError) {
-        console.warn(`Failed to send proposal notification:`, notificationError);
+        logger.warn('Failed to send proposal notification:', notificationError);
       }
 
       return {
@@ -258,7 +259,7 @@ export class VotingBusinessService {
         createdAt: new Date()
       };
     } catch (error: any) {
-      console.error('Create proposal error:', error);
+      logger.error('Create proposal error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -302,7 +303,7 @@ export class VotingBusinessService {
         duration: 7 * 24 * 60 * 60 // Default 7 days
       }));
     } catch (error: any) {
-      console.error('Get business proposals error:', error);
+      logger.error('Get business proposals error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -329,7 +330,7 @@ export class VotingBusinessService {
       const proposals = await this.getBusinessProposals(businessId);
       return proposals.find(p => p.proposalId === proposalId) || null;
     } catch (error: any) {
-      console.error('Get proposal details error:', error);
+      logger.error('Get proposal details error:', error);
       throw error; // Re-throw as it's already handled in getBusinessProposals
     }
   }
@@ -430,7 +431,7 @@ export class VotingBusinessService {
       createdAt: pendingVote.createdAt
     };
   } catch (error: any) {
-    console.error('Record product selection error:', error);
+    logger.error('Record product selection error:', error);
     
     if (error.statusCode) {
       throw error;
@@ -526,7 +527,7 @@ export class VotingBusinessService {
            try {
           await this.billingService.trackVoteUsage(businessId, vote.voteId);
         } catch (billingError: any) {
-          console.warn(`Failed to track billing for vote ${vote.voteId}:`, billingError.message);
+          logger.warn('Failed to track billing for vote ${vote.voteId}:', billingError.message);
         }
 
           // Mark pending vote as processed
@@ -536,10 +537,10 @@ export class VotingBusinessService {
           try {
             await this.notificationService.notifyBrandOfNewVote(businessId, vote.proposalId);
           } catch (notificationError: any) {
-            console.warn(`Failed to send notification for vote ${vote.voteId}:`, notificationError.message);
+            logger.warn('Failed to send notification for vote ${vote.voteId}:', notificationError.message);
           }
         } catch (recordError) {
-          console.error(`Failed to record vote ${vote.voteId}:`, recordError);
+          logger.error('Failed to record vote ${vote.voteId}:', recordError);
           // Continue with other votes
         }
       }
@@ -556,7 +557,7 @@ export class VotingBusinessService {
         submittedAt: new Date()
       };
     } catch (error: any) {
-      console.error('Process pending votes error:', error);
+      logger.error('Process pending votes error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -623,7 +624,7 @@ export class VotingBusinessService {
       gasUsed: undefined
     }));
   } catch (error: any) {
-    console.error('Get business votes error:', error);
+    logger.error('Get business votes error:', error);
     
     if (error.statusCode) {
       throw error;
@@ -671,7 +672,7 @@ export class VotingBusinessService {
         createdAt: vote.createdAt
       }));
     } catch (error: any) {
-      console.error('Get pending votes error:', error);
+      logger.error('Get pending votes error:', error);
       throw createAppError(`Failed to get pending votes: ${error.message}`, 500, 'GET_PENDING_VOTES_FAILED');
     }
   }
@@ -702,7 +703,7 @@ export class VotingBusinessService {
           activeProposals = contractInfo.activeProposals || 0;
         } catch (blockchainError) {
           // If blockchain call fails, use database records
-          console.warn('Failed to get blockchain voting stats, using database records');
+          logger.warn('Failed to get blockchain voting stats, using database records');
           totalVotes = votingRecords;
         }
       }
@@ -720,7 +721,7 @@ export class VotingBusinessService {
         participationRate
       };
     } catch (error: any) {
-      console.error('Get voting stats error:', error);
+      logger.error('Get voting stats error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -798,7 +799,7 @@ export class VotingBusinessService {
         proposalStats
       };
     } catch (error: any) {
-      console.error('Get voting analytics error:', error);
+      logger.error('Get voting analytics error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -819,7 +820,7 @@ export class VotingBusinessService {
       const settings = await BrandSettings.findOne({ business: businessId });
       return !!(settings.web3Settings?.voteContract);
     } catch (error) {
-      console.error('Check voting contract error:', error);
+      logger.error('Check voting contract error:', error);
       return false;
     }
   }
@@ -833,7 +834,7 @@ export class VotingBusinessService {
       const settings = await BrandSettings.findOne({ business: businessId });
       return settings.web3Settings?.voteContract || null;
     } catch (error) {
-      console.error('Get contract address error:', error);
+      logger.error('Get contract address error:', error);
       return null;
     }
   }
@@ -843,7 +844,7 @@ export class VotingBusinessService {
       const proposals = await this.getBusinessProposals(businessId);
       return proposals.some(p => p.proposalId === proposalId);
     } catch (error) {
-      console.error('Validate proposal exists error:', error);
+      logger.error('Validate proposal exists error:', error);
       return false;
     }
   }
@@ -872,7 +873,7 @@ export class VotingBusinessService {
         createdAt: pendingVote.createdAt
       };
     } catch (error) {
-      console.error('Get user vote for proposal error:', error);
+      logger.error('Get user vote for proposal error:', error);
       return null;
     }
   }
@@ -933,7 +934,7 @@ export class VotingBusinessService {
         recommendations
       };
     } catch (error) {
-      console.error('Get voting health error:', error);
+      logger.error('Get voting health error:', error);
       return {
         health: 'critical',
         score: 0,
@@ -980,12 +981,12 @@ export class VotingBusinessService {
       }
 
       if (errors.length > 0) {
-        console.warn(`Batch proposal creation completed with ${errors.length} errors:`, errors);
+        logger.warn('Batch proposal creation completed with ${errors.length} errors:', errors);
       }
 
       return results;
     } catch (error: any) {
-      console.error('Batch create proposals error:', error);
+      logger.error('Batch create proposals error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1045,12 +1046,12 @@ export class VotingBusinessService {
       }
 
       if (errors.length > 0) {
-        console.warn(`Batch vote recording completed with ${errors.length} errors:`, errors);
+        logger.warn('Batch vote recording completed with ${errors.length} errors:', errors);
       }
 
       return results;
     } catch (error: any) {
-      console.error('Batch record votes error:', error);
+      logger.error('Batch record votes error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1089,7 +1090,7 @@ export class VotingBusinessService {
         remainingCount
       };
     } catch (error: any) {
-      console.error('Cleanup expired pending votes error:', error);
+      logger.error('Cleanup expired pending votes error:', error);
       throw createAppError(`Failed to cleanup expired pending votes: ${error.message}`, 500, 'CLEANUP_FAILED');
     }
   }
@@ -1111,7 +1112,7 @@ export class VotingBusinessService {
         deletedCount: deleteResult.deletedCount || 0
       };
     } catch (error: any) {
-      console.error('Reset pending votes error:', error);
+      logger.error('Reset pending votes error:', error);
       throw createAppError(`Failed to reset pending votes: ${error.message}`, 500, 'RESET_FAILED');
     }
   }
@@ -1177,7 +1178,7 @@ export class VotingBusinessService {
         generatedAt: new Date()
       };
     } catch (error: any) {
-      console.error('Export voting data error:', error);
+      logger.error('Export voting data error:', error);
       
       if (error.statusCode) {
         throw error;

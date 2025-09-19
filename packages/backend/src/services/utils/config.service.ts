@@ -1,6 +1,7 @@
 // src/services/utils/config.service.ts
 
 import Joi from 'joi';
+import { logger } from '../../utils/logger';
 
 /**
  * Centralized configuration service for managing all environment variables and settings
@@ -87,7 +88,7 @@ export class ConfigService {
       TWILIO_FROM: Joi.string().optional(),
       
       // Monitoring and services
-      SENTRY_DSN: Joi.string().uri().optional(),
+      SENTRY_DSN: Joi.string().uri().optional(),  
       CLOUDFLARE_API_TOKEN: Joi.string().optional(),
       
       // Platform detection
@@ -99,9 +100,9 @@ export class ConfigService {
     const { error, value } = schema.validate(process.env, { abortEarly: false });
     
     if (error) {
-      console.error('❌ Environment validation error:');
+      logger.error('❌ Environment validation error:');
       error.details.forEach(detail => {
-        console.error(`  ${detail.path.join('.')}: ${detail.message}`);
+        logger.error(`  ${detail.path.join('.')}: ${detail.message}`);
       });
       process.exit(1);
     }

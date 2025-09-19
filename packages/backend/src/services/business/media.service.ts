@@ -1,6 +1,7 @@
 // src/services/business/media.service.ts
 
 import path from 'path';
+import { logger } from '../utils/logger';
 import { createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { Media, IMedia } from '../../models/media.model';
@@ -704,7 +705,7 @@ export class MediaService {
           await S3Service.updateMetadata(media.s3Key, s3Metadata);
         } catch (s3Error) {
           // Log warning but don't fail the operation
-          console.warn(`Failed to update S3 metadata for ${media.s3Key}:`, s3Error.message);
+          logger.warn('Failed to update S3 metadata for ${media.s3Key}:', s3Error.message);
         }
       }
 
@@ -748,7 +749,7 @@ export class MediaService {
           await S3Service.deleteFile(s3Key);
         } catch (s3Error) {
           // Log warning but continue with database deletion
-          console.warn(`Could not delete S3 file ${s3Key}:`, s3Error.message);
+          logger.warn('Could not delete S3 file ${s3Key}:', s3Error.message);
         }
       }
 
@@ -852,10 +853,10 @@ export class MediaService {
           
           // Log S3 errors but don't fail the operation
           if (s3Result.errors.length > 0) {
-            console.warn('S3 deletion errors:', s3Result.errors);
+            logger.warn('S3 deletion errors:', s3Result.errors);
           }
         } catch (s3Error) {
-          console.warn('S3 batch deletion failed:', s3Error.message);
+          logger.warn('S3 batch deletion failed:', s3Error.message);
         }
       }
 
@@ -1112,7 +1113,7 @@ export class MediaService {
             await fs.unlink(localPath);
           } catch (unlinkError) {
             // Log but don't fail migration
-            console.warn(`Could not delete local file ${localPath}:`, unlinkError.message);
+            logger.warn('Could not delete local file ${localPath}:', unlinkError.message);
           }
 
           migrated++;

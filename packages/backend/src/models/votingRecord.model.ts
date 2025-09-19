@@ -1,5 +1,6 @@
 // src/models/votingRecord.model.ts
 import { Schema, model, Document, Types, Model } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IVotingRecord extends Document {
   business: Types.ObjectId; // Changed from string to ObjectId for consistency
@@ -660,20 +661,20 @@ VotingRecordSchema.post('save', function(doc) {
   // Emit events for real-time analytics
   if (doc.isModified('transactionHash')) {
     process.nextTick(() => {
-      console.log(`Product selection ${doc.voteId} confirmed on blockchain: ${doc.transactionHash}`);
+      logger.info(`Product selection ${doc.voteId} confirmed on blockchain: ${doc.transactionHash}`);
     });
   }
   
   if (doc.isModified('isVerified')) {
     process.nextTick(() => {
-      console.log(`Product selection ${doc.voteId} verification status: ${doc.isVerified ? 'verified' : 'unverified'}`);
+      logger.info(`Product selection ${doc.voteId} verification status: ${doc.isVerified ? 'verified' : 'unverified'}`);
     });
   }
   
   // Log product selection for analytics
   if (doc.isNew) {
     process.nextTick(() => {
-      console.log(`Product selected: ${doc.selectedProductId} (${doc.productName || 'unknown'}) in round ${doc.proposalId}`);
+      logger.info(`Product selected: ${doc.selectedProductId} (${doc.productName || 'unknown'}) in round ${doc.proposalId}`);
     });
   }
 });

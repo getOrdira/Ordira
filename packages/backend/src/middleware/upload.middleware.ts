@@ -2,10 +2,12 @@
 // src/middleware/upload.middleware.ts
 
 import multer from 'multer';
+import { logger } from '../utils/logger';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import sharp from 'sharp';
 import { S3Service } from '../services/external/s3.service';
+import { hasUserId, hasTenantContext } from '../utils/typeGuards';
 
 // Configuration
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '15728640'); // 15MB default
@@ -159,7 +161,7 @@ async function processImage(buffer: Buffer): Promise<{
 async function generateVideoThumbnail(buffer: Buffer): Promise<Buffer> {
   // For now, return a placeholder thumbnail
   // In production, you'd use ffmpeg to extract frame from video buffer
-  console.warn('Video thumbnail generation not implemented - returning placeholder');
+  logger.warn('Video thumbnail generation not implemented - returning placeholder');
   
   // Create a simple placeholder thumbnail
   return await sharp({
@@ -242,7 +244,7 @@ async function processUploadedFiles(req: UploadRequest, res: Response, next: Nex
           file.metadata.height = processed.height;
           file.metadata.processed = true;
         } catch (error) {
-          console.error('Image processing error:', error);
+          logger.error('Image processing error:', error);
           // Continue with original buffer if processing fails
           file.processedBuffer = file.buffer;
         }
@@ -250,7 +252,7 @@ async function processUploadedFiles(req: UploadRequest, res: Response, next: Nex
         try {
           file.thumbnailBuffer = await generateVideoThumbnail(file.buffer);
         } catch (error) {
-          console.error('Video thumbnail generation error:', error);
+          logger.error('Video thumbnail generation error:', error);
         }
       }
 
@@ -268,7 +270,7 @@ async function processUploadedFiles(req: UploadRequest, res: Response, next: Nex
 
     next();
   } catch (error) {
-    console.error('File processing error:', error);
+    logger.error('File processing error:', error);
     next(error);
   }
 }
@@ -285,10 +287,12 @@ async function uploadToS3(req: UploadRequest, res: Response, next: NextFunction)
     const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
     
     // Extract business context (this should be set by auth/tenant middleware)
-    const businessId = (req as any).userId || (req as any).tenant?.business?.toString();
+    const businessId = hasUserId(req) ? req.userId : 
+                      hasTenantContext(req) ? req.tenant.business.toString() : 
+                      undefined;
     
     if (!businessId) {
-      console.warn('No business ID found for S3 upload - skipping automatic upload');
+      logger.warn('No business ID found for S3 upload - skipping automatic upload');
       return next();
     }
 
@@ -344,19 +348,19 @@ async function uploadToS3(req: UploadRequest, res: Response, next: NextFunction)
             file.metadata.thumbnailS3Key = thumbnailResult.key;
             file.metadata.thumbnailUrl = thumbnailResult.url;
           } catch (thumbError) {
-            console.error('Thumbnail upload error:', thumbError);
+            logger.error('Thumbnail upload error:', thumbError);
           }
         }
 
       } catch (error) {
-        console.error(`S3 upload error for file ${file.originalname}:`, error);
+        logger.error('S3 upload error for file ${file.originalname}:', error);
         // Continue processing other files even if one fails
       }
     }
 
     next();
   } catch (error) {
-    console.error('S3 upload processing error:', error);
+    logger.error('S3 upload processing error:', error);
     next(error);
   }
 }
@@ -379,7 +383,7 @@ export function createUploadMiddleware(
     : [uploadType];
 
   const storage = createMemoryStorage(allowedTypes);
-  const fileFilter = createFileFilter(allowedTypes) as any;
+  const fileFilter = createFileFilter(allowedTypes);
 
   const multerConfig: multer.Options = {
     storage,
@@ -499,9 +503,9 @@ export function cleanupOnError(req: UploadRequest, res: Response, next: NextFunc
           if (file.s3Key && USE_S3) {
             try {
               await S3Service.deleteFile(file.s3Key);
-              console.log(`Cleaned up S3 file: ${file.s3Key}`);
+              logger.info('Cleaned up S3 file: ${file.s3Key}');
             } catch (cleanupError) {
-              console.error('S3 cleanup error:', cleanupError);
+              logger.error('S3 cleanup error:', cleanupError);
             }
           }
 
@@ -510,11 +514,11 @@ export function cleanupOnError(req: UploadRequest, res: Response, next: NextFunc
             try {
               await S3Service.deleteFile(file.metadata.thumbnailS3Key);
             } catch (cleanupError) {
-              console.error('S3 thumbnail cleanup error:', cleanupError);
+              logger.error('S3 thumbnail cleanup error:', cleanupError);
             }
           }
         } catch (cleanupError) {
-          console.error('File cleanup error:', cleanupError);
+          logger.error('File cleanup error:', cleanupError);
         }
       });
     }
@@ -572,7 +576,7 @@ export function validateS3Config(req: Request, res: Response, next: NextFunction
   if (USE_S3) {
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_S3_BUCKET) {
       // Log detailed error for debugging
-      console.error('S3 configuration validation failed: Missing required environment variables');
+      logger.error('S3 configuration validation failed: Missing required environment variables');
       
       return res.status(500).json({
         error: 'Storage service not available',
@@ -593,7 +597,7 @@ export async function checkStorageHealth(req: Request, res: Response, next: Next
       const validation = await S3Service.validateConfiguration();
       if (!validation.canConnect || !validation.bucketExists || !validation.hasPermissions) {
         // Log detailed errors for debugging
-        console.error('Storage health check failed:', validation.errors);
+        logger.error('Storage health check failed:', validation.errors);
         
         return res.status(503).json({
           error: 'Storage service unavailable',

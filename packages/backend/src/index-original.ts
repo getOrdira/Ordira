@@ -6,6 +6,7 @@ import 'dotenv/config';
 
 // 1️⃣ Load and validate all required environment variables
 import { configService } from './services/utils/config.service';
+import { logger } from '../utils/logger';
 
 // 2️⃣ Core dependencies with enhanced monitoring
 import express, { Request, Response, NextFunction } from 'express';
@@ -160,10 +161,10 @@ interface ErrorWithStatus extends Error {
 // Self-invoking async function to bootstrap the application
 (async () => {
   try {
-    console.log('🚀 Starting Ordira Platform...');
+    logger.info('🚀 Starting Ordira Platform...');
 
     // Load and validate environment configuration
-    console.log('✅ Environment configuration loaded and validated');
+    logger.info('✅ Environment configuration loaded and validated');
 
     // 🔧 Configure Mongoose settings
     mongoose.set('strictQuery', false); // Suppress deprecation warning
@@ -171,23 +172,23 @@ interface ErrorWithStatus extends Error {
     // 🚀 Optimized MongoDB connection with performance enhancements
     const dbConfig = configService.getDatabase();
     await mongoose.connect(dbConfig.mongodb.uri, dbConfig.mongodb.options);
-    console.log('✅ Connected to MongoDB with optimized configuration');
+    logger.info('✅ Connected to MongoDB with optimized configuration');
 
     // 🔧 Initialize performance services
     await databaseService.createOptimizedIndexes();
-    console.log('✅ Database indexes optimized');
+    logger.info('✅ Database indexes optimized');
 
     // Test cache connection
     const cacheHealth = await cacheService.healthCheck();
     if (cacheHealth.healthy) {
-      console.log('✅ Redis cache connected');
+      logger.info('✅ Redis cache connected');
     } else {
-      console.warn('⚠️ Redis cache connection failed, continuing without cache');
+      logger.warn('⚠️ Redis cache connection failed, continuing without cache');
     }
 
     // Start domain cache polling for dynamic CORS and tenant resolution
     startDomainCachePolling();
-    console.log('✅ Domain cache polling started');
+    logger.info('✅ Domain cache polling started');
 
     // Initialize Express app with enhanced configuration
     const app = express();
@@ -243,12 +244,12 @@ interface ErrorWithStatus extends Error {
       
       app.use(Sentry.Handlers.requestHandler());
       app.use(Sentry.Handlers.tracingHandler());
-      console.log('✅ Sentry monitoring initialized');
+      logger.info('✅ Sentry monitoring initialized');
     }
 
     // Performance and security middleware
-    app.use(compression() as any);
-    app.use(mongoSanitize() as any);
+    app.use(compression());
+    app.use(mongoSanitize());
 
     // Enhanced CORS policy with strict tenant-aware origin validation
     app.use(cors({
@@ -258,7 +259,7 @@ interface ErrorWithStatus extends Error {
         
         // Validate origin format first
         if (!isValidOriginFormat(origin)) {
-          console.warn(`⚠️ CORS blocked invalid origin format: ${origin}`);
+          logger.warn('⚠️ CORS blocked invalid origin format: ${origin}');
           return callback(new Error(`Invalid origin format: ${origin}`));
         }
         
@@ -272,7 +273,7 @@ interface ErrorWithStatus extends Error {
         
         // Production: Require HTTPS for all custom domains
         if (process.env.NODE_ENV === 'production' && !origin.startsWith('https://')) {
-          console.warn(`⚠️ CORS blocked non-HTTPS origin in production: ${origin}`);
+          logger.warn('⚠️ CORS blocked non-HTTPS origin in production: ${origin}');
           return callback(new Error(`HTTPS required in production: ${origin}`));
         }
         
@@ -282,13 +283,13 @@ interface ErrorWithStatus extends Error {
           if (isValidCustomDomain(origin)) {
             return callback(null, true);
           } else {
-            console.warn(`⚠️ CORS blocked invalid custom domain: ${origin}`);
+            logger.warn('⚠️ CORS blocked invalid custom domain: ${origin}');
             return callback(new Error(`Invalid custom domain: ${origin}`));
           }
         }
         
         // Block unauthorized origins
-        console.warn(`⚠️ CORS blocked unauthorized origin: ${origin}`);
+        logger.warn('⚠️ CORS blocked unauthorized origin: ${origin}');
         return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
@@ -647,7 +648,7 @@ interface ErrorWithStatus extends Error {
 
     // 404 handler for unmatched routes
     app.use('*', (req, res) => {
-      console.warn(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
+      logger.warn(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
       res.status(404).json({ 
         error: 'Route not found',
         path: req.originalUrl,
@@ -658,7 +659,7 @@ interface ErrorWithStatus extends Error {
     // Start the enhanced server
     const PORT = Number(process.env.PORT) || 4000;
     const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`
+      logger.info(`
 🚀 Ordira Platform Server Started!
 ┌────────────────────────────────────────────────────────────────────┐
 │ 📡 Server:     http://0.0.0.0:${PORT}                                │
@@ -703,25 +704,25 @@ interface ErrorWithStatus extends Error {
 
     // Graceful shutdown handling
     const gracefulShutdown = (signal: string) => {
-      console.log(`\n📡 Received ${signal}. Starting graceful shutdown...`);
+      logger.info('\n📡 Received ${signal}. Starting graceful shutdown...');
       
       server.close(async () => {
-        console.log('📡 HTTP server closed');
+        logger.info('📡 HTTP server closed');
         
         try {
           await mongoose.connection.close();
-          console.log('📡 MongoDB connection closed');
+          logger.info('📡 MongoDB connection closed');
         } catch (error) {
-          console.error('⚠️ Error closing MongoDB:', error);
+          logger.error('⚠️ Error closing MongoDB:', error);
         }
         
-        console.log('📡 Graceful shutdown complete');
+        logger.info('📡 Graceful shutdown complete');
         process.exit(0);
       });
       
       // Force close after 30 seconds
       setTimeout(() => {
-        console.error('⚠️ Forced shutdown after timeout');
+        logger.error('⚠️ Forced shutdown after timeout');
         process.exit(1);
       }, 30000);
     };
@@ -732,7 +733,7 @@ interface ErrorWithStatus extends Error {
 
     // Unhandled promise rejection handler
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('⚠️ Unhandled Promise Rejection at:', promise, 'reason:', reason);
+      logger.error('⚠️ Unhandled Promise Rejection at:', promise, 'reason:', reason);
       if (process.env.SENTRY_DSN) {
         Sentry.captureException(reason);
       }
@@ -740,7 +741,7 @@ interface ErrorWithStatus extends Error {
 
     // Uncaught exception handler
     process.on('uncaughtException', (error) => {
-      console.error('⚠️ Uncaught Exception:', error);
+      logger.error('⚠️ Uncaught Exception:', error);
       if (process.env.SENTRY_DSN) {
         Sentry.captureException(error);
       }
@@ -748,7 +749,7 @@ interface ErrorWithStatus extends Error {
     });
 
   } catch (error) {
-    console.error('⚠️ Failed to start server:', error);
+    logger.error('⚠️ Failed to start server:', error);
     
     if (process.env.SENTRY_DSN) {
       Sentry.captureException(error);

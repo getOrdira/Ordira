@@ -1,5 +1,6 @@
 // src/controllers/supplyChain.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -544,7 +545,7 @@ export const scanQrCode = asyncHandler(async (
       try {
         await event.logToBlockchain();
       } catch (blockchainError) {
-        console.warn('Failed to log to blockchain:', blockchainError);
+        logger.warn('Failed to log to blockchain:', blockchainError);
         // Continue without blockchain logging
       }
     }
@@ -597,7 +598,7 @@ export const scanQrCode = asyncHandler(async (
     });
 
   } catch (error: any) {
-    console.error('QR scan error:', error);
+    logger.error('QR scan error:', error);
     next(error);
   }
 });
@@ -768,7 +769,7 @@ export const generateBatchQrCodes = asyncHandler(async (
     });
 
   } catch (error: any) {
-    console.error('Batch QR code generation error:', error);
+    logger.error('Batch QR code generation error:', error);
     next(error);
   }
 });
@@ -1106,7 +1107,7 @@ export async function getRateLimitInfo(
       }
     });
   } catch (error) {
-    console.error('Get rate limit info error:', error);
+    logger.error('Get rate limit info error:', error);
     next(error);
   }
 }

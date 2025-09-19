@@ -43,6 +43,20 @@ export function hasTenantContext(req: Request): req is Request & { tenant: { bus
   return 'tenant' in req && req.tenant && typeof req.tenant === 'object' && req.tenant !== null && 'business' in req.tenant;
 }
 
+/**
+ * Type guard to check if request has userId property
+ */
+export function hasUserId(req: Request): req is Request & { userId: string } {
+  return 'userId' in req && typeof req.userId === 'string';
+}
+
+/**
+ * Type guard to check if request has performance tracking properties
+ */
+export function hasPerformanceTracking(req: Request): req is Request & { __sizeChecked?: boolean } {
+  return '__sizeChecked' in req;
+}
+
 // ===== ERROR TYPE GUARDS =====
 
 /**
@@ -55,7 +69,7 @@ export function hasErrorMessage(error: unknown): error is { message: string } {
 /**
  * Type guard to check if error is operational
  */
-export function isOperationalError(error: unknown): error is { isOperational: boolean; statusCode?: number } {
+export function isOperationalError(error: unknown): error is { isOperational: boolean; statusCode?: number; code?: string } {
   return error !== null && typeof error === 'object' && 'isOperational' in error;
 }
 

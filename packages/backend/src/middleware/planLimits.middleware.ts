@@ -1,6 +1,7 @@
 // @ts-nocheck
 // src/middleware/planLimits.middleware.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { AuthRequest } from './auth.middleware';
 import { TenantRequest } from './tenant.middleware';
 import { BrandSettings } from '../models/brandSettings.model';
@@ -119,7 +120,7 @@ export function enforcePlanLimits(operation: 'certificates' | 'votes' | 'api' | 
 
       next();
     } catch (error: any) {
-      console.error('Plan limits middleware error:', error);
+      logger.error('Plan limits middleware error:', error);
       if (error.statusCode) {
         next(error);
       } else {
@@ -184,7 +185,7 @@ export async function enforceApiKeyLimits(req: PlanLimitsRequest, res: Response,
 
     next();
   } catch (error: any) {
-    console.error('API key limits middleware error:', error);
+    logger.error('API key limits middleware error:', error);
     next(createAppError('Failed to check API key limits', 500, 'API_KEY_LIMITS_ERROR'));
   }
 }

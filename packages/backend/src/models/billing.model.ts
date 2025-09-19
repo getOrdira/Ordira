@@ -1,5 +1,6 @@
 // src/models/billing.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IBilling extends Document {
   business: Types.ObjectId;
@@ -704,15 +705,15 @@ BillingSchema.pre('save', function(next) {
 BillingSchema.post('save', function(doc) {
   // Log significant billing changes
   if (doc.isModified('plan')) {
-    console.log(`Billing plan changed for business ${doc.business}: ${doc.plan}`);
+    logger.info('Billing plan changed for business ${doc.business}: ${doc.plan}');
   }
   
   if (doc.isModified('status')) {
-    console.log(`Billing status changed for business ${doc.business}: ${doc.status}`);
+    logger.info('Billing status changed for business ${doc.business}: ${doc.status}');
   }
   
   if (doc.isModified('tokenDiscounts')) {
-    console.log(`Token discounts updated for business ${doc.business}`);
+    logger.info('Token discounts updated for business ${doc.business}');
   }
 });
 
@@ -722,7 +723,7 @@ BillingSchema.post('save', function(doc) {
 BillingSchema.pre('deleteOne', { document: false, query: true }, async function() {
   const doc = await this.model.findOne(this.getQuery());
   if (doc) {
-    console.log(`Removing billing record for business ${doc.business}`);
+    logger.info('Removing billing record for business ${doc.business}');
     // Could trigger cleanup of Stripe resources, cancel subscriptions, etc.
   }
 });

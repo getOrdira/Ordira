@@ -5,7 +5,8 @@
  * with proper dependency injection and service registration.
  */
 
-import express, { Application } from 'express';
+import express, { Application, RequestHandler, Request, Response, NextFunction } from 'express';
+import { logger } from '../../utils/logger'; 
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
@@ -31,7 +32,7 @@ export class AppBootstrapService {
    * Initialize the Express application
    */
   async initialize(): Promise<Application> {
-    console.log('🚀 Initializing Ordira Platform...');
+    logger.info('🚀 Initializing Ordira Platform...');
 
     // Register services in DI container
     await this.registerServices();
@@ -51,7 +52,7 @@ export class AppBootstrapService {
     // Start monitoring
     this.startMonitoring();
 
-    console.log('✅ Application initialization completed');
+    logger.info('✅ Application initialization completed');
     return this.app;
   }
 
@@ -59,7 +60,7 @@ export class AppBootstrapService {
    * Register services in the DI container
    */
   private async registerServices(): Promise<void> {
-    console.log('📦 Registering services in DI container...');
+    logger.info('📦 Registering services in DI container...');
 
     // Register configuration service
     container.registerInstance(SERVICE_TOKENS.CONFIG_SERVICE, configService);
@@ -101,14 +102,14 @@ export class AppBootstrapService {
     container.registerInstance(SERVICE_TOKENS.VOTING_RECORD_MODEL, VotingRecord);
     container.registerInstance(SERVICE_TOKENS.CERTIFICATE_MODEL, Certificate);
 
-    console.log('✅ Services registered in DI container');
+    logger.info('✅ Services registered in DI container');
   }
 
   /**
    * Configure Express application settings
    */
   private configureExpress(): void {
-    console.log('⚙️ Configuring Express application...');
+    logger.info('⚙️ Configuring Express application...');
 
     // Trust proxy for accurate IP addresses behind load balancers
     this.app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
@@ -117,14 +118,14 @@ export class AppBootstrapService {
     this.app.set('view engine', 'ejs');
     this.app.set('views', path.join(__dirname, '../../views'));
 
-    console.log('✅ Express application configured');
+    logger.info('✅ Express application configured');
   }
 
   /**
    * Setup middleware
    */
   private setupMiddleware(): void {
-    console.log('🔧 Setting up middleware...');
+    logger.info('🔧 Setting up middleware...');
 
     // Security middleware
     this.setupSecurityMiddleware();
@@ -141,7 +142,7 @@ export class AppBootstrapService {
     // Monitoring middleware
     this.setupMonitoringMiddleware();
 
-    console.log('✅ Middleware setup completed');
+    logger.info('✅ Middleware setup completed');
   }
 
   /**
@@ -172,7 +173,7 @@ export class AppBootstrapService {
     }));
 
     // MongoDB sanitization
-    this.app.use(mongoSanitize() as any);
+    this.app.use(mongoSanitize());
   }
 
   /**
@@ -180,7 +181,7 @@ export class AppBootstrapService {
    */
   private setupPerformanceMiddleware(): void {
     // Compression
-    this.app.use(compression() as any);
+    this.app.use(compression());
 
     // Performance monitoring
     this.app.use((req, res, next) => {
@@ -240,7 +241,7 @@ export class AppBootstrapService {
         
         // Validate origin format first
         if (!this.isValidOriginFormat(origin)) {
-          console.warn(`⚠️ CORS blocked invalid origin format: ${origin}`);
+          logger.warn('⚠️ CORS blocked invalid origin format: ${origin}');
           return callback(new Error(`Invalid origin format: ${origin}`));
         }
         
@@ -254,7 +255,7 @@ export class AppBootstrapService {
         
         // Production: Require HTTPS for all custom domains
         if (process.env.NODE_ENV === 'production' && !origin.startsWith('https://')) {
-          console.warn(`⚠️ CORS blocked non-HTTPS origin in production: ${origin}`);
+          logger.warn('⚠️ CORS blocked non-HTTPS origin in production: ${origin}');
           return callback(new Error(`HTTPS required in production: ${origin}`));
         }
         
@@ -264,13 +265,13 @@ export class AppBootstrapService {
           if (this.isValidCustomDomain(origin)) {
             return callback(null, true);
           } else {
-            console.warn(`⚠️ CORS blocked invalid custom domain: ${origin}`);
+            logger.warn('⚠️ CORS blocked invalid custom domain: ${origin}');
             return callback(new Error(`Invalid custom domain: ${origin}`));
           }
         }
         
         // Block unauthorized origins
-        console.warn(`⚠️ CORS blocked unauthorized origin: ${origin}`);
+        logger.warn('⚠️ CORS blocked unauthorized origin: ${origin}');
         return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
@@ -304,7 +305,7 @@ export class AppBootstrapService {
       
       this.app.use(Sentry.Handlers.requestHandler());
       this.app.use(Sentry.Handlers.tracingHandler());
-      console.log('✅ Sentry monitoring initialized');
+      logger.info('✅ Sentry monitoring initialized');
     }
   }
 
@@ -312,7 +313,7 @@ export class AppBootstrapService {
    * Setup routes
    */
   private setupRoutes(): void {
-    console.log('🛣️ Setting up routes...');
+    logger.info('🛣️ Setting up routes...');
 
     // Health check routes
     this.setupHealthRoutes();
@@ -325,7 +326,7 @@ export class AppBootstrapService {
 
     // 404 handler
     this.app.use('*', (req, res) => {
-      console.warn(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
+      logger.warn('⚠️ Route not found: ${req.method} ${req.originalUrl}');
       res.status(404).json({ 
         error: 'Route not found',
         path: req.originalUrl,
@@ -333,7 +334,7 @@ export class AppBootstrapService {
       });
     });
 
-    console.log('✅ Routes setup completed');
+    logger.info('✅ Routes setup completed');
   }
 
   /**
@@ -497,7 +498,7 @@ export class AppBootstrapService {
    * Start monitoring services
    */
   private startMonitoring(): void {
-    console.log('📊 Starting monitoring services...');
+    logger.info('📊 Starting monitoring services...');
 
     // Start system metrics collection
     setInterval(() => {
@@ -510,7 +511,7 @@ export class AppBootstrapService {
       monitoringService.recordCircuitBreakerMetrics(stats);
     }, 60000); // Every minute
 
-    console.log('✅ Monitoring services started');
+    logger.info('✅ Monitoring services started');
   }
 
   /**
@@ -577,4 +578,5 @@ export class AppBootstrapService {
       return false;
     }
   }
+
 }

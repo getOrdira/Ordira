@@ -27,6 +27,12 @@ export interface ProductSummary {
   certificateCount?: number;
 }
 
+type ExtendedProduct = IProduct & {
+  manufacturer?: { toString(): string };
+  voteCount?: number;
+  certificateCount?: number;
+};
+
 export interface ProductFilters {
   category?: string;
   status?: 'draft' | 'active' | 'archived';
@@ -627,11 +633,11 @@ async bulkUpdateProducts(
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
       businessId: product.business?.toString(),
-      manufacturerId: (product as any).manufacturer?.toString(), // Type assertion for now
+      manufacturerId: (product as ExtendedProduct).manufacturer?.toString(),
       category: product.category || undefined,
       status: (product.status as 'draft' | 'active' | 'archived') || 'draft',
-      voteCount: (product as any).voteCount || 0,
-      certificateCount: (product as any).certificateCount || 0
+      voteCount: (product as ExtendedProduct).voteCount || 0,
+      certificateCount: (product as ExtendedProduct).certificateCount || 0
     };
   }
 }

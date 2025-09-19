@@ -15,6 +15,11 @@ export interface InvitationSummary {
   respondedAt?: Date;
 }
 
+type ExtendedInvitation = IInvitation & {
+  manufacturer?: { _id: { toString(): string }; name?: string };
+  brand?: { toString(): string; business?: { businessName?: string } };
+};
+
 export interface ConnectionStats {
   totalConnections: number;
   pendingInvitations: number;
@@ -65,7 +70,7 @@ export class InvitationService {
       id: invite._id.toString(),
       brandId: invite.brand.toString(),
       manufacturerId: invite.manufacturer._id.toString(),
-      manufacturerName: (invite.manufacturer as any).name,
+      manufacturerName: (invite as ExtendedInvitation).manufacturer?.name,
       status: invite.status,
       createdAt: invite.createdAt,
       respondedAt: invite.respondedAt
@@ -88,7 +93,7 @@ export class InvitationService {
       id: invite._id.toString(),
       brandId: invite.brand.toString(),
       manufacturerId: invite.manufacturer.toString(),
-      brandName: (invite.brand as any)?.business?.businessName,
+      brandName: (invite as ExtendedInvitation).brand?.business?.businessName,
       status: invite.status,
       createdAt: invite.createdAt,
       respondedAt: invite.respondedAt

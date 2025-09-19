@@ -1,6 +1,7 @@
 // src/controllers/shopify.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -606,7 +607,7 @@ export const handleWebhook = asyncHandler(async (
         break;
         
       default:
-        console.log(`Received unknown Shopify webhook topic: ${topic}`, {
+        logger.info('Received unknown Shopify webhook topic: ${topic}', {
           shop: shopDomain,
           timestamp: new Date().toISOString()
         });
@@ -617,7 +618,7 @@ export const handleWebhook = asyncHandler(async (
         };
     }
   } catch (error: any) {
-    console.error(`Failed to process Shopify webhook ${topic}:`, error);
+    logger.error('Failed to process Shopify webhook ${topic}:', error);
     processResult = {
       processed: false,
       error: error.message,

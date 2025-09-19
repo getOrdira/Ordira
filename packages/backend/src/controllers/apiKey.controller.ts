@@ -1,5 +1,6 @@
 // src/controllers/apiKey.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -104,7 +105,7 @@ export async function createKey(
     trackManufacturerAction('create_api_key');
 
     // Log API key creation for security audit
-    console.log(`API Key created: ${result.keyId} for business: ${businessId}`);
+    logger.info('API Key created: ${result.keyId} for business: ${businessId}');
 
     // Return success response with usage information
     res.status(201).json({
@@ -121,7 +122,7 @@ export async function createKey(
       }
     });
   } catch (error) {
-    console.error('API key creation error:', error);
+    logger.error('API key creation error:', error);
     next(error);
   }
 }
@@ -189,7 +190,7 @@ export async function getKeyDetails(
 
     res.json(response);
   } catch (error) {
-    console.error('Get API key details error:', error);
+    logger.error('Get API key details error:', error);
     next(error);
   }
 }
@@ -273,7 +274,7 @@ export async function testKey(
       }
     });
   } catch (error) {
-    console.error('API key test error:', error);
+    logger.error('API key test error:', error);
     next(error);
   }
 }
@@ -387,7 +388,7 @@ export async function bulkUpdateKeys(
       }
     });
   } catch (error) {
-    console.error('Bulk API key operation error:', error);
+    logger.error('Bulk API key operation error:', error);
     next(error);
   }
 }
@@ -445,7 +446,7 @@ export async function getAuditLog(
       }
     });
   } catch (error) {
-    console.error('API key audit log error:', error);
+    logger.error('API key audit log error:', error);
     next(error);
   }
 }
@@ -524,7 +525,7 @@ export async function exportKeys(
 
         exportData.keys.push(keyData);
       } catch (error) {
-        console.error(`Error exporting key ${keyId}:`, error);
+        logger.error('Error exporting key ${keyId}:', error);
       }
     }
 
@@ -543,7 +544,7 @@ export async function exportKeys(
     // Track export operation
     trackManufacturerAction('export_api_keys');
   } catch (error) {
-    console.error('API key export error:', error);
+    logger.error('API key export error:', error);
     next(error);
   }
 }
@@ -569,8 +570,11 @@ export async function listKeys(
     const enhancedKeys = await Promise.all(
       keys.map(async (apiKey) => {
         // Use type guard to access properties safely
-        const keyData = isApiKeyObject(apiKey) ? apiKey : apiKey as any;
-        const keyIdentifier = keyData.keyId || keyData.key || (keyData._id ? keyData._id.toString() : '');
+        const keyData = isApiKeyObject(apiKey) ? apiKey : {
+          keyId: '',
+          _id: null
+        };
+        const keyIdentifier = keyData.keyId || (keyData._id ? keyData._id.toString() : '');
         
         const usage = await apiKeyService.getKeyUsageStats(keyIdentifier, '30d');
         
@@ -616,7 +620,7 @@ export async function listKeys(
       }
     });
   } catch (error) {
-    console.error('API key listing error:', error);
+    logger.error('API key listing error:', error);
     next(error);
   }
 }
@@ -695,14 +699,14 @@ export async function updateKey(
     trackManufacturerAction('update_api_key');
 
     // Log API key update for security audit
-    console.log(`API Key updated: ${keyId} by business: ${businessId}`);
+    logger.info('API Key updated: ${keyId} by business: ${businessId}');
 
     res.json({
       key: updatedKey,
       message: 'API key updated successfully'
     });
   } catch (error) {
-    console.error('API key update error:', error);
+    logger.error('API key update error:', error);
     next(error);
   }
 }
@@ -751,7 +755,7 @@ export async function revokeKey(
     trackManufacturerAction('revoke_api_key');
 
     // Log API key revocation for security audit
-    console.log(`API Key revoked: ${keyId} by business: ${businessId}`);
+    logger.info('API Key revoked: ${keyId} by business: ${businessId}');
 
     res.json({
       key: {
@@ -770,7 +774,7 @@ export async function revokeKey(
       message: 'API key revoked successfully'
     });
   } catch (error) {
-    console.error('API key revocation error:', error);
+    logger.error('API key revocation error:', error);
     next(error);
   }
 }
@@ -827,7 +831,7 @@ export async function getKeyUsage(
       }
     });
   } catch (error) {
-    console.error('API key usage error:', error);
+    logger.error('API key usage error:', error);
     next(error);
   }
 }
@@ -873,7 +877,7 @@ export async function rotateKey(
     trackManufacturerAction('rotate_api_key');
 
     // Log API key rotation for security audit
-    console.log(`API Key rotated: ${keyId} by business: ${businessId}`);
+    logger.info('API Key rotated: ${keyId} by business: ${businessId}');
 
     res.json({
       keyId: rotatedKey.keyId,
@@ -883,7 +887,7 @@ export async function rotateKey(
       warning: 'The old key will be deactivated in 24 hours to allow for graceful migration.'
     });
   } catch (error) {
-    console.error('API key rotation error:', error);
+    logger.error('API key rotation error:', error);
     next(error);
   }
 }

@@ -1,5 +1,6 @@
 // services/blockchain/nft.service.ts
 import { BlockchainProviderService } from './provider.service';
+import { logger } from '../../utils/logger';
 import { NftMintResult, ContractDeployment, NftContractInfo, TransferResult } from '../types/blockchain.types';
 import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
 import { Certificate, ICertificate } from '../../models/certificate.model';
@@ -303,7 +304,7 @@ export class NftService {
 
         previewUrl = thumbnailResult.url;
       } catch (previewError) {
-        console.warn('Failed to generate template preview:', previewError);
+        logger.warn('Failed to generate template preview:', previewError);
       }
 
       return {
@@ -313,7 +314,7 @@ export class NftService {
         previewUrl
       };
     } catch (error: any) {
-      console.error('Upload certificate template error:', error);
+      logger.error('Upload certificate template error:', error);
       if (error.statusCode) {
         throw error;
       }
@@ -459,7 +460,7 @@ export class NftService {
 
         thumbnailUrl = thumbnailResult.url;
       } catch (thumbError) {
-        console.warn('Failed to generate certificate thumbnail:', thumbError);
+        logger.warn('Failed to generate certificate thumbnail:', thumbError);
       }
 
       return {
@@ -468,7 +469,7 @@ export class NftService {
         thumbnailUrl
       };
     } catch (error: any) {
-      console.error('Generate certificate image error:', error);
+      logger.error('Generate certificate image error:', error);
       if (error.statusCode) {
         throw error;
       }
@@ -526,7 +527,7 @@ export class NftService {
         s3Key: uploadResult.key
       };
     } catch (error: any) {
-      console.error('Upload NFT metadata error:', error);
+      logger.error('Upload NFT metadata error:', error);
       if (error.statusCode) {
         throw error;
       }
@@ -591,7 +592,7 @@ export class NftService {
       };
       
     } catch (error: any) {
-      console.error('Log supply chain event error:', error);
+      logger.error('Log supply chain event error:', error);
       if (error.statusCode) {
         throw error;
       }
@@ -646,7 +647,7 @@ export class NftService {
 
       return { cleaned, errors };
     } catch (error: any) {
-      console.error('Cleanup orphaned S3 files error:', error);
+      logger.error('Cleanup orphaned S3 files error:', error);
       throw createAppError(`Failed to cleanup orphaned S3 files: ${error.message}`, 500, 'S3_CLEANUP_FAILED');
     }
   }
@@ -695,7 +696,7 @@ export class NftService {
         breakdown
       };
     } catch (error: any) {
-      console.error('Get S3 storage stats error:', error);
+      logger.error('Get S3 storage stats error:', error);
       throw createAppError(`Failed to get S3 storage statistics: ${error.message}`, 500, 'S3_STATS_FAILED');
     }
   }
@@ -825,7 +826,7 @@ export class NftService {
         businessId
       };
     } catch (error: any) {
-      console.error('Contract deployment error:', error);
+      logger.error('Contract deployment error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -866,7 +867,7 @@ export class NftService {
 
       return contracts;
     } catch (error: any) {
-      console.error('List contracts error:', error);
+      logger.error('List contracts error:', error);
       throw createAppError(`Failed to list contracts: ${error.message}`, 500, 'LIST_CONTRACTS_FAILED');
     }
   }
@@ -986,7 +987,7 @@ export class NftService {
         }
       };
     } catch (error: any) {
-      console.error('Mint NFT error:', error);
+      logger.error('Mint NFT error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1052,7 +1053,7 @@ export class NftService {
         success: true
       };
     } catch (error: any) {
-      console.error('Transfer NFT error:', error);
+      logger.error('Transfer NFT error:', error);
       
       if (error.statusCode) {
         throw error;
@@ -1115,7 +1116,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       metadataUrl: certificate?.metadata?.metadataUri
     };
   } catch (error: any) {
-    console.error('Verify NFT error:', error);
+    logger.error('Verify NFT error:', error);
     throw createAppError(`Failed to verify NFT: ${error.message}`, 500, 'VERIFICATION_FAILED');
   }
 }
@@ -1160,7 +1161,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         ...cert,
         imageUrl: cert.metadata?.imageUrl,
         metadataUri: cert.metadata?.metadataUri,
-        thumbnailUrl: (cert.metadata?.s3Keys as any)?.thumbnail ? 
+        thumbnailUrl: (cert.metadata?.s3Keys as { thumbnail?: string })?.thumbnail ? 
           cert.metadata.imageUrl?.replace('.png', '_thumb.png') : undefined,
         s3Keys: cert.metadata?.s3Keys,
         verificationUrl: this.generateVerificationUrl(cert.tokenId, cert.contractAddress)
@@ -1171,7 +1172,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         total
       };
     } catch (error: any) {
-      console.error('List certificates error:', error);
+      logger.error('List certificates error:', error);
       throw createAppError(`Failed to list certificates: ${error.message}`, 500, 'LIST_CERTIFICATES_FAILED');
     }
   }
@@ -1219,7 +1220,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         totalFiles: storageStats.totalFiles
       };
     } catch (error: any) {
-      console.error('Certificate analytics error:', error);
+      logger.error('Certificate analytics error:', error);
       throw createAppError(`Failed to get certificate analytics: ${error.message}`, 500, 'ANALYTICS_FAILED');
     }
   }
@@ -1294,7 +1295,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         }
       };
     } catch (error: any) {
-      console.error('Analytics error:', error);
+      logger.error('Analytics error:', error);
       throw createAppError(`Failed to get analytics: ${error.message}`, 500, 'ANALYTICS_FAILED');
     }
   }
@@ -1323,7 +1324,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         businessId: businessId || ''
       };
     } catch (error: any) {
-      console.error('Get contract metadata error:', error);
+      logger.error('Get contract metadata error:', error);
       
       if (error.code === 'CALL_EXCEPTION') {
         throw createAppError('Contract not found or not a valid ERC721 contract', 404, 'INVALID_CONTRACT');
@@ -1347,7 +1348,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       return await nftContract.tokenURI(tokenId);
     } catch (error: any) {
-      console.error('Get token URI error:', error);
+      logger.error('Get token URI error:', error);
       
       if (error.code === 'CALL_EXCEPTION') {
         throw createAppError('Token not found or contract unavailable', 404, 'TOKEN_NOT_FOUND');
@@ -1371,7 +1372,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       const nftContract = BlockchainProviderService.getReadOnlyContract(contractAddress, erc721Abi);
       return await nftContract.ownerOf(tokenId);
     } catch (error: any) {
-      console.error('Get token owner error:', error);
+      logger.error('Get token owner error:', error);
       
       if (error.code === 'CALL_EXCEPTION') {
         throw createAppError('Token not found or contract unavailable', 404, 'TOKEN_NOT_FOUND');
@@ -1550,7 +1551,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       storageStats
     };
   } catch (error: any) {
-    console.error('Certificate analytics error:', error);
+    logger.error('Certificate analytics error:', error);
     throw createAppError(`Failed to get certificate analytics: ${error.message}`, 500, 'ANALYTICS_FAILED');
   }
 }
@@ -1658,7 +1659,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
 
       return { processed, successful, failed, errors };
     } catch (error: any) {
-      console.error('Retry failed transfers error:', error);
+      logger.error('Retry failed transfers error:', error);
       throw createAppError(`Failed to retry transfers: ${error.message}`, 500, 'RETRY_FAILED');
     }
   }
@@ -1671,7 +1672,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         transferredToBrand: { $ne: true }
       }).sort({ createdAt: -1 });
     } catch (error: any) {
-      console.error('Get pending transfers error:', error);
+      logger.error('Get pending transfers error:', error);
       throw createAppError(`Failed to get pending transfers: ${error.message}`, 500, 'GET_PENDING_FAILED');
     }
   }
@@ -1696,7 +1697,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         averageGasCost: analytics.averageGasCost
       };
     } catch (error: any) {
-      console.error('Get contract statistics error:', error);
+      logger.error('Get contract statistics error:', error);
       throw createAppError(`Failed to get contract statistics: ${error.message}`, 500, 'STATS_FAILED');
     }
   }
@@ -1710,7 +1711,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       // For now, return true as a placeholder
       return { isOwner: true };
     } catch (error: any) {
-      console.error('Verify product ownership error:', error);
+      logger.error('Verify product ownership error:', error);
       return { isOwner: false };
     }
   }
@@ -1730,7 +1731,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       
       return { canMint: true };
     } catch (error: any) {
-      console.error('Check minting eligibility error:', error);
+      logger.error('Check minting eligibility error:', error);
       return { canMint: false, reason: 'Unable to verify eligibility' };
     }
   }
@@ -1762,7 +1763,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       
       return { canTransfer: true };
     } catch (error: any) {
-      console.error('Verify transfer eligibility error:', error);
+      logger.error('Verify transfer eligibility error:', error);
       return { canTransfer: false, reason: 'Unable to verify transfer eligibility' };
     }
   }
@@ -1793,7 +1794,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
       
       return { canBurn: true };
     } catch (error: any) {
-      console.error('Verify burn eligibility error:', error);
+      logger.error('Verify burn eligibility error:', error);
       return { canBurn: false, reason: 'Unable to verify burn eligibility' };
     }
   }
@@ -1837,7 +1838,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         costsRecovered: '0'
       };
     } catch (error: any) {
-      console.error('Burn NFT error:', error);
+      logger.error('Burn NFT error:', error);
       throw createAppError(`Failed to burn NFT: ${error.message}`, 500, 'BURN_FAILED');
     }
   }

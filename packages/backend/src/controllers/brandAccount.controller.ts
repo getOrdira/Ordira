@@ -1,5 +1,6 @@
 // src/controllers/brandAccount.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -99,7 +100,7 @@ export async function getBrandProfile(
       recommendations: generateProfileRecommendations(profile, userPlan)
     });
   } catch (error) {
-    console.error('Get brand profile error:', error);
+    logger.error('Get brand profile error:', error);
     next(error);
   }
 }
@@ -181,7 +182,7 @@ export async function uploadProfilePicture(
       }
     });
   } catch (error) {
-    console.error('Upload brand profile picture error:', error);
+    logger.error('Upload brand profile picture error:', error);
     next(error);
   }
 }
@@ -272,7 +273,7 @@ export async function updateBrandProfile(
         generateProfileRecommendations(updatedProfile, userPlan)
     });
   } catch (error) {
-    console.error('Update brand profile error:', error);
+    logger.error('Update brand profile error:', error);
     next(error);
   }
 }
@@ -338,7 +339,7 @@ export async function submitVerification(
     await notificationsService.sendVerificationSubmissionConfirmation(businessId, verification);
 
     // Log verification submission for admin review
-    console.log(`Brand verification submitted: ${businessId} - ${verification.id}`);
+    logger.info('Brand verification submitted: ${businessId} - ${verification.id}');
 
     res.status(201).json({
       success: true,
@@ -356,7 +357,7 @@ export async function submitVerification(
       message: 'Verification documents submitted successfully'
     });
   } catch (error) {
-    console.error('Brand verification submission error:', error);
+    logger.error('Brand verification submission error:', error);
     next(error);
   }
 }
@@ -386,7 +387,7 @@ export async function getVerificationStatus(
       requirements: getVerificationRequirements(req.tenant?.plan || 'foundation')
     });
   } catch (error) {
-    console.error('Get verification status error:', error);
+    logger.error('Get verification status error:', error);
     next(error);
   }
 }
@@ -441,7 +442,7 @@ export async function deactivateAccount(
     await notificationsService.sendAccountDeactivationConfirmation(businessId, deactivation);
 
     // Log account deactivation
-    console.log(`Brand account deactivated: ${businessId} - Reason: ${reason}`);
+    logger.info('Brand account deactivated: ${businessId} - Reason: ${reason}');
 
     res.json({
       success: true,
@@ -458,7 +459,7 @@ export async function deactivateAccount(
       }
     });
   } catch (error) {
-    console.error('Account deactivation error:', error);
+    logger.error('Account deactivation error:', error);
     next(error);
   }
 }
@@ -508,7 +509,7 @@ export async function getAccountAnalytics(
       recommendations: generateAnalyticsRecommendations(analytics, userPlan)
     });
   } catch (error) {
-    console.error('Account analytics error:', error);
+    logger.error('Account analytics error:', error);
     next(error);
   }
 }
@@ -560,7 +561,7 @@ export async function exportAccountData(
       res.send(exportData);
     }
   } catch (error) {
-    console.error('Account data export error:', error);
+    logger.error('Account data export error:', error);
     next(error);
   }
 }
@@ -582,7 +583,7 @@ async function buildProfileMetadata(businessId: string, plan: string): Promise<a
       // Option 1: Use brandAccountService instead (which has getAccountSummary)
       metadata.analytics = await brandAccountService.getAccountSummary(businessId);
     } catch (error) {
-      console.warn('Failed to get account analytics:', error);
+      logger.warn('Failed to get account analytics:', error);
       // Fallback to basic analytics info
       metadata.analytics = {
         profileCompleteness: 0,
@@ -596,7 +597,7 @@ async function buildProfileMetadata(businessId: string, plan: string): Promise<a
     try {
       metadata.customization = await brandAccountService.getCustomizationOptions(businessId);
     } catch (error) {
-      console.warn('Failed to get customization options:', error);
+      logger.warn('Failed to get customization options:', error);
       metadata.customization = null;
     }
   }
@@ -677,7 +678,7 @@ async function handleWalletAddressChange(businessId: string, newWallet: string, 
       await billingService.updateTokenDiscounts(businessId, newWallet);
     }
   } catch (error) {
-    console.error('Error handling wallet address change:', error);
+    logger.error('Error handling wallet address change:', error);
     throw error;
   }
 }

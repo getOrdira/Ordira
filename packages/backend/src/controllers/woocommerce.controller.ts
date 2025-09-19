@@ -1,6 +1,7 @@
 // src/controllers/woocommerce.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -336,7 +337,7 @@ export const handleOrderWebhook = asyncHandler(async (
       break;
     default:
       // Log unknown webhook events but don't fail
-      console.log(`Received unknown WooCommerce webhook event: ${event} for topic: ${topic}`);
+      logger.info('Received unknown WooCommerce webhook event: ${event} for topic: ${topic}');
       processResult = { processed: false, reason: 'Unknown event type' };
   }
 

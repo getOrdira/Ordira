@@ -1,5 +1,6 @@
 // src/models/certificate.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface ICertificate extends Document {
   business: Types.ObjectId;
@@ -594,7 +595,7 @@ CertificateSchema.methods.scheduleTransfer = async function(): Promise<void> {
     const brandSettings = await BrandSettings.findOne({ business: this.business });
     
     if (!brandSettings?.certificateWallet && !brandSettings?.web3Settings?.certificateWallet) {
-      console.warn(`No brand wallet configured for business ${this.business}. Skipping auto-transfer.`);
+      logger.warn('No brand wallet configured for business ${this.business}. Skipping auto-transfer.');
       return;
     }
 
@@ -605,10 +606,10 @@ CertificateSchema.methods.scheduleTransfer = async function(): Promise<void> {
     
     await this.save();
     
-    console.log(`Scheduled transfer for certificate ${this._id} to wallet ${this.brandWallet}`);
+    logger.info('Scheduled transfer for certificate ${this._id} to wallet ${this.brandWallet}');
     
   } catch (error: any) {
-    console.error(`Failed to schedule transfer for certificate ${this._id}:`, error);
+    logger.error('Failed to schedule transfer for certificate ${this._id}:', error);
     this.transferError = `Scheduling failed: ${error.message}`;
     this.status = 'transfer_failed';
     await this.save();
@@ -664,7 +665,7 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
       txHash: transferResult.transactionHash
     });
 
-    console.log(`Successfully transferred certificate ${this._id} to brand wallet ${this.brandWallet}`);
+    logger.info('Successfully transferred certificate ${this._id} to brand wallet ${this.brandWallet}');
     return true;
 
   } catch (error: any) {
@@ -692,7 +693,7 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
       maxAttempts: this.maxTransferAttempts
     });
 
-    console.error(`Transfer failed for certificate ${this._id} (attempt ${this.transferAttempts}/${this.maxTransferAttempts}):`, error);
+    logger.error('Transfer failed for certificate ${this._id} (attempt ${this.transferAttempts}/${this.maxTransferAttempts}):', error);
     return false;
   }
 };
@@ -705,7 +706,7 @@ CertificateSchema.methods.retryTransfer = async function(): Promise<boolean> {
     return false;
   }
 
-  console.log(`Retrying transfer for certificate ${this._id} (attempt ${this.transferAttempts + 1}/${this.maxTransferAttempts})`);
+  logger.info('Retrying transfer for certificate ${this._id} (attempt ${this.transferAttempts + 1}/${this.maxTransferAttempts})');
   return this.executeTransfer();
 };
 
@@ -924,7 +925,7 @@ CertificateSchema.post('save', function(doc) {
       try {
         await doc.scheduleTransfer();
       } catch (error) {
-        console.error(`Failed to schedule automatic transfer for certificate ${doc._id}:`, error);
+        logger.error('Failed to schedule automatic transfer for certificate ${doc._id}:', error);
       }
     });
   }
@@ -932,7 +933,7 @@ CertificateSchema.post('save', function(doc) {
   // Emit events for real-time updates
   if (doc.isModified('status')) {
     process.nextTick(() => {
-      console.log(`Certificate ${doc._id} status changed to: ${doc.status}`);
+      logger.info('Certificate ${doc._id} status changed to: ${doc.status}');
       // You can emit WebSocket events here for real-time dashboard updates
       // Example: socketService.emit(`business:${doc.business}`, 'certificate:status_changed', {
       //   certificateId: doc._id,
@@ -958,7 +959,7 @@ CertificateSchema.post('save', function(doc) {
           });
         }
       } catch (error) {
-        console.error(`Failed to update transfer analytics for certificate ${doc._id}:`, error);
+        logger.error('Failed to update transfer analytics for certificate ${doc._id}:', error);
       }
     });
   }
@@ -977,7 +978,7 @@ CertificateSchema.post('save', function(doc) {
           });
         }
       } catch (error) {
-        console.error(`Failed to update failure analytics for certificate ${doc._id}:`, error);
+        logger.error('Failed to update failure analytics for certificate ${doc._id}:', error);
       }
     });
   }
@@ -989,13 +990,13 @@ CertificateSchema.post('save', function(doc) {
 CertificateSchema.pre('remove', function(this: ICertificate, next) {
   // Cancel any pending transfers
   if (this.nextTransferAttempt && this.status === 'pending_transfer') {
-    console.log(`Cancelling pending transfer for certificate ${this._id}`);
+    logger.info('Cancelling pending transfer for certificate ${this._id}');
     // Clear the scheduled transfer (implementation depends on your job queue)
     // Example: jobQueue.cancel(`transfer_${this._id}`);
   }
   
   // Log certificate removal for audit trail
-  console.log(`Removing certificate ${this._id} for business ${this.business}`);
+  logger.info('Removing certificate ${this._id} for business ${this.business}');
   
   next();
 });
@@ -1010,16 +1011,16 @@ CertificateSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
     if (doc) {
       // Cancel any pending transfers
       if (doc.nextTransferAttempt && doc.status === 'pending_transfer') {
-        console.log(`Cancelling pending transfer for certificate ${doc._id}`);
+        logger.info('Cancelling pending transfer for certificate ${doc._id}');
         // Clear the scheduled transfer (implementation depends on your job queue)
         // Example: jobQueue.cancel(`transfer_${doc._id}`);
       }
       
       // Log certificate removal for audit trail
-      console.log(`Removing certificate ${doc._id} for business ${doc.business}`);
+      logger.info('Removing certificate ${doc._id} for business ${doc.business}');
     }
   } catch (error) {
-    console.error('Error in pre-delete hook:', error);
+    logger.error('Error in pre-delete hook:', error);
   }
 });
 
@@ -1045,7 +1046,7 @@ CertificateSchema.post('remove', function(doc) {
         );
       }
     } catch (error) {
-      console.error(`Failed to send removal notification for certificate ${doc._id}:`, error);
+      logger.error('Failed to send removal notification for certificate ${doc._id}:', error);
     }
   });
 });

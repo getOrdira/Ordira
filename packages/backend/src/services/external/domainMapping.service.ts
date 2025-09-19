@@ -1,6 +1,7 @@
 // src/services/external/domainMapping.service.ts
 
 import { DomainMapping, IDomainMapping } from '../../models/domainMapping.model';
+import { logger } from '../../utils/logger'; 
 import { Business } from '../../models/business.model';
 import * as dns from 'dns/promises';
 import * as crypto from 'crypto';
@@ -557,7 +558,7 @@ export class DomainMappingService {
           await this.revokeSslCertificate(mapping.domain);
           certificateRevoked = true;
         } catch (error) {
-          console.warn('Failed to revoke SSL certificate:', error);
+          logger.warn('Failed to revoke SSL certificate:', error);
         }
 
         // Clear DNS cache
@@ -565,7 +566,7 @@ export class DomainMappingService {
           await this.clearDnsCache(mapping.domain);
           cacheCleared = true;
         } catch (error) {
-          console.warn('Failed to clear DNS cache:', error);
+          logger.warn('Failed to clear DNS cache:', error);
         }
 
         dnsRecordsRemoved = true; // We don't actually manage external DNS
@@ -951,7 +952,7 @@ export class DomainMappingService {
   }> {
     try {
       // In production, this would integrate with Let's Encrypt or your SSL provider
-      console.log(`Requesting ${type} SSL certificate for ${domain}`);
+      logger.info('Requesting ${type} SSL certificate for ${domain}');
       
       return {
         requested: true,
@@ -965,7 +966,7 @@ export class DomainMappingService {
   private async revokeSslCertificate(domain: string): Promise<void> {
     try {
       // In production, this would revoke the certificate with the CA
-      console.log(`Revoking SSL certificate for ${domain}`);
+      logger.info('Revoking SSL certificate for ${domain}');
     } catch (error: any) {
       throw new Error(`Failed to revoke SSL certificate: ${error.message}`);
     }
@@ -974,7 +975,7 @@ export class DomainMappingService {
   private async clearDnsCache(domain: string): Promise<void> {
     try {
       // In production, this would clear DNS cache from CDN/proxy services
-      console.log(`Clearing DNS cache for ${domain}`);
+      logger.info('Clearing DNS cache for ${domain}');
     } catch (error: any) {
       throw new Error(`Failed to clear DNS cache: ${error.message}`);
     }

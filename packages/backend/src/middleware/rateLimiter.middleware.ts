@@ -1,4 +1,5 @@
 import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import { logger } from '../utils/logger';
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
@@ -156,7 +157,7 @@ async function getUserRateLimit(userId: string, userType: 'brand' | 'manufacture
       windowMs: limits.window * 60 * 1000
     };
   } catch (error) {
-    console.error('Error getting user rate limit:', error);
+    logger.error('Error getting user rate limit:', error);
     // Fallback to foundation plan
     const limits = PLAN_RATE_LIMITS.foundation;
     return {
@@ -246,7 +247,7 @@ export function dynamicRateLimiter(): RateLimitRequestHandler {
         const limits = await getUserRateLimit(userId, userType);
         return limits.max;
       } catch (error) {
-        console.error('Error in dynamic rate limit:', error);
+        logger.error('Error in dynamic rate limit:', error);
         return DEFAULT_RATE_LIMIT.burst;
       }
     },
@@ -259,7 +260,7 @@ export function dynamicRateLimiter(): RateLimitRequestHandler {
       const userType = getUserType(req as unknown as Request);
       const key = generateRateLimitKey(req as unknown as Request);
       
-      console.warn(`Rate limit exceeded for ${userType} ${key} on ${req.method} ${req.path}`);
+      logger.warn('Rate limit exceeded for ${userType} ${key} on ${req.method} ${req.path}');
       
       res.status(429).json({
         error: 'Too many requests',
@@ -286,7 +287,7 @@ export function strictRateLimiter(): RateLimitRequestHandler {
     
     handler: (req: CompatibleRequest, res: CompatibleResponse) => {
       const key = generateRateLimitKey(req as unknown as Request);
-      console.warn(`Strict rate limit exceeded for ${key} on ${req.method} ${req.path}`);
+      logger.warn('Strict rate limit exceeded for ${key} on ${req.method} ${req.path}');
       
       res.status(429).json({
         error: 'Too many attempts',
@@ -369,7 +370,7 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
         
         return limits.eventsPerMinute;
       } catch (error) {
-        console.error('Error getting supply chain rate limit:', error);
+        logger.error('Error getting supply chain rate limit:', error);
         return SUPPLY_CHAIN_RATE_LIMITS.starter.eventsPerMinute; // Fallback to starter
       }
     },
@@ -391,7 +392,7 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
       const manufacturerReq = req as unknown as ManufacturerAuthRequest;
       const key = `supply-chain:${manufacturerReq.userId}`;
       
-      console.warn(`Supply chain rate limit exceeded for manufacturer ${manufacturerReq.userId} on ${req.method} ${req.path}`);
+      logger.warn('Supply chain rate limit exceeded for manufacturer ${manufacturerReq.userId} on ${req.method} ${req.path}');
       
       res.status(429).json({
         error: 'Supply chain event rate limit exceeded',
@@ -535,7 +536,7 @@ export function enhancedSupplyChainRateLimiter(): RequestHandler {
       
       next();
     } catch (error) {
-      console.error('Enhanced supply chain rate limiter error:', error);
+      logger.error('Enhanced supply chain rate limiter error:', error);
       res.status(500).json({
         error: 'Rate limiter error',
         message: 'Unable to process rate limiting',

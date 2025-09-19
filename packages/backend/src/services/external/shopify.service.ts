@@ -1,5 +1,6 @@
 // src/services/external/shopify.service.ts
 import axios from 'axios';
+import { logger } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
@@ -181,7 +182,7 @@ export class ShopifyService {
         throw new ShopifyError('Failed to save Shopify credentials', 500);
       }
 
-      console.log(`Shopify integration completed for business ${state}`);
+      logger.info('Shopify integration completed for business ${state}');
     } catch (error: any) {
       if (error instanceof ShopifyError) {
         throw error;
@@ -255,7 +256,7 @@ export class ShopifyService {
         } catch (error: any) {
           const errorMsg = `Failed to register webhook ${webhook.topic}: ${error.response?.data?.errors || error.message}`;
           errors.push(errorMsg);
-          console.warn(errorMsg);
+          logger.warn(errorMsg);
         }
       }
 
@@ -513,13 +514,13 @@ export class ShopifyService {
                   }
                 );
               } catch (deleteError: any) {
-                console.warn(`Failed to delete webhook ${webhook.id}:`, deleteError.message);
+                logger.warn('Failed to delete webhook ${webhook.id}:', deleteError.message);
               }
             }
           }
         }
       } catch (error: any) {
-        console.warn('Failed to remove Shopify webhooks:', error.message);
+        logger.warn('Failed to remove Shopify webhooks:', error.message);
         // Don't fail the disconnect operation if webhook cleanup fails
       }
 
@@ -565,7 +566,7 @@ export class ShopifyService {
       
       return computed === hmacHeader;
     } catch (error) {
-      console.error('Error validating webhook signature:', error);
+      logger.error('Error validating webhook signature:', error);
       return false;
     }
   }

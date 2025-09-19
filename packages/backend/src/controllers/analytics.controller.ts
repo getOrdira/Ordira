@@ -1,5 +1,6 @@
 // src/controllers/analytics.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
@@ -85,7 +86,7 @@ export async function getVotesAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Votes analytics error:', error);
+    logger.error('Votes analytics error:', error);
     next(error);
   }
 }
@@ -145,7 +146,7 @@ export async function getTransactionsAnalytics(
 
     res.json(enhancedData);
   } catch (error) {
-    console.error('Transaction analytics error:', error);
+    logger.error('Transaction analytics error:', error);
     next(error);
   }
 }
@@ -201,7 +202,7 @@ export async function getProposalAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Proposal analytics error:', error);
+    logger.error('Proposal analytics error:', error);
     next(error);
   }
 }
@@ -262,7 +263,7 @@ export async function getProductAnalytics(
 
     res.json(enhancedAnalytics);
   } catch (error) {
-    console.error('Product analytics error:', error);
+    logger.error('Product analytics error:', error);
     next(error);
   }
 }
@@ -326,7 +327,7 @@ export async function getProductAnalyticsById(
 
     res.json(enhancedAnalytics);
   } catch (error) {
-    console.error('Product analytics by ID error:', error);
+    logger.error('Product analytics by ID error:', error);
     next(error);
   }
 }
@@ -376,7 +377,7 @@ export async function getManufacturerAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Manufacturer analytics error:', error);
+    logger.error('Manufacturer analytics error:', error);
     next(error);
   }
 }
@@ -429,7 +430,7 @@ export async function getEngagementAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Engagement analytics error:', error);
+    logger.error('Engagement analytics error:', error);
     next(error);
   }
 }
@@ -491,7 +492,7 @@ export async function getComparativeAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Comparative analytics error:', error);
+    logger.error('Comparative analytics error:', error);
     next(error);
   }
 }
@@ -544,7 +545,7 @@ export async function getNftAnalytics(
 
     res.json(enhancedData);
   } catch (error) {
-    console.error('NFT analytics error:', error);
+    logger.error('NFT analytics error:', error);
     next(error);
   }
 }
@@ -604,7 +605,7 @@ export async function getManufacturerBrandAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Manufacturer brand analytics error:', error);
+    logger.error('Manufacturer brand analytics error:', error);
     next(error);
   }
 }
@@ -656,7 +657,7 @@ export async function getDashboardAnalytics(
 
     res.json(response);
   } catch (error) {
-    console.error('Dashboard analytics error:', error);
+    logger.error('Dashboard analytics error:', error);
     next(error);
   }
 }
@@ -722,7 +723,7 @@ export async function exportAnalytics(
       res.send(exportData);
     }
   } catch (error) {
-    console.error('Export analytics error:', error);
+    logger.error('Export analytics error:', error);
     next(error);
   }
 }
@@ -773,7 +774,7 @@ export async function generateCustomReport(
       downloadUrl: `/api/analytics/reports/${report.id}/download`
     });
   } catch (error) {
-    console.error('Custom report generation error:', error);
+    logger.error('Custom report generation error:', error);
     next(error);
   }
 }

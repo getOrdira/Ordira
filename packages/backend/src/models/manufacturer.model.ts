@@ -1,5 +1,6 @@
 // src/models/manufacturer.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 import bcrypt from 'bcrypt';
 
 export interface IManufacturer extends Document {
@@ -1005,11 +1006,11 @@ ManufacturerSchema.pre('save', async function(next) {
 // Post-save middleware for analytics (aligned with service tracking)
 ManufacturerSchema.post('save', function(doc) {
   if (this.isModified('isVerified') && doc.isVerified) {
-    console.log(`Manufacturer ${doc.email} verified at ${new Date()}`);
+    logger.info('Manufacturer ${doc.email} verified at ${new Date()}');
   }
   
   if (this.isModified('totalConnections')) {
-    console.log(`Manufacturer ${doc.email} connection count: ${doc.totalConnections}`);
+    logger.info('Manufacturer ${doc.email} connection count: ${doc.totalConnections}');
   }
 });
 

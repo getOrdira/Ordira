@@ -2,6 +2,7 @@
 // src/controllers/media.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
@@ -775,7 +776,7 @@ async function handleAutomaticUpdates(media: any, businessId: string, metadata: 
     }
 
   } catch (error) {
-    console.error('Error in handleAutomaticUpdates:', error);
+    logger.error('Error in handleAutomaticUpdates:', error);
     updates.errors.push('Failed to process automatic updates');
   }
 

@@ -1,5 +1,6 @@
 // src/controllers/brandProfile.controller.ts
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
@@ -83,7 +84,7 @@ export async function listBrandProfiles(
       }
     });
   } catch (error) {
-    console.error('List brand profiles error:', error);
+    logger.error('List brand profiles error:', error);
     next(error);
   }
 }
@@ -141,7 +142,7 @@ export async function getBrandProfile(
       }
     });
   } catch (error) {
-    console.error('Get brand profile error:', error);
+    logger.error('Get brand profile error:', error);
     if (error.statusCode === 404) {
       res.status(404).json({
         error: 'Brand profile not found',
@@ -195,7 +196,7 @@ export async function getBrandProfileForManufacturer(
       nextSteps: getManufacturerNextSteps('none') // Default to 'none' since we don't have connection status
     });
   } catch (error) {
-    console.error('Get brand profile for manufacturer error:', error);
+    logger.error('Get brand profile for manufacturer error:', error);
     if (error.statusCode === 404) {
       res.status(404).json({
         error: 'Brand profile not found',
@@ -237,7 +238,7 @@ export async function getFeaturedBrands(
       categories: featuredCategories
     });
   } catch (error) {
-    console.error('Get featured brands error:', error);
+    logger.error('Get featured brands error:', error);
     next(error);
   }
 }
@@ -278,7 +279,7 @@ export async function getSearchSuggestions(
       trending: trendingTerms
     });
   } catch (error) {
-    console.error('Get search suggestions error:', error);
+    logger.error('Get search suggestions error:', error);
     next(error);
   }
 }
@@ -304,7 +305,7 @@ export async function getPublicBrandAnalytics(
       lastUpdated: new Date()
     });
   } catch (error) {
-    console.error('Get public brand analytics error:', error);
+    logger.error('Get public brand analytics error:', error);
     next(error);
   }
 }
@@ -353,7 +354,7 @@ export async function reportBrand(
       message: 'Report submitted successfully. Our team will review it within 24 hours.'
     });
   } catch (error) {
-    console.error('Report brand error:', error);
+    logger.error('Report brand error:', error);
     next(error);
   }
 }
@@ -393,7 +394,7 @@ export async function getBrandRecommendations(
       }
     });
   } catch (error) {
-    console.error('Get brand recommendations error:', error);
+    logger.error('Get brand recommendations error:', error);
     next(error);
   }
 }
@@ -428,7 +429,7 @@ export async function provideBrandRecommendationFeedback(
       impact: 'Your feedback will be reflected in recommendations within 24 hours'
     });
   } catch (error) {
-    console.error('Provide recommendation feedback error:', error);
+    logger.error('Provide recommendation feedback error:', error);
     next(error);
   }
 }
@@ -462,7 +463,7 @@ export async function searchBrandProfiles(
       totalResults: results.length
     });
   } catch (error) {
-    console.error('Search brand profiles error:', error);
+    logger.error('Search brand profiles error:', error);
     next(error);
   }
 }
@@ -502,7 +503,7 @@ export async function getBrandBySubdomain(
       profile
     });
   } catch (error) {
-    console.error('Get brand by subdomain error:', error);
+    logger.error('Get brand by subdomain error:', error);
     next(error);
   }
 }
@@ -542,7 +543,7 @@ export async function getBrandByCustomDomain(
       profile
     });
   } catch (error) {
-    console.error('Get brand by custom domain error:', error);
+    logger.error('Get brand by custom domain error:', error);
     next(error);
   }
 }

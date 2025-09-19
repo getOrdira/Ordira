@@ -1,4 +1,5 @@
 import { VotingRecord } from '../../models/votingRecord.model';
+import { logger } from '../../utils/logger';
 import { NftCertificate } from '../../models/nftCertificate.model';
 import { BrandSettings } from '../../models/brandSettings.model';
 import { SubscriptionService } from './subscription.service';
@@ -18,6 +19,32 @@ type VoteAnalytics = {
     date: string;
     count: number;
   }>;
+};
+
+type BlockchainEvent = {
+  args?: {
+    proposalId?: { toString(): string };
+  };
+};
+
+type ProductBreakdownEntry = {
+  selectionCount: number;
+};
+
+type VotingEngagement = {
+  participationRate?: string;
+  uniqueVoters?: number;
+  totalVotes?: number;
+};
+
+type AnalyticsData = {
+  totalEvents: number;
+  eventBreakdown: Record<string, number>;
+  lastUpdated: Date;
+};
+
+type SettingsWithAnalytics = {
+  analyticsData?: AnalyticsData;
 };
 
 interface VoteData {
@@ -150,12 +177,12 @@ export class AnalyticsBusinessService {
         totalOnChainVotes = events.length;
         
         for (const event of events) {
-          const evt = event as any;
+          const evt = event as BlockchainEvent;
           const pid = evt.args?.proposalId?.toString() || 'unknown';
           byProposal[pid] = (byProposal[pid] || 0) + 1;
         }
       } catch (error) {
-        console.error('Error fetching blockchain events:', error);
+        logger.error('Error fetching blockchain events:', error);
       }
     }
 
@@ -244,11 +271,11 @@ export class AnalyticsBusinessService {
         timeSeries: timeSeriesData,
         voterInsights,
         topProducts: productBreakdown ? Object.entries(productBreakdown)
-          .sort(([,a], [,b]) => (b as any).selectionCount - (a as any).selectionCount)
+          .sort(([,a], [,b]) => (b as ProductBreakdownEntry).selectionCount - (a as ProductBreakdownEntry).selectionCount)
           .slice(0, 5) : []
       };
     } catch (error) {
-      console.error('Get proposal analytics error:', error);
+      logger.error('Get proposal analytics error:', error);
       throw new Error(`Failed to get proposal analytics: ${(error as Error).message}`);
     }
   }
@@ -313,7 +340,7 @@ export class AnalyticsBusinessService {
         demandMetrics: this.calculateDemandMetrics(topProducts)
       };
     } catch (error) {
-      console.error('Get product analytics error:', error);
+      logger.error('Get product analytics error:', error);
       throw new Error(`Failed to get product analytics: ${(error as Error).message}`);
     }
   }
@@ -403,7 +430,7 @@ export class AnalyticsBusinessService {
         productionAdvice: this.generateProductionAdvice(totalSelections, productRank, allProducts.length)
       };
     } catch (error) {
-      console.error('Get product analytics by ID error:', error);
+      logger.error('Get product analytics by ID error:', error);
       throw new Error(`Failed to get product analytics: ${(error as Error).message}`);
     }
   }
@@ -470,9 +497,9 @@ export class AnalyticsBusinessService {
 
       return {
         summary: {
-          overallEngagement: (votingEngagement as any).participationRate || '0%',
-          activeUsers: (votingEngagement as any).uniqueVoters || 0,
-          totalInteractions: (votingEngagement as any).totalVotes || 0
+          overallEngagement: (votingEngagement as VotingEngagement).participationRate || '0%',
+          activeUsers: (votingEngagement as VotingEngagement).uniqueVoters || 0,
+          totalInteractions: (votingEngagement as VotingEngagement).totalVotes || 0
         },
         votingEngagement,
         retention,
@@ -487,7 +514,7 @@ export class AnalyticsBusinessService {
         recommendations: this.generateEngagementRecommendations(votingEngagement, retention)
       };
     } catch (error) {
-      console.error('Get engagement analytics error:', error);
+      logger.error('Get engagement analytics error:', error);
       throw new Error(`Failed to get engagement analytics: ${(error as Error).message}`);
     }
   }
@@ -497,7 +524,7 @@ export class AnalyticsBusinessService {
 async trackUserVote(userId: string, voteData: VoteData): Promise<void> {
   try {
     // Log the vote for analytics - CORRECTED
-    console.log(`[Analytics] User vote tracked:`, {
+    logger.info('[Analytics] User vote tracked:', {
       userId,
       proposalId: voteData.proposalId,
       businessId: voteData.businessId,
@@ -530,7 +557,7 @@ async trackUserVote(userId: string, voteData: VoteData): Promise<void> {
         processedAt: new Date()
       });
     } catch (recordError) {
-      console.warn('Failed to save vote analytics to VotingRecord:', recordError);
+      logger.warn('Failed to save vote analytics to VotingRecord:', recordError);
     }
 
     // Update user voting analytics summary
@@ -549,7 +576,7 @@ async trackUserVote(userId: string, voteData: VoteData): Promise<void> {
     });
 
   } catch (error) {
-    console.error('Failed to track user vote:', error);
+    logger.error('Failed to track user vote:', error);
     // Don't throw - analytics tracking shouldn't break voting
   }
 }
@@ -559,7 +586,7 @@ async trackUserVote(userId: string, voteData: VoteData): Promise<void> {
  */
 async trackEvent(eventType: string, eventData: any): Promise<void> {
   try {
-    console.log(`[Analytics] Event tracked: ${eventType}`, eventData);
+    logger.info('[Analytics] Event tracked: ${eventType}', eventData);
     
     // Create analytics event record
     const analyticsEvent: AnalyticsEvent = {
@@ -606,7 +633,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
       
       default:
         // Store generic events in a simple log format
-        console.log(`[Analytics] Generic event: ${eventType}`, analyticsEvent);
+        logger.info('[Analytics] Generic event: ${eventType}', analyticsEvent);
     }
 
     // Update business-level analytics aggregates
@@ -615,7 +642,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
     }
 
   } catch (error) {
-    console.error(`Failed to track event ${eventType}:`, error);
+    logger.error('Failed to track event ${eventType}:', error);
   }
 }
 
@@ -678,7 +705,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
 
       return comparison;
     } catch (error) {
-      console.error('Get comparative analytics error:', error);
+      logger.error('Get comparative analytics error:', error);
       throw new Error(`Failed to get comparative analytics: ${(error as Error).message}`);
     }
   }
@@ -916,7 +943,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
       }
 
     } catch (error) {
-      console.error('Error generating custom report:', error);
+      logger.error('Error generating custom report:', error);
       throw new Error('Failed to generate custom report');
     }
 
@@ -989,12 +1016,12 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
             _id: 0
           }
         },
-        { $sort: { date: 1 } as any }
+        { $sort: { date: 1 as 1 } }
       ];
 
       return await VotingRecord.aggregate(pipeline);
     } catch (error) {
-      console.error('Get proposal time series error:', error);
+      logger.error('Get proposal time series error:', error);
       return [];
     }
   }
@@ -1053,7 +1080,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
             count: { $sum: 1 }
           }
         },
-        { $sort: { count: -1 } }
+        { $sort: { count: -1 as -1 } }
       ]);
 
       const stats = voterStats[0] || {
@@ -1079,7 +1106,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
         }
       };
     } catch (error) {
-      console.error('Get proposal voter insights error:', error);
+      logger.error('Get proposal voter insights error:', error);
       return {
         totalVoters: 0,
         averageSelectionsPerVoter: 0,
@@ -1119,7 +1146,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
           _id: 0
         }
       },
-      { $sort: { date: 1 } as any }
+      { $sort: { date: 1 as 1 } }
     ];
 
     return await VotingRecord.aggregate(pipeline);
@@ -1165,12 +1192,12 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
             _id: 0
           }
         },
-        { $sort: { date: 1 } as any }
+        { $sort: { date: 1 as 1 } }
       ];
 
       return await VotingRecord.aggregate(pipeline);
     } catch (error) {
-      console.error('Get product time series error:', error);
+      logger.error('Get product time series error:', error);
       return [];
     }
   }
@@ -1276,7 +1303,7 @@ async trackEvent(eventType: string, eventData: any): Promise<void> {
         retainedUsers: retainedUsers.length
       };
     } catch (error) {
-      console.error('Calculate user retention error:', error);
+      logger.error('Calculate user retention error:', error);
       return {
         rate: '0%',
         firstPeriodUsers: 0,
@@ -1618,7 +1645,7 @@ private async updateUserVotingAnalytics(userId: string, voteData: VoteData): Pro
         brandInteraction.lastInteraction = new Date();
       } else {
         user.brandInteractions.push({
-          businessId: voteData.businessId as any,
+          businessId: new Types.ObjectId(voteData.businessId),
           firstInteraction: new Date(),
           lastInteraction: new Date(),
           totalVotes: 1,
@@ -1630,7 +1657,7 @@ private async updateUserVotingAnalytics(userId: string, voteData: VoteData): Pro
       await user.save();
     }
   } catch (error) {
-    console.error('Failed to update user voting analytics:', error);
+    logger.error('Failed to update user voting analytics:', error);
   }
 }
 
@@ -1640,7 +1667,7 @@ private async updateUserVotingAnalytics(userId: string, voteData: VoteData): Pro
 private async trackPageView(eventData: any): Promise<void> {
   try {
     // Update page view analytics
-    console.log('[Analytics] Page view tracked:', {
+    logger.info('[Analytics] Page view tracked:', {
       userId: eventData.userId,
       businessId: eventData.businessId,
       page: eventData.page,
@@ -1667,7 +1694,7 @@ private async trackPageView(eventData: any): Promise<void> {
             brandInteraction.lastInteraction = new Date();
           } else if (user.brandInteractions) {
             user.brandInteractions.push({
-              businessId: eventData.businessId as any,
+              businessId: new Types.ObjectId(eventData.businessId),
               firstInteraction: new Date(),
               lastInteraction: new Date(),
               totalVotes: 0,
@@ -1681,7 +1708,7 @@ private async trackPageView(eventData: any): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Failed to track page view:', error);
+    logger.error('Failed to track page view:', error);
   }
 }
 
@@ -1690,11 +1717,11 @@ private async trackPageView(eventData: any): Promise<void> {
  */
 private async trackUserRegistration(eventData: any): Promise<void> {
   try {
-    console.log('[Analytics] User registration tracked:', {
+    logger.info('[Analytics] User registration tracked:', {
       userId: eventData.userId,
       email: eventData.email,
       registrationSource: eventData.source,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     // Update business registration analytics
@@ -1703,11 +1730,11 @@ private async trackUserRegistration(eventData: any): Promise<void> {
       const settings = await BrandSettings.findOne({ business: eventData.businessId });
       if (settings) {
         // Add registration tracking logic here
-        console.log(`New user registered for business: ${eventData.businessId}`);
+        logger.info('New user registered for business: ${eventData.businessId}');
       }
     }
   } catch (error) {
-    console.error('Failed to track user registration:', error);
+    logger.error('Failed to track user registration:', error);
   }
 }
 
@@ -1716,17 +1743,17 @@ private async trackUserRegistration(eventData: any): Promise<void> {
  */
 private async trackSubscriptionChange(eventData: any): Promise<void> {
   try {
-    console.log('[Analytics] Subscription change tracked:', {
+    logger.info('[Analytics] Subscription change tracked:', {
       businessId: eventData.businessId,
       fromPlan: eventData.fromPlan,
       toPlan: eventData.toPlan,
       changeType: eventData.changeType,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
     
     // This data could be valuable for business intelligence
   } catch (error) {
-    console.error('Failed to track subscription change:', error);
+    logger.error('Failed to track subscription change:', error);
   }
 }
 
@@ -1735,17 +1762,17 @@ private async trackSubscriptionChange(eventData: any): Promise<void> {
  */
 private async trackProductView(eventData: any): Promise<void> {
   try {
-    console.log('[Analytics] Product view tracked:', {
+    logger.info('[Analytics] Product view tracked:', {
       userId: eventData.userId,
       businessId: eventData.businessId,
       productId: eventData.productId,
       viewDuration: eventData.viewDuration,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
     
     // Update product view counts or user preferences
   } catch (error) {
-    console.error('Failed to track product view:', error);
+    logger.error('Failed to track product view:', error);
   }
 }
 
@@ -1754,19 +1781,19 @@ private async trackProductView(eventData: any): Promise<void> {
  */
 private async trackNftMint(eventData: any): Promise<void> {
   try {
-    console.log('[Analytics] NFT mint tracked:', {
+    logger.info('[Analytics] NFT mint tracked:', {
       userId: eventData.userId,
       businessId: eventData.businessId,
       certificateId: eventData.certificateId,
       productId: eventData.productId,
       mintCost: eventData.mintCost,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
     
     // This data is likely already in your NftCertificate model
     // But you might want additional analytics aggregation here
   } catch (error) {
-    console.error('Failed to track NFT mint:', error);
+    logger.error('Failed to track NFT mint:', error);
   }
 }
 
@@ -1780,15 +1807,15 @@ private async updateBusinessAnalytics(businessId: string, eventType: string, eve
     const settings = await BrandSettings.findOne({ business: businessId });
     if (settings) {
       // Initialize analytics if not exists
-      if (!(settings as any).analyticsData) {
-        (settings as any).analyticsData = {
+      if (!(settings as SettingsWithAnalytics).analyticsData) {
+        (settings as SettingsWithAnalytics).analyticsData = {
           totalEvents: 0,
           eventBreakdown: {},
           lastUpdated: new Date()
         };
       }
       
-      const analytics = (settings as any).analyticsData;
+      const analytics = (settings as SettingsWithAnalytics).analyticsData as AnalyticsData;
       analytics.totalEvents += 1;
       analytics.eventBreakdown[eventType] = (analytics.eventBreakdown[eventType] || 0) + 1;
       analytics.lastUpdated = new Date();
@@ -1796,7 +1823,7 @@ private async updateBusinessAnalytics(businessId: string, eventType: string, eve
       await settings.save();
     }
   } catch (error) {
-    console.error('Failed to update business analytics:', error);
+    logger.error('Failed to update business analytics:', error);
   }
 }
 
@@ -1829,7 +1856,7 @@ async getUserAnalyticsSummary(userId: string): Promise<any> {
       brandInteractions: user?.brandInteractions || []
     };
   } catch (error) {
-    console.error('Failed to get user analytics summary:', error);
+    logger.error('Failed to get user analytics summary:', error);
     return {
       userId,
       summary: { totalVotes: 0, totalSessions: 0, engagementScore: 0 },

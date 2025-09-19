@@ -1,5 +1,6 @@
 // src/services/business/brandAccount.service.ts
 import { Business, IBusiness } from '../../models/business.model';
+import { logger } from '../utils/logger';
 import { ethers } from 'ethers';
 import { TokenDiscountService } from '../external/tokenDiscount.service';
 import { BrandSettings } from '../../models/brandSettings.model';
@@ -157,7 +158,7 @@ export class BrandAccountService {
       features: this.getAvailableFeatures(billing?.plan || 'foundation')
     };
   } catch (error) {
-    console.error('Error getting comprehensive brand account:', error);
+    logger.error('Error getting comprehensive brand account:', error);
     throw error;
   }
 }
@@ -193,7 +194,7 @@ async getVerificationStatus(businessId: string): Promise<any> {
       overallStatus: this.calculateOverallVerificationStatus(business, brandSettings)
     };
   } catch (error) {
-    console.error('Error getting verification status:', error);
+    logger.error('Error getting verification status:', error);
     throw error;
   }
 }
@@ -245,7 +246,7 @@ async submitVerification(businessId: string, verificationData: any): Promise<any
       nextSteps: this.getVerificationNextSteps(type)
     };
   } catch (error) {
-    console.error('Error submitting verification:', error);
+    logger.error('Error submitting verification:', error);
     throw error;
   }
 }
@@ -264,7 +265,7 @@ async getDetailedVerificationStatus(businessId: string): Promise<any> {
       tips: this.getVerificationTips()
     };
   } catch (error) {
-    console.error('Error getting detailed verification status:', error);
+    logger.error('Error getting detailed verification status:', error);
     throw error;
   }
 }
@@ -307,7 +308,7 @@ async getVerificationHistory(businessId: string): Promise<any[]> {
 
     return history.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
   } catch (error) {
-    console.error('Error getting verification history:', error);
+    logger.error('Error getting verification history:', error);
     return [];
   }
 }
@@ -322,11 +323,11 @@ async verifyPassword(businessId: string, password: string): Promise<boolean> {
     const isValid = await business.comparePassword(password);
     
     // Log password verification attempt
-    console.log(`Password verification attempt for business ${businessId}: ${isValid ? 'success' : 'failed'}`);
+    logger.info('Password verification attempt for business ${businessId}: ${isValid ? ', success' : 'failed'}`);
     
     return isValid;
   } catch (error) {
-    console.error('Error verifying password:', error);
+    logger.error('Error verifying password:', error);
     throw error;
   }
 }
@@ -343,7 +344,7 @@ async batchUpdateTokenDiscounts(businessIds: string[]): Promise<any[]> {
       const result = await this.updateTokenDiscounts(businessId);
       results.push({ businessId, success: true, ...result });
     } catch (error) {
-      console.error(`Failed to update token discounts for business ${businessId}:`, error);
+      logger.error('Failed to update token discounts for business ${businessId}:', error);
       results.push({ 
         businessId, 
         success: false, 
@@ -382,7 +383,7 @@ async getWalletVerificationStatus(businessId: string): Promise<any> {
       message: web3Settings.walletVerified ? 'Wallet verified' : 'Wallet not verified'
     };
   } catch (error) {
-    console.error('Error getting wallet verification status:', error);
+    logger.error('Error getting wallet verification status:', error);
     throw { 
       statusCode: 500, 
       message: 'Failed to get wallet verification status' 
@@ -426,7 +427,7 @@ async updateTokenDiscounts(businessId: string, walletAddress?: string): Promise<
     );
 
     // Log discount update
-    console.log(`Token discounts updated for business ${businessId}: ${discounts.length} discounts found`);
+    logger.info('Token discounts updated for business ${businessId}: ${discounts.length} discounts found');
 
     return {
       hasDiscounts: discounts.length > 0,
@@ -436,7 +437,7 @@ async updateTokenDiscounts(businessId: string, walletAddress?: string): Promise<
       discountCount: discounts.length
     };
   } catch (error) {
-    console.error('Error updating token discounts:', error);
+    logger.error('Error updating token discounts:', error);
     throw { 
       statusCode: 500, 
       message: 'Failed to update token discounts',
@@ -462,7 +463,7 @@ async getLastLogin(businessId: string): Promise<Date | null> {
 
     return business.lastLoginAt || null;
   } catch (error) {
-    console.error('Error getting last login:', error);
+    logger.error('Error getting last login:', error);
     
     // If it's our custom error, re-throw it
     if (error && typeof error === 'object' && 'statusCode' in error) {
@@ -470,7 +471,7 @@ async getLastLogin(businessId: string): Promise<Date | null> {
     }
     
     // For other errors, return null instead of throwing
-    console.warn(`Failed to get last login for business ${businessId}:`, error);
+    logger.warn('Failed to get last login for business ${businessId}:', error);
     return null;
   }
 }
@@ -554,7 +555,7 @@ async deactivateAccount(
       );
     }
 
-    console.log(`Account deactivated: ${businessId}`, {
+    logger.info('Account deactivated: ${businessId}', {
       reason: deactivationData.reason,
       deleteData: deactivationData.deleteData,
       source: deactivationData.deactivationSource
@@ -569,7 +570,7 @@ async deactivateAccount(
       feedback: deactivationData.feedback
     };
   } catch (error) {
-    console.error('Error deactivating account:', error);
+    logger.error('Error deactivating account:', error);
     throw error;
   }
 }
@@ -657,7 +658,7 @@ async getAccountAnalytics(
       }
     };
   } catch (error) {
-    console.error('Error getting account analytics:', error);
+    logger.error('Error getting account analytics:', error);
     return {
       error: 'Failed to retrieve analytics',
       period: {
@@ -690,7 +691,7 @@ async getProfilePerformance(businessId: string): Promise<any> {
 
     return performance;
   } catch (error) {
-    console.error('Error getting profile performance:', error);
+    logger.error('Error getting profile performance:', error);
     throw error;
   }
 }
@@ -749,7 +750,7 @@ async exportAccountData(
     };
 
     // Log export request
-    console.log(`Data export requested for business ${businessId}`, {
+    logger.info('Data export requested for business ${businessId}', {
       format,
       includeAnalytics,
       includeHistory,
@@ -770,7 +771,7 @@ async exportAccountData(
         return exportData; // Return JSON by default
     }
   } catch (error) {
-    console.error('Error exporting account data:', error);
+    logger.error('Error exporting account data:', error);
     throw {
       statusCode: 500,
       message: 'Failed to export account data',
@@ -787,7 +788,7 @@ async getAccountCreationDate(businessId: string): Promise<Date> {
     }
     return business.createdAt;
   } catch (error) {
-    console.error('Error getting account creation date:', error);
+    logger.error('Error getting account creation date:', error);
     throw error;
   }
 }
@@ -819,7 +820,7 @@ async getAccountSummary(businessId: string): Promise<any> {
       industry: business.industry
     };
   } catch (error) {
-    console.error('Error getting account summary:', error);
+    logger.error('Error getting account summary:', error);
     throw error;
   }
 }
@@ -851,7 +852,7 @@ async getCustomizationOptions(businessId: string): Promise<any> {
       upgradeRequired: this.getUpgradeRequiredFeatures(plan)
     };
   } catch (error) {
-    console.error('Error getting customization options:', error);
+    logger.error('Error getting customization options:', error);
     throw error;
   }
 }
@@ -886,12 +887,12 @@ async verifyWalletOwnership(businessId: string, walletAddress: string, signature
       );
 
       await this.updateTokenDiscounts(businessId, walletAddress);
-      console.log(`Wallet verified for business ${businessId}: ${walletAddress}`);
+      logger.info('Wallet verified for business ${businessId}: ${walletAddress}');
     }
 
     return isValid;
   } catch (error) {
-    console.error('Error verifying wallet ownership:', error);
+    logger.error('Error verifying wallet ownership:', error);
     return false;
   }
 }
@@ -935,7 +936,7 @@ private async createVerificationRecord(verification: any): Promise<any> {
 }
 
 private async notifyAdminsOfVerificationSubmission(businessId: string, type: string): Promise<void> {
-  console.log(`New ${type} verification submitted for business: ${businessId}`);
+  logger.info('New ${type} verification submitted for business: ${businessId}');
 }
 
 
@@ -976,11 +977,11 @@ private async getBillingInfo(businessId: string): Promise<any> {
 }
 
 private async cancelActiveSubscriptions(businessId: string): Promise<void> {
-  console.log(`Cancelling active subscriptions for business: ${businessId}`);
+  logger.info('Cancelling active subscriptions for business: ${businessId}');
 }
 
 private async sendDeactivationConfirmation(email: string, reason: string): Promise<void> {
-  console.log(`Sending deactivation confirmation to: ${email}, reason: ${reason}`);
+  logger.info('Sending deactivation confirmation to: ${email}, reason: ${reason}');
 }
 
 private async getApiUsage(businessId: string, since: Date): Promise<any> {
@@ -1107,30 +1108,30 @@ private async verifyWalletSignature(walletAddress: string, message: string, sign
     const isValid = normalizedAddress.toLowerCase() === recoveredAddress.toLowerCase();
     
     if (isValid) {
-      console.log(`Signature verification successful for wallet: ${walletAddress}`);
+      logger.info('Signature verification successful for wallet: ${walletAddress}');
     } else {
-      console.warn(`Signature verification failed - Expected: ${normalizedAddress}, Got: ${recoveredAddress}`);
+      logger.warn('Signature verification failed - Expected: ${normalizedAddress}, Got: ${recoveredAddress}');
     }
     
     return isValid;
   } catch (error) {
-    console.error('Wallet signature verification error:', error);
+    logger.error('Wallet signature verification error:', error);
     
     try {
       const isValidFormat = /^0x[a-fA-F0-9]{130}$/.test(signature);
       if (!isValidFormat) {
-        console.warn('Invalid signature format');
+        logger.warn('Invalid signature format');
         return false;
       }
       
       if (process.env.NODE_ENV === 'development' && signature === '0xtest_signature') {
-        console.warn('Using test signature in development mode');
+        logger.warn('Using test signature in development mode');
         return true;
       }
       
       return false;
     } catch (fallbackError) {
-      console.error('Signature verification fallback failed:', fallbackError);
+      logger.error('Signature verification fallback failed:', fallbackError);
       return false;
     }
   }
@@ -1154,7 +1155,7 @@ private async verifyWalletSignature(walletAddress: string, message: string, sign
       }
     };
   } catch (error) {
-    console.error('Error getting engagement metrics:', error);
+    logger.error('Error getting engagement metrics:', error);
     return {};
   }
 }
@@ -1176,7 +1177,7 @@ private async getConversionMetrics(businessId: string, since: Date): Promise<any
       }
     };
   } catch (error) {
-    console.error('Error getting conversion metrics:', error);
+    logger.error('Error getting conversion metrics:', error);
     return {};
   }
 }
@@ -1198,7 +1199,7 @@ private async getAdvancedMetrics(businessId: string, since: Date): Promise<any> 
       customMetrics: {}
     };
   } catch (error) {
-    console.error('Error getting advanced metrics:', error);
+    logger.error('Error getting advanced metrics:', error);
     return {};
   }
 }
@@ -1237,7 +1238,7 @@ private async getAccountHistory(businessId: string): Promise<any> {
       billingHistory: await this.getBillingHistory(businessId)
     };
   } catch (error) {
-    console.error('Error getting account history:', error);
+    logger.error('Error getting account history:', error);
     return {};
   }
 }
@@ -1275,10 +1276,10 @@ private convertToExcel(data: any): Buffer {
     // const XLSX = require('xlsx');
     // const workbook = XLSX.utils.book_new();
     // ... Excel conversion logic
-    console.log('Excel export requested - implement with xlsx library');
+    logger.info('Excel export requested - implement with xlsx library');
     return Buffer.from(JSON.stringify(data, null, 2));
   } catch (error) {
-    console.error('Error converting to Excel:', error);
+    logger.error('Error converting to Excel:', error);
     throw new Error('Excel export failed');
   }
 }
@@ -1289,10 +1290,10 @@ private convertToExcel(data: any): Buffer {
 private convertToXML(data: any): string {
   try {
     // This is a placeholder - implement with a library like 'xml2js'
-    console.log('XML export requested - implement with xml2js library');
+    logger.info('XML export requested - implement with xml2js library');
     return `<?xml version="1.0" encoding="UTF-8"?><export>${JSON.stringify(data)}</export>`;
   } catch (error) {
-    console.error('Error converting to XML:', error);
+    logger.error('Error converting to XML:', error);
     throw new Error('XML export failed');
   }
 }
@@ -1305,7 +1306,7 @@ private async getLoginHistory(businessId: string): Promise<any[]> {
     // Implement login history tracking if you have this feature
     return [];
   } catch (error) {
-    console.error('Error getting login history:', error);
+    logger.error('Error getting login history:', error);
     return [];
   }
 }
@@ -1318,7 +1319,7 @@ private async getProfileChangeHistory(businessId: string): Promise<any[]> {
     // Implement profile change tracking if you have this feature
     return [];
   } catch (error) {
-    console.error('Error getting profile change history:', error);
+    logger.error('Error getting profile change history:', error);
     return [];
   }
 }
@@ -1331,7 +1332,7 @@ private async getBillingHistory(businessId: string): Promise<any> {
     // Get billing history from your billing service
     return {};
   } catch (error) {
-    console.error('Error getting billing history:', error);
+    logger.error('Error getting billing history:', error);
     return {};
   }
 }

@@ -1,8 +1,15 @@
 // src/services/business/security.service.ts
 
 import mongoose from 'mongoose';
+import { logger } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
 import { UtilsService } from '../utils/utils.service';
+
+type JWTToken = {
+  exp?: number;
+  jti?: string;
+  [key: string]: any;
+};
 
 // Security event types
 export enum SecurityEventType {
@@ -154,7 +161,7 @@ export class SecurityService {
       await securityEvent.save();
 
       // Log to console for immediate visibility
-      console.log(`🔒 Security Event: ${eventData.eventType}`, {
+      logger.info('🔒 Security Event: ${eventData.eventType}', {
         userId: eventData.userId,
         severity: eventData.severity,
         success: eventData.success,
@@ -168,7 +175,7 @@ export class SecurityService {
       }
 
     } catch (error) {
-      console.error('Failed to log security event:', error);
+      logger.error('Failed to log security event:', error);
     }
   }
 
@@ -188,7 +195,7 @@ export class SecurityService {
       await session.save();
       return sessionId;
     } catch (error) {
-      console.error('Failed to create session:', error);
+      logger.error('Failed to create session:', error);
       throw error;
     }
   }
@@ -203,7 +210,7 @@ export class SecurityService {
         { lastActivity: new Date() }
       );
     } catch (error) {
-      console.error('Failed to update session activity:', error);
+      logger.error('Failed to update session activity:', error);
     }
   }
 
@@ -231,7 +238,7 @@ export class SecurityService {
         });
       }
     } catch (error) {
-      console.error('Failed to revoke session:', error);
+      logger.error('Failed to revoke session:', error);
       throw error;
     }
   }
@@ -267,7 +274,7 @@ export class SecurityService {
 
       return result.modifiedCount;
     } catch (error) {
-      console.error('Failed to revoke user sessions:', error);
+      logger.error('Failed to revoke user sessions:', error);
       throw error;
     }
   }
@@ -281,7 +288,7 @@ export class SecurityService {
       const tokenHash = UtilsService.hashString(token);
 
       // Decode token to get expiration
-      const decoded = jwt.decode(token) as any;
+      const decoded = jwt.decode(token) as JWTToken;
       const expiresAt = decoded?.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       await this.blacklistedTokens.create({
@@ -303,7 +310,7 @@ export class SecurityService {
         additionalData: { reason }
       });
     } catch (error) {
-      console.error('Failed to blacklist token:', error);
+      logger.error('Failed to blacklist token:', error);
       throw error;
     }
   }
@@ -325,7 +332,7 @@ export class SecurityService {
 
       return !!blacklistedToken;
     } catch (error) {
-      console.error('Failed to check token blacklist:', error);
+      logger.error('Failed to check token blacklist:', error);
       return false; // Assume not blacklisted if check fails
     }
   }
@@ -337,9 +344,9 @@ export class SecurityService {
     try {
       const revokedCount = await this.revokeAllUserSessions(userId, undefined, `security_event_${eventType}`);
       
-      console.log(`🔒 Security Event: Invalidated ${revokedCount} sessions for user ${userId} due to ${eventType}`);
+      logger.info('🔒 Security Event: Invalidated ${revokedCount} sessions for user ${userId} due to ${eventType}');
     } catch (error) {
-      console.error('Failed to invalidate user sessions:', error);
+      logger.error('Failed to invalidate user sessions:', error);
     }
   }
 
@@ -369,7 +376,7 @@ export class SecurityService {
    */
   private extractTokenId(token: string): string {
     try {
-      const decoded = jwt.decode(token) as any;
+      const decoded = jwt.decode(token) as JWTToken;
       return decoded?.jti || UtilsService.hashString(token).slice(0, 16);
     } catch (error) {
       return UtilsService.hashString(token).slice(0, 16);
@@ -389,7 +396,7 @@ export class SecurityService {
 
       return events as SecurityEvent[];
     } catch (error) {
-      console.error('Failed to get user security events:', error);
+      logger.error('Failed to get user security events:', error);
       return [];
     }
   }
@@ -406,7 +413,7 @@ export class SecurityService {
 
       return sessions as SessionInfo[];
     } catch (error) {
-      console.error('Failed to get user active sessions:', error);
+      logger.error('Failed to get user active sessions:', error);
       return [];
     }
   }
@@ -427,9 +434,9 @@ export class SecurityService {
       // Clean up expired security events (handled by TTL index)
       // Clean up expired blacklisted tokens (handled by TTL index)
 
-      console.log(`🧹 Cleaned up ${expiredSessions.modifiedCount} expired sessions`);
+      logger.info('🧹 Cleaned up ${expiredSessions.modifiedCount} expired sessions');
     } catch (error) {
-      console.error('Failed to cleanup expired data:', error);
+      logger.error('Failed to cleanup expired data:', error);
     }
   }
 
@@ -479,7 +486,7 @@ export class SecurityService {
 
       return isSuspicious;
     } catch (error) {
-      console.error('Failed to detect suspicious activity:', error);
+      logger.error('Failed to detect suspicious activity:', error);
       return false;
     }
   }
@@ -630,7 +637,7 @@ export class SecurityService {
         riskScore: Math.min(riskScore, 100) // Cap at 100
       };
     } catch (error) {
-      console.error('Failed to generate security audit report:', error);
+      logger.error('Failed to generate security audit report:', error);
       throw error;
     }
   }
@@ -682,7 +689,7 @@ export class SecurityService {
         suspiciousActivityCount
       };
     } catch (error) {
-      console.error('Failed to get system security metrics:', error);
+      logger.error('Failed to get system security metrics:', error);
       throw error;
     }
   }

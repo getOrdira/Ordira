@@ -1,5 +1,6 @@
 // src/models/invitation.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
+import { logger } from '../utils/logger';
 
 export interface IInvitation extends Document {
   brand: Types.ObjectId;
@@ -33,6 +34,21 @@ export interface IInvitation extends Document {
   // Additional service-referenced fields
   manufacturers?: Types.ObjectId[]; // Referenced in service for BrandSettings
   brands?: Types.ObjectId[]; // Referenced in service for Manufacturer
+  
+  // Virtual properties
+  timeRemaining?: number;
+  urgencyLevel?: string;
+  summary?: {
+    id: string;
+    brandId: string;
+    manufacturerId: string;
+    status: string;
+    type: string;
+    createdAt: Date;
+    expiresAt: Date;
+    timeRemaining: number;
+    urgency: string;
+  };
   
   // Instance methods (from both files)
   isExpired(): boolean;
@@ -212,16 +228,16 @@ InvitationSchema.virtual('responseTimeHours').get(function() {
 });
 
 // Virtual for urgency level
-InvitationSchema.virtual('urgencyLevel').get(function() {
+InvitationSchema.virtual('urgencyLevel').get(function(this: IInvitation) {
   if (this.status !== 'pending') return 'none';
-  const hoursRemaining = (this as any).timeRemaining;
+  const hoursRemaining = this.timeRemaining || 0;
   if (hoursRemaining <= 24) return 'high';
   if (hoursRemaining <= 72) return 'medium';
   return 'low';
 });
 
 // Virtual for invitation summary
-InvitationSchema.virtual('summary').get(function() {
+InvitationSchema.virtual('summary').get(function(this: IInvitation) {
   return {
     id: this._id.toString(),
     brandId: this.brand.toString(),
@@ -230,8 +246,8 @@ InvitationSchema.virtual('summary').get(function() {
     type: this.invitationType,
     createdAt: this.createdAt,
     expiresAt: this.expiresAt,
-    timeRemaining: (this as any).timeRemaining,
-    urgency: (this as any).urgencyLevel
+    timeRemaining: this.timeRemaining || 0,
+    urgency: this.urgencyLevel || 'none'
   };
 });
 
@@ -648,14 +664,14 @@ InvitationSchema.post('save', function(doc) {
             break;
         }
       } catch (error) {
-        console.error(`Failed to send notification for invitation ${doc._id}:`, error);
+        logger.error('Failed to send notification for invitation ${doc._id}:', error);
       }
     });
   }
   
   // Log invitation activity for analytics
   process.nextTick(() => {
-    console.log(`Invitation ${doc._id} updated: ${doc.status} (${doc.invitationType})`);
+    logger.info('Invitation ${doc._id} updated: ${doc.status} (${doc.invitationType})');
   });
 });
 
@@ -663,7 +679,7 @@ InvitationSchema.post('save', function(doc) {
  * Pre-remove hook for cleanup (document-level)
  */
 InvitationSchema.pre('remove', function(this: IInvitation, next) {
-  console.log(`Removing invitation ${this._id} between brand ${this.brand} and manufacturer ${this.manufacturer}`);
+  logger.info('Removing invitation ${this._id} between brand ${this.brand} and manufacturer ${this.manufacturer}');
   next();
 });
 
@@ -675,10 +691,10 @@ InvitationSchema.pre(['deleteOne', 'findOneAndDelete'], async function() {
     // Get the document that will be deleted
     const doc = await this.model.findOne(this.getQuery()) as IInvitation;
     if (doc) {
-      console.log(`Removing invitation ${doc._id} between brand ${doc.brand} and manufacturer ${doc.manufacturer}`);
+      logger.info('Removing invitation ${doc._id} between brand ${doc.brand} and manufacturer ${doc.manufacturer}');
     }
   } catch (error) {
-    console.error('Error in pre-delete hook:', error);
+    logger.error('Error in pre-delete hook:', error);
   }
 });
 
@@ -704,24 +720,24 @@ InvitationSchema.post('remove', function(doc) {
           )
         ]);
         
-        console.log(`Connection removed between brand ${doc.brand} and manufacturer ${doc.manufacturer}`);
+        logger.info('Connection removed between brand ${doc.brand} and manufacturer ${doc.manufacturer}');
       }
     } catch (error) {
-      console.error(`Failed to cleanup connection for removed invitation ${doc._id}:`, error);
+      logger.error('Failed to cleanup connection for removed invitation ${doc._id}:', error);
     }
   });
 });
 
 // Schedule task to mark expired invitations (can be called by a cron job)
-InvitationSchema.statics.scheduleExpirationCheck = function() {
+InvitationSchema.statics.scheduleExpirationCheck = function(this: any) {
   setInterval(async () => {
     try {
-      const result = await (this as any).markExpiredInvitations();
+      const result = await this.markExpiredInvitations();
       if (result.modifiedCount > 0) {
-        console.log(`Marked ${result.modifiedCount} invitations as expired`);
+        logger.info('Marked ${result.modifiedCount} invitations as expired');
       }
     } catch (error) {
-      console.error('Failed to mark expired invitations:', error);
+      logger.error('Failed to mark expired invitations:', error);
     }
   }, 60 * 60 * 1000); // Check every hour
 };
