@@ -1,13 +1,12 @@
 // services/blockchain/contracts.service.ts
 import { Contract, formatUnits } from 'ethers';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import { BlockchainProviderService } from './provider.service';
 import { TokenBalance, TransactionReceipt, NetworkInfo } from '../types/blockchain.types';
 import erc20Abi from '../../abi/erc20Minimal.json';
 import { 
   getErrorMessage, 
-  createAppError, 
-  createValidationError 
+  createAppError
 } from '../../middleware/error.middleware';
 import { UtilsService } from '../utils/utils.service';
 
@@ -26,11 +25,11 @@ export class BlockchainContractsService {
    */
   private static validateAddress(address: string, paramName: string = 'address'): void {
     if (!address || typeof address !== 'string') {
-      throw createValidationError(`${paramName} is required and must be a string`);
+      throw createAppError(`${paramName} is required and must be a string`, 400);
     }
 
     if (!this.isValidAddress(address)) {
-      throw createValidationError(`Invalid ${paramName} format: ${address}`);
+      throw createAppError(`Invalid ${paramName} format: ${address}`, 400);
     }
   }
 
@@ -39,11 +38,11 @@ export class BlockchainContractsService {
    */
   private static validateTxHash(txHash: string): void {
     if (!txHash || typeof txHash !== 'string') {
-      throw createValidationError('Transaction hash is required and must be a string');
+      throw createAppError('Transaction hash is required and must be a string', 400);
     }
 
     if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
-      throw createValidationError(`Invalid transaction hash format: ${txHash}`);
+      throw createAppError(`Invalid transaction hash format: ${txHash}`, 400);
     }
   }
 
@@ -90,7 +89,7 @@ export class BlockchainContractsService {
       second: '2-digit'
     });
 
-    logger.info('[BLOCKCHAIN] ${timestamp} - ${operation} - ${success ? ', SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata);}` : ''}`);
+    logger.info(`[BLOCKCHAIN] ${timestamp} - ${operation} - ${success ? 'SUCCESS' : 'FAILED'}${metadata ? ` - ${JSON.stringify(metadata)}` : ''}`);
   }
 
   /** ─────────────────────────────────────────────────────────────────────────── */
@@ -139,11 +138,11 @@ export class BlockchainContractsService {
    */
   static async getMultipleTokenBalances(addresses: string[]): Promise<TokenBalance[]> {
     if (!Array.isArray(addresses) || addresses.length === 0) {
-      throw createValidationError('Addresses array is required and cannot be empty');
+      throw createAppError('Addresses array is required and cannot be empty', 400);
     }
 
     if (addresses.length > 100) {
-      throw createValidationError('Maximum 100 addresses allowed per batch request');
+      throw createAppError('Maximum 100 addresses allowed per batch request', 400);
     }
 
     // Validate all addresses first
@@ -244,7 +243,7 @@ export class BlockchainContractsService {
     this.validateTxHash(txHash);
 
     if (typeof maxRetries !== 'number' || maxRetries < 1 || maxRetries > 10) {
-      throw createValidationError('maxRetries must be a number between 1 and 10');
+      throw createAppError('maxRetries must be a number between 1 and 10', 400);
     }
 
     return UtilsService.retry(async () => {
@@ -295,11 +294,11 @@ export class BlockchainContractsService {
     this.validateTxHash(txHash);
 
     if (typeof confirmations !== 'number' || confirmations < 1 || confirmations > 50) {
-      throw createValidationError('confirmations must be a number between 1 and 50');
+      throw createAppError('confirmations must be a number between 1 and 50', 400);
     }
 
     if (typeof timeout !== 'number' || timeout < 1000 || timeout > 1800000) { // Max 30 minutes
-      throw createValidationError('timeout must be a number between 1000ms and 1800000ms (30 minutes)');
+      throw createAppError('timeout must be a number between 1000ms and 1800000ms (30 minutes)', 400);
     }
 
     try {
@@ -445,7 +444,7 @@ export class BlockchainContractsService {
    */
   static async getOptimalGasPrice(priority: 'slow' | 'standard' | 'fast' = 'standard'): Promise<string> {
     if (!['slow', 'standard', 'fast'].includes(priority)) {
-      throw createValidationError('priority must be one of: slow, standard, fast');
+      throw createAppError('priority must be one of: slow, standard, fast');
     }
 
     try {
@@ -508,22 +507,22 @@ export class BlockchainContractsService {
     this.validateAddress(contractAddress, 'contractAddress');
 
     if (!Array.isArray(abi) || abi.length === 0) {
-      throw createValidationError('ABI is required and must be a non-empty array');
+      throw createAppError('ABI is required and must be a non-empty array', 400);
     }
 
     if (!methodName || typeof methodName !== 'string') {
-      throw createValidationError('methodName is required and must be a string');
+      throw createAppError('methodName is required and must be a string', 400);
     }
 
     if (!Array.isArray(params)) {
-      throw createValidationError('params must be an array');
+      throw createAppError('params must be an array', 400);
     }
 
     try {
       const contract = BlockchainProviderService.getContract(contractAddress, abi);
       
       if (typeof contract[methodName] !== 'function') {
-        throw createValidationError(`Method '${methodName}' not found in contract ABI`);
+        throw createAppError(`Method '${methodName}' not found in contract ABI`, 400);
       }
 
       const gasEstimate = await contract[methodName].estimateGas(...params);
@@ -613,31 +612,31 @@ export class BlockchainContractsService {
     params: any[];
   }>): Promise<any[]> {
     if (!Array.isArray(calls) || calls.length === 0) {
-      throw createValidationError('calls array is required and cannot be empty');
+      throw createAppError('calls array is required and cannot be empty', 400);
     }
 
     if (calls.length > 50) {
-      throw createValidationError('Maximum 50 calls allowed per batch request');
+      throw createAppError('Maximum 50 calls allowed per batch request', 400);
     }
 
     // Validate all calls first
     calls.forEach((call, index) => {
       if (!call || typeof call !== 'object') {
-        throw createValidationError(`calls[${index}] must be an object`);
+        throw createAppError(`calls[${index}] must be an object`, 400);
       }
 
       this.validateAddress(call.contractAddress, `calls[${index}].contractAddress`);
 
       if (!Array.isArray(call.abi)) {
-        throw createValidationError(`calls[${index}].abi must be an array`);
+        throw createAppError(`calls[${index}].abi must be an array`, 400);
       }
 
       if (!call.methodName || typeof call.methodName !== 'string') {
-        throw createValidationError(`calls[${index}].methodName is required and must be a string`);
+        throw createAppError(`calls[${index}].methodName is required and must be a string`, 400);
       }
 
       if (!Array.isArray(call.params)) {
-        throw createValidationError(`calls[${index}].params must be an array`);
+        throw createAppError(`calls[${index}].params must be an array`, 400);
       }
     });
 
@@ -686,11 +685,11 @@ export class BlockchainContractsService {
     baseDelay: number = 1000
   ): Promise<T> {
     if (typeof maxRetries !== 'number' || maxRetries < 1 || maxRetries > 10) {
-      throw createValidationError('maxRetries must be a number between 1 and 10');
+      throw createAppError('maxRetries must be a number between 1 and 10', 400);
     }
 
     if (typeof baseDelay !== 'number' || baseDelay < 100 || baseDelay > 10000) {
-      throw createValidationError('baseDelay must be a number between 100 and 10000 milliseconds');
+      throw createAppError('baseDelay must be a number between 100 and 10000 milliseconds', 400);
     }
 
     try {

@@ -1,7 +1,7 @@
 // src/services/business/storage.service.ts
 
 import fs from 'fs/promises';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Media, IMedia } from '../../models/media.model';
@@ -10,8 +10,11 @@ import { UtilsService } from '../utils/utils.service';
 import { S3Service } from '../external/s3.service';
 
 // Environment-based storage configuration
-const USE_S3 = process.env.STORAGE_PROVIDER === 's3' && process.env.AWS_S3_BUCKET;
+const getUseS3 = () => process.env.STORAGE_PROVIDER === 's3' && !!process.env.AWS_S3_BUCKET;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+
+// Export for testing
+export { getUseS3 };
 
 export interface StorageUploadOptions {
   businessId: string;
@@ -110,7 +113,7 @@ export class StorageService {
   private logStorageEvent(event: string, businessId: string, filename: string, success: boolean, provider?: string): void {
     const maskedBusinessId = businessId.substring(0, 8) + '***';
     const storageInfo = provider ? ` [${provider.toUpperCase()}]` : '';
-    logger.info('[STORAGE]${storageInfo} ${event} - Business: ${maskedBusinessId} - File: ${filename} - ${success ? ', SUCCESS' : 'FAILED'}`);
+    logger.info(`[STORAGE]${storageInfo} ${event} - Business: ${maskedBusinessId} - File: ${filename} - ${success ? 'SUCCESS' : 'FAILED'}`);
   }
 
   private async ensureDirectoryExists(dirPath: string): Promise<void> {
@@ -247,7 +250,7 @@ export class StorageService {
       fileBuffer = await fs.readFile(file.path);
       checksum = await this.calculateFileChecksum(fileBuffer);
 
-      if (USE_S3) {
+      if (getUseS3()) {
         // Upload to S3
         s3Key = S3Service.buildS3Key(businessId, resourceId, secureFilename);
         
@@ -298,12 +301,14 @@ export class StorageService {
         size: file.size,
         category,
         resourceId,
+        s3Key: getUseS3() ? s3Key : undefined,
+        s3Bucket: getUseS3() ? process.env.AWS_S3_BUCKET : undefined,
         metadata: UtilsService.cleanObject({
           ...metadata,
           uploadTimestamp: new Date().toISOString(),
           checksum,
           s3Key,
-          storageProvider: USE_S3 ? 's3' : 'local'
+          storageProvider: getUseS3() ? 's3' : 'local'
         }),
         isActive: true,
         isProcessed: true,
@@ -314,7 +319,7 @@ export class StorageService {
       return this.mapToFileInfo(savedMedia, { slug, checksum });
 
     } catch (error) {
-      this.logStorageEvent('FILE_UPLOAD', businessId, file.originalname, false, USE_S3 ? 's3' : 'local');
+      this.logStorageEvent('FILE_UPLOAD', businessId, file.originalname, false, getUseS3() ? 's3' : 'local');
       
       // Clean up temporary file on error
       try {
@@ -362,7 +367,7 @@ export class StorageService {
       let fileUrl: string;
       let s3Key: string | undefined;
 
-      if (USE_S3) {
+      if (getUseS3()) {
         // Upload to S3
         s3Key = S3Service.buildS3Key(businessId, resourceId, fileName);
         
@@ -401,11 +406,13 @@ export class StorageService {
         size: jsonBuffer.length,
         category: options.category || 'metadata',
         resourceId,
+        s3Key: getUseS3() ? s3Key : undefined,
+        s3Bucket: getUseS3() ? process.env.AWS_S3_BUCKET : undefined,
         metadata: {
           ...cleanedMetadata,
           checksum,
           s3Key,
-          storageProvider: USE_S3 ? 's3' : 'local'
+          storageProvider: getUseS3() ? 's3' : 'local'
         },
         isActive: true,
         isProcessed: true,
@@ -414,12 +421,12 @@ export class StorageService {
 
       await mediaRecord.save();
 
-      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, true, USE_S3 ? 's3' : 'local');
+      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, true, getUseS3() ? 's3' : 'local');
 
       return fileUrl;
 
     } catch (error) {
-      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, false, USE_S3 ? 's3' : 'local');
+      this.logStorageEvent('JSON_UPLOAD', businessId, fileName, false, getUseS3() ? 's3' : 'local');
       throw { statusCode: 500, message: `JSON upload failed: ${error.message}` };
     }
   }
@@ -443,7 +450,7 @@ export class StorageService {
     try {
       const s3Key = media.metadata?.s3Key;
       
-      if (s3Key && USE_S3) {
+      if (s3Key && getUseS3()) {
         // Delete from S3
         await S3Service.deleteFile(s3Key);
       } else {
@@ -457,7 +464,7 @@ export class StorageService {
 
     await media.updateOne({ isActive: false, deletedAt: new Date() });
 
-    this.logStorageEvent('FILE_DELETE', businessId, media.filename, true, USE_S3 ? 's3' : 'local');
+    this.logStorageEvent('FILE_DELETE', businessId, media.filename, true, getUseS3() ? 's3' : 'local');
   }
 
   /**
@@ -467,7 +474,7 @@ export class StorageService {
     this.validateBusinessId(businessId);
 
     let s3Stats = null;
-    if (USE_S3) {
+    if (getUseS3()) {
       try {
         s3Stats = await S3Service.getStorageStats(businessId);
       } catch (error) {
@@ -544,7 +551,7 @@ export class StorageService {
         size: UtilsService.formatFileSize(largestFile.size),
         uploadDate: largestFile.createdAt
       } : null,
-      storageProvider: USE_S3 ? 's3' : 'local'
+      storageProvider: getUseS3() ? 's3' : 'local'
     };
   }
 
@@ -613,7 +620,7 @@ export class StorageService {
   async getSignedUrl(fileId: string, businessId: string, expiresIn: number = 3600): Promise<string> {
     this.validateBusinessId(businessId);
 
-    if (!USE_S3) {
+    if (!getUseS3()) {
       throw { statusCode: 400, message: 'Signed URLs only available with S3 storage' };
     }
 
@@ -706,7 +713,7 @@ export class StorageService {
     }
 
     // Update S3 metadata if using S3
-    if (USE_S3 && media.metadata?.s3Key && updates.metadata) {
+    if (getUseS3() && media.metadata?.s3Key && updates.metadata) {
       try {
         await S3Service.updateMetadata(media.metadata.s3Key, updates.metadata);
       } catch (error) {
@@ -750,7 +757,7 @@ export class StorageService {
       try {
         const s3Key = media.metadata?.s3Key;
 
-        if (s3Key && USE_S3) {
+        if (s3Key && getUseS3()) {
           s3KeysToDelete.push(s3Key);
         } else {
           // Delete from local filesystem
@@ -767,17 +774,17 @@ export class StorageService {
         totalSize += media.size;
         deleted++;
 
-        this.logStorageEvent('BULK_DELETE', businessId, media.filename, true, USE_S3 ? 's3' : 'local');
+        this.logStorageEvent('BULK_DELETE', businessId, media.filename, true, getUseS3() ? 's3' : 'local');
 
       } catch (error) {
         const errorMessage = `Failed to delete ${media._id}: ${error.message}`;
         errors.push(errorMessage);
-        this.logStorageEvent('BULK_DELETE', businessId, media.filename, false, USE_S3 ? 's3' : 'local');
+        this.logStorageEvent('BULK_DELETE', businessId, media.filename, false, getUseS3() ? 's3' : 'local');
       }
     }
 
     // Bulk delete from S3 if using S3
-    if (s3KeysToDelete.length > 0 && USE_S3) {
+    if (s3KeysToDelete.length > 0 && getUseS3()) {
       try {
         const s3DeleteResult = await S3Service.deleteFiles(s3KeysToDelete);
         if (s3DeleteResult.errors.length > 0) {
@@ -802,12 +809,12 @@ export class StorageService {
   }> {
     const result = {
       configured: true,
-      storageProvider: USE_S3 ? 's3' as const : 'local' as const,
+      storageProvider: getUseS3() ? 's3' as const : 'local' as const,
       canConnect: false,
       errors: [] as string[]
     };
 
-    if (USE_S3) {
+    if (getUseS3()) {
       try {
         const s3Validation = await S3Service.validateConfiguration();
         result.configured = s3Validation.configured;
@@ -900,7 +907,7 @@ export class StorageService {
       }
     );
 
-    this.logStorageEvent('FILE_DOWNLOAD', businessId, fileId, true, USE_S3 ? 's3' : 'local');
+    this.logStorageEvent('FILE_DOWNLOAD', businessId, fileId, true, getUseS3() ? 's3' : 'local');
   }
 
   async getFilesByCategory(
@@ -951,7 +958,7 @@ export class StorageService {
     const errors: string[] = [];
     let cleaned = 0;
 
-    if (USE_S3) {
+    if (getUseS3()) {
       // For S3, we rely on the database records as the source of truth
       logger.info('S3 orphan cleanup: Using database records as source of truth');
       return { cleaned: 0, errors: [] };

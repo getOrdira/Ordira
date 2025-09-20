@@ -1,7 +1,7 @@
 // src/services/business/manufacturer.service.ts
 
 import bcrypt from 'bcrypt';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
 import { Manufacturer } from '../../models/manufacturer.model';
 import { BrandSettings } from '../../models/brandSettings.model';
@@ -116,7 +116,7 @@ export class ManufacturerService {
 
   private logSecurityEvent(event: string, identifier: string, success: boolean): void {
     const maskedIdentifier = UtilsService.maskEmail(identifier);
-    logger.info('[MANUFACTURER] ${event} - ${maskedIdentifier} - ${success ? ', SUCCESS' : 'FAILED'}`);
+    logger.info(`[MANUFACTURER] ${event} - ${maskedIdentifier} - ${success ? 'SUCCESS' : 'FAILED'}`);
   }
 
   private calculateProfileCompleteness(manufacturer: any): number {

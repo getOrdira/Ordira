@@ -3,7 +3,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { MulterError } from '../types/multer';
+import { MulterError } from '../types/multer.d';
 import { hasErrorMessage, isOperationalError, hasStatusCode } from '../utils/typeGuards';
 import { logger, LogContext } from '../utils/logger';
 

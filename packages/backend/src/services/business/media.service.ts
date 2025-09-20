@@ -1,7 +1,7 @@
 // src/services/business/media.service.ts
 
 import path from 'path';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import { createReadStream } from 'fs';
 import { Readable } from 'stream';
 import { Media, IMedia } from '../../models/media.model';
