@@ -49,7 +49,7 @@ export async function createKey(
 
     // Check plan-based API key limits
     const currentKeys = await apiKeyService.getKeyCount(businessId);
-    const planLimits = getApiKeyLimits(userPlan);
+    const planLimits = apiKeyService.getApiKeyLimits(userPlan);
 
     if (currentKeys >= planLimits.maxKeys) {
       res.status(403).json({
@@ -73,7 +73,7 @@ export async function createKey(
     } = req.validatedBody || req.body;
 
     // Validate permissions against plan with explicit typing
-    const allowedPermissions: string[] = getPlanPermissions(userPlan);
+    const allowedPermissions: string[] = apiKeyService.getPlanPermissions(userPlan);
     const invalidPermissions: string[] = permissions.filter((p: string) => !allowedPermissions.includes(p));
 
     if (invalidPermissions.length > 0) {
@@ -227,38 +227,11 @@ export async function testKey(
     }
 
     // Perform basic tests
-    const testResults = {
-      keyId: apiKey.keyId,
-      testTimestamp: new Date().toISOString(),
-      tests: {
-        keyExists: {
-          status: 'passed',
-          message: 'API key found and accessible'
-        },
-        isActive: {
-          status: apiKey.isActive ? 'passed' : 'failed',
-          message: apiKey.isActive ? 'API key is active' : 'API key is inactive'
-        },
-        notExpired: {
-          status: !apiKey.expiresAt || apiKey.expiresAt > new Date() ? 'passed' : 'failed',
-          message: !apiKey.expiresAt ? 'API key does not expire' : 
-                   apiKey.expiresAt > new Date() ? 'API key is not expired' : 'API key has expired'
-        },
-        notRevoked: {
-          status: !apiKey.revoked ? 'passed' : 'failed',
-          message: !apiKey.revoked ? 'API key is not revoked' : 'API key has been revoked'
-        },
-        hasPermissions: {
-          status: apiKey.permissions && apiKey.permissions.length > 0 ? 'passed' : 'warning',
-          message: apiKey.permissions && apiKey.permissions.length > 0 ? 
-                   `API key has ${apiKey.permissions.length} permission(s)` : 'API key has no permissions'
-        }
-      }
-    };
+    const testResults = apiKeyService.performApiKeyTests(apiKey);
 
     // Calculate overall test result
-    const failedTests = Object.values(testResults.tests).filter(test => test.status === 'failed').length;
-    const warningTests = Object.values(testResults.tests).filter(test => test.status === 'warning').length;
+    const failedTests = Object.values(testResults.tests).filter((test: any) => test.status === 'failed').length;
+    const warningTests = Object.values(testResults.tests).filter((test: any) => test.status === 'warning').length;
 
     const overallStatus = failedTests > 0 ? 'failed' : warningTests > 0 ? 'warning' : 'passed';
 
@@ -494,19 +467,7 @@ export async function exportKeys(
         const apiKey = await apiKeyService.getApiKey(keyId, businessId);
         if (!apiKey) continue;
 
-        const keyData: any = {
-          keyId: apiKey.keyId,
-          name: apiKey.name,
-          description: apiKey.description,
-          permissions: apiKey.permissions,
-          isActive: apiKey.isActive,
-          createdAt: apiKey.createdAt,
-          expiresAt: apiKey.expiresAt,
-          rateLimits: apiKey.rateLimits,
-          allowedOrigins: apiKey.allowedOrigins,
-          planLevel: apiKey.planLevel,
-          revoked: apiKey.revoked
-        };
+        const keyData = apiKeyService.formatApiKeyForExport(apiKey);
 
         // Include usage stats if requested
         if (includeUsageStats) {
@@ -516,11 +477,8 @@ export async function exportKeys(
 
         // Include audit log if requested
         if (includeAuditLog) {
-          const auditEntries = await this.getAuditEntries({ 
-            business: businessId, 
-            keyId 
-          }, { limit: 100 });
-          keyData.auditLog = auditEntries.entries;
+          // TODO: Implement audit log retrieval in ApiKeyService
+          keyData.auditLog = [];
         }
 
         exportData.keys.push(keyData);
@@ -531,7 +489,7 @@ export async function exportKeys(
 
     // Format response based on requested format
     if (format === 'csv') {
-      const csvContent = this.formatAsCSV(exportData.keys);
+      const csvContent = apiKeyService.generateCSV(exportData.keys);
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="api-keys-${Date.now()}.csv"`);
       res.send(csvContent);
@@ -564,7 +522,7 @@ export async function listKeys(
 
     // Get all API keys with usage statistics
     const keys = await apiKeyService.listApiKeysWithUsage(businessId);
-    const planLimits = getApiKeyLimits(userPlan);
+    const planLimits = apiKeyService.getApiKeyLimits(userPlan);
 
     // Add enhanced metadata
     const enhancedKeys = await Promise.all(
@@ -614,7 +572,7 @@ export async function listKeys(
       },
       planInfo: {
         currentPlan: userPlan,
-        allowedPermissions: getPlanPermissions(userPlan),
+        allowedPermissions: apiKeyService.getPlanPermissions(userPlan),
         rateLimits: planLimits.defaultRateLimits,
         upgradeAvailable: userPlan === 'foundation'
       }
@@ -669,7 +627,7 @@ export async function updateKey(
 
     // Validate permissions if being updated
     if (permissions) {
-      const allowedPermissions = getPlanPermissions(userPlan);
+      const allowedPermissions = apiKeyService.getPlanPermissions(userPlan);
      const invalidPermissions = permissions.filter((p: string) => !allowedPermissions.includes(p)); 
       
       if (invalidPermissions.length > 0) {
@@ -892,65 +850,3 @@ export async function rotateKey(
   }
 }
 
-// Helper functions
-function getApiKeyLimits(plan: string) {
-  switch (plan) {
-    case 'foundation':
-      return {
-        maxKeys: 2,
-        defaultRateLimits: {
-          requestsPerMinute: 100,
-          requestsPerDay: 1000
-        }
-      };
-    case 'growth':
-      return {
-        maxKeys: 5,
-        defaultRateLimits: {
-          requestsPerMinute: 300,
-          requestsPerDay: 5000
-        }
-      };
-    case 'premium':
-      return {
-        maxKeys: 15,
-        defaultRateLimits: {
-          requestsPerMinute: 1000,
-          requestsPerDay: 25000
-        }
-      };
-    case 'enterprise':
-      return {
-        maxKeys: 50,
-        defaultRateLimits: {
-          requestsPerMinute: 5000,
-          requestsPerDay: 100000
-        }
-      };
-    default:
-      return {
-        maxKeys: 1,
-        defaultRateLimits: {
-          requestsPerMinute: 50,
-          requestsPerDay: 500
-        }
-      };
-  }
-}
-
-function getPlanPermissions(plan: string): string[] {
-  const basePermissions = ['read'];
-  
-  switch (plan) {
-    case 'foundation':
-      return [...basePermissions];
-    case 'growth':
-      return [...basePermissions, 'write', 'analytics'];
-    case 'premium':
-      return [...basePermissions, 'write', 'analytics', 'admin', 'integrations'];
-    case 'enterprise':
-      return [...basePermissions, 'write', 'analytics', 'admin', 'integrations', 'webhooks', 'export'];
-    default:
-      return basePermissions;
-  }
-}

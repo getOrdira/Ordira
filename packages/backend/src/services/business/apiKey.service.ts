@@ -193,6 +193,148 @@ export class ApiKeyService {
     return doc;
   }
 
+  /**
+   * Get API key limits for a given plan
+   */
+  public getApiKeyLimits(plan: string) {
+    switch (plan) {
+      case 'foundation':
+        return {
+          maxKeys: 2,
+          defaultRateLimits: {
+            requestsPerMinute: 100,
+            requestsPerDay: 1000
+          }
+        };
+      case 'growth':
+        return {
+          maxKeys: 5,
+          defaultRateLimits: {
+            requestsPerMinute: 300,
+            requestsPerDay: 5000
+          }
+        };
+      case 'premium':
+        return {
+          maxKeys: 15,
+          defaultRateLimits: {
+            requestsPerMinute: 1000,
+            requestsPerDay: 25000
+          }
+        };
+      case 'enterprise':
+        return {
+          maxKeys: 50,
+          defaultRateLimits: {
+            requestsPerMinute: 5000,
+            requestsPerDay: 100000
+          }
+        };
+      default:
+        return {
+          maxKeys: 1,
+          defaultRateLimits: {
+            requestsPerMinute: 50,
+            requestsPerDay: 500
+          }
+        };
+    }
+  }
+
+  /**
+   * Get allowed permissions for a given plan
+   */
+  public getPlanPermissions(plan: string): string[] {
+    const basePermissions = ['read'];
+    
+    switch (plan) {
+      case 'foundation':
+        return [...basePermissions];
+      case 'growth':
+        return [...basePermissions, 'write', 'analytics'];
+      case 'premium':
+        return [...basePermissions, 'write', 'analytics', 'admin', 'integrations'];
+      case 'enterprise':
+        return [...basePermissions, 'write', 'analytics', 'admin', 'integrations', 'webhooks', 'export'];
+      default:
+        return basePermissions;
+    }
+  }
+
+  /**
+   * Generate CSV content for API key export
+   */
+  public generateCSV(keys: any[]): string {
+    const headers = ['Key ID', 'Name', 'Created At', 'Status', 'Permissions', 'Rate Limits', 'Description'];
+    const rows = keys.map(key => [
+      key.keyId,
+      key.name || '',
+      key.createdAt ? new Date(key.createdAt).toISOString() : '',
+      key.isActive ? 'Active' : 'Inactive',
+      key.permissions ? key.permissions.join(', ') : '',
+      key.rateLimits ? `${key.rateLimits.requestsPerMinute}/min, ${key.rateLimits.requestsPerDay}/day` : '',
+      key.description || ''
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    return csvContent;
+  }
+
+  /**
+   * Format API key data for export
+   */
+  public formatApiKeyForExport(apiKey: any): any {
+    return {
+      keyId: apiKey.keyId,
+      name: apiKey.name,
+      createdAt: apiKey.createdAt,
+      status: apiKey.isActive ? 'active' : 'inactive',
+      permissions: apiKey.permissions || [],
+      rateLimits: apiKey.rateLimits || {},
+      description: apiKey.description,
+      expiresAt: apiKey.expiresAt,
+      lastUsed: apiKey.lastUsed,
+      usage: apiKey.usage || {}
+    };
+  }
+
+  /**
+   * Perform API key tests
+   */
+  public performApiKeyTests(apiKey: any): any {
+    return {
+      keyId: apiKey.keyId,
+      testTimestamp: new Date().toISOString(),
+      tests: {
+        keyExists: {
+          status: 'passed',
+          message: 'API key found and accessible'
+        },
+        isActive: {
+          status: apiKey.isActive ? 'passed' : 'failed',
+          message: apiKey.isActive ? 'API key is active' : 'API key is inactive'
+        },
+        notExpired: {
+          status: !apiKey.expiresAt || apiKey.expiresAt > new Date() ? 'passed' : 'failed',
+          message: !apiKey.expiresAt ? 'API key does not expire' : 
+                   apiKey.expiresAt > new Date() ? 'API key is not expired' : 'API key has expired'
+        },
+        notRevoked: {
+          status: !apiKey.revoked ? 'passed' : 'failed',
+          message: !apiKey.revoked ? 'API key is not revoked' : 'API key has been revoked'
+        },
+        hasPermissions: {
+          status: apiKey.permissions && apiKey.permissions.length > 0 ? 'passed' : 'warning',
+          message: apiKey.permissions && apiKey.permissions.length > 0 ? 
+                   `API key has ${apiKey.permissions.length} permission(s)` : 'API key has no permissions'
+        }
+      }
+    };
+  }
+
   async rotateApiKey(keyId: string, businessId: string, options: any) {
     // Generate new secret while keeping same keyId
     const secret = crypto.randomBytes(32).toString('hex');

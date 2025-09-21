@@ -435,6 +435,21 @@ export class BrandSettingsService {
   }
 
   /**
+   * Update Wix integration
+   */
+  async updateWixIntegration(businessId: string, data: any): Promise<void> {
+    await BrandSettings.findOneAndUpdate(
+      { business: businessId },
+      {
+        wixDomain: data.wixDomain,
+        wixApiKey: data.wixApiKey,
+        wixRefreshToken: data.wixRefreshToken,
+        wixUpdatedAt: new Date()
+      }
+    );
+  }
+
+  /**
    * Remove integration
    */
   async removeIntegration(businessId: string, type: string, options: {
@@ -614,5 +629,284 @@ export class BrandSettingsService {
     // Check if available
     const existing = await BrandSettings.findOne({ subdomain });
     return !existing;
+  }
+
+  // ===== Controller-extracted helper functions =====
+
+  public getPlanFeatures(plan: string): string[] {
+    const features = {
+      foundation: ['Basic Branding', 'Subdomain'],
+      growth: ['Enhanced Branding', 'Basic Integrations', 'Analytics'],
+      premium: ['Custom Domain', 'Advanced Integrations', 'Web3 Features', 'Priority Support'],
+      enterprise: ['White-label', 'Custom Development', 'Dedicated Support', 'Advanced Analytics']
+    };
+    return features[plan as keyof typeof features] || [];
+  }
+
+  public getPlanLimitations(plan: string): string[] {
+    const limitations = {
+      foundation: ['No custom domain', 'No integrations', 'Basic analytics only'],
+      growth: ['Limited custom CSS', 'Basic Web3 features'],
+      premium: ['Limited custom development'],
+      enterprise: []
+    };
+    return limitations[plan as keyof typeof limitations] || [];
+  }
+
+  public validatePlanFeatures(updateData: any, plan: string): string[] {
+    const restricted: string[] = [];
+    
+    // Custom domain requires premium+
+    if (updateData.customDomain && !['premium', 'enterprise'].includes(plan)) {
+      restricted.push('Custom domain requires Premium or Enterprise plan');
+    }
+    
+    // Certificate wallet requires premium+
+    if (updateData.certificateWallet && !['premium', 'enterprise'].includes(plan)) {
+      restricted.push('Certificate wallet requires Premium or Enterprise plan');
+    }
+    
+    // Advanced integrations require growth+
+    if (updateData.shopifyIntegration && !['growth', 'premium', 'enterprise'].includes(plan)) {
+      restricted.push('Shopify integration requires Growth plan or higher');
+    }
+    
+    return restricted;
+  }
+
+  public getRequiredPlans(features: string[]): string[] {
+    const planRequirements: Record<string, string> = {
+      customDomain: 'premium',
+      certificateWallet: 'premium',
+      shopifyIntegration: 'growth',
+      advancedAnalytics: 'growth',
+      customCss: 'growth'
+    };
+    
+    return features.map(feature => planRequirements[feature]).filter(Boolean);
+  }
+
+  public async validateDomainChanges(businessId: string, updateData: any, currentSettings: any): Promise<void> {
+    if (updateData.subdomain && updateData.subdomain !== currentSettings.subdomain) {
+      const available = await this.isSubdomainAvailable(updateData.subdomain);
+      if (!available) {
+        throw { statusCode: 400, message: 'Subdomain is not available' };
+      }
+    }
+    
+    if (updateData.customDomain && updateData.customDomain !== currentSettings.customDomain) {
+      // Additional domain validation logic
+      const isValidDomain = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/.test(updateData.customDomain);
+      if (!isValidDomain) {
+        throw { statusCode: 400, message: 'Invalid domain format' };
+      }
+    }
+  }
+
+  public async processWalletChange(businessId: string, newWallet: string, currentWallet?: string): Promise<void> {
+    if (newWallet !== currentWallet) {
+      // Verify wallet ownership
+      const isValid = await this.verifyWalletOwnership(businessId, newWallet);
+      if (!isValid) {
+        throw { statusCode: 400, message: 'Wallet ownership verification failed' };
+      }
+    }
+  }
+
+  public getChangedFields(current: any, update: any): string[] {
+    return Object.keys(update).filter(key => {
+      const currentValue = current[key];
+      const updateValue = update[key];
+      
+      // Handle nested objects
+      if (typeof currentValue === 'object' && typeof updateValue === 'object') {
+        return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
+      }
+      
+      return currentValue !== updateValue;
+    });
+  }
+
+  public async processIntegrationUpdates(businessId: string, updateData: any, currentSettings: any): Promise<void> {
+    // Process Shopify integration changes
+    if (updateData.shopifyIntegration) {
+      await this.updateShopifyIntegration(businessId, updateData.shopifyIntegration);
+    }
+    
+    // Process WooCommerce integration changes
+    if (updateData.wooCommerceIntegration) {
+      await this.updateWooCommerceIntegration(businessId, updateData.wooCommerceIntegration);
+    }
+    
+    // Process Wix integration changes
+    if (updateData.wixIntegration) {
+      await this.updateWixIntegration(businessId, updateData.wixIntegration);
+    }
+  }
+
+  public async handleSettingsChangeNotifications(businessId: string, current: any, update: any): Promise<void> {
+    const significantChanges = ['certificateWallet', 'customDomain', 'subdomain'];
+    const hasSignificantChanges = significantChanges.some(field => 
+      update[field] && current[field] !== update[field]
+    );
+    
+    if (hasSignificantChanges) {
+      // Send notification about significant changes
+      logger.info('Significant brand settings changes detected', { businessId, changes: update });
+    }
+  }
+
+  public calculateSetupCompleteness(settings: any, plan: string): number {
+    const requiredFields = ['themeColor', 'logoUrl'];
+    const optionalFields = ['bannerImages', 'customCss', 'subdomain'];
+    const premiumFields = ['customDomain', 'certificateWallet'];
+    
+    let completed = 0;
+    let total = requiredFields.length + optionalFields.length;
+    
+    // Add premium fields if plan allows
+    if (['premium', 'enterprise'].includes(plan)) {
+      total += premiumFields.length;
+    }
+    
+    // Count completed fields
+    [...requiredFields, ...optionalFields].forEach(field => {
+      if (settings[field]) completed++;
+    });
+    
+    if (['premium', 'enterprise'].includes(plan)) {
+      premiumFields.forEach(field => {
+        if (settings[field]) completed++;
+      });
+    }
+    
+    return Math.round((completed / total) * 100);
+  }
+
+  public generateSetupRecommendations(settings: any, plan: string): string[] {
+    const recommendations: string[] = [];
+    
+    if (!settings.logoUrl) {
+      recommendations.push('Upload a logo to complete your brand identity');
+    }
+    
+    if (!settings.themeColor) {
+      recommendations.push('Set your brand theme color');
+    }
+    
+    if (!settings.subdomain) {
+      recommendations.push('Configure a custom subdomain for your brand');
+    }
+    
+    if (['premium', 'enterprise'].includes(plan) && !settings.customDomain) {
+      recommendations.push('Set up a custom domain for professional branding');
+    }
+    
+    if (['premium', 'enterprise'].includes(plan) && !settings.certificateWallet) {
+      recommendations.push('Connect your Web3 wallet for NFT features');
+    }
+    
+    return recommendations;
+  }
+
+  public getMissingFeatures(settings: any, plan: string): string[] {
+    const missing: string[] = [];
+    const planFeatures = this.getPlanFeatures(plan);
+    
+    if (planFeatures.includes('Custom Domain') && !settings.customDomain) {
+      missing.push('Custom Domain');
+    }
+    
+    if (planFeatures.includes('Web3 Features') && !settings.certificateWallet) {
+      missing.push('Web3 Wallet');
+    }
+    
+    if (planFeatures.includes('Basic Integrations') && !settings.shopifyDomain && !settings.wooDomain) {
+      missing.push('E-commerce Integration');
+    }
+    
+    return missing;
+  }
+
+  public getAvailableIntegrations(plan: string): string[] {
+    switch (plan) {
+      case 'growth':
+      case 'premium':
+      case 'enterprise':
+        return ['shopify', 'woocommerce', 'wix'];
+      default:
+        return [];
+    }
+  }
+
+  public getConfiguredIntegrations(settings: any): string[] {
+    const configured: string[] = [];
+    
+    if (settings.shopifyDomain) configured.push('shopify');
+    if (settings.wooDomain) configured.push('woocommerce');
+    if (settings.wixDomain) configured.push('wix');
+    
+    return configured;
+  }
+
+  public async getTokenDiscounts(walletAddress: string): Promise<any> {
+    try {
+      const { TokenDiscountService } = await import('../external/tokenDiscount.service');
+      const tokenDiscountService = new TokenDiscountService();
+      return await tokenDiscountService.getDiscountInfoForWallet(walletAddress);
+    } catch (error) {
+      logger.warn('Failed to get token discounts:', error);
+      return null;
+    }
+  }
+
+  public getWeb3Features(plan: string): string[] {
+    if (['premium', 'enterprise'].includes(plan)) {
+      return ['NFT Minting', 'Token Discounts', 'Smart Contracts', 'Wallet Integration'];
+    }
+    return [];
+  }
+
+  public getNftCapabilities(plan: string): string[] {
+    if (plan === 'enterprise') {
+      return ['Custom Contracts', 'Batch Minting', 'Advanced Metadata', 'Royalty Management'];
+    }
+    if (plan === 'premium') {
+      return ['Standard NFT Minting', 'Basic Metadata', 'Wallet Integration'];
+    }
+    return [];
+  }
+
+  public getIntegrationChanges(current: any, update: any): string[] {
+    const changes: string[] = [];
+    
+    if (update.shopifyIntegration) changes.push('shopify');
+    if (update.wooCommerceIntegration) changes.push('woocommerce');
+    if (update.wixIntegration) changes.push('wix');
+    
+    return changes;
+  }
+
+  public getShopifyAutomationFeatures(plan: string): string[] {
+    switch (plan) {
+      case 'enterprise':
+        return ['Advanced Workflows', 'Custom Scripts', 'Real-time Sync', 'Bulk Operations'];
+      case 'premium':
+        return ['Basic Workflows', 'Product Sync', 'Order Management'];
+      case 'growth':
+        return ['Product Import', 'Basic Sync'];
+      default:
+        return [];
+    }
+  }
+
+  public getContentType(format: string): string {
+    switch (format) {
+      case 'yaml': return 'application/x-yaml';
+      case 'csv': return 'text/csv';
+      case 'json': return 'application/json';
+      case 'xml': return 'application/xml';
+      default: return 'application/octet-stream';
+    }
   }
 }

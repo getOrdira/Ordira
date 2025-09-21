@@ -68,6 +68,207 @@ export class ShopifyService {
   private certificateService = new CertificateService();
 
   /**
+   * Extract and validate shop name from domain
+   */
+  public extractShopName(shopDomain: string): string {
+    let shopName = shopDomain;
+    if (shopDomain.includes('.myshopify.com')) {
+      shopName = shopDomain.replace('.myshopify.com', '');
+    }
+    return shopName;
+  }
+
+  /**
+   * Validate shop name format
+   */
+  public validateShopName(shopName: string): boolean {
+    const shopNameRegex = /^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
+    return shopNameRegex.test(shopName);
+  }
+
+  /**
+   * Generate OAuth connection response data
+   */
+  public generateConnectionResponse(authUrl: string, shopName: string, businessId: string, returnUrl?: string): any {
+    return {
+      authUrl,
+      shopDomain: `${shopName}.myshopify.com`,
+      shopName,
+      returnUrl,
+      businessId,
+      expiresIn: 600,
+      instructions: {
+        step1: 'Click the provided URL to authorize the app',
+        step2: 'Sign in to your Shopify admin if not already logged in',
+        step3: 'Click "Install app" to complete the connection'
+      }
+    };
+  }
+
+  /**
+   * Generate success HTML for OAuth callback
+   */
+  public generateSuccessHtml(shopName: string, returnUrl?: string): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Shopify Connected Successfully</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+              text-align: center; 
+              padding: 50px 20px; 
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: rgba(255, 255, 255, 0.1);
+              backdrop-filter: blur(10px);
+              border-radius: 20px;
+              padding: 40px;
+              max-width: 500px;
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            .success-icon {
+              font-size: 4rem;
+              margin-bottom: 20px;
+            }
+            h1 { margin-bottom: 20px; font-weight: 600; }
+            p { margin-bottom: 30px; opacity: 0.9; }
+            .btn {
+              background: rgba(255, 255, 255, 0.2);
+              border: 2px solid rgba(255, 255, 255, 0.3);
+              color: white;
+              padding: 12px 30px;
+              border-radius: 25px;
+              text-decoration: none;
+              font-weight: 500;
+              transition: all 0.3s ease;
+              display: inline-block;
+            }
+            .btn:hover {
+              background: rgba(255, 255, 255, 0.3);
+              transform: translateY(-2px);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="success-icon">✅</div>
+            <h1>Shopify Connected Successfully!</h1>
+            <p>Your store <strong>${shopName}</strong> has been successfully connected to our platform.</p>
+            <p>You can now sync products and manage your integration from your dashboard.</p>
+            ${returnUrl ? `<a href="${returnUrl}" class="btn">Return to Dashboard</a>` : ''}
+          </div>
+        </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Validate OAuth callback parameters
+   */
+  public validateOAuthCallback(shop: string, code: string, state: string): boolean {
+    return !!(shop && code && state);
+  }
+
+  /**
+   * Verify HMAC signature for OAuth callback
+   */
+  public verifyOAuthHmac(code: string, shop: string, state: string, timestamp: string, hmac: string): boolean {
+    const expectedHmac = crypto
+      .createHmac('sha256', SHOPIFY_API_SECRET)
+      .update(`code=${code}&shop=${shop}&state=${state}&timestamp=${timestamp}`)
+      .digest('hex');
+    
+    return hmac === expectedHmac;
+  }
+
+  /**
+   * Validate webhook headers
+   */
+  public validateWebhookHeaders(topic: string, hmac: string, shopDomain: string): boolean {
+    return !!(hmac && topic && shopDomain);
+  }
+
+  /**
+   * Verify webhook HMAC signature
+   */
+  public verifyWebhookHmac(rawBody: Buffer | string, hmac: string): boolean {
+    const expectedHmac = crypto
+      .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET!)
+      .update(rawBody)
+      .digest('base64');
+
+    return hmac === expectedHmac;
+  }
+
+  /**
+   * Parse webhook data safely
+   */
+  public parseWebhookData(rawBody: Buffer | string): any {
+    try {
+      return JSON.parse(rawBody.toString());
+    } catch (error) {
+      throw new ShopifyError('Invalid webhook JSON data', 400);
+    }
+  }
+
+  /**
+   * Validate sync configuration
+   */
+  public validateSyncConfig(syncType: string, batchSize: number): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    const validSyncTypes = ['products', 'orders', 'customers', 'all'];
+
+    if (!validSyncTypes.includes(syncType)) {
+      errors.push(`Invalid sync type. Valid types: ${validSyncTypes.join(', ')}`);
+    }
+
+    if (batchSize < 1 || batchSize > 250) {
+      errors.push('Batch size must be between 1 and 250');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Generate sync response data
+   */
+  public generateSyncResponse(syncResult: any, syncType: string, syncDuration: number, businessId: string): any {
+    return {
+      success: true,
+      message: `${syncType} sync completed successfully`,
+      data: {
+        syncType,
+        synced: syncResult.synced,
+        skipped: syncResult.skipped || 0,
+        duration: syncDuration,
+        businessId,
+        timestamp: new Date().toISOString(),
+        performance: {
+          itemsPerSecond: syncResult.synced > 0 ? Math.round(syncResult.synced / (syncDuration / 1000)) : 0,
+          status: syncDuration < 5000 ? 'Fast' : syncDuration < 15000 ? 'Normal' : 'Slow',
+          recommendation: syncDuration > 15000 ? 'Consider reducing batch size for better performance' : 'Sync performance is optimal'
+        },
+        errors: syncResult.errors.length > 0 ? syncResult.errors.slice(0, 10) : [],
+        hasMoreErrors: syncResult.errors.length > 10
+      }
+    };
+  }
+
+  /**
    * Constructs the OAuth install URL for Shopify
    */
   async generateInstallUrl(businessId: string, shopDomain?: string): Promise<string> {

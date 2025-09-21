@@ -133,6 +133,86 @@ export class AuthService {
     }
   }
 
+  /** ═══════════════════════════════════════════════════════════════════════════ */
+  /** Public Utility Methods                                                     */
+  /** ═══════════════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Get client IP address from request
+   */
+  public getClientIp(req: any): string {
+    return (
+      req.headers['x-forwarded-for'] as string ||
+      req.headers['x-real-ip'] as string ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      req.ip ||
+      'unknown'
+    ).split(',')[0].trim();
+  }
+
+  /**
+   * Get location information from IP address
+   */
+  public async getLocationFromIp(ip: string): Promise<{ country?: string; city?: string }> {
+    try {
+      // This would integrate with a geolocation service
+      // For now, return basic info
+      return {
+        country: 'Unknown',
+        city: 'Unknown'
+      };
+    } catch (error) {
+      return {};
+    }
+  }
+
+  /**
+   * Create security context from request
+   */
+  public createSecurityContext(req: any, additionalData: any = {}): any {
+    return {
+      ipAddress: this.getClientIp(req),
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      timestamp: new Date(),
+      ...additionalData
+    };
+  }
+
+  /**
+   * Format authentication response
+   */
+  public formatAuthResponse(result: any, securityContext?: any): any {
+    return {
+      token: result.token,
+      expiresIn: '7 days',
+      user: {
+        businessId: result.businessId,
+        email: result.email,
+        businessName: result.businessName,
+        isEmailVerified: result.isEmailVerified,
+        plan: result.plan || 'foundation',
+        lastLoginAt: new Date()
+      },
+      security: {
+        requiresTwoFactor: result.requiresTwoFactor || false,
+        loginLocation: securityContext ? this.getLocationFromIp(securityContext.ipAddress) : {}
+      }
+    };
+  }
+
+  /**
+   * Generate remember token cookie options
+   */
+  public getRememberTokenCookieOptions(): any {
+    return {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    };
+  }
+
   private async logSecurityEvent(
     event: string, 
     identifier: string, 

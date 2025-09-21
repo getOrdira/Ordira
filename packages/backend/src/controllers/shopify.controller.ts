@@ -69,13 +69,9 @@ export const connectShopify = asyncHandler(async (
 
   const { shopDomain, returnUrl } = req.validatedBody;
 
-  let shopName = shopDomain;
-  if (shopDomain.includes('.myshopify.com')) {
-    shopName = shopDomain.replace('.myshopify.com', '');
-  }
+  const shopName = shopifyService.extractShopName(shopDomain);
 
-  const shopNameRegex = /^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
-  if (!shopNameRegex.test(shopName)) {
+  if (!shopifyService.validateShopName(shopName)) {
     throw createAppError('Invalid shop name format. Use only letters, numbers, and hyphens', 400, 'INVALID_SHOP_NAME');
   }
 
@@ -84,19 +80,7 @@ export const connectShopify = asyncHandler(async (
   res.json({
     success: true,
     message: 'Shopify OAuth URL generated successfully',
-    data: {
-      authUrl,
-      shopDomain: `${shopName}.myshopify.com`,
-      shopName,
-      returnUrl,
-      businessId,
-      expiresIn: 600,
-      instructions: {
-        step1: 'Click the provided URL to authorize the app',
-        step2: 'Sign in to your Shopify admin if not already logged in',
-        step3: 'Click "Install app" to complete the connection'
-      }
-    }
+    data: shopifyService.generateConnectionResponse(authUrl, shopName, businessId, returnUrl)
   });
 });
 
@@ -111,19 +95,14 @@ export const oauthCallback = asyncHandler(async (
 ): Promise<void> => {
   const { shop, code, state, hmac, timestamp } = req.validatedQuery;
 
-  if (!shop || !code || !state) {
+  if (!shopifyService.validateOAuthCallback(shop, code, state)) {
     throw createAppError('Missing required OAuth parameters', 400, 'INVALID_OAUTH_CALLBACK');
   }
 
-  const shopName = shop.replace('.myshopify.com', '');
+  const shopName = shopifyService.extractShopName(shop);
 
   if (hmac && timestamp) {
-    const expectedHmac = crypto
-      .createHmac('sha256', process.env.SHOPIFY_API_SECRET!)
-      .update(`code=${code}&shop=${shop}&state=${state}&timestamp=${timestamp}`)
-      .digest('hex');
-    
-    if (hmac !== expectedHmac) {
+    if (!shopifyService.verifyOAuthHmac(code, shop, state, timestamp, hmac)) {
       throw createAppError('Invalid HMAC signature', 401, 'INVALID_HMAC');
     }
   }
@@ -131,97 +110,7 @@ export const oauthCallback = asyncHandler(async (
   try {
     await shopifyService.exchangeCode(shop, code, state);
 
-    const successHtml = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Shopify Connected Successfully</title>
-          <style>
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-              text-align: center; 
-              padding: 50px 20px; 
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              margin: 0;
-              min-height: 100vh;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .container {
-              background: rgba(255, 255, 255, 0.1);
-              padding: 40px;
-              border-radius: 20px;
-              backdrop-filter: blur(10px);
-              border: 1px solid rgba(255, 255, 255, 0.2);
-              max-width: 500px;
-              width: 100%;
-            }
-            .success { 
-              color: #4CAF50; 
-              font-size: 48px; 
-              margin-bottom: 20px; 
-            }
-            .title {
-              font-size: 28px;
-              font-weight: 600;
-              margin-bottom: 20px;
-            }
-            .details { 
-              font-size: 16px; 
-              line-height: 1.6;
-              margin-bottom: 30px;
-            }
-            .shop-info {
-              background: rgba(255, 255, 255, 0.1);
-              padding: 20px;
-              border-radius: 10px;
-              margin: 20px 0;
-            }
-            .countdown {
-              font-size: 14px;
-              opacity: 0.8;
-              margin-top: 20px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="success">✅</div>
-            <div class="title">Shopify Connected Successfully!</div>
-            <div class="shop-info">
-              <strong>Shop:</strong> ${shopName}<br>
-              <strong>Connected at:</strong> ${new Date().toLocaleString()}<br>
-              <strong>Status:</strong> Active
-            </div>
-            <div class="details">
-              Your Shopify store is now connected to our platform.<br>
-              You can now sync products and receive order notifications.
-            </div>
-            <div class="countdown">
-              This window will close automatically in <span id="countdown">10</span> seconds.
-            </div>
-          </div>
-          <script>
-            let countdown = 10;
-            const countdownElement = document.getElementById('countdown');
-            const timer = setInterval(() => {
-              countdown--;
-              countdownElement.textContent = countdown;
-              if (countdown <= 0) {
-                clearInterval(timer);
-                window.close();
-              }
-            }, 1000);
-            
-            document.addEventListener('click', () => window.close());
-          </script>
-        </body>
-      </html>
-    `;
+    const successHtml = shopifyService.generateSuccessHtml(shopName);
 
     res.setHeader('Content-Type', 'text/html');
     res.send(successHtml);
@@ -439,9 +328,9 @@ export const syncShopifyData = asyncHandler(async (
   const forceSync = syncConfig.forceSync || false;
   const batchSize = syncConfig.batchSize || 50;
 
-  const validSyncTypes = ['products', 'orders', 'customers', 'all'];
-  if (!validSyncTypes.includes(syncType)) {
-    throw createAppError(`Invalid sync type. Valid types: ${validSyncTypes.join(', ')}`, 400, 'INVALID_SYNC_TYPE');
+  const validation = shopifyService.validateSyncConfig(syncType, batchSize);
+  if (!validation.isValid) {
+    throw createAppError(validation.errors[0], 400, 'INVALID_SYNC_CONFIG');
   }
 
   const connectionStatus = await shopifyService.getConnectionStatus(businessId);
@@ -508,34 +397,7 @@ export const syncShopifyData = asyncHandler(async (
   const nextSyncDelay = syncResult.errors.length > 0 ? 2 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
   const nextSync = new Date(Date.now() + nextSyncDelay);
 
-  res.json({
-    success: true,
-    message: `${syncType} sync completed successfully`,
-    data: {
-      sync: {
-        type: syncType,
-        forceSync,
-        batchSize,
-        duration: syncDuration,
-        startedAt: new Date(syncStartTime).toISOString(),
-        completedAt: new Date().toISOString()
-      },
-      results: syncType === 'all' ? syncResults : syncResult,
-      stats: {
-        synced: syncResult.synced,
-        errors: syncResult.errors.length,
-        successRate: syncResult.synced > 0 ? Math.round((syncResult.synced / (syncResult.synced + syncResult.errors.length)) * 100) : 0,
-        itemsPerSecond: syncDuration > 0 ? Math.round((syncResult.synced / syncDuration) * 1000) : 0
-      },
-      recommendations: {
-        nextSync: nextSync.toISOString(),
-        frequency: syncResult.errors.length > 0 ? 'Check and retry in 2 hours' : 'Daily automatic sync recommended',
-        optimization: syncDuration > 30000 ? 'Consider reducing batch size for faster syncs' : 'Sync performance is optimal'
-      },
-      errors: syncResult.errors.length > 0 ? syncResult.errors.slice(0, 10) : [],
-      hasMoreErrors: syncResult.errors.length > 10
-    }
-  });
+  res.json(shopifyService.generateSyncResponse(syncResult, syncType, syncDuration, businessId));
 });
 
 /**
@@ -552,25 +414,15 @@ export const handleWebhook = asyncHandler(async (
   const shopDomain = req.headers['x-shopify-shop-domain'];
   const rawBody = req.rawBody || req.body;
 
-  if (!hmac || !topic || !shopDomain) {
+  if (!shopifyService.validateWebhookHeaders(topic, hmac, shopDomain)) {
     throw createAppError('Missing required webhook headers', 400, 'INVALID_WEBHOOK_HEADERS');
   }
 
-  const expectedHmac = crypto
-    .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET!)
-    .update(rawBody)
-    .digest('base64');
-
-  if (hmac !== expectedHmac) {
+  if (!shopifyService.verifyWebhookHmac(rawBody, hmac)) {
     throw createAppError('Invalid webhook HMAC signature', 401, 'INVALID_WEBHOOK_HMAC');
   }
 
-  let webhookData;
-  try {
-    webhookData = JSON.parse(rawBody.toString());
-  } catch (error) {
-    throw createAppError('Invalid webhook payload format', 400, 'INVALID_WEBHOOK_PAYLOAD');
-  }
+  const webhookData = shopifyService.parseWebhookData(rawBody);
 
   const processStartTime = Date.now();
   let processResult;

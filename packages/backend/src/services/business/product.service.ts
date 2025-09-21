@@ -44,6 +44,8 @@ export interface ProductFilters {
   offset?: number;
   sortBy?: 'createdAt' | 'title' | 'voteCount' | 'certificateCount';
   sortOrder?: 'asc' | 'desc';
+  tags?: string[];
+  priceRange?: { min?: number; max?: number };
 }
 
 export interface ProductStats {
@@ -81,6 +83,136 @@ export interface UpdateProductData extends Partial<CreateProductData> {}
  */
 export class ProductService {
   private mediaService = new MediaService();
+
+  /**
+   * Determine user context from request
+   */
+  public getUserContext(req: any): {
+    userId: string;
+    userType: 'business' | 'manufacturer';
+    businessId?: string;
+    manufacturerId?: string;
+  } {
+    // Check if it's a manufacturer request
+    if ('manufacturer' in req && req.manufacturer) {
+      return {
+        userId: req.userId!,
+        userType: 'manufacturer',
+        manufacturerId: req.userId!
+      };
+    }
+    
+    // Default to business request
+    const businessReq = req as any;
+    return {
+      userId: req.userId!,
+      userType: 'business',
+      businessId: businessReq.tenant?.business?.toString() || req.userId!
+    };
+  }
+
+  /**
+   * Build comprehensive filter options from query parameters
+   */
+  public buildFilterOptions(queryParams: any): ProductFilters {
+    const page = queryParams.page || 1;
+    const limit = Math.min(queryParams.limit || 20, 100);
+    const offset = (page - 1) * limit;
+
+    // Parse date filters
+    const dateFrom = queryParams.dateFrom ? new Date(queryParams.dateFrom) : undefined;
+    const dateTo = queryParams.dateTo ? new Date(queryParams.dateTo) : undefined;
+
+    return {
+      category: queryParams.category,
+      status: queryParams.status,
+      search: queryParams.search,
+      hasMedia: queryParams.hasMedia,
+      dateFrom,
+      dateTo,
+      sortBy: queryParams.sortBy || 'createdAt',
+      sortOrder: queryParams.sortOrder || 'desc',
+      limit,
+      offset,
+      tags: queryParams.tags?.split(','),
+      priceRange: queryParams.priceRange
+    };
+  }
+
+  /**
+   * Validate product data
+   */
+  public validateProductData(productData: any): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (!productData.title || productData.title.trim().length === 0) {
+      errors.push('Product title is required');
+    }
+
+    if (productData.title && productData.title.length > 200) {
+      errors.push('Product title cannot exceed 200 characters');
+    }
+
+    if (productData.media && productData.media.length > 20) {
+      errors.push('Maximum 20 media files allowed per product');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Generate product optimization suggestions
+   */
+  public generateProductSuggestions(productData: any): string[] {
+    const suggestions: string[] = [];
+    
+    if (!productData.description) {
+      suggestions.push('Consider adding a detailed description to improve discoverability');
+    }
+    if (!productData.media || productData.media.length === 0) {
+      suggestions.push('Upload product images to increase engagement');
+    }
+    if (!productData.category) {
+      suggestions.push('Select a category to help customers find your product');
+    }
+    
+    return suggestions;
+  }
+
+  /**
+   * Calculate product engagement score
+   */
+  public calculateEngagementScore(product: any): number {
+    const voteCount = product.voteCount || 0;
+    const certificateCount = product.certificateCount || 0;
+    return (voteCount * 2) + (certificateCount * 3);
+  }
+
+  /**
+   * Format product analytics data
+   */
+  public formatProductAnalytics(product: any): any {
+    return {
+      views: product.viewCount || 0,
+      votes: product.voteCount || 0,
+      certificates: product.certificateCount || 0,
+      engagementScore: this.calculateEngagementScore(product)
+    };
+  }
+
+  /**
+   * Get next steps for product optimization
+   */
+  public getProductNextSteps(): string[] {
+    return [
+      'Upload product images',
+      'Add detailed specifications',
+      'Set product status to active when ready'
+    ];
+  }
 
   /**
    * Retrieve all products for a business with enhanced filtering

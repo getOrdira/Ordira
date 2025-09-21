@@ -96,12 +96,9 @@ export async function registerBusinessHandler(
     const registrationData = req.validatedBody || req.body;
     
     // Add security context
-    const securityContext = {
-      ipAddress: getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      registrationSource: 'web',
-      timestamp: new Date()
-    };
+    const securityContext = authService.createSecurityContext(req, {
+      registrationSource: 'web'
+    });
 
     // Enhanced registration with security logging
     const result = await authService.registerBusiness({
@@ -131,7 +128,7 @@ export async function registerBusinessHandler(
   // Enhanced error logging with context
   logger.error('Business registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
-    ip: getClientIp(req),
+    ip: authService.getClientIp(req),
     email: safeString(getRequestBody(req)?.email),
     timestamp: new Date()
   });
@@ -153,12 +150,9 @@ export async function verifyBusinessHandler(
     const verificationData = req.validatedBody || req.body;
     
     // Add security context for verification tracking
-    const securityContext = {
-      ipAddress: getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      verificationAttempt: true,
-      timestamp: new Date()
-    };
+    const securityContext = authService.createSecurityContext(req, {
+      verificationAttempt: true
+    });
 
     // Enhanced verification with attempt tracking
     const result = await authService.verifyBusiness({
@@ -183,7 +177,7 @@ export async function verifyBusinessHandler(
   // Log failed verification attempts for security
   logger.warn('Business verification failed:', {
     businessId: safeString(getRequestBody(req)?.businessId),
-    ip: getClientIp(req),
+    ip: authService.getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -205,13 +199,10 @@ export async function loginBusinessHandler(
     const loginData = req.validatedBody || req.body as LoginBusinessInput;
     
     // Enhanced security context
-    const securityContext = {
-      ipAddress: getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
+    const securityContext = authService.createSecurityContext(req, {
       loginAttempt: true,
-      timestamp: new Date(),
       deviceFingerprint: safeString(getRequestBody(req)?.deviceFingerprint)
-    };
+    });
 
     // Enhanced login with security checks
     const result = await authService.loginBusiness({
@@ -228,35 +219,15 @@ export async function loginBusinessHandler(
 
     // Set secure cookie if remember me is enabled
     if (loginData.rememberMe) {
-      res.cookie('remember_token', result.rememberToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-      });
+      res.cookie('remember_token', result.rememberToken, authService.getRememberTokenCookieOptions());
     }
 
-    res.json({
-      token: result.token,
-      expiresIn: '7 days',
-      user: {
-        businessId: result.businessId,
-        email: result.email,
-        businessName: result.businessName,
-        isEmailVerified: result.isEmailVerified,
-        plan: result.plan || 'foundation',
-        lastLoginAt: new Date()
-      },
-      security: {
-        requiresTwoFactor: result.requiresTwoFactor || false,
-        loginLocation: await getLocationFromIp(securityContext.ipAddress)
-      }
-    });
+    res.json(authService.formatAuthResponse(result, securityContext));
   } catch (error) {
     // Enhanced error logging for security monitoring
     logger.warn('Business login failed:', {
       identifier: (req.body as LoginBusinessInput)?.emailOrPhone,
-      ip: getClientIp(req),
+      ip: authService.getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
@@ -279,12 +250,9 @@ export async function registerUserHandler(
     const userType = 'user';
     
     // Add security context
-    const securityContext = {
-      ipAddress: getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      registrationSource: 'web',
-      timestamp: new Date()
-    };
+    const securityContext = authService.createSecurityContext(req, {
+      registrationSource: 'web'
+    });
 
     // Enhanced user registration
     await authService.registerUser({
@@ -310,7 +278,7 @@ export async function registerUserHandler(
 } catch (error) {
   logger.error('User registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
-    ip: getClientIp(req),
+    ip: authService.getClientIp(req),
     email: req.body?.email,
     timestamp: new Date()
   });
@@ -333,7 +301,7 @@ export async function verifyUserHandler(
     
     // Add security context
     const securityContext = {
-      ipAddress: getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       verificationAttempt: true,
       timestamp: new Date()
@@ -361,7 +329,7 @@ export async function verifyUserHandler(
 } catch (error) {
   logger.warn('User verification failed:', {
     email: req.body?.email,
-    ip: getClientIp(req),
+    ip: authService.getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -393,7 +361,7 @@ export async function changePasswordHandler(
 
     // Get security context
     const securityContext = {
-      ipAddress: getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
@@ -439,7 +407,7 @@ export async function resendVerificationHandler(
     }
 
     const securityContext = {
-      ipAddress: getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
@@ -600,7 +568,7 @@ export async function revokeSessionHandler(
     await authService.revokeSession(userId, sessionId);
 
     // Log session revocation
-    logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${getClientIp(req)}');
+    logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${authService.getClientIp(req)}');
 
     res.json({
       message: 'Session revoked successfully',
@@ -648,7 +616,7 @@ export async function revokeAllSessionsHandler(
     const revokedCount = await authService.revokeAllSessions(userId, currentToken);
 
     // Log mass session revocation
-    logger.info('All sessions revoked for user ${userId} from IP: ${getClientIp(req)}', {
+    logger.info('All sessions revoked for user ${userId} from IP: ${authService.getClientIp(req)}', {
       revokedCount,
       reason: reason || 'user_request'
     });
@@ -750,7 +718,7 @@ export async function updateSecurityPreferencesHandler(
     const updatedPreferences = await authService.updateSecurityPreferences(userId, preferences);
 
     // Log security preference update
-    logger.info('Security preferences updated for user ${userId} from IP: ${getClientIp(req)}');
+    logger.info('Security preferences updated for user ${userId} from IP: ${authService.getClientIp(req)}');
 
     res.json({
       message: 'Security preferences updated successfully',
@@ -792,7 +760,7 @@ export async function loginUserHandler(
     
     // Enhanced security context
     const securityContext = {
-      ipAddress: getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
@@ -836,7 +804,7 @@ export async function loginUserHandler(
   } catch (error) {
     logger.warn('User login failed:', {
       email: safeString(getRequestBody(req)?.email), 
-      ip: getClientIp(req),
+      ip: authService.getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
@@ -857,7 +825,7 @@ export async function forgotPasswordHandler(
     const { email, phone } = req.validatedBody || req.body;
     
     const securityContext = {
-      ipAddress: getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
@@ -877,7 +845,7 @@ export async function forgotPasswordHandler(
     // Log for security monitoring but don't expose details
     logger.warn('Password reset attempt:', {
       identifier: req.body?.email || req.body?.phone,
-      ip: getClientIp(req),
+      ip: authService.getClientIp(req),
       timestamp: new Date()
     });
     
@@ -902,7 +870,7 @@ export async function resetPasswordHandler(
     const resetData = req.validatedBody || req.body;
     
     const securityContext = {
-      ipAddress: getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
@@ -923,7 +891,7 @@ export async function resetPasswordHandler(
   } catch (error) {
   logger.warn('Password reset failed:', {
     token: req.body?.token?.substring(0, 8) + '...',
-    ip: getClientIp(req),
+    ip: authService.getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -954,7 +922,7 @@ export async function logoutHandler(
     res.clearCookie('remember_token');
 
     // Log logout
-    logger.info('User logout: ${userId} from IP: ${getClientIp(req)}');
+    logger.info('User logout: ${userId} from IP: ${authService.getClientIp(req)}');
 
     res.json({
       message: 'Logged out successfully'
@@ -1020,7 +988,7 @@ export async function getCurrentUserHandler(
       permissions: userInfo.permissions || [],
       lastActivity: new Date(),
       sessionInfo: {
-        ipAddress: getClientIp(req),
+        ipAddress: authService.getClientIp(req),
         userAgent: req.headers['user-agent']
       }
     });
@@ -1030,30 +998,6 @@ export async function getCurrentUserHandler(
   }
 }
 
-// Helper functions
-function getClientIp(req: Request): string {
-  return (
-    req.headers['x-forwarded-for'] as string ||
-    req.headers['x-real-ip'] as string ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
-    req.ip ||
-    'unknown'
-  ).split(',')[0].trim();
-}
-
-async function getLocationFromIp(ip: string): Promise<{ country?: string; city?: string }> {
-  try {
-    // This would integrate with a geolocation service
-    // For now, return basic info
-    return {
-      country: 'Unknown',
-      city: 'Unknown'
-    };
-  } catch (error) {
-    return {};
-  }
-}
 
 
 

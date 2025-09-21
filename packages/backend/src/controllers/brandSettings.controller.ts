@@ -131,7 +131,7 @@ export async function getBrandSettings(
     const settings = await brandSettingsService.getEnhancedSettings(businessId);
     
     // Get plan-based available features
-    const availableFeatures = getPlanFeatures(userPlan);
+    const availableFeatures = brandSettingsService.getPlanFeatures(userPlan);
     
     // Get integration status
     const integrationStatus = await brandSettingsService.getIntegrationStatus(businessId);
@@ -151,12 +151,12 @@ export async function getBrandSettings(
       features: {
         available: availableFeatures,
         currentPlan: userPlan,
-        limitations: getPlanLimitations(userPlan)
+        limitations: brandSettingsService.getPlanLimitations(userPlan)
       },
       integrations: {
         status: integrationStatus,
-        available: getAvailableIntegrations(userPlan),
-        configured: getConfiguredIntegrations(settings)
+        available: brandSettingsService.getAvailableIntegrations(userPlan),
+        configured: brandSettingsService.getConfiguredIntegrations(settings)
       },
       domains: {
         status: domainStatus,
@@ -173,7 +173,7 @@ export async function getBrandSettings(
           nft: settings.web3Settings.nftContract
         },
         discounts: settings.certificateWallet ? 
-          await getTokenDiscounts(settings.certificateWallet) : null
+          await brandSettingsService.getTokenDiscounts(settings.certificateWallet) : null
       }
     });
   } catch (error) {
@@ -197,13 +197,13 @@ export async function updateBrandSettings(
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Validate plan permissions for requested features
-    const restrictedFeatures = validatePlanFeatures(updateData, userPlan);
+    const restrictedFeatures = brandSettingsService.validatePlanFeatures(updateData, userPlan);
     if (restrictedFeatures.length > 0) {
        res.status(403).json({
         error: 'Some features require a higher plan',
         restrictedFeatures,
         currentPlan: userPlan,
-        requiredPlans: getRequiredPlans(restrictedFeatures),
+        requiredPlans: brandSettingsService.getRequiredPlans(restrictedFeatures),
         code: 'PLAN_UPGRADE_REQUIRED'
       })
       return;
@@ -214,12 +214,12 @@ export async function updateBrandSettings(
 
     // Process domain changes with validation
     if (updateData.subdomain || updateData.customDomain) {
-      await validateDomainChanges(businessId, updateData, currentSettings);
+      await brandSettingsService.validateDomainChanges(businessId, updateData, currentSettings);
     }
 
     // Process Web3 wallet changes
     if (updateData.certificateWallet) {
-      await processWalletChange(businessId, updateData.certificateWallet, currentSettings.certificateWallet);
+      await brandSettingsService.processWalletChange(businessId, updateData.certificateWallet, currentSettings.certificateWallet);
     }
 
     // Update settings with enhanced tracking
@@ -228,7 +228,7 @@ export async function updateBrandSettings(
       lastUpdatedBy: businessId,
       updateSource: 'settings_panel',
       updateMetadata: {
-        changedFields: getChangedFields(currentSettings, updateData),
+        changedFields: brandSettingsService.getChangedFields(currentSettings, updateData),
         planLevel: userPlan,
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
@@ -245,16 +245,16 @@ export async function updateBrandSettings(
     }
 
     // Process integration updates
-    await processIntegrationUpdates(businessId, updateData, currentSettings);
+    await brandSettingsService.processIntegrationUpdates(businessId, updateData, currentSettings);
 
     // Track settings update
     trackManufacturerAction('update_brand_settings');
 
     // Send notifications for significant changes
-    await handleSettingsChangeNotifications(businessId, currentSettings, updateData);
+    await brandSettingsService.handleSettingsChangeNotifications(businessId, currentSettings, updateData);
 
     // Calculate setup completeness
-    const setupCompleteness = calculateSetupCompleteness(updatedSettings, userPlan);
+    const setupCompleteness = brandSettingsService.calculateSetupCompleteness(updatedSettings, userPlan);
 
     res.json({
       success: true,
@@ -262,12 +262,12 @@ export async function updateBrandSettings(
       changes: {
         fieldsUpdated: Object.keys(updateData),
         criticalChanges,
-        integrationChanges: getIntegrationChanges(currentSettings, updateData)
+        integrationChanges: brandSettingsService.getIntegrationChanges(currentSettings, updateData)
       },
       setup: {
         completeness: setupCompleteness,
-        nextSteps: generateSetupRecommendations(updatedSettings, userPlan),
-        missingFeatures: getMissingFeatures(updatedSettings, userPlan)
+        nextSteps: brandSettingsService.generateSetupRecommendations(updatedSettings, userPlan),
+        missingFeatures: brandSettingsService.getMissingFeatures(updatedSettings, userPlan)
       },
       message: 'Brand settings updated successfully'
     });
@@ -367,7 +367,7 @@ export async function updateCertificateWallet(
     });
 
     // Get available token discounts
-    const tokenDiscounts = await getTokenDiscounts(certificateWallet);
+    const tokenDiscounts = await brandSettingsService.getTokenDiscounts(certificateWallet);
 
     res.json({
       success: true,
@@ -378,8 +378,8 @@ export async function updateCertificateWallet(
       },
       benefits: {
         tokenDiscounts,
-        web3Features: getWeb3Features(userPlan),
-        nftCapabilities: getNftCapabilities(userPlan)
+        web3Features: brandSettingsService.getWeb3Features(userPlan),
+        nftCapabilities: brandSettingsService.getNftCapabilities(userPlan)
       },
       security: {
         walletChanged: previousWallet !== certificateWallet,
@@ -878,7 +878,7 @@ export async function configureShopifyIntegration(
         productSync: integration.syncProducts,
         orderSync: integration.syncOrders,
         webhooks: integration.webhooksConfigured,
-        automation: getShopifyAutomationFeatures(userPlan)
+        automation: brandSettingsService.getShopifyAutomationFeatures(userPlan)
       },
       nextSteps: [
         'Products will sync within 15 minutes',
@@ -1217,7 +1217,7 @@ export async function exportBrandSettings(
     const filename = `brand_settings_${timestamp}.${format}`;
     
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', getContentType(format as string));
+    res.setHeader('Content-Type', brandSettingsService.getContentType(format as string));
 
     if (format === 'json') {
       res.json(exportData);
@@ -1270,265 +1270,3 @@ export async function getPublicBrandSettings(
   }
 }
 
-// Helper functions
-function getPlanFeatures(plan: string): string[] {
-  const features = {
-    foundation: ['Basic Branding', 'Subdomain'],
-    growth: ['Enhanced Branding', 'Basic Integrations', 'Analytics'],
-    premium: ['Custom Domain', 'Advanced Integrations', 'Web3 Features', 'Custom CSS'],
-    enterprise: ['White-label', 'Advanced API', 'Custom Contracts', 'Priority Support']
-  };
-  return features[plan as keyof typeof features] || [];
-}
-
-function getPlanLimitations(plan: string): string[] {
-  const limitations = {
-    foundation: ['No custom domain', 'No integrations', 'Basic analytics only'],
-    growth: ['Limited custom CSS', 'Basic Web3 features'],
-    premium: ['Advanced features available'],
-    enterprise: ['No limitations']
-  };
-  return limitations[plan as keyof typeof limitations] || [];
-}
-
-function validatePlanFeatures(updateData: any, plan: string): string[] {
-  const restricted: string[] = [];
-  
-  // Custom domain requires premium+
-  if (updateData.customDomain && !['premium', 'enterprise'].includes(plan)) {
-    restricted.push('customDomain');
-  }
-  
-  // Web3 features require premium+
-  if (updateData.certificateWallet && !['premium', 'enterprise'].includes(plan)) {
-    restricted.push('certificateWallet');
-  }
-  
-  // Advanced integrations require growth+
-  if ((updateData.shopifyIntegration || updateData.wooCommerceIntegration || updateData.wixIntegration) && 
-      !['growth', 'premium', 'enterprise'].includes(plan)) {
-    restricted.push('ecommerceIntegrations');
-  }
-  
-  return restricted;
-}
-
-function getRequiredPlans(features: string[]): string[] {
-  const planRequirements: Record<string, string> = {
-    customDomain: 'premium',
-    certificateWallet: 'premium',
-    ecommerceIntegrations: 'growth'
-  };
-  
-  return [...new Set(features.map(feature => planRequirements[feature]).filter(Boolean))];
-}
-
-async function validateDomainChanges(businessId: string, updateData: any, currentSettings: any): Promise<void> {
-  if (updateData.subdomain && updateData.subdomain !== currentSettings.subdomain) {
-    const available = await brandSettingsService.isSubdomainAvailable(updateData.subdomain);
-    if (!available) {
-      throw new Error('Subdomain is not available');
-    }
-  }
-  
-  if (updateData.customDomain && updateData.customDomain !== currentSettings.customDomain) {
-    const validation = await brandSettingsService.validateCustomDomain(updateData.customDomain);
-    if (!validation.valid) {
-      throw new Error(`Custom domain validation failed: ${validation.error}`);
-    }
-  }
-}
-
-async function processWalletChange(businessId: string, newWallet: string, currentWallet?: string): Promise<void> {
-  if (newWallet !== currentWallet) {
-    // Verify wallet ownership
-    const isValid = await brandSettingsService.verifyWalletOwnership(businessId, newWallet);
-    if (!isValid) {
-      throw new Error('Wallet ownership verification failed');
-    }
-  }
-}
-
-function getChangedFields(current: any, update: any): string[] {
-  return Object.keys(update).filter(key => {
-    const currentValue = current[key];
-    const updateValue = update[key];
-    
-    if (typeof updateValue === 'object' && updateValue !== null) {
-      return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
-    }
-    
-    return currentValue !== updateValue;
-  });
-}
-
-async function processIntegrationUpdates(businessId: string, updateData: any, currentSettings: any): Promise<void> {
-  // Process Shopify integration changes
-  if (updateData.shopifyIntegration) {
-    await brandSettingsService.updateShopifyIntegration(businessId, updateData.shopifyIntegration);
-  }
-  
-  // Process WooCommerce integration changes
-  if (updateData.wooCommerceIntegration) {
-    await brandSettingsService.updateWooCommerceIntegration(businessId, updateData.wooCommerceIntegration);
-  }
-
-  // Process Wix integration changes
-  if (updateData.wixIntegration) {
-    await brandSettingsService.updateEnhancedSettings(businessId, {
-      wixDomain: updateData.wixIntegration.wixDomain,
-      wixApiKey: updateData.wixIntegration.wixApiKey,
-      wixRefreshToken: updateData.wixIntegration.wixRefreshToken
-    });
-  }
-}
-
-async function handleSettingsChangeNotifications(businessId: string, current: any, update: any): Promise<void> {
-  const significantChanges = ['certificateWallet', 'customDomain', 'subdomain'];
-  const hasSignificantChanges = significantChanges.some(field => 
-    update[field] && current[field] !== update[field]
-  );
-  
-  if (hasSignificantChanges) {
-    await notificationsService.sendSettingsChangeNotification(businessId, {
-      changes: getChangedFields(current, update),
-      timestamp: new Date()
-    });
-  }
-}
-
-function calculateSetupCompleteness(settings: any, plan: string): number {
-  const requiredFields = ['themeColor', 'logoUrl'];
-  const optionalFields = ['bannerImages', 'customCss', 'subdomain'];
-  const premiumFields = ['customDomain', 'certificateWallet'];
-  
-  let total = requiredFields.length + optionalFields.length;
-  let completed = 0;
-  
-  // Add premium fields for higher plans
-  if (['premium', 'enterprise'].includes(plan)) {
-    total += premiumFields.length;
-  }
-  
-  // Count completed fields
-  [...requiredFields, ...optionalFields, ...premiumFields].forEach(field => {
-    if (settings[field]) completed++;
-  });
-  
-  return Math.round((completed / total) * 100);
-}
-
-function generateSetupRecommendations(settings: any, plan: string): string[] {
-  const recommendations: string[] = [];
-  
-  if (!settings.logoUrl) {
-    recommendations.push('Upload a brand logo for better recognition');
-  }
-  
-  if (!settings.themeColor) {
-    recommendations.push('Set a theme color to match your brand');
-  }
-  
-  if (plan === 'foundation') {
-    recommendations.push('Consider upgrading for custom domain and Web3 features');
-  }
-  
-  if (['premium', 'enterprise'].includes(plan) && !settings.certificateWallet) {
-    recommendations.push('Connect a Web3 wallet to access token discounts');
-  }
-  
-  return recommendations;
-}
-
-function getMissingFeatures(settings: any, plan: string): string[] {
-  const missing: string[] = [];
-  const planFeatures = getPlanFeatures(plan);
-  
-  if (planFeatures.includes('Custom Domain') && !settings.customDomain) {
-    missing.push('Custom Domain');
-  }
-  
-  if (planFeatures.includes('Web3 Features') && !settings.certificateWallet) {
-    missing.push('Web3 Wallet');
-  }
-  
-  return missing;
-}
-
-function getAvailableIntegrations(plan: string): string[] {
-  switch (plan) {
-    case 'growth':
-    case 'premium':
-    case 'enterprise':
-      return ['shopify', 'woocommerce', 'wix'];
-    default:
-      return [];
-  }
-}
-
-function getConfiguredIntegrations(settings: any): string[] {
-  const configured: string[] = [];
-  
-  if (settings.shopifyDomain) configured.push('shopify');
-  if (settings.wooDomain) configured.push('woocommerce');
-  if (settings.wixDomain) configured.push('wix');
-  
-  return configured;
-}
-
-async function getTokenDiscounts(walletAddress: string): Promise<any> {
-  try {
-    return await tokenDiscountService.getDiscountInfoForWallet(walletAddress);
-  } catch (error) {
-    return null;
-  }
-}
-
-function getWeb3Features(plan: string): string[] {
-  if (['premium', 'enterprise'].includes(plan)) {
-    return ['NFT Minting', 'Token Discounts', 'Smart Contracts', 'Wallet Integration'];
-  }
-  return [];
-}
-
-function getNftCapabilities(plan: string): string[] {
-  if (plan === 'enterprise') {
-    return ['Custom Contracts', 'Batch Minting', 'Advanced Metadata', 'Royalty Management'];
-  }
-  if (plan === 'premium') {
-    return ['Basic Minting', 'Standard Metadata', 'Collection Management'];
-  }
-  return [];
-}
-
-function getIntegrationChanges(current: any, update: any): string[] {
-  const changes: string[] = [];
-  
-  if (update.shopifyIntegration) changes.push('shopify');
-  if (update.wooCommerceIntegration) changes.push('woocommerce');
-  if (update.wixIntegration) changes.push('wix');
-  
-  return changes;
-}
-
-function getShopifyAutomationFeatures(plan: string): string[] {
-  switch (plan) {
-    case 'enterprise':
-      return ['Advanced Workflows', 'Custom Scripts', 'Real-time Sync', 'Bulk Operations'];
-    case 'premium':
-      return ['Product Sync', 'Order Sync', 'Webhook Automation'];
-    case 'growth':
-      return ['Basic Product Sync', 'Manual Order Import'];
-    default:
-      return [];
-  }
-}
-
-function getContentType(format: string): string {
-  switch (format) {
-    case 'yaml': return 'application/x-yaml';
-    case 'csv': return 'text/csv';
-    case 'json': return 'application/json';
-    default: return 'application/octet-stream';
-  }
-}

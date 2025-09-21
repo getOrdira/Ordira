@@ -111,32 +111,6 @@ interface BulkProductRequest extends TenantProductRequest, ValidatedRequest {
   };
 }
 
-/**
- * Helper to determine user context
- */
-function getUserContext(req: UnifiedAuthRequest): {
-  userId: string;
-  userType: 'business' | 'manufacturer';
-  businessId?: string;
-  manufacturerId?: string;
-} {
-  // Check if it's a manufacturer request
-  if ('manufacturer' in req && req.manufacturer) {
-    return {
-      userId: req.userId!,
-      userType: 'manufacturer',
-      manufacturerId: req.userId!
-    };
-  }
-  
-  // Default to business request
-  const businessReq = req as TenantProductRequest;
-  return {
-    userId: req.userId!,
-    userType: 'business',
-    businessId: businessReq.tenant?.business?.toString() || req.userId!
-  };
-}
 
 /**
  * List products for the authenticated user with enhanced filtering
@@ -148,33 +122,10 @@ export const listProducts = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
-
-  // Extract and validate query parameters
-  const queryParams = req.validatedQuery || {};
-  const page = queryParams.page || 1;
-  const limit = Math.min(queryParams.limit || 20, 100);
-  const offset = (page - 1) * limit;
-
-  // Parse date filters
-  const dateFrom = queryParams.dateFrom ? new Date(queryParams.dateFrom) : undefined;
-  const dateTo = queryParams.dateTo ? new Date(queryParams.dateTo) : undefined;
+  const userContext = productService.getUserContext(req);
 
   // Build comprehensive filter options
-  const filterOptions = {
-    category: queryParams.category,
-    status: queryParams.status,
-    search: queryParams.search,
-    hasMedia: queryParams.hasMedia,
-    dateFrom,
-    dateTo,
-    sortBy: queryParams.sortBy || 'createdAt',
-    sortOrder: queryParams.sortOrder || 'desc',
-    limit,
-    offset,
-    tags: queryParams.tags?.split(','),
-    priceRange: queryParams.priceRange
-  };
+  const filterOptions = productService.buildFilterOptions(req.validatedQuery || {});
 
   // Get products and stats through service
   const [result, stats] = await Promise.all([
@@ -199,20 +150,20 @@ export const listProducts = asyncHandler(async (
       pagination: {
         total: result.total,
         page: result.page,
-        limit,
+        limit: filterOptions.limit,
         totalPages: result.totalPages,
-        hasNext: page < result.totalPages,
-        hasPrev: page > 1
+        hasNext: result.page < result.totalPages,
+        hasPrev: result.page > 1
       },
       filters: {
-        category: queryParams.category,
-        status: queryParams.status,
-        search: queryParams.search,
-        hasMedia: queryParams.hasMedia,
-        tags: queryParams.tags,
+        category: filterOptions.category,
+        status: filterOptions.status,
+        search: filterOptions.search,
+        hasMedia: filterOptions.hasMedia,
+        tags: filterOptions.tags,
         dateRange: {
-          from: dateFrom?.toISOString(),
-          to: dateTo?.toISOString()
+          from: filterOptions.dateFrom?.toISOString(),
+          to: filterOptions.dateTo?.toISOString()
         },
         sorting: {
           sortBy: filterOptions.sortBy,
@@ -234,7 +185,7 @@ export const getProduct = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Extract product ID from validated params
   const { id } = req.validatedParams;
@@ -261,12 +212,7 @@ export const getProduct = asyncHandler(async (
     message: 'Product retrieved successfully',
     data: {
       product,
-      analytics: {
-        views: hasViewCount(product) ? product.viewCount : 0,
-        votes: product.voteCount || 0,
-        certificates: product.certificateCount || 0,
-        engagementScore: ((product.voteCount || 0) * 2) + ((product.certificateCount || 0) * 3)
-      },
+      analytics: productService.formatProductAnalytics(product),
       related: {
         products: relatedProducts,
         category: product.category,
@@ -287,23 +233,15 @@ export const createProduct = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Extract validated product data
   const productData = req.validatedBody;
 
-  // Validate required fields
-  if (!productData.title || productData.title.trim().length === 0) {
-    throw createAppError('Product title is required', 400, 'MISSING_PRODUCT_TITLE');
-  }
-
-  if (productData.title.length > 200) {
-    throw createAppError('Product title cannot exceed 200 characters', 400, 'TITLE_TOO_LONG');
-  }
-
-  // Validate media if provided
-  if (productData.media && productData.media.length > 20) {
-    throw createAppError('Maximum 20 media files allowed per product', 400, 'TOO_MANY_MEDIA');
+  // Validate product data
+  const validation = productService.validateProductData(productData);
+  if (!validation.isValid) {
+    throw createAppError(validation.errors[0], 400, 'VALIDATION_ERROR');
   }
 
   // Create product through service
@@ -314,16 +252,7 @@ export const createProduct = asyncHandler(async (
   );
 
   // Generate suggestions for optimization
-  const suggestions = [];
-  if (!productData.description) {
-    suggestions.push('Consider adding a detailed description to improve discoverability');
-  }
-  if (!productData.media || productData.media.length === 0) {
-    suggestions.push('Upload product images to increase engagement');
-  }
-  if (!productData.category) {
-    suggestions.push('Select a category to help customers find your product');
-  }
+  const suggestions = productService.generateProductSuggestions(productData);
 
   // Return comprehensive response
   res.status(201).json({
@@ -332,11 +261,7 @@ export const createProduct = asyncHandler(async (
     data: {
       product,
       suggestions,
-      nextSteps: [
-        'Upload product images',
-        'Add detailed specifications',
-        'Set product status to active when ready'
-      ],
+      nextSteps: productService.getProductNextSteps(),
       createdAt: new Date().toISOString()
     }
   });
@@ -359,7 +284,7 @@ export const uploadProductImages = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
   const { id } = req.params;
 
   // Check if files were uploaded
@@ -431,7 +356,7 @@ export const updateProduct = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Extract product ID and update data
   const { id } = req.validatedParams;
@@ -504,7 +429,7 @@ export const deleteProduct = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Extract product ID from validated params
   const { id } = req.validatedParams;
@@ -560,7 +485,7 @@ export const getProductStats = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Get comprehensive statistics through service
   const stats = await productService.getProductStats(
@@ -626,7 +551,7 @@ export const searchProducts = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Extract search criteria
   const {
@@ -707,7 +632,7 @@ export const getProductsByCategory = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   const { category } = req.params;
 
@@ -801,7 +726,7 @@ export const bulkUpdateProducts = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
-  const userContext = getUserContext(req);
+  const userContext = productService.getUserContext(req);
 
   // Extract bulk update data
   const { productIds, updates } = req.validatedBody;
