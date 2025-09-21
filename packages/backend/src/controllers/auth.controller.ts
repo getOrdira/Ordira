@@ -4,10 +4,15 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { AuthService } from '../services/business/auth.service';
-import { ManufacturerService } from '../services/business/manufacturer.service';
-import { NotificationsService } from '../services/external/notifications.service';
+import { getAuthService, getManufacturerService, getNotificationsService } from '../services/container.service';
 import { getRequestBody, safeString, safeBoolean } from '../utils/typeGuards';
+import { 
+  sendErrorResponse, 
+  sendSuccessResponse, 
+  createValidationError, 
+  createAuthError,
+  ErrorCodes 
+} from '../utils/errorResponse.util';
 import { 
   RegisterBusinessInput,
   VerifyBusinessInput,
@@ -78,10 +83,7 @@ interface UpdateSecurityPreferencesRequest extends Request, UnifiedAuthRequest, 
   };
 }
 
-// Initialize services
-const authService = new AuthService();
-const manufacturerService = new ManufacturerService();
-const notificationsService = new NotificationsService();
+
 
 /**
  * POST /api/auth/register/business
@@ -93,22 +95,28 @@ export async function registerBusinessHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const registrationData = req.validatedBody || req.body;
+    const registrationData = req.validatedBody;
+    if (!registrationData) {
+      throw createValidationError('Request validation required - missing validatedBody');
+    }
     
+    const authService = getAuthService();
+    const notificationsService = getNotificationsService();
+
     // Add security context
-    const securityContext = authService.createSecurityContext(req, {
+    const securityContext = getAuthService().createSecurityContext(req, {
       registrationSource: 'web'
     });
 
     // Enhanced registration with security logging
-    const result = await authService.registerBusiness({
+    const result = await getAuthService().registerBusiness({
       ...registrationData,
       securityContext
     });
 
     // Send welcome email if registration successful
     if (result.businessId) {
-      await notificationsService.sendWelcomeEmail(
+      await getNotificationsService().sendWelcomeEmail(
         registrationData.email,
         `${registrationData.firstName} ${registrationData.lastName}`,
         'brand'
@@ -118,22 +126,22 @@ export async function registerBusinessHandler(
     // Log successful registration for analytics
     logger.info('Business registration: ${result.businessId} from IP: ${securityContext.ipAddress}');
 
- res.status(201).json({
+ sendSuccessResponse(res, {
   businessId: result.businessId,
-  message: 'Business registered successfully. Please check your email for verification instructions.',
   nextStep: 'email_verification',
   estimatedVerificationTime: '5-10 minutes'
-});
+}, 201, 'Business registered successfully. Please check your email for verification instructions.');
 } catch (error) {
   // Enhanced error logging with context
   logger.error('Business registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
-    ip: authService.getClientIp(req),
+    ip: getAuthService().getClientIp(req),
     email: safeString(getRequestBody(req)?.email),
     timestamp: new Date()
   });
   
-  next(error);
+  const statusCode = error.statusCode || 500;
+  sendErrorResponse(res, error, statusCode);
 }
 }
 
@@ -147,15 +155,18 @@ export async function verifyBusinessHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const verificationData = req.validatedBody || req.body;
+    const verificationData = req.validatedBody;
+    if (!verificationData) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     
     // Add security context for verification tracking
-    const securityContext = authService.createSecurityContext(req, {
+    const securityContext = getAuthService().createSecurityContext(req, {
       verificationAttempt: true
     });
 
     // Enhanced verification with attempt tracking
-    const result = await authService.verifyBusiness({
+    const result = await getAuthService().verifyBusiness({
       ...verificationData,
       securityContext
     });
@@ -177,7 +188,7 @@ export async function verifyBusinessHandler(
   // Log failed verification attempts for security
   logger.warn('Business verification failed:', {
     businessId: safeString(getRequestBody(req)?.businessId),
-    ip: authService.getClientIp(req),
+    ip: getAuthService().getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -196,16 +207,19 @@ export async function loginBusinessHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const loginData = req.validatedBody || req.body as LoginBusinessInput;
+    const loginData = req.validatedBody as LoginBusinessInput;
+    if (!loginData) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     
     // Enhanced security context
-    const securityContext = authService.createSecurityContext(req, {
+    const securityContext = getAuthService().createSecurityContext(req, {
       loginAttempt: true,
       deviceFingerprint: safeString(getRequestBody(req)?.deviceFingerprint)
     });
 
     // Enhanced login with security checks
-    const result = await authService.loginBusiness({
+    const result = await getAuthService().loginBusiness({
       ...loginData,
       securityContext
     });
@@ -219,15 +233,15 @@ export async function loginBusinessHandler(
 
     // Set secure cookie if remember me is enabled
     if (loginData.rememberMe) {
-      res.cookie('remember_token', result.rememberToken, authService.getRememberTokenCookieOptions());
+      res.cookie('remember_token', result.rememberToken, getAuthService().getRememberTokenCookieOptions());
     }
 
-    res.json(authService.formatAuthResponse(result, securityContext));
+    res.json(getAuthService().formatAuthResponse(result, securityContext));
   } catch (error) {
     // Enhanced error logging for security monitoring
     logger.warn('Business login failed:', {
-      identifier: (req.body as LoginBusinessInput)?.emailOrPhone,
-      ip: authService.getClientIp(req),
+      identifier: (req.validatedBody as LoginBusinessInput)?.emailOrPhone,
+      ip: getAuthService().getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
@@ -246,22 +260,25 @@ export async function registerUserHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const registrationData = req.validatedBody || req.body;
+    const registrationData = req.validatedBody;
+    if (!registrationData) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     const userType = 'user';
     
     // Add security context
-    const securityContext = authService.createSecurityContext(req, {
+    const securityContext = getAuthService().createSecurityContext(req, {
       registrationSource: 'web'
     });
 
     // Enhanced user registration
-    await authService.registerUser({
+    await getAuthService().registerUser({
       ...registrationData,
       securityContext
     });
 
     // Send welcome email
-    await notificationsService.sendWelcomeEmail(
+    await getNotificationsService().sendWelcomeEmail(
       registrationData.email,
       registrationData.firstName || 'User',
       userType
@@ -278,8 +295,8 @@ export async function registerUserHandler(
 } catch (error) {
   logger.error('User registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
-    ip: authService.getClientIp(req),
-    email: req.body?.email,
+    ip: getAuthService().getClientIp(req),
+    email: safeString(getRequestBody(req)?.email),
     timestamp: new Date()
   });
   
@@ -297,18 +314,21 @@ export async function verifyUserHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const verificationData = req.validatedBody || req.body;
+    const verificationData = req.validatedBody;
+    if (!verificationData) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     
     // Add security context
     const securityContext = {
-      ipAddress: authService.getClientIp(req),
+      ipAddress: getAuthService().getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       verificationAttempt: true,
       timestamp: new Date()
     };
 
     // Enhanced verification
-    const result = await authService.verifyUser({
+    const result = await getAuthService().verifyUser({
       ...verificationData,
       securityContext
     });
@@ -328,8 +348,8 @@ export async function verifyUserHandler(
 });
 } catch (error) {
   logger.warn('User verification failed:', {
-    email: req.body?.email,
-    ip: authService.getClientIp(req),
+    email: safeString(getRequestBody(req)?.email),
+    ip: getAuthService().getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -349,25 +369,20 @@ export async function changePasswordHandler(
 ): Promise<void> {
   try {
     const userId = req.userId!;
-    const { currentPassword, newPassword } = req.validatedBody || req.body;
-
+    const { currentPassword, newPassword } = req.validatedBody;
     if (!currentPassword || !newPassword) {
-      res.status(400).json({
-        error: 'Current password and new password are required',
-        code: 'MISSING_PASSWORDS'
-      });
-      return;
+      throw new Error('Request validation required - missing validatedBody');
     }
 
     // Get security context
     const securityContext = {
-      ipAddress: authService.getClientIp(req),
+      ipAddress: getAuthService().getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     // Change password through service
-    await authService.changePassword(userId, {
+    await getAuthService().changePassword(userId, {
       currentPassword,
       newPassword,
       securityContext
@@ -396,26 +411,21 @@ export async function resendVerificationHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { email, businessId, type } = req.validatedBody || req.body;
-
-    if (!email && !businessId) {
-      res.status(400).json({
-        error: 'Email or business ID is required',
-        code: 'MISSING_IDENTIFIER'
-      });
-      return;
+    const { email, businessId, type } = req.validatedBody;
+    if (!email || !businessId || !type) {
+      throw new Error('Request validation required - missing validatedBody');
     }
 
     const securityContext = {
-      ipAddress: authService.getClientIp(req),
+      ipAddress: getAuthService().getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     if (businessId || type === 'business') {
-      await authService.resendBusinessVerification(businessId);
+      await getAuthService().resendBusinessVerification(businessId);
     } else {
-      await authService.resendUserVerification(email);
+      await getAuthService().resendUserVerification(email);
     }
 
     // Log resend attempt
@@ -445,17 +455,12 @@ export async function checkEmailAvailabilityHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { email } = req.validatedBody || req.body;
-
+    const { email } = req.validatedBody;
     if (!email) {
-      res.status(400).json({
-        error: 'Email is required',
-        code: 'MISSING_EMAIL'
-      });
-      return;
+      throw new Error('Request validation required - missing validatedBody');
     }
 
-    const availability = await authService.checkEmailAvailability(email);
+    const availability = await getAuthService().checkEmailAvailability(email);
 
     res.json({
       email,
@@ -479,17 +484,12 @@ export async function validatePasswordStrengthHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { password } = req.validatedBody || req.body;
-
+    const { password } = req.validatedBody;
     if (!password) {
-      res.status(400).json({
-        error: 'Password is required',
-        code: 'MISSING_PASSWORD'
-      });
-      return;
+      throw new Error('Request validation required - missing validatedBody');
     }
 
-    const validation = authService.validatePasswordStrength(password);
+    const validation = getAuthService().validatePasswordStrength(password);
 
     res.json({
       password: '***', // Never return the actual password
@@ -518,7 +518,7 @@ export async function getActiveSessionsHandler(
     const userId = req.userId!;
     
     // Get active sessions from service
-    const sessions = await authService.getActiveSessions(userId);
+    const sessions = await getAuthService().getActiveSessions(userId);
 
     // Add current session indicator
     const currentToken = req.headers.authorization?.split(' ')[1];
@@ -565,10 +565,10 @@ export async function revokeSessionHandler(
       return;
     }
 
-    await authService.revokeSession(userId, sessionId);
+    await getAuthService().revokeSession(userId, sessionId);
 
     // Log session revocation
-    logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${authService.getClientIp(req)}');
+    logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${getAuthService().getClientIp(req)}');
 
     res.json({
       message: 'Session revoked successfully',
@@ -592,7 +592,10 @@ export async function revokeAllSessionsHandler(
 ): Promise<void> {
   try {
     const userId = req.userId!;
-    const { currentPassword, reason } = req.validatedBody || req.body;
+    const { currentPassword, reason } = req.validatedBody;
+    if (!currentPassword) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     const currentToken = req.headers.authorization?.split(' ')[1];
 
     if (!currentPassword) {
@@ -604,7 +607,7 @@ export async function revokeAllSessionsHandler(
     }
 
     // Verify password before revoking sessions
-    const isValidPassword = await authService.verifyUserPassword(userId, currentPassword);
+    const isValidPassword = await getAuthService().verifyUserPassword(userId, currentPassword);
     if (!isValidPassword) {
       res.status(401).json({
         error: 'Invalid password',
@@ -613,10 +616,10 @@ export async function revokeAllSessionsHandler(
       return;
     }
 
-    const revokedCount = await authService.revokeAllSessions(userId, currentToken);
+    const revokedCount = await getAuthService().revokeAllSessions(userId, currentToken);
 
     // Log mass session revocation
-    logger.info('All sessions revoked for user ${userId} from IP: ${authService.getClientIp(req)}', {
+    logger.info('All sessions revoked for user ${userId} from IP: ${getAuthService().getClientIp(req)}', {
       revokedCount,
       reason: reason || 'user_request'
     });
@@ -646,7 +649,7 @@ export async function getLoginHistoryHandler(
     const userId = req.userId!;
     const { page = 1, limit = 20, startDate, endDate } = req.query;
 
-    const history = await authService.getLoginHistory(userId, {
+    const history = await getAuthService().getLoginHistory(userId, {
       page: parseInt(page as string),
       limit: parseInt(limit as string),
       startDate: startDate ? new Date(startDate as string) : undefined,
@@ -681,7 +684,7 @@ export async function getSecurityEventsHandler(
     const userId = req.userId!;
     const { page = 1, limit = 20, eventType } = req.query;
 
-    const events = await authService.getSecurityEvents(userId, {
+    const events = await getAuthService().getSecurityEvents(userId, {
       page: parseInt(page as string),
       limit: parseInt(limit as string),
       eventType: eventType as string
@@ -713,12 +716,15 @@ export async function updateSecurityPreferencesHandler(
 ): Promise<void> {
   try {
     const userId = req.userId!;
-    const preferences = req.validatedBody || req.body;
+    const preferences = req.validatedBody;
+    if (!preferences) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
 
-    const updatedPreferences = await authService.updateSecurityPreferences(userId, preferences);
+    const updatedPreferences = await getAuthService().updateSecurityPreferences(userId, preferences);
 
     // Log security preference update
-    logger.info('Security preferences updated for user ${userId} from IP: ${authService.getClientIp(req)}');
+    logger.info('Security preferences updated for user ${userId} from IP: ${getAuthService().getClientIp(req)}');
 
     res.json({
       message: 'Security preferences updated successfully',
@@ -741,15 +747,9 @@ export async function loginUserHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const loginData = req.validatedBody || req.body;
-    
-    // Validate required fields
-    if (!loginData || !loginData.email || !loginData.password) {
-      res.status(400).json({ 
-        error: 'Email and password are required',
-        code: 'MISSING_CREDENTIALS'
-      });
-      return;
+    const loginData = req.validatedBody;
+    if (!loginData) {
+      throw new Error('Request validation required - missing validatedBody');
     }
 
     // Safely extract properties
@@ -760,7 +760,7 @@ export async function loginUserHandler(
     
     // Enhanced security context
     const securityContext = {
-      ipAddress: authService.getClientIp(req),
+      ipAddress: getAuthService().getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
@@ -768,7 +768,7 @@ export async function loginUserHandler(
     };
 
     // Enhanced login
-    const result = await authService.loginUser({
+    const result = await getAuthService().loginUser({
       email,
       password,
       rememberMe,
@@ -804,7 +804,7 @@ export async function loginUserHandler(
   } catch (error) {
     logger.warn('User login failed:', {
       email: safeString(getRequestBody(req)?.email), 
-      ip: authService.getClientIp(req),
+      ip: getAuthService().getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
@@ -822,16 +822,19 @@ export async function forgotPasswordHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { email, phone } = req.validatedBody || req.body;
+    const { email, phone } = req.validatedBody;
+    if (!email && !phone) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     
     const securityContext = {
-      ipAddress: authService.getClientIp(req),
+      ipAddress: getAuthService().getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     // Initiate password reset
-    await authService.initiatePasswordReset({
+    await getAuthService().initiatePasswordReset({
       email,
       securityContext
     });
@@ -844,8 +847,8 @@ export async function forgotPasswordHandler(
   } catch (error) {
     // Log for security monitoring but don't expose details
     logger.warn('Password reset attempt:', {
-      identifier: req.body?.email || req.body?.phone,
-      ip: authService.getClientIp(req),
+      identifier: safeString(getRequestBody(req)?.email) || safeString(getRequestBody(req)?.phone),
+      ip: getAuthService().getClientIp(req),
       timestamp: new Date()
     });
     
@@ -867,16 +870,19 @@ export async function resetPasswordHandler(
   next: NextFunction
 ): Promise<void> {
   try {
-    const resetData = req.validatedBody || req.body;
+    const resetData = req.validatedBody;
+    if (!resetData) {
+      throw new Error('Request validation required - missing validatedBody');
+    }
     
     const securityContext = {
-      ipAddress: authService.getClientIp(req),
+      ipAddress: getAuthService().getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     // Complete password reset
-    await authService.confirmPasswordReset({
+    await getAuthService().confirmPasswordReset({
       ...resetData,
       securityContext
     });
@@ -890,8 +896,8 @@ export async function resetPasswordHandler(
     });
   } catch (error) {
   logger.warn('Password reset failed:', {
-    token: req.body?.token?.substring(0, 8) + '...',
-    ip: authService.getClientIp(req),
+      token: safeString(getRequestBody(req)?.token)?.substring(0, 8) + '...',
+    ip: getAuthService().getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -915,14 +921,14 @@ export async function logoutHandler(
 
     if (token && userId) {
       // Invalidate the token
-      await authService.invalidateToken(token, userId);
+      await getAuthService().invalidateToken(token, userId);
     }
 
     // Clear remember me cookie
     res.clearCookie('remember_token');
 
     // Log logout
-    logger.info('User logout: ${userId} from IP: ${authService.getClientIp(req)}');
+    logger.info('User logout: ${userId} from IP: ${getAuthService().getClientIp(req)}');
 
     res.json({
       message: 'Logged out successfully'
@@ -955,7 +961,7 @@ export async function refreshTokenHandler(
     }
 
     // Generate new token
-    const newToken = await authService.refreshToken(currentToken, userId);
+    const newToken = await getAuthService().refreshToken(currentToken, userId);
 
     res.json({
       token: newToken,
@@ -981,14 +987,14 @@ export async function getCurrentUserHandler(
     const userId = req.userId!;
     
     // Get comprehensive user information
-    const userInfo = await authService.getCurrentUser(userId);
+    const userInfo = await getAuthService().getCurrentUser(userId);
 
     res.json({
       user: userInfo,
       permissions: userInfo.permissions || [],
       lastActivity: new Date(),
       sessionInfo: {
-        ipAddress: authService.getClientIp(req),
+        ipAddress: getAuthService().getClientIp(req),
         userAgent: req.headers['user-agent']
       }
     });
