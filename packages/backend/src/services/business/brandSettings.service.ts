@@ -94,6 +94,124 @@ export interface ConnectionTestResult {
 
 export class BrandSettingsService {
 
+  // Helper methods extracted from controller
+  validatePlanPermissions(updateData: any, userPlan: string): string[] {
+    const restrictedFeatures: string[] = [];
+    
+    // Premium+ only features
+    const premiumFeatures = ['customDomain', 'advancedAnalytics', 'prioritySupport'];
+    if (!['premium', 'enterprise'].includes(userPlan)) {
+      restrictedFeatures.push(...premiumFeatures.filter(feature => updateData[feature]));
+    }
+
+    // Enterprise only features
+    const enterpriseFeatures = ['whiteLabel', 'customBranding', 'dedicatedSupport'];
+    if (userPlan !== 'enterprise') {
+      restrictedFeatures.push(...enterpriseFeatures.filter(feature => updateData[feature]));
+    }
+
+    return restrictedFeatures;
+  }
+
+  getRequiredPlans(restrictedFeatures: string[]): string[] {
+    const planMap: { [key: string]: string } = {
+      'customDomain': 'premium',
+      'advancedAnalytics': 'premium',
+      'prioritySupport': 'premium',
+      'whiteLabel': 'enterprise',
+      'customBranding': 'enterprise',
+      'dedicatedSupport': 'enterprise'
+    };
+
+    return [...new Set(restrictedFeatures.map(feature => planMap[feature] || 'premium'))];
+  }
+
+  checkIntegrationPermissions(userPlan: string, integrationType: string): boolean {
+    const integrationPlans: { [key: string]: string[] } = {
+      'shopify': ['growth', 'premium', 'enterprise'],
+      'woocommerce': ['growth', 'premium', 'enterprise'],
+      'wix': ['growth', 'premium', 'enterprise']
+    };
+
+    return integrationPlans[integrationType]?.includes(userPlan) || false;
+  }
+
+  validateFileUpload(file: any, allowedTypes: string[], maxSize: number = 5 * 1024 * 1024): { valid: boolean; error?: string } {
+    if (!file) {
+      return { valid: false, error: 'No file uploaded' };
+    }
+
+    if (!allowedTypes.includes(file.mimetype)) {
+      return { valid: false, error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` };
+    }
+
+    if (file.size > maxSize) {
+      return { valid: false, error: `File too large. Maximum size: ${maxSize / (1024 * 1024)}MB` };
+    }
+
+    return { valid: true };
+  }
+
+  getAllowedMimeTypes(category: 'logo' | 'banner' | 'general'): string[] {
+    const mimeTypes = {
+      logo: ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
+      banner: ['image/jpeg', 'image/png', 'image/webp'],
+      general: ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'application/pdf']
+    };
+
+    return mimeTypes[category] || mimeTypes.general;
+  }
+
+  getCriticalFields(): string[] {
+    return ['subdomain', 'customDomain', 'certificateWallet', 'plan'];
+  }
+
+  hasCriticalChanges(updateData: any): boolean {
+    const criticalFields = this.getCriticalFields();
+    return Object.keys(updateData).some(field => criticalFields.includes(field));
+  }
+
+  buildSettingsResponse(settings: any, changes?: any, setup?: any): any {
+    return {
+      success: true,
+      settings,
+      ...(changes && { changes }),
+      ...(setup && { setup }),
+      message: 'Brand settings updated successfully'
+    };
+  }
+
+  buildIntegrationResponse(integration: any, features: any, userPlan: string): any {
+    return {
+      success: true,
+      integration,
+      features: {
+        ...features,
+        automation: this.getShopifyAutomationFeatures(userPlan)
+      },
+      message: 'Integration configured successfully'
+    };
+  }
+
+  buildErrorResponse(error: string, code: string, details?: any): any {
+    return {
+      error,
+      code,
+      ...(details && { details })
+    };
+  }
+
+  getIntegrationFeatures(userPlan: string): string[] {
+    const features = {
+      foundation: ['Basic Settings'],
+      growth: ['E-commerce Integrations', 'Basic Analytics'],
+      premium: ['Advanced Integrations', 'Custom Branding', 'Priority Support'],
+      enterprise: ['White-label', 'Custom Development', 'Dedicated Support']
+    };
+
+    return features[userPlan as keyof typeof features] || features.foundation;
+  }
+
   /**
    * Get or create brand settings for a business
    */
@@ -674,17 +792,6 @@ export class BrandSettingsService {
     return restricted;
   }
 
-  public getRequiredPlans(features: string[]): string[] {
-    const planRequirements: Record<string, string> = {
-      customDomain: 'premium',
-      certificateWallet: 'premium',
-      shopifyIntegration: 'growth',
-      advancedAnalytics: 'growth',
-      customCss: 'growth'
-    };
-    
-    return features.map(feature => planRequirements[feature]).filter(Boolean);
-  }
 
   public async validateDomainChanges(businessId: string, updateData: any, currentSettings: any): Promise<void> {
     if (updateData.subdomain && updateData.subdomain !== currentSettings.subdomain) {

@@ -4,8 +4,7 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
-import { AnalyticsBusinessService } from '../services/business/analytics.service';
-import { ManufacturerService } from '../services/business/manufacturer.service';
+import { getServices } from '../services/container.service';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 
 // Enhanced request interfaces
@@ -35,9 +34,7 @@ interface ManufacturerAnalyticsRequest extends Request, UnifiedAuthRequest, Vali
   };
 }
 
-// Initialize services
-const analyticsService = new AnalyticsBusinessService();
-const manufacturerService = new ManufacturerService();
+// Services are now injected via container
 
 /**
  * GET /api/analytics/votes
@@ -49,9 +46,12 @@ export async function getVotesAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     // Validate tenant and business context
     if (!req.tenant?.business) {
-       res.status(400).json({ 
+       res.status(400).json({
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
       });
@@ -101,6 +101,9 @@ export async function getTransactionsAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
        res.status(400).json({ 
         error: 'Business context required',
@@ -161,6 +164,9 @@ export async function getProposalAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
       res.status(400).json({ 
         error: 'Business context required',
@@ -217,6 +223,9 @@ export async function getProductAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
       res.status(400).json({ 
         error: 'Business context required',
@@ -278,7 +287,10 @@ export async function getProductAnalyticsById(
   next: NextFunction
 ): Promise<void> {
   try {
-    if (!req.tenant?.business) {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
+      if (!req.tenant?.business) {
       res.status(400).json({ 
         error: 'Business context required',
         code: 'MISSING_BUSINESS_CONTEXT'
@@ -342,6 +354,9 @@ export async function getManufacturerAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { manufacturer: manufacturerService } = getServices();
+
     const manufacturerId = req.userId!;
     const { 
       timeframe = '30d', 
@@ -392,6 +407,9 @@ export async function getEngagementAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
       res.status(400).json({ 
         error: 'Business context required',
@@ -445,6 +463,9 @@ export async function getComparativeAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
       res.status(400).json({ 
         error: 'Business context required',
@@ -507,6 +528,9 @@ export async function getNftAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
        res.status(400).json({ 
         error: 'Business context required',
@@ -560,6 +584,9 @@ export async function getManufacturerBrandAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { manufacturer: manufacturerService } = getServices();
+
     const manufacturerId = req.userId!;
     const { brandId } = req.params;
 
@@ -620,6 +647,9 @@ export async function getDashboardAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
        res.status(400).json({ 
         error: 'Business context required',
@@ -672,6 +702,9 @@ export async function exportAnalytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
        res.status(400).json({ 
         error: 'Business context required',
@@ -738,6 +771,9 @@ export async function generateCustomReport(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const { analytics: analyticsService } = getServices();
+
     if (!req.tenant?.business) {
        res.status(400).json({ 
         error: 'Business context required',

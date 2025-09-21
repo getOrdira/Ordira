@@ -5,12 +5,12 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { VotingBusinessService } from '../services/business/votes.service';
+import { getVotingService } from '../services/container.service';
 import { PendingVote } from '../models/pendingVote.model';
 import mongoose from 'mongoose';
 
-// Initialize service
-const votingBusinessService = new VotingBusinessService();
+// Initialize service via container
+const votingBusinessService = getVotingService();
 
 /**
  * Extended request interfaces for type safety

@@ -4,12 +4,8 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { ProductService } from '../services/business/product.service';
+import { getServices } from '../services/container.service';
 import { hasViewCount } from '../utils/typeGuards';
-
-// Initialize service
-const productService = new ProductService();
-
 /**
  * Extended request interfaces for type safety
  */
@@ -121,6 +117,9 @@ export const listProducts = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instance
+  const { product: productService } = getServices();
+
   // Get user context
   const userContext = productService.getUserContext(req);
 
@@ -184,6 +183,9 @@ export const getProduct = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instance
+  const { product: productService } = getServices();
+
   // Get user context
   const userContext = productService.getUserContext(req);
 
@@ -232,6 +234,9 @@ export const createProduct = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instance
+  const { product: productService } = getServices();
+
   // Get user context
   const userContext = productService.getUserContext(req);
 
@@ -284,6 +289,7 @@ export const uploadProductImages = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
   const { id } = req.params;
 
@@ -356,6 +362,7 @@ export const updateProduct = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
 
   // Extract product ID and update data
@@ -429,6 +436,7 @@ export const deleteProduct = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
 
   // Extract product ID from validated params
@@ -485,6 +493,7 @@ export const getProductStats = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
 
   // Get comprehensive statistics through service
@@ -551,6 +560,7 @@ export const searchProducts = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
 
   // Extract search criteria
@@ -632,6 +642,7 @@ export const getProductsByCategory = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
 
   const { category } = req.params;
@@ -689,6 +700,7 @@ export const getFeaturedProducts = asyncHandler(async (
   const limit = Math.min(parseInt(req.query.limit || '10'), 50);
 
   // Get featured products through service
+  const { product: productService } = getServices();
   const featuredProducts = await productService.getFeaturedProducts(limit);
 
   // Determine selection criteria
@@ -726,6 +738,7 @@ export const bulkUpdateProducts = asyncHandler(async (
   next: NextFunction
 ): Promise<void> => {
   // Get user context
+  const { product: productService } = getServices();
   const userContext = productService.getUserContext(req);
 
   // Extract bulk update data
@@ -795,6 +808,7 @@ export const voteForProduct = asyncHandler(async (
   const { id } = req.validatedParams;
 
   // Get current product data
+  const { product: productService } = getServices();
   const product = await productService.getProduct(id);
 
   if (!product) {
@@ -843,6 +857,7 @@ export const addProductCertificate = asyncHandler(async (
   const { id } = req.validatedParams;
 
   // Get current product data
+  const { product: productService } = getServices();
   const product = await productService.getProduct(id);
 
   if (!product) {

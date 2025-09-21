@@ -5,9 +5,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { DomainMappingService } from '../services/external/domainMapping.service';
-import { BrandSettingsService } from '../services/business/brandSettings.service';
-import { NotificationsService } from '../services/external/notifications.service';
+import { getServices } from '../services/container.service';
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
@@ -37,10 +35,8 @@ interface DomainVerificationRequest extends Request, UnifiedAuthRequest, TenantR
   };
 }
 
-// Initialize services
-const domainMappingService = new DomainMappingService();
-const brandSettingsService = new BrandSettingsService();
-const notificationsService = new NotificationsService();
+// Initialize services via container
+const { domainMapping: domainMappingService, brandSettings: brandSettingsService, notifications: notificationsService } = getServices();
 
 /**
  * POST /api/domain-mappings
@@ -74,7 +70,7 @@ export async function addDomainMapping(
 
     // Check domain mapping limits
     const currentMappings = await domainMappingService.getDomainCount(businessId);
-    const planLimits = getDomainLimits(userPlan);
+    const planLimits = domainMappingService.getDomainLimits(userPlan);
 
     if (currentMappings >= planLimits.maxDomains) {
        res.status(403).json({
@@ -175,7 +171,7 @@ export async function addDomainMapping(
         verification: {
           method: mapping.verificationMethod,
           token: mapping.verificationToken,
-          instructions: generateSetupInstructions(mapping)
+          instructions: domainMappingService.generateSetupInstructions(mapping)
         },
         ssl: {
           enabled: mapping.sslEnabled,
@@ -218,7 +214,7 @@ export async function listDomainMappings(
     const mappings = await domainMappingService.getEnhancedDomainMappings(businessId);
     
     // Get plan limits and usage
-    const planLimits = getDomainLimits(userPlan);
+    const planLimits = domainMappingService.getDomainLimits(userPlan);
     const currentUsage = mappings.length;
 
     // Track domain mappings view
@@ -304,15 +300,15 @@ export async function getDomainMapping(
       mapping: {
         ...mapping,
         setupInstructions: mapping.status === 'pending_verification' ? 
-          generateSetupInstructions(mapping) : null
+          domainMappingService.generateSetupInstructions(mapping) : null
       },
       health: {
         ...healthMetrics,
-        recommendations: generateHealthRecommendations(healthMetrics)
+        recommendations: domainMappingService.generateHealthRecommendations(healthMetrics)
       },
       performance: {
         ...performanceMetrics,
-        insights: generatePerformanceInsights(performanceMetrics)
+        insights: domainMappingService.generatePerformanceInsights(performanceMetrics)
       },
       actions: {
         canVerify: mapping.status === 'pending_verification',
@@ -321,7 +317,7 @@ export async function getDomainMapping(
         canUpdateCertificate: mapping.certificateType === 'custom',
         canDelete: ['pending_verification', 'error'].includes(mapping.status)
       },
-      troubleshooting: generateTroubleshootingSteps(mapping)
+      troubleshooting: domainMappingService.generateTroubleshootingSteps(mapping)
     });
   } catch (error) {
     logger.error('Get domain mapping error:', error);
@@ -672,7 +668,7 @@ export async function getDomainHealth(
         lastDowntime: healthCheck.lastDowntime
       },
       issues: healthCheck.issues,
-      recommendations: generateHealthRecommendations(healthCheck),
+      recommendations: domainMappingService.generateHealthRecommendations(healthCheck),
       lastChecked: healthCheck.timestamp
     });
   } catch (error) {
@@ -729,8 +725,8 @@ export async function getDomainAnalytics(
       timeframe,
       analytics: {
         ...analytics,
-        insights: generateAnalyticsInsights(analytics),
-        recommendations: generateAnalyticsRecommendations(analytics)
+        insights: domainMappingService.generateAnalyticsInsights(analytics),
+        recommendations: domainMappingService.generateAnalyticsRecommendations(analytics)
       },
       metadata: {
         generatedAt: new Date(),
@@ -792,188 +788,4 @@ export async function testDomain(
   }
 }
 
-// Helper functions
-function getDomainLimits(plan: string) {
-  const limits = {
-    foundation: { 
-      maxDomains: 0, 
-      autoSslRenewal: false, 
-      customCertificates: false, 
-      healthMonitoring: false,
-      performanceAnalytics: false
-    },
-    growth: { 
-      maxDomains: 0, 
-      autoSslRenewal: false, 
-      customCertificates: false, 
-      healthMonitoring: false,
-      performanceAnalytics: false
-    },
-    premium: { 
-      maxDomains: 3, 
-      autoSslRenewal: true, 
-      customCertificates: false, 
-      healthMonitoring: true,
-      performanceAnalytics: false
-    },
-    enterprise: { 
-      maxDomains: 10, 
-      autoSslRenewal: true, 
-      customCertificates: true, 
-      healthMonitoring: true,
-      performanceAnalytics: true
-    }
-  };
-  return limits[plan as keyof typeof limits] || limits.foundation;
-}
-
-function generateSetupInstructions(mapping: any): any {
-  return {
-    dnsRecords: [
-      {
-        type: 'CNAME',
-        name: mapping.domain,
-        value: mapping.cnameTarget,
-        ttl: 300,
-        instructions: `Add a CNAME record for ${mapping.domain} pointing to ${mapping.cnameTarget}`
-      }
-    ],
-    verification: {
-      method: mapping.verificationMethod,
-      token: mapping.verificationToken,
-      steps: [
-        'Add the DNS record above to your domain provider',
-        'Wait for DNS propagation (usually 5-60 minutes)',
-        'Click verify to complete the setup process',
-        'SSL certificate will be issued automatically'
-      ]
-    },
-    troubleshooting: [
-      'Ensure you have access to your domain\'s DNS settings',
-      'Some DNS providers may take longer to propagate changes',
-      'Contact your domain provider if you need help adding DNS records',
-      'Use online DNS checker tools to verify propagation'
-    ]
-  };
-}
-
-function generateHealthRecommendations(health: any): string[] {
-  const recommendations: string[] = [];
-  
-  if (health.dns?.status !== 'healthy') {
-    recommendations.push('Check DNS configuration and ensure records are properly set');
-  }
-  
-  if (health.ssl?.status !== 'healthy') {
-    recommendations.push('Review SSL certificate status and renewal settings');
-  }
-  
-  if (health.performance?.responseTime > 5000) {
-    recommendations.push('Consider optimizing server response times');
-  }
-  
-  if (health.connectivity?.status !== 'healthy') {
-    recommendations.push('Check network connectivity and firewall settings');
-  }
-  
-  return recommendations;
-}
-
-function generatePerformanceInsights(performance: any): string[] {
-  const insights: string[] = [];
-  
-  if (performance.averageResponseTime < 1000) {
-    insights.push('Excellent response times for optimal user experience');
-  }
-  
-  if (performance.uptime > 99.5) {
-    insights.push('Outstanding uptime reliability');
-  }
-  
-  if (performance.errorRate < 0.01) {
-    insights.push('Very low error rate indicates stable configuration');
-  }
-  
-  if (performance.loadTime < 2000) {
-    insights.push('Fast page load times enhance user satisfaction');
-  }
-  
-  return insights;
-}
-
-function generateTroubleshootingSteps(mapping: any): string[] {
-  const steps: string[] = [];
-  
-  switch (mapping.status) {
-    case 'pending_verification':
-      steps.push(
-        'Verify DNS records are properly configured',
-        'Check if DNS propagation is complete using online tools',
-        'Ensure CNAME record points to the correct target',
-        'Use the verify endpoint to complete setup'
-      );
-      break;
-    case 'error':
-      steps.push(
-        'Check domain mapping configuration for errors',
-        'Verify SSL certificate status and expiration',
-        'Review DNS settings and propagation',
-        'Check error logs in the domain health section',
-        'Contact support if issues persist'
-      );
-      break;
-    case 'active':
-      steps.push(
-        'Domain is healthy and operational',
-        'Monitor SSL certificate expiration dates',
-        'Check performance metrics regularly',
-        'Set up health monitoring alerts',
-        'Keep DNS records up to date'
-      );
-      break;
-    default:
-      steps.push(
-        'Check domain mapping status',
-        'Review configuration settings',
-        'Contact support for assistance'
-      );
-  }
-  
-  return steps;
-}
-
-function generateAnalyticsInsights(analytics: any): string[] {
-  const insights: string[] = [];
-  
-  if (analytics.traffic?.trend === 'increasing') {
-    insights.push('Domain traffic is growing steadily');
-  }
-  
-  if (analytics.performance?.averageResponseTime < 500) {
-    insights.push('Excellent performance metrics');
-  }
-  
-  if (analytics.errors?.rate < 0.1) {
-    insights.push('Low error rate indicates stable configuration');
-  }
-  
-  return insights;
-}
-
-function generateAnalyticsRecommendations(analytics: any): string[] {
-  const recommendations: string[] = [];
-  
-  if (analytics.performance?.averageResponseTime > 3000) {
-    recommendations.push('Consider implementing CDN for better performance');
-  }
-  
-  if (analytics.errors?.rate > 5) {
-    recommendations.push('Investigate and resolve recurring errors');
-  }
-  
-  if (analytics.ssl?.expiresIn < 30) {
-    recommendations.push('SSL certificate expires soon - ensure auto-renewal is enabled');
-  }
-  
-  return recommendations;
-}
+// Helper functions moved to DomainMappingService via container

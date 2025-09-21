@@ -892,6 +892,199 @@ export class DomainMappingService {
     }
   }
 
+  /**
+   * Plan-based domain limits and features
+   */
+  public getDomainLimits(plan: string): {
+    maxDomains: number;
+    autoSslRenewal: boolean;
+    customCertificates: boolean;
+    healthMonitoring: boolean;
+    performanceAnalytics: boolean;
+  } {
+    const limits = {
+      foundation: {
+        maxDomains: 0,
+        autoSslRenewal: false,
+        customCertificates: false,
+        healthMonitoring: false,
+        performanceAnalytics: false
+      },
+      growth: {
+        maxDomains: 0,
+        autoSslRenewal: false,
+        customCertificates: false,
+        healthMonitoring: false,
+        performanceAnalytics: false
+      },
+      premium: {
+        maxDomains: 3,
+        autoSslRenewal: true,
+        customCertificates: false,
+        healthMonitoring: true,
+        performanceAnalytics: false
+      },
+      enterprise: {
+        maxDomains: 10,
+        autoSslRenewal: true,
+        customCertificates: true,
+        healthMonitoring: true,
+        performanceAnalytics: true
+      }
+    } as const;
+    return (limits as any)[plan] || limits.foundation;
+  }
+
+  /**
+   * Generate setup instructions for DNS/verification/SSL
+   */
+  public generateSetupInstructions(mapping: any): {
+    dnsRecords: Array<{ type: string; name: string; value: string; ttl: number; instructions: string }>;
+    verification: { method: string; token: string; steps: string[] };
+    troubleshooting: string[];
+  } {
+    return {
+      dnsRecords: [
+        {
+          type: 'CNAME',
+          name: mapping.domain,
+          value: mapping.cnameTarget,
+          ttl: 300,
+          instructions: `Add a CNAME record for ${mapping.domain} pointing to ${mapping.cnameTarget}`
+        }
+      ],
+      verification: {
+        method: mapping.verificationMethod,
+        token: mapping.verificationToken,
+        steps: [
+          'Add the DNS record above to your domain provider',
+          'Wait for DNS propagation (usually 5-60 minutes)',
+          'Click verify to complete the setup process',
+          'SSL certificate will be issued automatically'
+        ]
+      },
+      troubleshooting: [
+        "Ensure you have access to your domain's DNS settings",
+        'Some DNS providers may take longer to propagate changes',
+        "Contact your domain provider if you need help adding DNS records",
+        'Use online DNS checker tools to verify propagation'
+      ]
+    };
+  }
+
+  /**
+   * Health recommendations based on health check result
+   */
+  public generateHealthRecommendations(health: any): string[] {
+    const recommendations: string[] = [];
+    if (health.dns?.status !== 'healthy') {
+      recommendations.push('Check DNS configuration and ensure records are properly set');
+    }
+    if (health.ssl?.status !== 'healthy') {
+      recommendations.push('Review SSL certificate status and renewal settings');
+    }
+    if (health.performance?.responseTime > 5000) {
+      recommendations.push('Consider optimizing server response times');
+    }
+    if (health.connectivity?.status !== 'healthy') {
+      recommendations.push('Check network connectivity and firewall settings');
+    }
+    return recommendations;
+  }
+
+  /**
+   * Performance insights based on metrics
+   */
+  public generatePerformanceInsights(performance: any): string[] {
+    const insights: string[] = [];
+    if (performance.averageResponseTime < 1000) {
+      insights.push('Excellent response times for optimal user experience');
+    }
+    if (performance.uptime > 99.5) {
+      insights.push('Outstanding uptime reliability');
+    }
+    if (performance.errorRate < 0.01) {
+      insights.push('Very low error rate indicates stable configuration');
+    }
+    if (performance.loadTime < 2000) {
+      insights.push('Fast page load times enhance user satisfaction');
+    }
+    return insights;
+  }
+
+  /**
+   * Troubleshooting steps by mapping status
+   */
+  public generateTroubleshootingSteps(mapping: any): string[] {
+    const steps: string[] = [];
+    switch (mapping.status) {
+      case 'pending_verification':
+        steps.push(
+          'Verify DNS records are properly configured',
+          'Check if DNS propagation is complete using online tools',
+          'Ensure CNAME record points to the correct target',
+          'Use the verify endpoint to complete setup'
+        );
+        break;
+      case 'error':
+        steps.push(
+          'Check domain mapping configuration for errors',
+          'Verify SSL certificate status and expiration',
+          'Review DNS settings and propagation',
+          'Check error logs in the domain health section',
+          'Contact support if issues persist'
+        );
+        break;
+      case 'active':
+        steps.push(
+          'Domain is healthy and operational',
+          'Monitor SSL certificate expiration dates',
+          'Check performance metrics regularly',
+          'Set up health monitoring alerts',
+          'Keep DNS records up to date'
+        );
+        break;
+      default:
+        steps.push(
+          'Check domain mapping status',
+          'Review configuration settings',
+          'Contact support for assistance'
+        );
+    }
+    return steps;
+  }
+
+  /**
+   * Analytics insights/recommendations helpers
+   */
+  public generateAnalyticsInsights(analytics: any): string[] {
+    const insights: string[] = [];
+    if (analytics.traffic?.trend === 'increasing') {
+      insights.push('Domain traffic is growing steadily');
+    }
+    if (analytics.performance?.averageResponseTime < 500) {
+      insights.push('Excellent performance metrics');
+    }
+    if (analytics.errors?.rate < 0.1) {
+      insights.push('Low error rate indicates stable configuration');
+    }
+    return insights;
+  }
+
+  public generateAnalyticsRecommendations(analytics: any): string[] {
+    const recommendations: string[] = [];
+    if (analytics.performance?.averageResponseTime > 3000) {
+      recommendations.push('Consider implementing CDN for better performance');
+    }
+    if (analytics.errors?.rate > 5) {
+      recommendations.push('Investigate and resolve recurring errors');
+    }
+    if (analytics.ssl?.expiresIn < 30) {
+      recommendations.push('SSL certificate expires soon - ensure auto-renewal is enabled');
+    }
+    return recommendations;
+  }
+
   // Private helper methods
 
   private isValidHostname(hostname: string): boolean {

@@ -5,10 +5,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { BrandAccountService } from '../services/business/brandAccount.service';
-import { BillingService } from '../services/external/billing.service';
-import { NotificationsService } from '../services/external/notifications.service';
-import { AnalyticsBusinessService } from '../services/business/analytics.service';
+import { getServices } from '../services/container.service';
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
@@ -56,12 +53,6 @@ interface VerificationRequest extends UnifiedAuthRequest, TenantRequest, Validat
   };
 }
 
-// Initialize services
-const brandAccountService = new BrandAccountService();
-const billingService = new BillingService();
-const notificationsService = new NotificationsService();
-const analyticsService = new AnalyticsBusinessService();
-
 /**
  * GET /api/brand/account/profile
  * Get comprehensive brand profile with enhanced metadata
@@ -76,10 +67,11 @@ export async function getBrandProfile(
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Get comprehensive brand profile
+    const { brandAccount: brandAccountService } = getServices();
     const profile = await brandAccountService.getComprehensiveBrandAccount(businessId);
     
     // Get additional metadata based on plan
-    const metadata = await buildProfileMetadata(businessId, userPlan);
+    const metadata = await brandAccountService.buildProfileMetadata(businessId, userPlan);
 
     // Track profile view
     trackManufacturerAction('view_brand_profile');
@@ -87,17 +79,17 @@ export async function getBrandProfile(
     res.json({
       profile: {
         ...profile,
-        profileCompleteness: calculateProfileCompleteness(profile),
+        profileCompleteness: brandAccountService.calculateProfileCompleteness(profile),
         lastUpdated: profile.updatedAt,
-        accountAge: calculateAccountAge(profile.createdAt)
+        accountAge: brandAccountService.calculateAccountAge(profile.createdAt)
       },
       metadata,
       planInfo: {
         currentPlan: userPlan,
-        features: getPlanFeatures(userPlan),
-        limitations: getPlanLimitations(userPlan)
+        features: brandAccountService.getPlanFeatures(userPlan),
+        limitations: brandAccountService.getPlanLimitations(userPlan)
       },
-      recommendations: generateProfileRecommendations(profile, userPlan)
+      recommendations: brandAccountService.generateProfileRecommendations(profile, userPlan)
     });
   } catch (error) {
     logger.error('Get brand profile error:', error);
@@ -157,6 +149,7 @@ export async function uploadProfilePicture(
     }
 
     // Upload and update profile picture through service
+    const { brandAccount: brandAccountService } = getServices();
     const result = await brandAccountService.uploadProfilePicture(businessId, req.file);
 
     // Track profile picture upload
@@ -201,8 +194,11 @@ export async function updateBrandProfile(
     const updateData = req.validatedBody || req.body;
     const userPlan = req.tenant?.plan || 'foundation';
 
+    // Get service instance
+    const { brandAccount: brandAccountService } = getServices();
+
     // Validate plan permissions for certain fields
-    const restrictedFields = validatePlanPermissions(updateData, userPlan);
+    const restrictedFields = brandAccountService.validatePlanPermissions(updateData, userPlan);
     if (restrictedFields.length > 0) {
        res.status(403).json({
         error: 'Some fields require a higher plan',
@@ -219,7 +215,7 @@ export async function updateBrandProfile(
     
     // Process wallet address change if present
     if (updateData.walletAddress && updateData.walletAddress !== currentProfile.walletAddress) {
-      await handleWalletAddressChange(businessId, updateData.walletAddress, currentProfile.walletAddress);
+      await brandAccountService.handleWalletAddressChange(businessId, updateData.walletAddress, currentProfile.walletAddress);
     }
 
     // Update profile with enhanced tracking
@@ -228,7 +224,7 @@ export async function updateBrandProfile(
       lastUpdatedBy: businessId,
       lastUpdateSource: 'profile_page',
       updateMetadata: {
-        fieldsChanged: getChangedFields(currentProfile, updateData),
+        fieldsChanged: brandAccountService.getChangedFields(currentProfile, updateData),
         updateReason: 'manual_update',
         ipAddress: req.ip,
         userAgent: req.headers['user-agent']
@@ -249,11 +245,11 @@ export async function updateBrandProfile(
     trackManufacturerAction('update_brand_profile');
 
     // Send notifications for significant changes
-    await handleSignificantProfileChanges(businessId, currentProfile, updateData);
+    await brandAccountService.handleSignificantProfileChanges(businessId, currentProfile, updateData);
 
     // Calculate new profile completeness
-    const newCompleteness = calculateProfileCompleteness(updatedProfile);
-    const completenessImproved = newCompleteness > calculateProfileCompleteness(currentProfile);
+    const newCompleteness = brandAccountService.calculateProfileCompleteness(updatedProfile);
+    const completenessImproved = newCompleteness > brandAccountService.calculateProfileCompleteness(currentProfile);
 
     res.json({
       success: true,
@@ -265,12 +261,12 @@ export async function updateBrandProfile(
         fieldsUpdated: Object.keys(updateData),
         completenessImproved,
         newCompleteness,
-        significantChanges: getSignificantChanges(currentProfile, updateData)
+        significantChanges: brandAccountService.getSignificantChanges(currentProfile, updateData)
       },
       message: 'Brand profile updated successfully',
       recommendations: completenessImproved ? 
-        generateImprovementRecommendations(updatedProfile) : 
-        generateProfileRecommendations(updatedProfile, userPlan)
+        brandAccountService.generateImprovementRecommendations(updatedProfile) : 
+        brandAccountService.generateProfileRecommendations(updatedProfile, userPlan)
     });
   } catch (error) {
     logger.error('Update brand profile error:', error);
@@ -293,6 +289,7 @@ export async function submitVerification(
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Check if verification is already in progress
+    const { brandAccount: brandAccountService } = getServices();
     const currentStatus = await brandAccountService.getVerificationStatus(businessId);
     if (currentStatus.status === 'pending') {
        res.status(400).json({
@@ -304,7 +301,7 @@ export async function submitVerification(
     }
 
     // Validate required documents based on plan
-    const requiredDocs = getRequiredVerificationDocs(userPlan);
+    const requiredDocs = brandAccountService.getRequiredVerificationDocs(userPlan);
     const missingDocs = requiredDocs.filter(doc => !verificationData[doc]);
     
     if (missingDocs.length > 0) {
@@ -336,6 +333,7 @@ export async function submitVerification(
     trackManufacturerAction('submit_brand_verification');
 
     // Send confirmation email
+    const { notifications: notificationsService } = getServices();
     await notificationsService.sendVerificationSubmissionConfirmation(businessId, verification);
 
     // Log verification submission for admin review
@@ -375,6 +373,7 @@ export async function getVerificationStatus(
     const businessId = req.userId!;
 
     // Get comprehensive verification status
+    const { brandAccount: brandAccountService } = getServices();
     const status = await brandAccountService.getDetailedVerificationStatus(businessId);
     
     // Get verification history
@@ -406,6 +405,7 @@ export async function deactivateAccount(
     const { reason, feedback, deleteData = false, confirmPassword } = req.validatedBody || req.body;
 
     // Verify password for security
+    const { brandAccount: brandAccountService } = getServices();
     const passwordValid = await brandAccountService.verifyPassword(businessId, confirmPassword);
     if (!passwordValid) {
        res.status(401).json({
@@ -416,6 +416,7 @@ export async function deactivateAccount(
     }
 
     // Check for active subscriptions
+    const { billing: billingService } = getServices();
     const activeBilling = await billingService.getBillingInfo(businessId).catch(() => null);
     if (activeBilling && activeBilling.subscriptionStatus === 'active') {
        res.status(400).json({
@@ -439,6 +440,7 @@ export async function deactivateAccount(
     trackManufacturerAction('deactivate_brand_account');
 
     // Send deactivation confirmation
+    const { notifications: notificationsService } = getServices();
     await notificationsService.sendAccountDeactivationConfirmation(businessId, deactivation);
 
     // Log account deactivation
@@ -489,6 +491,7 @@ export async function getAccountAnalytics(
     }
 
     // Get account analytics
+    const { brandAccount: brandAccountService } = getServices();
     const analytics = await brandAccountService.getAccountAnalytics(businessId, {
       timeframe: timeframe as string,
       includeEngagement: true,
@@ -538,6 +541,7 @@ export async function exportAccountData(
     }
 
     // Generate export data
+    const { brandAccount: brandAccountService } = getServices();
     const exportData = await brandAccountService.exportAccountData(businessId, {
       format,
       includeAnalytics: includeAnalytics && ['growth', 'premium', 'enterprise'].includes(userPlan),
@@ -566,216 +570,7 @@ export async function exportAccountData(
   }
 }
 
-// Helper functions
-async function buildProfileMetadata(businessId: string, plan: string): Promise<any> {
-  const metadata: any = {
-    accountCreated: await brandAccountService.getAccountCreationDate(businessId),
-    lastLogin: await brandAccountService.getLastLogin(businessId),
-    planInfo: {
-      currentPlan: plan,
-      planFeatures: getPlanFeatures(plan)
-    }
-  };
-
-  // Add advanced metadata for higher plans
-  if (['premium', 'enterprise'].includes(plan)) {
-    try {
-      // Option 1: Use brandAccountService instead (which has getAccountSummary)
-      metadata.analytics = await brandAccountService.getAccountSummary(businessId);
-    } catch (error) {
-      logger.warn('Failed to get account analytics:', error);
-      // Fallback to basic analytics info
-      metadata.analytics = {
-        profileCompleteness: 0,
-        totalActiveDays: 0,
-        lastAnalyticsUpdate: new Date()
-      };
-    }
-  }
-
-  if (plan === 'enterprise') {
-    try {
-      metadata.customization = await brandAccountService.getCustomizationOptions(businessId);
-    } catch (error) {
-      logger.warn('Failed to get customization options:', error);
-      metadata.customization = null;
-    }
-  }
-
-  return metadata;
-}
-
-function calculateProfileCompleteness(profile: any): number {
-  const requiredFields = [
-    'businessName', 'email', 'industry', 'description', 'contactEmail'
-  ];
-  const optionalFields = [
-    'profilePictureUrl', 'walletAddress', 'socialUrls', 'headquarters',
-    'businessInformation', 'certifications'
-  ];
-
-  const completedRequired = requiredFields.filter(field => 
-    profile[field] && profile[field] !== ''
-  ).length;
-
-  const completedOptional = optionalFields.filter(field => {
-    const value = profile[field];
-    return value && (
-      typeof value === 'string' ? value !== '' :
-      Array.isArray(value) ? value.length > 0 :
-      typeof value === 'object' ? Object.keys(value).length > 0 :
-      true
-    );
-  }).length;
-
-  const requiredScore = (completedRequired / requiredFields.length) * 70;
-  const optionalScore = (completedOptional / optionalFields.length) * 30;
-
-  return Math.round(requiredScore + optionalScore);
-}
-
-function calculateAccountAge(createdAt: Date): string {
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - createdAt.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 30) return `${diffDays} days`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
-  return `${Math.floor(diffDays / 365)} years`;
-}
-
-function validatePlanPermissions(updateData: any, plan: string): string[] {
-  const restrictedFields: string[] = [];
-  
-  // Premium+ only fields
-  const premiumFields = ['customDomain', 'advancedAnalytics', 'prioritySupport'];
-  if (!['premium', 'enterprise'].includes(plan)) {
-    restrictedFields.push(...premiumFields.filter(field => updateData[field]));
-  }
-
-  // Enterprise only fields
-  const enterpriseFields = ['whiteLabel', 'customBranding', 'dedicatedSupport'];
-  if (plan !== 'enterprise') {
-    restrictedFields.push(...enterpriseFields.filter(field => updateData[field]));
-  }
-
-  return restrictedFields;
-}
-
-async function handleWalletAddressChange(businessId: string, newWallet: string, oldWallet?: string): Promise<void> {
-  try {
-    // Verify wallet ownership if required
-    if (newWallet) {
-      // Remove the 'undefined' parameter - just call with 2 parameters
-      const isValid = await brandAccountService.verifyWalletOwnership(businessId, newWallet);
-      if (!isValid) {
-        throw new Error('Wallet ownership verification failed');
-      }
-    }
-
-    // Update billing discounts if wallet changed
-    if (oldWallet !== newWallet) {
-      await billingService.updateTokenDiscounts(businessId, newWallet);
-    }
-  } catch (error) {
-    logger.error('Error handling wallet address change:', error);
-    throw error;
-  }
-}
-
-
-function getChangedFields(current: any, update: any): string[] {
-  return Object.keys(update).filter(key => {
-    const currentValue = current[key];
-    const updateValue = update[key];
-    
-    if (typeof updateValue === 'object' && updateValue !== null) {
-      return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
-    }
-    
-    return currentValue !== updateValue;
-  });
-}
-
-async function handleSignificantProfileChanges(businessId: string, current: any, update: any): Promise<void> {
-  const significantFields = ['businessName', 'industry', 'contactEmail', 'walletAddress'];
-  const significantChanges = significantFields.filter(field => 
-    update[field] && current[field] !== update[field]
-  );
-
-  if (significantChanges.length > 0) {
-    await notificationsService.sendProfileChangeNotification(businessId, significantChanges);
-  }
-}
-
-function getSignificantChanges(current: any, update: any): string[] {
-  const significantFields = ['businessName', 'industry', 'contactEmail', 'walletAddress'];
-  return significantFields.filter(field => 
-    update[field] && current[field] !== update[field]
-  );
-}
-
-function generateProfileRecommendations(profile: any, plan: string): string[] {
-  const recommendations: string[] = [];
-  const completeness = calculateProfileCompleteness(profile);
-
-  if (completeness < 80) {
-    recommendations.push('Complete your profile to improve discoverability');
-  }
-
-  if (!profile.profilePictureUrl) {
-    recommendations.push('Add a professional profile picture');
-  }
-
-  if (!profile.walletAddress && ['premium', 'enterprise'].includes(plan)) {
-    recommendations.push('Connect your wallet to access Web3 features');
-  }
-
-  if (!profile.certifications || profile.certifications.length === 0) {
-    recommendations.push('Add certifications to build trust with partners');
-  }
-
-  return recommendations;
-}
-
-function generateImprovementRecommendations(profile: any): string[] {
-  return [
-    'Great job improving your profile!',
-    'Consider adding more certifications',
-    'Keep your information up to date',
-    'Engage with the manufacturer community'
-  ];
-}
-
-function getPlanFeatures(plan: string): string[] {
-  const features = {
-    foundation: ['Basic Profile', 'Email Support'],
-    growth: ['Enhanced Profile', 'Basic Analytics', 'Priority Support'],
-    premium: ['Advanced Profile', 'Detailed Analytics', 'Custom Branding', 'Phone Support'],
-    enterprise: ['Full Customization', 'Advanced Analytics', 'White-label', 'Dedicated Support']
-  };
-  return features[plan as keyof typeof features] || [];
-}
-
-function getPlanLimitations(plan: string): string[] {
-  const limitations = {
-    foundation: ['Limited customization', 'Basic analytics only'],
-    growth: ['Standard customization', 'Limited integrations'],
-    premium: ['Advanced features available'],
-    enterprise: ['No limitations']
-  };
-  return limitations[plan as keyof typeof limitations] || [];
-}
-
-function getRequiredVerificationDocs(plan: string): string[] {
-  const baseDocs = ['businessLicense'];
-  
-  if (['premium', 'enterprise'].includes(plan)) {
-    return [...baseDocs, 'taxDocument', 'proofOfAddress'];
-  }
-  
-  return baseDocs;
-}
+// Helper functions moved to BrandAccountService
 
 function getVerificationBenefits(): string[] {
   return [
@@ -788,8 +583,9 @@ function getVerificationBenefits(): string[] {
 }
 
 function getVerificationRequirements(plan: string): any {
+  const { brandAccount: brandAccountService } = getServices();
   return {
-    requiredDocuments: getRequiredVerificationDocs(plan),
+    requiredDocuments: brandAccountService.getRequiredVerificationDocs(plan),
     reviewTime: '3-5 business days',
     criteria: [
       'Valid business registration',

@@ -5,11 +5,11 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { ShopifyService } from '../services/external/shopify.service';
+import { getShopifyService } from '../services/container.service';
 import crypto from 'crypto';
 
-// Initialize service
-const shopifyService = new ShopifyService();
+// Initialize service via container
+const shopifyService = getShopifyService();
 
 /**
  * Extended request interfaces for type safety

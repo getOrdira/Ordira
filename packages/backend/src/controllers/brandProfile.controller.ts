@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { BrandProfileService } from '../services/business/brandProfile.service';
+import { getBrandProfileService } from '../services/container.service';
 import { isUnifiedAuthRequest, safeString } from '../utils/typeGuards';
 
 // Enhanced request interfaces
@@ -40,8 +40,8 @@ interface ManufacturerViewRequest extends UnifiedAuthRequest, ValidatedRequest {
   };
 }
 
-// Initialize service
-const brandProfileService = new BrandProfileService();
+// Initialize service via container
+const brandProfileService = getBrandProfileService();
 
 /**
  * GET /api/brands

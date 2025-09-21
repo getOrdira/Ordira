@@ -2,7 +2,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { requirePermission } from '../middleware/unifiedAuth.middleware';
-import SecurityAuditService from '../services/security/securityAudit.service';
+import { SecurityAuditService } from '../services/security/securityAudit.service';
+import { getSecurityAuditService } from '../services/container.service';
 import { sendSuccess, sendError, ResponseHelper } from '../utils/responseUtils';
 
 /**
@@ -12,7 +13,7 @@ export class SecurityAuditController {
   private securityAuditService: SecurityAuditService;
 
   constructor() {
-    this.securityAuditService = SecurityAuditService.getInstance();
+    this.securityAuditService = getSecurityAuditService();
   }
 
   /**

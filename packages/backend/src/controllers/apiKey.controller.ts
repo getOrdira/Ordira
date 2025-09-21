@@ -5,8 +5,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { ApiKeyService } from '../services/business/apiKey.service';
-import { BillingService } from '../services/external/billing.service';
+import { getServices } from '../services/container.service';
 import { isApiKeyObject, safeString } from '../utils/typeGuards';
 
 // Enhanced request interfaces
@@ -27,12 +26,7 @@ interface ApiKeyRequest extends Request, UnifiedAuthRequest, TenantRequest, Vali
   };
 }
 
-
-
-
-// Initialize services
-const apiKeyService = new ApiKeyService();
-const billingService = new BillingService();
+// Services are now injected via container
 
 /**
  * POST /api/brand/api-keys
@@ -46,6 +40,9 @@ export async function createKey(
   try {
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
+
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
 
     // Check plan-based API key limits
     const currentKeys = await apiKeyService.getKeyCount(businessId);
@@ -148,6 +145,9 @@ export async function getKeyDetails(
       return;
     }
 
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
+
     // Get API key details
     const apiKey = await apiKeyService.getApiKey(keyId, businessId);
     if (!apiKey) {
@@ -216,6 +216,9 @@ export async function testKey(
       return;
     }
 
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
+
     // Verify key exists and belongs to business
     const apiKey = await apiKeyService.getApiKey(keyId, businessId);
     if (!apiKey) {
@@ -272,6 +275,9 @@ export async function bulkUpdateKeys(
       });
       return;
     }
+
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
 
     const results: {
       action: string;
@@ -377,14 +383,17 @@ export async function getAuditLog(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { 
-      keyId, 
-      action, 
-      startDate, 
-      endDate, 
-      page = 1, 
-      limit = 20 
+    const {
+      keyId,
+      action,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20
     } = req.query;
+
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
 
     // Build audit log query
     const auditQuery: any = { business: businessId };
@@ -397,8 +406,8 @@ export async function getAuditLog(
       if (endDate) auditQuery.timestamp.$lte = new Date(endDate as string);
     }
 
-    // Get audit log entries (you'd need to implement audit logging in your service)
-    const auditEntries = await this.getAuditEntries(auditQuery, {
+    // Get audit log entries
+    const auditEntries = await apiKeyService.getApiKeyAuditLog(businessId, auditQuery, {
       page: parseInt(page as string),
       limit: parseInt(limit as string)
     });
@@ -435,12 +444,15 @@ export async function exportKeys(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { 
-      format = 'json', 
-      includeUsageStats = false, 
+    const {
+      format = 'json',
+      includeUsageStats = false,
       includeAuditLog = false,
-      keyIds 
+      keyIds
     } = req.validatedBody || req.body;
+
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
 
     // Get API keys to export
     const keysToExport = keyIds && keyIds.length > 0 ? 
@@ -519,6 +531,9 @@ export async function listKeys(
   try {
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
+
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
 
     // Get all API keys with usage statistics
     const keys = await apiKeyService.listApiKeysWithUsage(businessId);
@@ -605,6 +620,9 @@ export async function updateKey(
       return;
     }
 
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
+
     // Verify key ownership
     const existingKey = await apiKeyService.getApiKey(keyId, businessId);
     if (!existingKey) {
@@ -690,6 +708,9 @@ export async function revokeKey(
       return;
     }
 
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
+
     // Verify key ownership and get usage stats before revoking
     const keyInfo = await apiKeyService.getApiKey(keyId, businessId);
     if (!keyInfo) {
@@ -759,6 +780,9 @@ export async function getKeyUsage(
       return;
     }
 
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
+
     // Verify key ownership
     const keyExists = await apiKeyService.getApiKey(keyId, businessId);
     if (!keyExists) {
@@ -814,6 +838,9 @@ export async function rotateKey(
       })
       return;
     }
+
+    // Get service instance
+    const { apiKey: apiKeyService } = getServices();
 
     // Verify key ownership
     const existingKey = await apiKeyService.getApiKey(keyId, businessId);

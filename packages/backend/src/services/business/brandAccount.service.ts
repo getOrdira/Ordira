@@ -22,6 +22,215 @@ export class BrandAccountService {
   constructor() {
     this.mediaService = new MediaService();
   }
+
+  // Helper methods extracted from controller
+  async buildProfileMetadata(businessId: string, plan: string): Promise<any> {
+    const metadata: any = {
+      accountCreated: await this.getAccountCreationDate(businessId),
+      lastLogin: await this.getLastLogin(businessId),
+      planInfo: {
+        currentPlan: plan,
+        planFeatures: this.getPlanFeatures(plan)
+      }
+    };
+
+    // Add advanced metadata for higher plans
+    if (['premium', 'enterprise'].includes(plan)) {
+      try {
+        metadata.analytics = await this.getAccountSummary(businessId);
+      } catch (error) {
+        logger.warn('Failed to get account analytics:', error);
+        metadata.analytics = {
+          profileCompleteness: 0,
+          totalActiveDays: 0,
+          lastAnalyticsUpdate: new Date()
+        };
+      }
+    }
+
+    if (plan === 'enterprise') {
+      try {
+        metadata.customization = await this.getCustomizationOptions(businessId);
+      } catch (error) {
+        logger.warn('Failed to get customization options:', error);
+        metadata.customization = null;
+      }
+    }
+
+    return metadata;
+  }
+
+  calculateProfileCompleteness(profile: any): number {
+    const requiredFields = [
+      'businessName', 'email', 'industry', 'description', 'contactEmail'
+    ];
+    const optionalFields = [
+      'profilePictureUrl', 'walletAddress', 'socialUrls', 'headquarters',
+      'businessInformation', 'certifications'
+    ];
+
+    const completedRequired = requiredFields.filter(field => 
+      profile[field] && profile[field] !== ''
+    ).length;
+
+    const completedOptional = optionalFields.filter(field => {
+      const value = profile[field];
+      return value && (
+        typeof value === 'string' ? value !== '' :
+        Array.isArray(value) ? value.length > 0 :
+        typeof value === 'object' ? Object.keys(value).length > 0 :
+        true
+      );
+    }).length;
+
+    const requiredScore = (completedRequired / requiredFields.length) * 70;
+    const optionalScore = (completedOptional / optionalFields.length) * 30;
+
+    return Math.round(requiredScore + optionalScore);
+  }
+
+  calculateAccountAge(createdAt: Date): string {
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - createdAt.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 30) return `${diffDays} days`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
+    return `${Math.floor(diffDays / 365)} years`;
+  }
+
+  validatePlanPermissions(updateData: any, plan: string): string[] {
+    const restrictedFields: string[] = [];
+    
+    // Premium+ only fields
+    const premiumFields = ['customDomain', 'advancedAnalytics', 'prioritySupport'];
+    if (!['premium', 'enterprise'].includes(plan)) {
+      restrictedFields.push(...premiumFields.filter(field => updateData[field]));
+    }
+
+    // Enterprise only fields
+    const enterpriseFields = ['whiteLabel', 'customBranding', 'dedicatedSupport'];
+    if (plan !== 'enterprise') {
+      restrictedFields.push(...enterpriseFields.filter(field => updateData[field]));
+    }
+
+    return restrictedFields;
+  }
+
+  async handleWalletAddressChange(businessId: string, newWallet: string, oldWallet?: string): Promise<void> {
+    try {
+      // Verify wallet ownership if required
+      if (newWallet) {
+        const isValid = await this.verifyWalletOwnership(businessId, newWallet);
+        if (!isValid) {
+          throw new Error('Wallet ownership verification failed');
+        }
+      }
+
+      // Update billing discounts if wallet changed
+      if (oldWallet !== newWallet) {
+        const { getBillingService } = await import('../container.service');
+        await getBillingService().updateTokenDiscounts(businessId, newWallet);
+      }
+    } catch (error) {
+      logger.error('Error handling wallet address change:', error);
+      throw error;
+    }
+  }
+
+  getChangedFields(current: any, update: any): string[] {
+    return Object.keys(update).filter(key => {
+      const currentValue = current[key];
+      const updateValue = update[key];
+      
+      if (typeof updateValue === 'object' && updateValue !== null) {
+        return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
+      }
+      
+      return currentValue !== updateValue;
+    });
+  }
+
+  async handleSignificantProfileChanges(businessId: string, current: any, update: any): Promise<void> {
+    const significantFields = ['businessName', 'industry', 'contactEmail', 'walletAddress'];
+    const significantChanges = significantFields.filter(field => 
+      update[field] && current[field] !== update[field]
+    );
+
+    if (significantChanges.length > 0) {
+      const { getNotificationsService } = await import('../container.service');
+      await getNotificationsService().sendProfileChangeNotification(businessId, significantChanges);
+    }
+  }
+
+  getSignificantChanges(current: any, update: any): string[] {
+    const significantFields = ['businessName', 'industry', 'contactEmail', 'walletAddress'];
+    return significantFields.filter(field => 
+      update[field] && current[field] !== update[field]
+    );
+  }
+
+  generateProfileRecommendations(profile: any, plan: string): string[] {
+    const recommendations: string[] = [];
+    const completeness = this.calculateProfileCompleteness(profile);
+
+    if (completeness < 80) {
+      recommendations.push('Complete your profile to improve discoverability');
+    }
+
+    if (!profile.profilePictureUrl) {
+      recommendations.push('Add a professional profile picture');
+    }
+
+    if (!profile.walletAddress && ['premium', 'enterprise'].includes(plan)) {
+      recommendations.push('Connect your wallet to access Web3 features');
+    }
+
+    if (!profile.certifications || profile.certifications.length === 0) {
+      recommendations.push('Add certifications to build trust with partners');
+    }
+
+    return recommendations;
+  }
+
+  generateImprovementRecommendations(profile: any): string[] {
+    return [
+      'Great job improving your profile!',
+      'Consider adding more certifications',
+      'Keep your information up to date',
+      'Engage with the manufacturer community'
+    ];
+  }
+
+  getPlanFeatures(plan: string): string[] {
+    const features = {
+      foundation: ['Basic Profile', 'Email Support'],
+      growth: ['Enhanced Profile', 'Basic Analytics', 'Priority Support'],
+      premium: ['Advanced Profile', 'Detailed Analytics', 'Custom Branding', 'Phone Support'],
+      enterprise: ['Full Customization', 'Advanced Analytics', 'White-label', 'Dedicated Support']
+    };
+    return features[plan as keyof typeof features] || [];
+  }
+
+  getPlanLimitations(plan: string): string[] {
+    const limitations = {
+      foundation: ['Limited customization', 'Basic analytics only'],
+      growth: ['Standard customization', 'Limited integrations'],
+      premium: ['Advanced features available'],
+      enterprise: ['No limitations']
+    };
+    return limitations[plan as keyof typeof limitations] || [];
+  }
+
+  getRequiredVerificationDocs(plan: string): string[] {
+    const baseDocs = ['businessLicense'];
+    
+    if (['premium', 'enterprise'].includes(plan)) {
+      return [...baseDocs, 'taxDocument', 'proofOfAddress'];
+    }
+    
+    return baseDocs;
+  }
   
   async getBrandAccount(businessId: string): Promise<IBusiness> {
     const biz = await Business.findById(businessId).select(

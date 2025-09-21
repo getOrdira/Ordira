@@ -3,10 +3,10 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { SubscriptionService } from '../services/business/subscription.service';
+import { getSubscriptionService } from '../services/container.service';
 
-// Initialize service
-const subscriptionService = new SubscriptionService();
+// Initialize service via container
+const subscriptionService = getSubscriptionService();
 
 
 // ====================

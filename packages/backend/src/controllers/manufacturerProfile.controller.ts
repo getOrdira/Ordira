@@ -5,10 +5,10 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { ManufacturerProfileService } from '../services/business/manufacturerProfile.service';
+import { getManufacturerProfileService } from '../services/container.service';
 
-// Initialize service
-const manufacturerProfileService = new ManufacturerProfileService();
+// Initialize service via container
+const manufacturerProfileService = getManufacturerProfileService();
 
 /**
  * Extended request interfaces for type safety

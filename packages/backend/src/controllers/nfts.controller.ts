@@ -5,10 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { NftService } from '../services/blockchain/nft.service';
-
-// Initialize service
-const nftService = new NftService();
+import { getServices } from '../services/container.service';
 
 /**
  * Extended request interfaces for type safety
@@ -80,6 +77,9 @@ export const deployNft = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -142,6 +142,9 @@ export const listNftContracts = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -155,7 +158,7 @@ export const listNftContracts = asyncHandler(async (
 
   // Get contracts through service
   const contracts = await nftService.listContracts(businessId, { status, page, limit });
-  const contractStats = await NftService.getContractStatistics(businessId);
+  const contractStats = await nftService.getContractStatistics(businessId);
 
   // Return standardized response
   res.json({
@@ -200,6 +203,9 @@ export const mintNft = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -210,17 +216,17 @@ export const mintNft = asyncHandler(async (
   const mintingParams = req.validatedBody;
 
   // Validate product ownership
-  const productOwnership = await NftService.verifyProductOwnership(
-    mintingParams.productId, 
+  const productOwnership = await nftService.verifyProductOwnership(
+    mintingParams.productId,
     businessId
   );
-  
+
   if (!productOwnership.isOwner) {
     throw createAppError('Product not found or access denied', 403, 'PRODUCT_ACCESS_DENIED');
   }
 
   // Check minting limits and permissions
-  const mintingEligibility = await NftService.checkMintingEligibility(
+  const mintingEligibility = await nftService.checkMintingEligibility(
     businessId,
     mintingParams.productId
   );
@@ -278,6 +284,9 @@ export const listCertificates = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -351,6 +360,9 @@ export const transferNft = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -361,7 +373,7 @@ export const transferNft = asyncHandler(async (
   const transferParams = req.validatedBody;
 
   // Verify ownership and transfer eligibility
-  const transferEligibility = await NftService.verifyTransferEligibility(
+  const transferEligibility = await nftService.verifyTransferEligibility(
     transferParams.tokenId,
     transferParams.contractAddress,
     transferParams.fromAddress,
@@ -426,6 +438,9 @@ export const getNftAnalytics = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -478,6 +493,9 @@ export const verifyNft = asyncHandler(async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   const { tokenId } = req.params;
   const contractAddress = req.query.contractAddress;
 
@@ -521,13 +539,16 @@ export const verifyNft = asyncHandler(async (
  * @returns { burned, transaction, reclaimed }
  */
 export const burnNft = asyncHandler(async (
-  req: TenantNFTRequest & { 
-    params: { tokenId: string }; 
-    body: { contractAddress: string; reason?: string } 
+  req: TenantNFTRequest & {
+    params: { tokenId: string };
+    body: { contractAddress: string; reason?: string }
   },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Get service instances
+  const { nft: nftService } = getServices();
+
   // Extract business ID from tenant context
   const businessId = req.tenant?.business?.toString();
   if (!businessId) {
@@ -538,7 +559,7 @@ export const burnNft = asyncHandler(async (
   const { contractAddress, reason } = req.body;
 
   // Verify burn eligibility
-  const burnEligibility = await NftService.verifyBurnEligibility(
+  const burnEligibility = await nftService.verifyBurnEligibility(
     tokenId,
     contractAddress,
     businessId
@@ -553,7 +574,7 @@ export const burnNft = asyncHandler(async (
   }
 
   // Execute burn through service
-  const burnResult = await NftService.burnNft(businessId, {
+  const burnResult = await nftService.burnNft(businessId, {
     tokenId,
     contractAddress,
     reason

@@ -5,11 +5,11 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { WooCommerceService } from '../services/external/woocommerce.service';
+import { getWooCommerceService } from '../services/container.service';
 import crypto from 'crypto';
 
-// Initialize service
-const wooCommerceService = new WooCommerceService();
+// Initialize service via container
+const wooCommerceService = getWooCommerceService();
 
 /**
  * Extended request interfaces for type safety

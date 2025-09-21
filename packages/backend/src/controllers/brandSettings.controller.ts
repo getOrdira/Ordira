@@ -5,10 +5,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { BrandSettingsService } from '../services/business/brandSettings.service';
-import { BillingService } from '../services/external/billing.service';
-import { NotificationsService } from '../services/external/notifications.service';
-import { TokenDiscountService } from '../services/external/tokenDiscount.service';
+import { getServices } from '../services/container.service';
 import { clearTenantCache } from '../middleware/tenant.middleware';
 import { hasShopifyAccessToken } from '../utils/typeGuards';
 
@@ -108,12 +105,6 @@ interface QuickBrandingRequest extends UnifiedAuthRequest, TenantRequest, Valida
   };
 }
 
-// Initialize services
-const brandSettingsService = new BrandSettingsService();
-const billingService = new BillingService();
-const notificationsService = new NotificationsService();
-const tokenDiscountService = new TokenDiscountService();
-
 /**
  * GET /api/brand-settings
  * Retrieve comprehensive brand settings with plan-based features
@@ -126,6 +117,9 @@ export async function getBrandSettings(
   try {
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Get comprehensive brand settings
     const settings = await brandSettingsService.getEnhancedSettings(businessId);
@@ -196,16 +190,21 @@ export async function updateBrandSettings(
     const updateData = req.validatedBody || req.body;
     const userPlan = req.tenant?.plan || 'foundation';
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Validate plan permissions for requested features
-    const restrictedFeatures = brandSettingsService.validatePlanFeatures(updateData, userPlan);
+    const restrictedFeatures = brandSettingsService.validatePlanPermissions(updateData, userPlan);
     if (restrictedFeatures.length > 0) {
-       res.status(403).json({
-        error: 'Some features require a higher plan',
-        restrictedFeatures,
-        currentPlan: userPlan,
-        requiredPlans: brandSettingsService.getRequiredPlans(restrictedFeatures),
-        code: 'PLAN_UPGRADE_REQUIRED'
-      })
+       res.status(403).json(brandSettingsService.buildErrorResponse(
+        'Some features require a higher plan',
+        'PLAN_UPGRADE_REQUIRED',
+        {
+          restrictedFeatures,
+          currentPlan: userPlan,
+          requiredPlans: brandSettingsService.getRequiredPlans(restrictedFeatures)
+        }
+      ))
       return;
     }
 
@@ -237,8 +236,7 @@ export async function updateBrandSettings(
     });
 
     // Clear tenant cache if critical changes made
-    const criticalFields = ['subdomain', 'customDomain', 'certificateWallet', 'plan'];
-    const criticalChanges = Object.keys(updateData).some(field => criticalFields.includes(field));
+    const criticalChanges = brandSettingsService.hasCriticalChanges(updateData);
     
     if (criticalChanges) {
       clearTenantCache(businessId);
@@ -256,21 +254,19 @@ export async function updateBrandSettings(
     // Calculate setup completeness
     const setupCompleteness = brandSettingsService.calculateSetupCompleteness(updatedSettings, userPlan);
 
-    res.json({
-      success: true,
-      settings: updatedSettings,
-      changes: {
+    res.json(brandSettingsService.buildSettingsResponse(
+      updatedSettings,
+      {
         fieldsUpdated: Object.keys(updateData),
         criticalChanges,
         integrationChanges: brandSettingsService.getIntegrationChanges(currentSettings, updateData)
       },
-      setup: {
+      {
         completeness: setupCompleteness,
         nextSteps: brandSettingsService.generateSetupRecommendations(updatedSettings, userPlan),
         missingFeatures: brandSettingsService.getMissingFeatures(updatedSettings, userPlan)
-      },
-      message: 'Brand settings updated successfully'
-    });
+      }
+    ));
   } catch (error) {
     logger.error('Update brand settings error:', error);
     next(error);
@@ -291,13 +287,16 @@ export async function updateCertificateWallet(
     const { certificateWallet, signature, message } = req.validatedBody || req.body;
     const userPlan = req.tenant?.plan || 'foundation';
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Validate Web3 feature access
     if (!['premium', 'enterprise'].includes(userPlan)) {
-       res.status(403).json({
-        error: 'Web3 features require Premium plan or higher',
-        currentPlan: userPlan,
-        code: 'PLAN_UPGRADE_REQUIRED'
-      })
+       res.status(403).json(brandSettingsService.buildErrorResponse(
+        'Web3 features require Premium plan or higher',
+        'PLAN_UPGRADE_REQUIRED',
+        { currentPlan: userPlan }
+      ))
       return;
     }
 
@@ -350,6 +349,7 @@ export async function updateCertificateWallet(
 
     // Update billing discounts if wallet changed
     if (previousWallet !== certificateWallet) {
+      const { billing: billingService } = getServices();
       await billingService.updateTokenDiscounts(businessId, certificateWallet);
     }
 
@@ -360,6 +360,7 @@ export async function updateCertificateWallet(
     trackManufacturerAction('update_certificate_wallet');
 
     // Send security notification
+    const { notifications: notificationsService } = getServices();
     await notificationsService.sendWalletChangeNotification(businessId, {
       previousWallet,
       newWallet: certificateWallet,
@@ -427,8 +428,8 @@ export async function uploadBrandLogo(
     }
 
     // Validate file type and size
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
-    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+    const logoMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+    if (!logoMimeTypes.includes(req.file.mimetype)) {
       res.status(400).json({
         error: 'Invalid file type. Only JPEG, PNG, WebP, and SVG are allowed',
         code: 'INVALID_FILE_TYPE'
@@ -436,18 +437,23 @@ export async function uploadBrandLogo(
       return;
     }
 
-    const maxFileSize = 10 * 1024 * 1024; // 10MB for logos
-    if (req.file.size > maxFileSize) {
-      res.status(400).json({
-        error: 'File size exceeds 10MB limit',
-        code: 'FILE_TOO_LARGE'
-      });
+    // Get service instance
+    const { brandSettings: brandSettingsService, media: mediaService } = getServices();
+
+    // Validate file upload
+    const allowedMimeTypes = brandSettingsService.getAllowedMimeTypes('logo');
+    const validation = brandSettingsService.validateFileUpload(req.file, allowedMimeTypes, 10 * 1024 * 1024);
+    
+    if (!validation.valid) {
+      res.status(400).json(brandSettingsService.buildErrorResponse(
+        validation.error!,
+        validation.error === 'No file uploaded' ? 'MISSING_FILE' : 
+        validation.error!.includes('Invalid file type') ? 'INVALID_FILE_TYPE' : 'FILE_TOO_LARGE'
+      ));
       return;
     }
 
     // Upload logo through media service
-    const { MediaService } = await import('../services/business/media.service');
-    const mediaService = new MediaService();
     
     const media = await mediaService.saveMedia(req.file, businessId, {
       category: 'banner',
@@ -539,9 +545,8 @@ export async function uploadBrandBanner(
       return;
     }
 
-    // Upload banner through media service
-    const { MediaService } = await import('../services/business/media.service');
-    const mediaService = new MediaService();
+    // Get service instance
+    const { brandSettings: brandSettingsService, media: mediaService } = getServices();
     
     const media = await mediaService.saveMedia(req.file, businessId, {
       category: 'banner',
@@ -599,6 +604,9 @@ export async function updateQuickBranding(
     const businessId = req.userId!;
     const updateData = req.validatedBody || req.body;
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Update only branding fields
     const updatedSettings = await brandSettingsService.updateSettings(businessId, {
       themeColor: updateData.themeColor,
@@ -634,6 +642,9 @@ export async function updateSubdomain(
   try {
     const businessId = req.userId!;
     const { subdomain } = req.validatedBody || req.body;
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Update subdomain using service method
     const updatedSettings = await brandSettingsService.updateSubdomain(businessId, subdomain);
@@ -675,6 +686,9 @@ export async function validateSubdomain(
   try {
     const { subdomain } = req.validatedBody || req.body;
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Validate using service method
     const isValid = await brandSettingsService.validateSubdomain(subdomain);
 
@@ -715,6 +729,9 @@ export async function setCustomDomain(
       });
       return;
     }
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Validate custom domain
     const validation = await brandSettingsService.validateCustomDomain(customDomain);
@@ -767,6 +784,9 @@ export async function removeCustomDomain(
   try {
     const businessId = req.userId!;
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Remove custom domain using service method
     const updatedSettings = await brandSettingsService.removeCustomDomain(businessId);
 
@@ -807,6 +827,9 @@ export async function verifyCustomDomain(
   try {
     const { customDomain } = req.validatedBody || req.body;
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Validate custom domain
     const validation = await brandSettingsService.validateCustomDomain(customDomain);
 
@@ -839,24 +862,27 @@ export async function configureShopifyIntegration(
     const integrationData = req.validatedBody || req.body;
     const userPlan = req.tenant?.plan || 'foundation';
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Validate integration permissions
-    if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
-       res.status(403).json({
-        error: 'E-commerce integrations require Growth plan or higher',
-        currentPlan: userPlan,
-        code: 'PLAN_UPGRADE_REQUIRED'
-      })
+    if (!brandSettingsService.checkIntegrationPermissions(userPlan, 'shopify')) {
+       res.status(403).json(brandSettingsService.buildErrorResponse(
+        'E-commerce integrations require Growth plan or higher',
+        'PLAN_UPGRADE_REQUIRED',
+        { currentPlan: userPlan }
+      ))
       return;
     }
 
     // Test Shopify connection
     const connectionTest = await brandSettingsService.testShopifyConnection(integrationData);
     if (!connectionTest.success) {
-       res.status(400).json({
-        error: 'Shopify connection test failed',
-        details: connectionTest.errors,
-        code: 'SHOPIFY_CONNECTION_FAILED'
-      })
+       res.status(400).json(brandSettingsService.buildErrorResponse(
+        'Shopify connection test failed',
+        'SHOPIFY_CONNECTION_FAILED',
+        { details: connectionTest.errors }
+      ))
       return;
     }
 
@@ -871,22 +897,15 @@ export async function configureShopifyIntegration(
     // Track integration setup
     trackManufacturerAction('configure_shopify_integration');
 
-    res.status(201).json({
-      success: true,
+    res.status(201).json(brandSettingsService.buildIntegrationResponse(
       integration,
-      features: {
+      {
         productSync: integration.syncProducts,
         orderSync: integration.syncOrders,
-        webhooks: integration.webhooksConfigured,
-        automation: brandSettingsService.getShopifyAutomationFeatures(userPlan)
+        webhooks: integration.webhooksConfigured
       },
-      nextSteps: [
-        'Products will sync within 15 minutes',
-        'Configure webhook endpoints in Shopify admin',
-        'Test order synchronization',
-        'Review integration logs for any issues'
-      ]
-    });
+      userPlan
+    ));
   } catch (error) {
     logger.error('Configure Shopify integration error:', error);
     next(error);
@@ -905,6 +924,9 @@ export async function updateShopifyIntegration(
   try {
     const businessId = req.userId!;
     const integrationData = req.validatedBody || req.body;
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Update Shopify integration
     await brandSettingsService.updateShopifyIntegration(businessId, integrationData);
@@ -946,6 +968,9 @@ export async function configureWooCommerceIntegration(
       return;
     }
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Update WooCommerce integration (using existing service method)
     await brandSettingsService.updateWooCommerceIntegration(businessId, integrationData);
 
@@ -979,6 +1004,9 @@ export async function updateWooCommerceIntegration(
   try {
     const businessId = req.userId!;
     const integrationData = req.validatedBody || req.body;
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Update WooCommerce integration
     await brandSettingsService.updateWooCommerceIntegration(businessId, integrationData);
@@ -1020,6 +1048,9 @@ export async function configureWixIntegration(
       return;
     }
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Configure Wix integration (store directly in settings)
     const updatedSettings = await brandSettingsService.updateEnhancedSettings(businessId, {
       wixDomain: integrationData.wixDomain,
@@ -1057,6 +1088,9 @@ export async function updateWixIntegration(
   try {
     const businessId = req.userId!;
     const integrationData = req.validatedBody || req.body;
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Update Wix integration
     await brandSettingsService.updateEnhancedSettings(businessId, {
@@ -1099,6 +1133,9 @@ export async function removeIntegration(
       })
       return;
     }
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Remove integration with cleanup
     const removal = await brandSettingsService.removeIntegration(businessId, type, {
@@ -1150,6 +1187,7 @@ export async function testIntegration(
     }
 
     // Get current settings to test
+    const { brandSettings: brandSettingsService } = getServices();
     const settings = await brandSettingsService.getSettings(businessId);
 
     let testResult: any = { success: false };
@@ -1202,6 +1240,9 @@ export async function exportBrandSettings(
       return;
     }
 
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
+
     // Export settings
     const exportData = await brandSettingsService.exportSettings(businessId, {
       format: format as string,
@@ -1249,6 +1290,9 @@ export async function getPublicBrandSettings(
       });
       return;
     }
+
+    // Get service instance
+    const { brandSettings: brandSettingsService } = getServices();
 
     // Get public settings using service method
     const publicSettings = await brandSettingsService.getPublicSettings(businessId);

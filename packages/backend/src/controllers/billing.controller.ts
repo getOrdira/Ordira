@@ -6,10 +6,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { BillingService } from '../services/external/billing.service';
-import { NotificationsService } from '../services/external/notifications.service';
-import { StripeService } from '../services/external/stripe.service';
-import { TokenDiscountService } from '../services/external/tokenDiscount.service';
+import { getBillingService, getNotificationsService, getStripeService, getTokenDiscountService } from '../services/container.service';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 import { clearPlanCache } from '../middleware/rateLimiter.middleware';
 import { Billing } from '../models/billing.model';
@@ -40,11 +37,7 @@ interface WebhookRequest extends Request {
   };
 }
 
-// Initialize services
-const billingService = new BillingService();
-const notificationsService = new NotificationsService();
-const stripeService = new StripeService();
-const tokenDiscountService = new TokenDiscountService();
+// Services are now injected via container
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2022-11-15'
@@ -79,6 +72,7 @@ export async function createCheckoutSession(
     }
 
     // Get current subscription info
+    const billingService = getBillingService();
     const currentBilling = await billingService.getBillingInfo(businessId).catch(() => null);
     const isUpgrade = currentBilling && billingService.getPlanLevel(plan) > billingService.getPlanLevel(currentBilling.plan);
     const isDowngrade = currentBilling && billingService.getPlanLevel(plan) < billingService.getPlanLevel(currentBilling.plan);
@@ -86,7 +80,7 @@ export async function createCheckoutSession(
     // Check for Web3 token discounts
    let tokenDiscount = null;
 if (req.tenant?.web3Settings?.certificateWallet) {
-  tokenDiscount = await tokenDiscountService.getCouponForWallet(
+  tokenDiscount = await getTokenDiscountService().getCouponForWallet(
     req.tenant.web3Settings.certificateWallet
   );
 }
@@ -165,6 +159,7 @@ export async function changePlan(
     }
 
     // Get current billing information
+    const billingService = getBillingService();
     const currentBilling = await billingService.getBillingInfo(businessId);
     const currentPlan = currentBilling.plan;
 
@@ -208,7 +203,7 @@ if (isDowngrade) {
     trackManufacturerAction(isDowngrade ? 'downgrade_plan' : 'upgrade_plan');
 
     // Send notification email
-    await notificationsService.sendPlanChangeNotification(
+    await getNotificationsService().sendPlanChangeNotification(
       businessId,
       currentPlan,
       plan,
@@ -250,6 +245,7 @@ export async function getPlan(
     const businessId = req.userId!;
 
     // Get comprehensive billing information
+    const billingService = getBillingService();
     const billingInfo = await billingService.getComprehensiveBillingInfo(businessId);
     
     // Get usage statistics
@@ -313,6 +309,7 @@ export async function getUsageStats(
     const { period = '30d' } = req.query;
 
     // Get detailed usage analytics
+    const billingService = getBillingService();
     const usage = await billingService.getDetailedUsage(businessId, period as string);
     const currentPlan = req.tenant?.plan || 'foundation';
     const planLimits = billingService.getPlanLimitsPublic(currentPlan);
@@ -358,7 +355,8 @@ export async function updatePaymentMethod(
 
     // Update payment method with billing address
     // Current method signature: updatePaymentMethod(businessId: string, paymentMethodId: string)
-const result = await billingService.updatePaymentMethod(businessId, paymentMethodId);
+    const billingService = getBillingService();
+    const result = await billingService.updatePaymentMethod(businessId, paymentMethodId);
 
     // Track payment method update
     trackManufacturerAction('update_payment_method');
@@ -388,6 +386,7 @@ export async function cancelSubscription(
     const { reason, feedback, cancelImmediately = false } = req.validatedBody || req.body;
 
     // Process cancellation
+    const billingService = getBillingService();
     const result = await billingService.cancelSubscription(businessId, {
       reason,
       feedback,
@@ -399,7 +398,7 @@ export async function cancelSubscription(
     trackManufacturerAction('cancel_subscription');
 
     // Send cancellation confirmation
-    await notificationsService.sendCancellationConfirmation(businessId, result);
+    await getNotificationsService().sendCancellationConfirmation(businessId, result);
 
     res.json({
       success: true,
@@ -511,10 +510,10 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
     
     if (invoice.billing_reason === 'subscription_cycle') {
       // Process renewal with token discount re-evaluation
-      await billingService.processRenewal(subscriptionId);
+      await getBillingService().processRenewal(subscriptionId);
       
       // Send renewal notification
-      await notificationsService.sendRenewalConfirmation(subscriptionId);
+      await getNotificationsService().sendRenewalConfirmation(subscriptionId);
     }
     
     // Clear any cached billing info
@@ -535,22 +534,22 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   const subscriptionId = invoice.subscription!.toString();
   
   // Handle failed payment
-  await billingService.handleFailedPayment(subscriptionId, invoice.id);
+  await getBillingService().handleFailedPayment(subscriptionId, invoice.id);
   
   // Send payment failed notification
-  await notificationsService.sendPaymentFailedNotification(subscriptionId);
+  await getNotificationsService().sendPaymentFailedNotification(subscriptionId);
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-  await billingService.syncSubscriptionUpdate(subscription);
+  await getBillingService().syncSubscriptionUpdate(subscription);
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-  await billingService.handleSubscriptionCancellation(subscription.id);
+  await getBillingService().handleSubscriptionCancellation(subscription.id);
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription): Promise<void> {
-  await billingService.handleSubscriptionCreated(subscription);
+  await getBillingService().handleSubscriptionCreated(subscription);
 }
 
 // Helper functions moved to BillingService - now using service methods

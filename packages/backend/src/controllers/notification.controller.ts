@@ -5,11 +5,11 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { NotificationService } from '../services/business/notification.service';
+import { getNotificationService } from '../services/container.service';
 import { hasPriority } from '../utils/typeGuards';
 
-// Initialize service
-const notificationService = new NotificationService();
+// Initialize service via container
+const notificationService = getNotificationService();
 
 /**
  * Extended request interfaces for type safety

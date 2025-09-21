@@ -5,11 +5,11 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { WixService } from '../services/external/wix.service';
+import { getWixService } from '../services/container.service';
 import crypto from 'crypto';
 
-// Initialize service
-const wixService = new WixService();
+// Initialize service via container
+const wixService = getWixService();
 
 /**
  * Extended request interfaces for type safety

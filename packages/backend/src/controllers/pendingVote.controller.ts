@@ -4,12 +4,11 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { PendingVoteService } from '../services/business/pendingVote.service';
-import { VotingBusinessService } from '../services/business/votes.service';
+import { getPendingVoteService, getVotingService } from '../services/container.service';
 
-// Initialize services
-const pendingVoteService = new PendingVoteService();
-const votingService = new VotingBusinessService();
+// Initialize services via container
+const pendingVoteService = getPendingVoteService();
+const votingService = getVotingService();
 
 /**
  * Extended request interfaces for type safety

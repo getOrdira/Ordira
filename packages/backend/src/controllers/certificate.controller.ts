@@ -6,12 +6,7 @@ import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { PlanLimitsRequest } from '../middleware/planLimits.middleware';
-import { CertificateService } from '../services/business/certificate.service';
-import { NftService } from '../services/blockchain/nft.service';
-import { BillingService } from '../services/external/billing.service';
-import { NotificationsService } from '../services/external/notifications.service';
-import { AnalyticsBusinessService } from '../services/business/analytics.service';
-import { UsageTrackingService } from '../services/business/usageTracking.service';
+import { getServices } from '../services/container.service';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Certificate } from '../models/certificate.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
@@ -121,33 +116,9 @@ interface revokeCertificateRequest extends UnifiedAuthRequest, TenantRequest, Va
   };
 }
 
-// Initialize services
-const certificateService = new CertificateService();
-const nftService = new NftService();
-const billingService = new BillingService();
-const notificationsService = new NotificationsService();
-const analyticsService = new AnalyticsBusinessService();
-const usageTrackingService = new UsageTrackingService();
+// Services are now injected via container
 
-async function getGlobalTransferAnalytics(): Promise<any> {
-  try {
-    // Calculate global metrics from all brand settings
-    const allSettings = await BrandSettings.find({
-      'web3Settings.nftContract': { $exists: true }
-    });
-    
-    // Calculate whatever global metrics you need
-    return {
-      totalBrands: allSettings.length,
-      totalTransfers: 0, // calculate as needed
-      averageSuccessRate: 0, // calculate as needed
-      // ... other metrics
-    };
-  } catch (error) {
-    logger.error('Failed to get global transfer analytics:', error);
-    return null;
-  }
-}
+// Business logic functions moved to CertificateService
 
 /**
  * POST /api/certificates
@@ -159,6 +130,15 @@ export async function createCertificate(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      billing: billingService,
+      notifications: notificationsService,
+      analytics: analyticsService,
+      nft: nftService
+    } = getServices();
+
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const certificateData = req.validatedBody || req.body;
@@ -169,13 +149,13 @@ export async function createCertificate(
     const shouldAutoTransfer = brandSettings?.shouldAutoTransfer() || false;
 
     // Use the new plan limits system
-    const planLimits = PLAN_DEFINITIONS[userPlan as PlanKey];
+    const planLimits = certificateService.getPlanLimits(userPlan);
     const currentUsage = req.planLimits?.usage || { certificates: 0, votes: 0, apiCalls: 0, storage: 0 };
 
     // Check certificate limits with enhanced validation
     if (planLimits.certificates !== Infinity && currentUsage.certificates >= planLimits.certificates) {
       const utilization = Math.round((currentUsage.certificates / planLimits.certificates) * 100);
-      
+
       res.status(403).json({
         error: 'Certificate limit reached for your plan',
         details: {
@@ -186,7 +166,7 @@ export async function createCertificate(
         },
         options: {
           upgradeAvailable: userPlan !== 'enterprise',
-          overageAllowed: planLimits.features.allowOverage
+          overageAllowed: planLimits.allowOverage
         },
         recommendations: [
           'Consider upgrading your plan for higher limits',
@@ -274,7 +254,7 @@ export async function createCertificate(
       // Get or deploy NFT contract if needed
       let contractAddress = brandSettings?.web3Settings?.nftContract;
       if (!contractAddress && hasWeb3) {
-        const deployResult = await NftService.deployNFTContract({
+        const deployResult = await nftService.deployNFTContract({
           name: `${businessId} Certificates`,
           symbol: 'CERT',
           baseUri: `${process.env.METADATA_BASE_URL}/${businessId}/`,
@@ -291,7 +271,7 @@ export async function createCertificate(
       const tokenUri = `${process.env.METADATA_BASE_URL}/${businessId}/${certificateData.productId}`;
 
       // Mint NFT with auto-transfer capabilities
-      mintResult = await NftService.mintNFTWithAutoTransfer({
+      mintResult = await nftService.mintNFTWithAutoTransfer({
         contractAddress,
         recipient: certificateData.recipient,
         tokenUri,
@@ -390,6 +370,14 @@ export async function transferCertificates(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      billing: billingService,
+      notifications: notificationsService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const { certificateIds, brandWallet, transferOptions } = req.validatedBody || req.body;
@@ -526,6 +514,13 @@ export async function retryFailedTransfers(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      billing: billingService,
+      notifications: notificationsService
+    } = getServices();
+
     const businessId = req.userId!;
     const { limit = 10 } = req.query;
 
@@ -540,7 +535,7 @@ export async function retryFailedTransfers(
     }
 
     // Retry failed transfers
-    const retryResults = await NftService.retryFailedTransfers(businessId, Number(limit));
+    const retryResults = await nftService.retryFailedTransfers(businessId, Number(limit));
 
     // Track retry action
     trackManufacturerAction('retry_failed_transfers');
@@ -566,6 +561,12 @@ export async function listCertificates(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const {
@@ -710,6 +711,12 @@ export async function getCertificate(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
     const { id } = req.params;
 
@@ -800,6 +807,12 @@ export async function getWeb3Analytics(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const { 
@@ -824,7 +837,7 @@ export async function getWeb3Analytics(
     const [certificateAnalytics, transferAnalytics, globalAnalytics] = await Promise.all([
      nftService.getCertificateAnalytics(businessId),
      brandSettings.transferAnalytics,
-     userPlan === 'enterprise' ? getGlobalTransferAnalytics() : null
+     userPlan === 'enterprise' ? certificateService.getGlobalTransferAnalytics() : null
     ]);
 
     // Track analytics view
@@ -845,8 +858,8 @@ export async function getWeb3Analytics(
             : '0'
         },
         ...(globalAnalytics && { global: globalAnalytics }),
-        insights: generateWeb3Insights(certificateAnalytics, transferAnalytics),
-        recommendations: generateWeb3Recommendations(certificateAnalytics, transferAnalytics, userPlan)
+        insights: certificateService.generateWeb3Insights(certificateAnalytics, transferAnalytics),
+        recommendations: certificateService.generateWeb3Recommendations(certificateAnalytics, transferAnalytics, userPlan)
       },
       web3Status: {
         walletConnected: !!brandSettings.web3Settings?.certificateWallet,
@@ -878,13 +891,21 @@ export async function createBatchCertificates(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      billing: billingService,
+      notifications: notificationsService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const batchData = req.validatedBody || req.body;
 
     // Validate batch permissions using new plan system
-    const planLimits = PLAN_DEFINITIONS[userPlan as PlanKey];
-    if (!planLimits.features.hasWeb3) {
+    const planLimits = certificateService.getPlanLimits(userPlan);
+    if (!planLimits.hasWeb3) {
       res.status(403).json({
         error: 'Batch certificate creation requires Growth plan or higher',
         currentPlan: userPlan,
@@ -897,7 +918,7 @@ export async function createBatchCertificates(
     const recipientCount = batchData.recipients.length;
 
     // Validate batch size limits
-    const batchLimits = getBatchLimits(userPlan);
+    const batchLimits = certificateService.getBatchLimits(userPlan);
     if (recipientCount > batchLimits.maxBatchSize) {
       res.status(400).json({
         error: 'Batch size exceeds plan limits',
@@ -925,7 +946,7 @@ export async function createBatchCertificates(
         },
         options: {
           upgradeAvailable: userPlan !== 'enterprise',
-          overageAllowed: planLimits.features.allowOverage
+          overageAllowed: planLimits.allowOverage
         },
         code: 'INSUFFICIENT_QUOTA'
       });
@@ -938,8 +959,8 @@ export async function createBatchCertificates(
     const shouldAutoTransfer = brandSettings?.shouldAutoTransfer() || false;
     
     if (hasWeb3 && shouldAutoTransfer) {
-      const transferUsage = await getTransferUsage(businessId);
-      const transferLimits = getTransferLimits(userPlan);
+      const transferUsage = await certificateService.getTransferUsage(businessId);
+      const transferLimits = certificateService.getTransferLimits(userPlan);
       
       if (transferUsage.thisMonth + recipientCount > transferLimits.transfersPerMonth) {
          res.status(403).json({
@@ -998,7 +1019,7 @@ export async function createBatchCertificates(
         enabled: hasWeb3,
         autoTransferEnabled: shouldAutoTransfer,
         batchTransferEnabled: batchData.batchOptions?.batchTransfer || false,
-        estimatedGasCost: hasWeb3 ? calculateEstimatedGasCost(recipientCount) : null
+        estimatedGasCost: hasWeb3 ? certificateService.calculateEstimatedGasCost(recipientCount) : null
       },
       processing: {
         queuePosition: batchJob.queuePosition,
@@ -1027,6 +1048,13 @@ export async function revokeCertificate(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      notifications: notificationsService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
     const { id } = req.params;
     const { reason, notifyRecipient = true, burnNft = false } = req.validatedBody || req.body;
@@ -1125,6 +1153,12 @@ export async function getPendingTransfers(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Get service instances
+    const {
+      certificate: certificateService,
+      analytics: analyticsService
+    } = getServices();
+
     const businessId = req.userId!;
 
     // Check Web3 permissions
@@ -1138,7 +1172,7 @@ export async function getPendingTransfers(
     }
 
     // Get pending transfers
-    const pendingTransfers = await NftService.getPendingTransfers(businessId);
+    const pendingTransfers = await nftService.getPendingTransfers(businessId);
 
     res.json({
       success: true,
@@ -1178,6 +1212,7 @@ export async function getBatchProgress(
     const { batchId } = req.params;
 
     // Get batch progress with Web3 metrics
+    const { certificate: certificateService } = getServices();
     const progress = await certificateService.getBatchProgress(businessId, batchId);
 
     if (!progress) {
@@ -1226,255 +1261,5 @@ export async function getBatchProgress(
 
 // ✨ Enhanced Helper Functions
 
-async function getCertificateUsage(businessId: string) {
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const [total, thisMonth] = await Promise.all([
-    Certificate.countDocuments({ business: businessId }),
-    Certificate.countDocuments({ 
-      business: businessId, 
-      createdAt: { $gte: startOfMonth } 
-    })
-  ]);
-
-  return { total, certificatesThisMonth: thisMonth };
-}
-
-async function getTransferUsage(businessId: string) {
-  const brandSettings = await BrandSettings.findOne({ business: businessId });
-  const analytics = brandSettings?.transferAnalytics;
-  
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const monthlyStats = analytics?.monthlyStats?.find(stat => stat.month === currentMonth);
-  
-  return {
-    thisMonth: monthlyStats?.transfers || 0,
-    total: analytics?.totalTransfers || 0
-  };
-}
-
-function getPlanLimits(plan: string) {
-  const planKey = plan as PlanKey;
-  const planDef = PLAN_DEFINITIONS[planKey] || PLAN_DEFINITIONS.foundation;
-  
-  return {
-    certificates: planDef.certificates,
-    allowOverage: planDef.features.allowOverage,
-    billPerCertificate: false, // Not implemented yet
-    overageCost: planDef.features.allowOverage ? 0.1 : 0,
-    hasWeb3: planDef.features.hasWeb3
-  };
-}
-
-function getTransferLimits(plan: string) {
-  const limits = {
-    growth: { transfersPerMonth: 500, gasCreditsWei: '50000000000000000' }, // 0.05 ETH
-    premium: { transfersPerMonth: 1000, gasCreditsWei: '100000000000000000' }, // 0.1 ETH
-    enterprise: { transfersPerMonth: Infinity, gasCreditsWei: '1000000000000000000' } // 1 ETH
-  };
-  return limits[plan as keyof typeof limits] || { transfersPerMonth: 0, gasCreditsWei: '0' };
-}
-
-function getBatchLimits(plan: string) {
-  const limits = {
-    growth: { maxBatchSize: 50, maxConcurrent: 3 },
-    premium: { maxBatchSize: 100, maxConcurrent: 5 },
-    enterprise: { maxBatchSize: 1000, maxConcurrent: 20 }
-  };
-  return limits[plan as keyof typeof limits] || { maxBatchSize: 10, maxConcurrent: 1 };
-}
-
-function validateRecipient(recipient: string, contactMethod: string): { valid: boolean; error?: string } {
-  switch (contactMethod) {
-    case 'email':
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return { valid: emailRegex.test(recipient), error: !emailRegex.test(recipient) ? 'Invalid email format' : undefined };
-    
-    case 'sms':
-      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-      return { valid: phoneRegex.test(recipient), error: !phoneRegex.test(recipient) ? 'Invalid phone number format' : undefined };
-    
-    case 'wallet':
-      const walletRegex = /^0x[a-fA-F0-9]{40}$/;
-      return { valid: walletRegex.test(recipient), error: !walletRegex.test(recipient) ? 'Invalid wallet address format' : undefined };
-    
-    default:
-      return { valid: false, error: 'Invalid contact method' };
-  }
-}
-
-function getOwnershipStatus(certificate: any): string {
-  if (certificate.revoked) return 'revoked';
-  if (certificate.transferFailed && certificate.transferAttempts >= certificate.maxTransferAttempts) return 'failed';
-  if (certificate.transferredToBrand) return 'brand';
-  return 'relayer';
-}
-
-function getTransferHealth(certificate: any): { status: string; score: number; issues: string[] } {
-  const issues: string[] = [];
-  let score = 100;
-
-  if (certificate.transferFailed) {
-    issues.push('Transfer failed');
-    score -= 50;
-  }
-
-  if (certificate.transferAttempts > 1) {
-    issues.push('Multiple transfer attempts');
-    score -= 20;
-  }
-
-  if (certificate.status === 'pending_transfer' && certificate.nextTransferAttempt && new Date(certificate.nextTransferAttempt) < new Date()) {
-    issues.push('Transfer overdue');
-    score -= 30;
-  }
-
-  return {
-    status: score >= 80 ? 'healthy' : score >= 50 ? 'warning' : 'critical',
-    score: Math.max(0, score),
-    issues
-  };
-}
-
-async function processCertificateDelivery(mintResult: any, deliveryOptions: any, hasWeb3: boolean): Promise<void> {
-  // Enhanced delivery processing with Web3 awareness
-  const deliveryData = {
-    ...deliveryOptions,
-    web3Enabled: hasWeb3,
-    transferScheduled: mintResult.transferScheduled,
-    blockchainData: {
-      txHash: mintResult.txHash,
-      tokenId: mintResult.tokenId,
-      contractAddress: mintResult.contractAddress
-    }
-  };
-
-  if (deliveryOptions?.scheduleDate) {
-    await certificateService.scheduleDelivery(mintResult.certificateId, deliveryOptions.scheduleDate, deliveryData);
-  } else {
-    await certificateService.deliverCertificate(mintResult.certificateId, deliveryData);
-  }
-}
-
-function getCertificateNextSteps(hasWeb3: boolean, shouldAutoTransfer: boolean, transferScheduled: boolean): string[] {
-  const baseSteps = ['Certificate minted successfully on blockchain'];
-  
-  if (hasWeb3) {
-    if (shouldAutoTransfer && transferScheduled) {
-      baseSteps.push(
-        'Auto-transfer to your wallet is scheduled',
-        'You will be notified when transfer completes',
-        'Certificate will appear in your Web3 wallet'
-      );
-    } else if (shouldAutoTransfer && !transferScheduled) {
-      baseSteps.push(
-        'Auto-transfer is enabled but transfer was not scheduled',
-        'Check your wallet configuration',
-        'Manual transfer may be required'
-      );
-    } else {
-      baseSteps.push(
-        'Certificate is stored in secure relayer wallet',
-        'Enable auto-transfer in settings for automatic delivery',
-        'Manual transfer available anytime'
-      );
-    }
-  } else {
-    baseSteps.push(
-      'Certificate is securely stored in our system',
-      'Upgrade to Premium for Web3 wallet integration',
-      'Direct wallet ownership available with upgrade'
-    );
-  }
-
-  return baseSteps;
-}
-
-function calculateBatchDuration(recipientCount: number, batchOptions: any, hasWeb3: boolean): number {
-  const baseTimePerCert = hasWeb3 ? 45 : 30; // Extra time for blockchain operations
-  const delay = batchOptions?.delayBetweenCerts || 1;
-  const concurrent = batchOptions?.maxConcurrent || 5;
-  
-  const totalProcessingTime = (recipientCount / concurrent) * baseTimePerCert;
-  const totalDelayTime = recipientCount * delay;
-  const transferTime = hasWeb3 ? recipientCount * 10 : 0; // Additional time for transfers
-  
-  return Math.ceil(totalProcessingTime + totalDelayTime + transferTime);
-}
-
-function determineBatchPriority(plan: string): 'low' | 'normal' | 'high' {
-  switch (plan) {
-    case 'enterprise': return 'high';
-    case 'premium': return 'normal';
-    default: return 'low';
-  }
-}
-
-function calculateEstimatedGasCost(recipientCount: number): string {
-  // Estimate: ~0.005 ETH per mint + transfer
-  const estimatedCostWei = BigInt(recipientCount) * BigInt('5000000000000000'); // 0.005 ETH in wei
-  return estimatedCostWei.toString();
-}
-
-function generateWeb3Insights(certificateAnalytics: any, transferAnalytics: any): string[] {
-  const insights: string[] = [];
-  
-  if (transferAnalytics?.successRate > 95) {
-    insights.push('Excellent transfer success rate - automation is working well');
-  }
-  
-  if (certificateAnalytics?.relayerHeld === 0) {
-    insights.push('All certificates successfully transferred to your wallet');
-  }
-  
-  if (transferAnalytics?.averageTransferTime < 300000) { // 5 minutes
-    insights.push('Fast transfer times - optimal gas settings detected');
-  }
-  
-  const monthlyGrowth = calculateMonthlyGrowth(transferAnalytics?.monthlyStats);
-  if (monthlyGrowth > 20) {
-    insights.push('Transfer volume growing rapidly - consider upgrading gas limits');
-  }
-  
-  return insights;
-}
-
-function generateWeb3Recommendations(certificateAnalytics: any, transferAnalytics: any, plan: string): string[] {
-  const recommendations: string[] = [];
-  
-  if (transferAnalytics?.failedTransfers > 0) {
-    recommendations.push('Review failed transfers and retry if needed');
-  }
-  
-  if (transferAnalytics?.successRate < 90) {
-    recommendations.push('Check wallet configuration and gas settings');
-  }
-  
-  if (plan === 'premium' && transferAnalytics?.totalTransfers > 800) {
-    recommendations.push('Consider upgrading to Enterprise for unlimited transfers');
-  }
-  
-  const avgGasUsed = transferAnalytics?.totalGasUsed ? 
-    Number(BigInt(transferAnalytics.totalGasUsed) / BigInt(Math.max(1, transferAnalytics.totalTransfers))) : 0;
-  
-  if (avgGasUsed > 100000) { // If using more than 100k gas per transfer
-    recommendations.push('Enable gas optimization to reduce transfer costs');
-  }
-  
-  return recommendations;
-}
-
-function calculateMonthlyGrowth(monthlyStats: any[]): number {
-  if (!monthlyStats || monthlyStats.length < 2) return 0;
-  
-  const sorted = monthlyStats.sort((a, b) => a.month.localeCompare(b.month));
-  const latest = sorted[sorted.length - 1];
-  const previous = sorted[sorted.length - 2];
-  
-  if (!previous.transfers) return 100;
-  
-  return ((latest.transfers - previous.transfers) / previous.transfers) * 100;
-}
+// All business logic functions have been moved to CertificateService
 

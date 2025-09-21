@@ -6,10 +6,10 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { MediaService } from '../services/business/media.service';
+import { getMediaService } from '../services/container.service';
 
-// Initialize service
-const mediaService = new MediaService();
+// Initialize service via container
+const mediaService = getMediaService();
 
 /**
  * Extended request interfaces for type safety

@@ -3,12 +3,9 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { UserService } from '../services/business/user.service';
-import { AuthService } from '../services/business/auth.service';
+import { getServices } from '../services/container.service';
 
-// Initialize services
-const userService = new UserService();
-const authService = new AuthService();
+// Services are now injected via container
 
 /**
  * Extended request interfaces for type safety
@@ -109,6 +106,7 @@ export const registerUser = asyncHandler(async (
   }
 
   // Create user through service
+  const { user: userService, auth: authService } = getServices();
   const user = await userService.createUser(registrationData);
 
   // Send verification email through auth service
@@ -155,6 +153,7 @@ export const verifyUser = asyncHandler(async (
   const { email, emailCode } = req.validatedBody;
 
   // Verify through auth service
+  const { auth: authService, user: userService } = getServices();
   const result = await authService.verifyUser({ email, code: emailCode });
 
   // Get user details after verification
@@ -195,6 +194,7 @@ export const loginUser = asyncHandler(async (
   const { email, password, rememberMe } = req.validatedBody;
 
   // Login through auth service
+  const { auth: authService, user: userService } = getServices();
   const result = await authService.loginUser({ email, password, rememberMe });
 
   // Get comprehensive user data
@@ -255,6 +255,7 @@ export const getUserProfile = asyncHandler(async (
   const userId = req.userId!;
 
   // Get comprehensive user data
+  const { user: userService } = getServices();
   const [user, engagementInsights] = await Promise.all([
     userService.getUserById(userId),
     userService.getUserEngagementInsights(userId)
@@ -300,6 +301,7 @@ export const updateUserProfile = asyncHandler(async (
   }
 
   // Update user profile
+  const { user: userService } = getServices();
   const updatedUser = await userService.updateUser(userId, updateData);
 
   // Analyze what changed
@@ -332,6 +334,7 @@ export const deleteUserAccount = asyncHandler(async (
   const userId = req.userId!;
 
   // Get user before deletion for final summary
+  const { user: userService } = getServices();
   const user = await userService.getUserById(userId);
 
   // Delete user account (soft delete)
@@ -389,6 +392,7 @@ export const submitVote = asyncHandler(async (
 };
 
   // Check vote eligibility first
+  const { user: userService } = getServices();
   const voteStatus = await userService.checkVoteStatus(userId, voteData.proposalId);
   if (voteStatus.hasVoted) {
     throw createAppError('You have already voted on this proposal', 409, 'ALREADY_VOTED');
@@ -445,6 +449,7 @@ export const checkVoteStatus = asyncHandler(async (
   }
 
   // Check vote status
+  const { user: userService } = getServices();
   const voteStatus = await userService.checkVoteStatus(userId, proposalId);
 
   // Get voting eligibility info
@@ -497,6 +502,7 @@ export const getVotingHistory = asyncHandler(async (
   const offset = (pageNum - 1) * limitNum;
 
   // Get voting history
+  const { user: userService } = getServices();
   const history = await userService.getUserVotingHistory(userId, {
     businessId,
     limit: limitNum,
@@ -567,6 +573,7 @@ export const listUsers = asyncHandler(async (
   };
 
   // Get users based on whether business filter is applied
+  const { user: userService } = getServices();
   const result = queryParams.businessId 
     ? await userService.getUsersForBusiness(queryParams.businessId, filters)
     : await userService.listUsers(filters);
@@ -619,6 +626,7 @@ export const getUserAnalytics = asyncHandler(async (
   const { businessId, period = '30d' } = req.validatedQuery;
 
   // Get comprehensive analytics
+  const { user: userService } = getServices();
   const analytics = await userService.getUserAnalytics(businessId);
 
   // Generate insights based on analytics
@@ -658,6 +666,7 @@ export const searchUsers = asyncHandler(async (
   }
 
   // Perform search
+  const { user: userService } = getServices();
   const result = await userService.searchUsers(query, {
     limit: Math.min(parseInt(limit), 50),
     businessId
@@ -705,6 +714,7 @@ export const recordInteraction = asyncHandler(async (
   const { businessId, type, metadata } = req.validatedBody;
 
   // Record the interaction
+  const { user: userService } = getServices();
   await userService.recordBrandInteraction(userId, businessId, type);
 
   // Record session data if provided
@@ -746,6 +756,7 @@ export const forgotPassword = asyncHandler(async (
   const { email } = req.validatedBody;
 
   // Initiate password reset through auth service
+  const { auth: authService } = getServices();
   await authService.requestPasswordReset({ email });
 
   res.json({
@@ -781,6 +792,7 @@ export const resetPassword = asyncHandler(async (
   const { token, newPassword, confirmPassword } = req.validatedBody;
 
   // Reset password through auth service
+  const { auth: authService } = getServices();
   await authService.resetPassword({
     token,
     newPassword,
@@ -814,6 +826,7 @@ export const resendVerification = asyncHandler(async (
   const { email } = req.validatedBody;
 
   // Check if user exists and needs verification
+  const { user: userService } = getServices();
   const user = await userService.getUserByEmail(email);
   
   if (user.isEmailVerified) {
@@ -821,6 +834,7 @@ export const resendVerification = asyncHandler(async (
   }
 
   // Resend verification through auth service
+  const { auth: authService } = getServices();
   await authService.registerUser({ email, password: 'temp' }); // Password not used for resend
 
   res.json({

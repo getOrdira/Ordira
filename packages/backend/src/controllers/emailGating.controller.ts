@@ -4,10 +4,10 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { EmailGatingService } from '../services/business/emailGating.service';
+import { getEmailGatingService } from '../services/container.service';
 
-// Initialize service
-const emailGatingService = new EmailGatingService();
+// Initialize service via container
+const emailGatingService = getEmailGatingService();
 
 /**
  * Extended request interfaces for type safety

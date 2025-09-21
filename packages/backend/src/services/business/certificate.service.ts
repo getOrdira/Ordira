@@ -1433,4 +1433,149 @@ private async processBatchJob(jobId: string): Promise<void> {
       default: return 'low';
     }
   }
+
+  /**
+   * Get global transfer analytics across all brands
+   */
+  public async getGlobalTransferAnalytics(): Promise<any> {
+    try {
+      // Calculate global metrics from all brand settings
+      const allSettings = await BrandSettings.find({
+        'web3Settings.nftContract': { $exists: true }
+      });
+
+      // Calculate whatever global metrics you need
+      return {
+        totalBrands: allSettings.length,
+        totalTransfers: 0, // calculate as needed
+        averageSuccessRate: 0, // calculate as needed
+        // ... other metrics
+      };
+    } catch (error) {
+      logger.error('Failed to get global transfer analytics:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get certificate usage statistics for a business
+   */
+  public async getCertificateUsage(businessId: string) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [total, thisMonth] = await Promise.all([
+      Certificate.countDocuments({ business: businessId }),
+      Certificate.countDocuments({
+        business: businessId,
+        createdAt: { $gte: startOfMonth }
+      })
+    ]);
+
+    return { total, certificatesThisMonth: thisMonth };
+  }
+
+
+  /**
+   * Get plan limits for certificates
+   */
+  public getPlanLimits(plan: string) {
+    const planKey = plan as any; // Type assertion for plan
+    const PLAN_DEFINITIONS: any = {
+      foundation: { certificates: 10, features: { allowOverage: false, hasWeb3: false } },
+      growth: { certificates: 100, features: { allowOverage: true, hasWeb3: true } },
+      premium: { certificates: 1000, features: { allowOverage: true, hasWeb3: true } },
+      enterprise: { certificates: Infinity, features: { allowOverage: true, hasWeb3: true } }
+    };
+    const planDef = PLAN_DEFINITIONS[planKey] || PLAN_DEFINITIONS.foundation;
+
+    return {
+      certificates: planDef.certificates,
+      allowOverage: planDef.features.allowOverage,
+      billPerCertificate: false, // Not implemented yet
+      overageCost: planDef.features.allowOverage ? 0.1 : 0,
+      hasWeb3: planDef.features.hasWeb3
+    };
+  }
+
+
+  /**
+   * Calculate estimated gas cost for batch operations
+   */
+  public calculateEstimatedGasCost(recipientCount: number): string {
+    // Estimate: ~0.005 ETH per mint + transfer
+    const estimatedCostWei = BigInt(recipientCount) * BigInt('5000000000000000'); // 0.005 ETH in wei
+    return estimatedCostWei.toString();
+  }
+
+  /**
+   * Generate Web3 insights based on analytics
+   */
+  public generateWeb3Insights(certificateAnalytics: any, transferAnalytics: any): string[] {
+    const insights: string[] = [];
+
+    if (transferAnalytics?.successRate > 95) {
+      insights.push('Excellent transfer success rate - automation is working well');
+    }
+
+    if (certificateAnalytics?.relayerHeld === 0) {
+      insights.push('All certificates successfully transferred to your wallet');
+    }
+
+    if (transferAnalytics?.averageTransferTime < 300000) { // 5 minutes
+      insights.push('Fast transfer times - optimal gas settings detected');
+    }
+
+    const monthlyGrowth = this.calculateMonthlyGrowth(transferAnalytics?.monthlyStats);
+    if (monthlyGrowth > 20) {
+      insights.push('Transfer volume growing rapidly - consider upgrading gas limits');
+    }
+
+    return insights;
+  }
+
+  /**
+   * Generate Web3 recommendations based on analytics
+   */
+  public generateWeb3Recommendations(certificateAnalytics: any, transferAnalytics: any, plan: string): string[] {
+    const recommendations: string[] = [];
+
+    if (transferAnalytics?.failedTransfers > 0) {
+      recommendations.push('Review failed transfers and retry if needed');
+    }
+
+    if (transferAnalytics?.successRate < 90) {
+      recommendations.push('Check wallet configuration and gas settings');
+    }
+
+    if (plan === 'premium' && transferAnalytics?.totalTransfers > 800) {
+      recommendations.push('Consider upgrading to Enterprise for unlimited transfers');
+    }
+
+    const avgGasUsed = transferAnalytics?.totalGasUsed ?
+      Number(BigInt(transferAnalytics.totalGasUsed) / BigInt(Math.max(1, transferAnalytics.totalTransfers))) : 0;
+
+    if (avgGasUsed > 100000) { // If using more than 100k gas per transfer
+      recommendations.push('Enable gas optimization to reduce transfer costs');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Calculate monthly growth percentage
+   */
+  public calculateMonthlyGrowth(monthlyStats: any[]): number {
+    if (!monthlyStats || monthlyStats.length < 2) return 0;
+
+    const sorted = monthlyStats.sort((a, b) => a.month.localeCompare(b.month));
+    const latest = sorted[sorted.length - 1];
+    const previous = sorted[sorted.length - 2];
+
+    if (!previous.transfers) return 100;
+
+    return ((latest.transfers - previous.transfers) / previous.transfers) * 100;
+  }
+
 }
