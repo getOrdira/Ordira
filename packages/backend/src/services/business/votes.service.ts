@@ -8,6 +8,7 @@ import { NotificationsService } from '../external/notifications.service';
 import { BillingService } from '../external/billing.service';
 import { SubscriptionService } from './subscription.service';
 import { createAppError } from '../../middleware/error.middleware';
+import mongoose from 'mongoose';
 
 // ===== INTERFACES =====
 
@@ -675,6 +676,232 @@ export class VotingBusinessService {
       logger.error('Get pending votes error:', error);
       throw createAppError(`Failed to get pending votes: ${error.message}`, 500, 'GET_PENDING_VOTES_FAILED');
     }
+  }
+
+  /**
+   * Queue votes (create PendingVote entries) and optionally submit a batch if threshold reached
+   */
+  async queueVotes(
+    businessId: string,
+    userId: string,
+    proposalIds: string[],
+    options: { voteType?: 'for' | 'against' | 'abstain'; reason?: string } = {}
+  ): Promise<{
+    voteRecords: Array<{ proposalId: string; voteId: string; voteType: string; recordedAt: string }>;
+    batchSubmitted: boolean;
+    batchResult?: ProcessPendingResult | null;
+    totalPending: number;
+    threshold: number;
+  }> {
+    if (!businessId?.trim()) {
+      throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+    }
+    if (!userId?.trim()) {
+      throw createAppError('User ID is required', 401, 'MISSING_USER_ID');
+    }
+    if (!Array.isArray(proposalIds) || proposalIds.length === 0) {
+      throw createAppError('At least one proposal ID is required', 400, 'MISSING_PROPOSAL_IDS');
+    }
+    if (proposalIds.length > 10) {
+      throw createAppError('Maximum 10 proposals can be voted on at once', 400, 'TOO_MANY_PROPOSALS');
+    }
+
+    const voteType = options.voteType || 'for';
+    const reason = options.reason?.trim();
+
+    const voteRecords: Array<{ proposalId: string; voteId: string; voteType: string; recordedAt: string }> = [];
+
+    for (const proposalId of proposalIds) {
+      try {
+        const voteId = new mongoose.Types.ObjectId().toString();
+        await PendingVote.create({
+          businessId,
+          proposalId,
+          userId,
+          voteId,
+          voteType,
+          reason
+        } as any);
+
+        voteRecords.push({
+          proposalId,
+          voteId,
+          voteType,
+          recordedAt: new Date().toISOString()
+        });
+      } catch (error: any) {
+        if (error.code === 11000) {
+          throw createAppError(`You have already voted for proposal ${proposalId}`, 409, 'DUPLICATE_VOTE');
+        }
+        throw error;
+      }
+    }
+
+    const threshold = parseInt(process.env.VOTE_BATCH_THRESHOLD || '20');
+    const allPending = await PendingVote.find({ businessId });
+
+    let batchSubmitted = false;
+    let batchResult: ProcessPendingResult | null = null;
+
+    if (allPending.length >= threshold) {
+      try {
+        batchResult = await this.processPendingVotes(businessId);
+        if (batchResult) {
+          await PendingVote.deleteMany({ businessId });
+          batchSubmitted = true;
+        }
+      } catch (error) {
+        logger.error('Failed to submit batch votes:', error);
+      }
+    }
+
+    return {
+      voteRecords,
+      batchSubmitted,
+      batchResult,
+      totalPending: allPending.length,
+      threshold
+    };
+  }
+
+  /**
+   * Aggregated listing for votes with pending items and stats
+   */
+  async getVotesListing(
+    businessId: string,
+    filters: { proposalId?: string; userId?: string; page?: number; limit?: number } = {}
+  ): Promise<{
+    submittedVotes: Array<{ id: string; proposalId: string; voter: string; transactionHash: string; submittedAt: any; status: string }>;
+    pendingVotes: Array<{ id: string; proposalId: string; userId: string; voteId: string; recordedAt: any; status: string }>;
+    stats: { totalSubmitted: number; totalPending: number; totalProposals: number; batchThreshold: number };
+    pagination: { total: number; page: number; limit: number; totalPages: number; hasNext: boolean; hasPrev: boolean };
+    filters: { proposalId?: string; userId?: string };
+  }> {
+    const page = filters.page || 1;
+    const limit = Math.min(filters.limit || 20, 100);
+
+    const votes = await this.getBusinessVotes(businessId);
+
+    const pendingQuery: any = { businessId };
+    if (filters.proposalId) pendingQuery.proposalId = filters.proposalId;
+    if (filters.userId) pendingQuery.userId = filters.userId;
+
+    const pending = await PendingVote.find(pendingQuery).sort({ createdAt: -1 }).lean();
+
+    const filteredVotes = votes.filter(v => {
+      if (filters.proposalId && v.proposalId !== filters.proposalId) return false;
+      if (filters.userId && v.voter !== filters.userId) return false;
+      return true;
+    });
+
+    const total = filteredVotes.length;
+    const startIndex = (page - 1) * limit;
+    const paginatedVotes = filteredVotes.slice(startIndex, startIndex + limit);
+
+    const votingStats = await this.getVotingStats(businessId);
+
+    return {
+      submittedVotes: paginatedVotes.map(vote => ({
+        id: vote.proposalId,
+        proposalId: vote.proposalId,
+        voter: vote.voter,
+        transactionHash: vote.txHash,
+        submittedAt: vote.createdAt || new Date().toISOString(),
+        status: 'confirmed'
+      })),
+      pendingVotes: pending.map(v => ({
+        id: v._id.toString(),
+        proposalId: v.proposalId,
+        userId: v.userId,
+        voteId: v.voteId,
+        recordedAt: v.createdAt,
+        status: 'pending'
+      })),
+      stats: {
+        totalSubmitted: votingStats.totalVotes,
+        totalPending: votingStats.pendingVotes,
+        totalProposals: votingStats.totalProposals,
+        batchThreshold: parseInt(process.env.VOTE_BATCH_THRESHOLD || '20')
+      },
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      },
+      filters: { proposalId: filters.proposalId, userId: filters.userId }
+    };
+  }
+
+  /**
+   * Compute proposal results and breakdown
+   */
+  async getProposalResultsData(
+    businessId: string,
+    proposalId: string
+  ): Promise<{
+    proposal: { id: string; description: string; status: string; createdAt?: Date };
+    results: { totalVotes: number; topProducts: Array<{ productId: string; count: number }>; totalUniqueProducts: number; mostPopularProduct: any; competitionLevel: string };
+    participation: { submittedVotes: number; pendingVotes: number; eligibleVoters: number; participationRate: string };
+  }> {
+    const proposals = await this.getBusinessProposals(businessId);
+    const proposal = proposals.find(p => p.proposalId === proposalId);
+    if (!proposal) {
+      throw createAppError('Proposal not found', 404, 'PROPOSAL_NOT_FOUND');
+    }
+
+    const allVotes = await this.getBusinessVotes(businessId);
+    const proposalVotes = allVotes.filter(v => v.proposalId === proposalId);
+
+    const pending = await PendingVote.find({ businessId, proposalId }).lean();
+
+    const productSelections = new Map<string, number>();
+
+    proposalVotes.forEach(v => {
+      const pid = (v as any).selectedProductId;
+      if (pid) productSelections.set(pid, (productSelections.get(pid) || 0) + 1);
+    });
+
+    pending.forEach(v => {
+      const pid = (v as any).selectedProductId;
+      if (pid) productSelections.set(pid, (productSelections.get(pid) || 0) + 1);
+    });
+
+    const totalVotes = proposalVotes.length + pending.length;
+    const topProducts = Array.from(productSelections.entries())
+      .map(([productId, count]) => ({ productId, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    const mostPopular = topProducts.length > 0 ? {
+      productId: topProducts[0].productId,
+      votes: topProducts[0].count,
+      percentage: totalVotes > 0 ? Math.round((topProducts[0].count / totalVotes) * 100) : 0
+    } : null;
+
+    return {
+      proposal: {
+        id: proposal.proposalId,
+        description: proposal.description,
+        status: proposal.status || 'active',
+        createdAt: proposal.createdAt
+      },
+      results: {
+        totalVotes,
+        topProducts,
+        totalUniqueProducts: productSelections.size,
+        mostPopularProduct: mostPopular,
+        competitionLevel: productSelections.size > 5 ? 'high' : productSelections.size > 2 ? 'medium' : 'low'
+      },
+      participation: {
+        submittedVotes: proposalVotes.length,
+        pendingVotes: pending.length,
+        eligibleVoters: 100,
+        participationRate: totalVotes > 0 ? `${Math.round((totalVotes / 100) * 100)}%` : '0%'
+      }
+    };
   }
 
   // ===== STATISTICS AND ANALYTICS =====

@@ -209,8 +209,8 @@ export const loginUser = asyncHandler(async (
   // Generate personalized dashboard data
   const dashboardData = {
     recentVotes: await userService.getUserVotingHistory(user.id, { limit: 5 }),
-    suggestions: generateLoginSuggestions(user),
-    announcements: getRelevantAnnouncements(user)
+    suggestions: userService.generateLoginSuggestions(user),
+    announcements: userService.getRelevantAnnouncements(user)
   };
 
   res.json({
@@ -277,7 +277,7 @@ export const getUserProfile = asyncHandler(async (
       user,
       insights: engagementInsights,
       activity: recentActivity,
-      recommendations: generateProfileRecommendations(user, engagementInsights),
+      recommendations: userService.generateProfileRecommendations(user, engagementInsights),
       retrievedAt: new Date().toISOString()
     }
   });
@@ -304,7 +304,7 @@ export const updateUserProfile = asyncHandler(async (
 
   // Analyze what changed
   const changes = Object.keys(updateData);
-  const impact = generateUpdateImpact(changes);
+  const impact = userService.generateUpdateImpact(changes);
 
   res.json({
     success: true,
@@ -406,7 +406,7 @@ export const submitVote = asyncHandler(async (
     engagementBoost: result.totalUserVotes === 1 ? 'Congratulations on your first vote!' : 
                      result.totalUserVotes % 10 === 0 ? `Milestone reached: ${result.totalUserVotes} votes!` : 
                      'Thank you for your continued participation',
-    nextActions: generatePostVoteActions(user, voteData.businessId)
+    nextActions: userService.generatePostVoteActions(user, voteData.businessId)
   };
 
   res.json({
@@ -508,8 +508,8 @@ export const getVotingHistory = asyncHandler(async (
   const stats = {
     totalVotes: user.analytics.totalVotes,
     engagementScore: user.analytics.engagementScore,
-    averageVotesPerMonth: calculateAverageVotesPerMonth(user),
-    mostActiveMonth: findMostActiveMonth(history.votes)
+    averageVotesPerMonth: userService.calculateAverageVotesPerMonth(user),
+    mostActiveMonth: userService.findMostActiveMonth(history.votes)
   };
 
   res.json({
@@ -518,7 +518,7 @@ export const getVotingHistory = asyncHandler(async (
     data: {
       history,
       stats,
-      insights: generateVotingInsights(history.votes, stats),
+      insights: userService.generateVotingInsights(history.votes, stats),
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -573,9 +573,9 @@ export const listUsers = asyncHandler(async (
 
   // Generate summary insights
   const insights = {
-    distribution: analyzeUserDistribution(result.users),
-    engagement: analyzeEngagementLevels(result.users),
-    trends: generateUserTrends(result.users)
+    distribution: userService.analyzeUserDistribution(result.users),
+    engagement: userService.analyzeEngagementLevels(result.users),
+    trends: userService.generateUserTrends(result.users)
   };
 
   res.json({
@@ -623,10 +623,10 @@ export const getUserAnalytics = asyncHandler(async (
 
   // Generate insights based on analytics
   const insights = {
-    healthScore: calculatePlatformHealth(analytics),
-    recommendations: generateAnalyticsRecommendations(analytics),
-    alerts: generateAnalyticsAlerts(analytics),
-    benchmarks: generateBenchmarks(analytics, period)
+    healthScore: userService.calculatePlatformHealth(analytics),
+    recommendations: userService.generateAnalyticsRecommendations(analytics),
+    alerts: userService.generateAnalyticsAlerts(analytics),
+    benchmarks: userService.generateBenchmarks(analytics, period)
   };
 
   res.json({
@@ -665,9 +665,9 @@ export const searchUsers = asyncHandler(async (
 
   // Generate search insights
   const searchInsights = {
-    matchQuality: analyzeSearchResults(result.users, query),
-    suggestions: generateSearchSuggestions(query, result.users.length),
-    relatedSearches: generateRelatedSearches(query)
+    matchQuality: userService.analyzeSearchResults(result.users, query),
+    suggestions: userService.generateSearchSuggestions(query, result.users.length),
+    relatedSearches: userService.generateRelatedSearches(query)
   };
 
   res.json({
@@ -834,241 +834,3 @@ export const resendVerification = asyncHandler(async (
   });
 });
 
-// ====================
-// HELPER FUNCTIONS
-// ====================
-
-function generateLoginSuggestions(user: any): string[] {
-  const suggestions: string[] = [];
-  
-  if (user.analytics.totalVotes === 0) {
-    suggestions.push('Cast your first vote to get started');
-  }
-  
-  if (user.analytics.totalVotes < 5) {
-    suggestions.push('Explore trending product proposals');
-  }
-  
-  return suggestions;
-}
-
-function getRelevantAnnouncements(user: any): string[] {
-  return [
-    'New brands have joined the platform',
-    'Your votes from last month influenced 3 products',
-    'Check out the latest voting campaigns'
-  ];
-}
-
-function generateProfileRecommendations(user: any, insights: any): string[] {
-  const recommendations: string[] = [];
-  
-  if (!user.firstName) {
-    recommendations.push('Add your name for a personalized experience');
-  }
-  
-  if (!user.profilePictureUrl) {
-    recommendations.push('Upload a profile picture');
-  }
-  
-  if (insights.tier === 'low') {
-    recommendations.push('Start voting to increase your engagement');
-  }
-  
-  return recommendations;
-}
-
-function generateUpdateImpact(changes: string[]): string[] {
-  const impact: string[] = [];
-  
-  if (changes.includes('preferences')) {
-    impact.push('Notification settings updated');
-  }
-  
-  if (changes.includes('firstName') || changes.includes('lastName')) {
-    impact.push('Profile display name updated');
-  }
-  
-  return impact;
-}
-
-function generatePostVoteActions(user: any, businessId: string): string[] {
-  return [
-    'See how your vote compares to others',
-    'Explore more products from this brand',
-    'Share your voting experience',
-    'Check voting results when available'
-  ];
-}
-
-function calculateAverageVotesPerMonth(user: any): number {
-  const monthsActive = Math.max(1, Math.floor(
-    (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30)
-  ));
-  return Math.round(user.analytics.totalVotes / monthsActive * 10) / 10;
-}
-
-function findMostActiveMonth(votes: any[]): string | null {
-  if (!votes.length) return null;
-  
-  const monthCounts: Record<string, number> = {};
-  votes.forEach(vote => {
-    const month = new Date(vote.votedAt).toISOString().substring(0, 7);
-    monthCounts[month] = (monthCounts[month] || 0) + 1;
-  });
-  
-  const mostActive = Object.entries(monthCounts)
-    .sort(([,a], [,b]) => b - a)[0];
-  
-  return mostActive ? mostActive[0] : null;
-}
-
-function generateVotingInsights(votes: any[], stats: any): string[] {
-  const insights: string[] = [];
-  
-  if (stats.totalVotes > 10) {
-    insights.push('You\'re an active voter!');
-  }
-  
-  if (votes.length > 0) {
-    const recentVotes = votes.filter(v => 
-      Date.now() - new Date(v.votedAt).getTime() < 7 * 24 * 60 * 60 * 1000
-    );
-    if (recentVotes.length > 0) {
-      insights.push(`You've voted ${recentVotes.length} times this week`);
-    }
-  }
-  
-  return insights;
-}
-
-function analyzeUserDistribution(users: any[]): any {
-  const distribution = {
-    byStatus: {} as Record<string, number>,
-    byEngagement: { low: 0, medium: 0, high: 0 },
-    verified: 0,
-    unverified: 0
-  };
-  
-  users.forEach(user => {
-    distribution.byStatus[user.status] = (distribution.byStatus[user.status] || 0) + 1;
-    
-    if (user.isEmailVerified) distribution.verified++;
-    else distribution.unverified++;
-    
-    if (user.analytics.totalVotes === 0) distribution.byEngagement.low++;
-    else if (user.analytics.totalVotes < 10) distribution.byEngagement.medium++;
-    else distribution.byEngagement.high++;
-  });
-  
-  return distribution;
-}
-
-function analyzeEngagementLevels(users: any[]): any {
-  const totalUsers = users.length;
-  if (totalUsers === 0) return { average: 0, distribution: {} };
-  
-  const totalVotes = users.reduce((sum, user) => sum + user.analytics.totalVotes, 0);
-  
-  return {
-    averageVotesPerUser: Math.round(totalVotes / totalUsers * 10) / 10,
-    highlyEngaged: users.filter(u => u.analytics.totalVotes >= 10).length,
-    moderatelyEngaged: users.filter(u => u.analytics.totalVotes >= 1 && u.analytics.totalVotes < 10).length,
-    lowEngagement: users.filter(u => u.analytics.totalVotes === 0).length
-  };
-}
-
-function generateUserTrends(users: any[]): any {
-  const now = new Date();
-  const lastMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  
-  const newUsers = users.filter(u => new Date(u.createdAt) >= lastMonth).length;
-  const activeUsers = users.filter(u => new Date(u.analytics.lastActiveAt) >= lastMonth).length;
-  
-  return {
-    newUsersLastMonth: newUsers,
-    activeUsersLastMonth: activeUsers,
-    growthRate: users.length > 0 ? Math.round((newUsers / users.length) * 100) : 0
-  };
-}
-
-function calculatePlatformHealth(analytics: any): { score: number; status: string } {
-  let score = 100;
-  
-  if (analytics.overview.averageVotesPerUser < 2) score -= 20;
-  if (analytics.growth.growthRate < 5) score -= 15;
-  if (analytics.growth.retentionRate < 70) score -= 25;
-  
-  const status = score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical';
-  return { score, status };
-}
-
-function generateAnalyticsRecommendations(analytics: any): string[] {
-  const recommendations: string[] = [];
-  
-  if (analytics.overview.averageVotesPerUser < 2) {
-    recommendations.push('Focus on increasing user engagement');
-  }
-  
-  if (analytics.growth.retentionRate < 70) {
-    recommendations.push('Improve user retention strategies');
-  }
-  
-  return recommendations;
-}
-
-function generateAnalyticsAlerts(analytics: any): string[] {
-  const alerts: string[] = [];
-  
-  if (analytics.growth.growthRate < 0) {
-    alerts.push('User growth is negative');
-  }
-  
-  if (analytics.engagement.lowEngagement > analytics.engagement.highlyEngaged) {
-    alerts.push('More users have low engagement than high engagement');
-  }
-  
-  return alerts;
-}
-
-function generateBenchmarks(analytics: any, period: string): any {
-  return {
-    industry: {
-      averageVotesPerUser: 3.2,
-      retentionRate: 75,
-      engagementRate: 45
-    },
-    yourPlatform: {
-      averageVotesPerUser: analytics.overview.averageVotesPerUser,
-      retentionRate: analytics.growth.retentionRate,
-      engagementRate: Math.round(
-        (analytics.voting.totalVotingUsers / analytics.overview.totalUsers) * 100
-      )
-    }
-  };
-}
-
-function analyzeSearchResults(users: any[], query: string): string {
-  if (users.length === 0) return 'no-matches';
-  if (users.length < 5) return 'few-matches';
-  return 'good-matches';
-}
-
-function generateSearchSuggestions(query: string, resultCount: number): string[] {
-  const suggestions: string[] = [];
-  
-  if (resultCount === 0) {
-    suggestions.push('Try using different keywords');
-    suggestions.push('Check spelling');
-  }
-  
-  return suggestions;
-}
-
-function generateRelatedSearches(query: string): string[] {
-  return [
-    `${query} active users`,
-    `${query} recent votes`,
-    `${query} high engagement`
-  ];
-}

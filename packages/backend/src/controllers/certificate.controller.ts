@@ -200,8 +200,8 @@ export async function createCertificate(
 
     // ✨ Check transfer limits for Web3 users
     if (hasWeb3 && shouldAutoTransfer) {
-      const transferUsage = await getTransferUsage(businessId);
-      const transferLimits = getTransferLimits(userPlan);
+      const transferUsage = await certificateService.getTransferUsage(businessId);
+      const transferLimits = certificateService.getTransferLimits(userPlan);
       
       if (transferUsage.thisMonth >= transferLimits.transfersPerMonth) {
          res.status(403).json({
@@ -232,7 +232,7 @@ export async function createCertificate(
     }
 
     // Validate recipient format based on contact method
-    const recipientValidation = validateRecipient(certificateData.recipient, certificateData.contactMethod);
+    const recipientValidation = certificateService.validateRecipient(certificateData.recipient, certificateData.contactMethod);
     if (!recipientValidation.valid) {
        res.status(400).json({
         error: 'Invalid recipient format',
@@ -321,7 +321,7 @@ export async function createCertificate(
     }
 
     // Send delivery notification
-    await processCertificateDelivery(mintResult, certificateData.deliveryOptions, hasWeb3);
+    await certificateService.processCertificateDelivery(mintResult, certificateData.deliveryOptions, hasWeb3);
 
     // ✨ Notify about certificate creation with transfer status
     await notificationsService.notifyBrandOfCertificateMinted(businessId, mintResult.certificateId, {
@@ -362,8 +362,8 @@ export async function createCertificate(
         },
         ...(hasWeb3 && {
           transfers: {
-            current: (await getTransferUsage(businessId)).thisMonth + (mintResult.transferScheduled ? 1 : 0),
-            limit: getTransferLimits(userPlan).transfersPerMonth
+            current: (await certificateService.getTransferUsage(businessId)).thisMonth + (mintResult.transferScheduled ? 1 : 0),
+            limit: certificateService.getTransferLimits(userPlan).transfersPerMonth
           }
         })
       },
@@ -372,7 +372,7 @@ export async function createCertificate(
         scheduled: !!certificateData.deliveryOptions?.scheduleDate,
         recipient: certificateData.recipient
       },
-      nextSteps: getCertificateNextSteps(hasWeb3, shouldAutoTransfer, mintResult.transferScheduled)
+      nextSteps: certificateService.getCertificateNextSteps(hasWeb3, shouldAutoTransfer, mintResult.transferScheduled)
     });
   } catch (error) {
     logger.error('Create certificate error:', error);
@@ -666,8 +666,8 @@ export async function listCertificates(
       certificates: certificates.map(cert => ({
         ...cert,
         id: cert._id.toString(),
-        ownershipStatus: getOwnershipStatus(cert),
-        transferHealth: getTransferHealth(cert)
+        ownershipStatus: certificateService.getOwnershipStatus(cert),
+        transferHealth: certificateService.getTransferHealth(cert)
       })),
       pagination: {
         currentPage: pageNum,
@@ -764,7 +764,7 @@ export async function getCertificate(
         id: certificate._id.toString(),
         ownershipStatus: certificate.getOwnershipStatus(),
         canBeTransferred: certificate.canBeTransferred(),
-        transferHealth: getTransferHealth(certificate)
+        transferHealth: certificateService.getTransferHealth(certificate)
       },
       blockchain: blockchainData,
       actions: {
@@ -967,8 +967,8 @@ export async function createBatchCertificates(
       initiatedBy: businessId,
       jobMetadata: {
         recipientCount,
-        estimatedDuration: calculateBatchDuration(recipientCount, batchData.batchOptions, hasWeb3),
-        priority: determineBatchPriority(userPlan),
+        estimatedDuration: certificateService.calculateBatchDuration(recipientCount, batchData.batchOptions, hasWeb3),
+        priority: certificateService.determineBatchPriority(userPlan),
         web3Enabled: hasWeb3,
         autoTransferEnabled: shouldAutoTransfer
       }

@@ -1050,7 +1050,7 @@ export class CertificateService {
   async scheduleDelivery(
     certificateId: string, 
     scheduleDate: Date,
-    scheduleData: any
+    deliveryData: any
   ): Promise<{ success: boolean; message: string; scheduledId?: string }> {
     try {
       const scheduledId = `scheduled_${Date.now()}`;
@@ -1058,7 +1058,7 @@ export class CertificateService {
       await this.storeScheduledDelivery({
         certificateId,
         scheduleDate,
-        scheduleData,
+        deliveryData,
         scheduledId,
         status: 'scheduled'
       });
@@ -1284,5 +1284,153 @@ private async processBatchJob(jobId: string): Promise<void> {
     }
     
     await this.notificationsService.sendEmail(certificate.recipient, 'Certificate Ready', message);
+  }
+
+  
+
+  public async getTransferUsage(businessId: string): Promise<{ thisMonth: number; total: number }> {
+    const brandSettings = await BrandSettings.findOne({ business: businessId });
+    const analytics = (brandSettings as any)?.transferAnalytics;
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const monthlyStats = analytics?.monthlyStats?.find((stat: any) => stat.month === currentMonth);
+    return {
+      thisMonth: monthlyStats?.transfers || 0,
+      total: analytics?.totalTransfers || 0
+    };
+  }
+
+  public getTransferLimits(plan: string): { transfersPerMonth: number; gasCreditsWei: string } {
+    const limits: Record<string, { transfersPerMonth: number; gasCreditsWei: string }> = {
+      growth: { transfersPerMonth: 500, gasCreditsWei: '50000000000000000' },
+      premium: { transfersPerMonth: 1000, gasCreditsWei: '100000000000000000' },
+      enterprise: { transfersPerMonth: Number.POSITIVE_INFINITY, gasCreditsWei: '1000000000000000000' }
+    };
+    return limits[plan] || { transfersPerMonth: 0, gasCreditsWei: '0' };
+  }
+
+  public getBatchLimits(plan: string): { maxBatchSize: number; maxConcurrent: number } {
+    const limits: Record<string, { maxBatchSize: number; maxConcurrent: number }> = {
+      growth: { maxBatchSize: 50, maxConcurrent: 3 },
+      premium: { maxBatchSize: 100, maxConcurrent: 5 },
+      enterprise: { maxBatchSize: 1000, maxConcurrent: 20 }
+    };
+    return limits[plan] || { maxBatchSize: 10, maxConcurrent: 1 };
+  }
+
+  public validateRecipient(recipient: string, contactMethod: string): { valid: boolean; error?: string } {
+    switch (contactMethod) {
+      case 'email': {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return { valid: emailRegex.test(recipient), error: !emailRegex.test(recipient) ? 'Invalid email format' : undefined };
+      }
+      case 'sms': {
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        return { valid: phoneRegex.test(recipient), error: !phoneRegex.test(recipient) ? 'Invalid phone number format' : undefined };
+      }
+      case 'wallet': {
+        const walletRegex = /^0x[a-fA-F0-9]{40}$/;
+        return { valid: walletRegex.test(recipient), error: !walletRegex.test(recipient) ? 'Invalid wallet address format' : undefined };
+      }
+      default:
+        return { valid: false, error: 'Invalid contact method' };
+    }
+  }
+
+  public getOwnershipStatus(certificate: any): string {
+    if (certificate.revoked) return 'revoked';
+    if (certificate.transferFailed && certificate.transferAttempts >= certificate.maxTransferAttempts) return 'failed';
+    if (certificate.transferredToBrand) return 'brand';
+    return 'relayer';
+  }
+
+  public getTransferHealth(certificate: any): { status: string; score: number; issues: string[] } {
+    const issues: string[] = [];
+    let score = 100;
+
+    if (certificate.transferFailed) {
+      issues.push('Transfer failed');
+      score -= 50;
+    }
+    if (certificate.transferAttempts > 1) {
+      issues.push('Multiple transfer attempts');
+      score -= 20;
+    }
+    if (certificate.status === 'pending_transfer' && certificate.nextTransferAttempt && new Date(certificate.nextTransferAttempt) < new Date()) {
+      issues.push('Transfer overdue');
+      score -= 30;
+    }
+
+    return {
+      status: score >= 80 ? 'healthy' : score >= 50 ? 'warning' : 'critical',
+      score: Math.max(0, score),
+      issues
+    };
+  }
+
+  public async processCertificateDelivery(mintResult: any, deliveryOptions: any, hasWeb3: boolean): Promise<void> {
+    const deliveryData = {
+      ...deliveryOptions,
+      web3Enabled: hasWeb3,
+      transferScheduled: mintResult.transferScheduled,
+      blockchainData: {
+        txHash: mintResult.txHash,
+        tokenId: mintResult.tokenId,
+        contractAddress: mintResult.contractAddress
+      }
+    };
+
+    if (deliveryOptions?.scheduleDate) {
+      await this.scheduleDelivery(mintResult.certificateId, deliveryOptions.scheduleDate, deliveryData);
+    } else {
+      await this.deliverCertificate(mintResult.certificateId, deliveryData);
+    }
+  }
+
+  public getCertificateNextSteps(hasWeb3: boolean, shouldAutoTransfer: boolean, transferScheduled: boolean): string[] {
+    const baseSteps = ['Certificate minted successfully on blockchain'];
+    if (hasWeb3) {
+      if (shouldAutoTransfer && transferScheduled) {
+        baseSteps.push(
+          'Auto-transfer to your wallet is scheduled',
+          'You will be notified when transfer completes',
+          'Certificate will appear in your Web3 wallet'
+        );
+      } else if (shouldAutoTransfer && !transferScheduled) {
+        baseSteps.push(
+          'Auto-transfer is enabled but transfer was not scheduled',
+          'Check your wallet configuration',
+          'Manual transfer may be required'
+        );
+      } else {
+        baseSteps.push(
+          'Certificate is stored in secure relayer wallet',
+          'Enable auto-transfer in settings for automatic delivery',
+          'Manual transfer available anytime'
+        );
+      }
+    } else {
+      baseSteps.push(
+        'Certificate is securely stored in our system',
+        'Upgrade to Premium for Web3 wallet integration',
+        'Direct wallet ownership available with upgrade'
+      );
+    }
+    return baseSteps;
+  }
+
+  public calculateBatchDuration(recipientCount: number, batchOptions: any, hasWeb3: boolean): number {
+    const baseTimePerCert = hasWeb3 ? 45 : 30;
+    const delay = batchOptions?.delayBetweenCerts || 1;
+    const concurrent = batchOptions?.maxConcurrent || 5;
+    const batches = Math.ceil(recipientCount / concurrent);
+    return Math.ceil((recipientCount * baseTimePerCert + (recipientCount - 1) * delay) / concurrent + batches * 5);
+  }
+
+  public determineBatchPriority(plan: string): 'low' | 'normal' | 'high' {
+    switch (plan) {
+      case 'enterprise': return 'high';
+      case 'premium': return 'normal';
+      default: return 'low';
+    }
   }
 }

@@ -84,7 +84,7 @@ export const uploadMedia = asyncHandler(async (
   const media = await mediaService.saveMedia(req.file, businessId, metadata);
 
   // Handle automatic updates based on category and resourceId
-  const autoUpdates = await handleAutomaticUpdates(media, businessId, metadata);
+  const autoUpdates = await mediaService.applyAutomaticUpdates(media, businessId, metadata);
 
   // Return standardized response
   res.status(201).json({
@@ -677,110 +677,7 @@ export const uploadMediaEnhanced = asyncHandler(async (
  * Handle automatic updates based on file category and resourceId
  */
 async function handleAutomaticUpdates(media: any, businessId: string, metadata: any): Promise<any> {
-  const updates = {
-    updated: [],
-    errors: []
-  };
-
-  try {
-    // Profile picture updates
-    if (media.category === 'profile') {
-      try {
-        // Update brand profile picture
-        const { BrandAccountService } = await import('../services/business/brandAccount.service');
-        const brandService = new BrandAccountService();
-        await brandService.updateBrandAccount(businessId, {
-          profilePictureUrl: media.url
-        });
-        updates.updated.push('Brand profile picture updated');
-      } catch (error) {
-        updates.errors.push('Failed to update brand profile picture');
-      }
-
-      try {
-        // Update manufacturer profile picture
-        const { ManufacturerAccountService } = await import('../services/business/manufacturerAccount.service');
-        const manufacturerService = new ManufacturerAccountService();
-        await manufacturerService.updateManufacturerAccount(businessId, {
-          profilePictureUrl: media.url
-        });
-        updates.updated.push('Manufacturer profile picture updated');
-      } catch (error) {
-        updates.errors.push('Failed to update manufacturer profile picture');
-      }
-    }
-
-    // Product image updates
-    if (media.category === 'product' && metadata.resourceId) {
-      try {
-        const { ProductService } = await import('../services/business/product.service');
-        const productService = new ProductService();
-        
-        // Get current product
-        const product = await productService.getProduct(metadata.resourceId, businessId);
-        if (product) {
-          // Add new image URL to product media array
-          const updatedMedia = [...(product.media || []), media.url];
-          await productService.updateProduct(metadata.resourceId, {
-            media: updatedMedia
-          }, businessId);
-          updates.updated.push(`Product ${metadata.resourceId} images updated`);
-        }
-      } catch (error) {
-        updates.errors.push(`Failed to update product ${metadata.resourceId} images`);
-      }
-    }
-
-    // Brand logo updates
-    if (media.category === 'banner' && metadata.description === 'Brand logo') {
-      try {
-        const { BrandSettingsService } = await import('../services/business/brandSettings.service');
-        const brandSettingsService = new BrandSettingsService();
-        await brandSettingsService.updateSettings(businessId, {
-          logoUrl: media.url
-        });
-        updates.updated.push('Brand logo updated');
-      } catch (error) {
-        updates.errors.push('Failed to update brand logo');
-      }
-    }
-
-    // Brand banner updates
-    if (media.category === 'banner' && metadata.description === 'Brand banner image') {
-      try {
-        const { BrandSettingsService } = await import('../services/business/brandSettings.service');
-        const brandSettingsService = new BrandSettingsService();
-        
-        // Get current settings and add new banner
-        const currentSettings = await brandSettingsService.getSettings(businessId);
-        const updatedBannerImages = [...(currentSettings.bannerImages || []), media.url];
-        
-        await brandSettingsService.updateSettings(businessId, {
-          bannerImages: updatedBannerImages
-        });
-        updates.updated.push('Brand banner updated');
-      } catch (error) {
-        updates.errors.push('Failed to update brand banner');
-      }
-    }
-
-    // Certificate document updates
-    if (media.category === 'certificate' && metadata.resourceId) {
-      try {
-        // For now, just log that certificate document was uploaded
-        // The certificate can be updated separately with the document URL
-        updates.updated.push(`Certificate ${metadata.resourceId} document uploaded (URL: ${media.url})`);
-      } catch (error) {
-        updates.errors.push(`Failed to process certificate ${metadata.resourceId} document`);
-      }
-    }
-
-  } catch (error) {
-    logger.error('Error in handleAutomaticUpdates:', error);
-    updates.errors.push('Failed to process automatic updates');
-  }
-
-  return updates;
+  return mediaService.applyAutomaticUpdates(media, businessId, metadata);
 }
 
 // Update the existing downloadMedia to handle S3 signed URLs

@@ -1,6 +1,6 @@
 // src/services/business/brandProfile.service.ts
 import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import { IBusiness } from '../../models/business.model';
 import { Business } from '../../models/business.model';
 

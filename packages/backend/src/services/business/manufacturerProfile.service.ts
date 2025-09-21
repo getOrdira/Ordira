@@ -1,7 +1,7 @@
 // src/services/business/manufacturerProfile.service.ts
 
 import { Manufacturer } from '../../models/manufacturer.model';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import { Business } from '../../models/business.model';
 import { BrandSettings } from '../../models/brandSettings.model';
 
@@ -592,7 +592,7 @@ export class ManufacturerProfileService {
     const searchId = `search_${Date.now()}_${brandId.slice(-6)}`;
     
     // TODO: Implement actual search saving
-    logger.info('Saving search ', ${searchName}" for brand ${brandId}:`, criteria);
+    logger.info(`Saving search "${searchName}" for brand ${brandId}:`, criteria);
     
     return searchId;
   }

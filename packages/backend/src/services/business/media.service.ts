@@ -273,6 +273,85 @@ export class MediaService {
   }
 
   /**
+   * Apply automatic updates based on uploaded media category and metadata.
+   * This centralizes the cross-service orchestration that was previously in the controller.
+   */
+  async applyAutomaticUpdates(media: any, businessId: string, metadata: any): Promise<{ updated: string[]; errors: string[] }> {
+    const updates: { updated: string[]; errors: string[] } = { updated: [], errors: [] };
+
+    try {
+      // Profile picture updates (brand and manufacturer)
+      if (media.category === 'profile') {
+        try {
+          const { BrandAccountService } = await import('./brandAccount.service');
+          const brandService = new BrandAccountService();
+          await brandService.updateBrandAccount(businessId, { profilePictureUrl: media.url });
+          updates.updated.push('Brand profile picture updated');
+        } catch (error: any) {
+          updates.errors.push('Failed to update brand profile picture');
+        }
+
+        try {
+          const { ManufacturerAccountService } = await import('./manufacturerAccount.service');
+          const manufacturerService = new ManufacturerAccountService();
+          await manufacturerService.updateManufacturerAccount(businessId, { profilePictureUrl: media.url });
+          updates.updated.push('Manufacturer profile picture updated');
+        } catch (error: any) {
+          updates.errors.push('Failed to update manufacturer profile picture');
+        }
+      }
+
+      // Product image updates
+      if (media.category === 'product' && metadata?.resourceId) {
+        try {
+          const { ProductService } = await import('./product.service');
+          const productService = new ProductService();
+          const product = await productService.getProduct(metadata.resourceId, businessId);
+          if (product) {
+            const updatedMedia = [...(product.media || []), media.url];
+            await productService.updateProduct(metadata.resourceId, { media: updatedMedia }, businessId);
+            updates.updated.push(`Product ${metadata.resourceId} images updated`);
+          }
+        } catch (error: any) {
+          updates.errors.push(`Failed to update product ${metadata.resourceId} images`);
+        }
+      }
+
+      // Brand logo updates
+      if (media.category === 'banner' && metadata?.description === 'Brand logo') {
+        try {
+          const { BrandSettingsService } = await import('./brandSettings.service');
+          const brandSettingsService = new BrandSettingsService();
+          await brandSettingsService.updateSettings(businessId, { logoUrl: media.url });
+          updates.updated.push('Brand logo updated');
+        } catch (error: any) {
+          updates.errors.push('Failed to update brand logo');
+        }
+      }
+
+      // Brand banner updates
+      if (media.category === 'banner' && metadata?.description === 'Brand banner image') {
+        try {
+          const { BrandSettingsService } = await import('./brandSettings.service');
+          const brandSettingsService = new BrandSettingsService();
+          const currentSettings = await brandSettingsService.getSettings(businessId);
+          const updatedBannerImages = [...(currentSettings.bannerImages || []), media.url];
+          await brandSettingsService.updateSettings(businessId, { bannerImages: updatedBannerImages });
+          updates.updated.push('Brand banner updated');
+        } catch (error: any) {
+          updates.errors.push('Failed to update brand banner');
+        }
+      }
+    } catch (err: any) {
+      // Catch-all to avoid breaking the upload flow
+      updates.errors.push('Automatic updates failed due to an unexpected error');
+      logger.warn('Automatic media updates failed:', err?.message || err);
+    }
+
+    return updates;
+  }
+
+  /**
    * List media uploaded by a given user/business with enhanced filtering
    */
   async listMediaByUser(

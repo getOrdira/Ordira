@@ -1892,4 +1892,70 @@ private calculateEngagementScore(voteCount: number, analytics: any): number {
   
   return Math.min(score, 1000); // Cap at 1000
 }
+
+/**
+ * Generate high-level business recommendations from analytics data
+ */
+public generateBusinessRecommendations(data: any): string[] {
+  const recommendations: string[] = [];
+
+  if (data?.trends?.volumeGrowth < 0) {
+    recommendations.push('Consider implementing customer retention strategies');
+  }
+
+  if (data?.summary?.averageValue < 100) {
+    recommendations.push('Explore opportunities to increase average transaction value');
+  }
+
+  if (data?.engagement?.rate < 0.3) {
+    recommendations.push('Focus on improving customer engagement and interaction');
+  }
+
+  return recommendations;
+}
+
+/**
+ * Return available metrics for a given subscription plan
+ */
+public getPlanMetrics(plan: string): string[] {
+  const baseMetrics = ['basic_stats', 'time_series', 'totals'];
+
+  switch (plan) {
+    case 'growth':
+      return [...baseMetrics, 'trends', 'comparisons'];
+    case 'premium':
+      return [...baseMetrics, 'trends', 'comparisons', 'predictions', 'exports'];
+    case 'enterprise':
+      return [...baseMetrics, 'trends', 'comparisons', 'predictions', 'exports', 'custom_reports', 'real_time'];
+    default:
+      return baseMetrics;
+  }
+}
+
+/**
+ * Recommend an upgrade path based on current analytics snapshot
+ */
+public generateUpgradeRecommendations(data: any): any {
+  return {
+    suggestedPlan: 'growth',
+    reasons: [
+      'Access to trend analysis and growth predictions',
+      'Enhanced reporting capabilities',
+      'Comparative analytics with industry benchmarks'
+    ],
+    potentialValue: 'Unlock insights that could improve performance by 15-25%'
+  };
+}
+
+/**
+ * Map export format to appropriate Content-Type
+ */
+public getContentType(format: string): string {
+  switch (format) {
+    case 'csv': return 'text/csv';
+    case 'pdf': return 'application/pdf';
+    case 'json': return 'application/json';
+    default: return 'application/octet-stream';
+  }
+}
 }

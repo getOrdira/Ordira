@@ -1347,4 +1347,173 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
       logger.error('Failed to send payment failed notification:', error);
     }
   }
+
+  // ===== Controller-extracted helper functions =====
+
+  public getPlanLevel(plan: PlanKey): number {
+    const levels = { foundation: 1, growth: 2, premium: 3, enterprise: 4 };
+    return levels[plan] || 0;
+  }
+
+  public formatPlanName(plan: string): string {
+    return plan.charAt(0).toUpperCase() + plan.slice(1);
+  }
+
+  public getPlanLimitsPublic(plan: PlanKey) {
+    return {
+      votes: PLAN_DEFINITIONS[plan].votes,
+      certificates: PLAN_DEFINITIONS[plan].certificates,
+      apiKeys: this.getPlanApiKeyLimit(plan),
+      storage: this.getPlanStorageLimit(plan)
+    };
+  }
+
+  public getPlanApiKeyLimit(plan: PlanKey): number {
+    const limits = { foundation: 2, growth: 5, premium: 15, enterprise: 50 };
+    return limits[plan] || 1;
+  }
+
+  public getPlanStorageLimit(plan: PlanKey): number {
+    const limits = { foundation: 1, growth: 5, premium: 25, enterprise: 100 }; // GB
+    return limits[plan] || 0.5;
+  }
+
+  public calculateUtilization(usage: any, plan: PlanKey): any {
+    const limits = this.getPlanLimitsPublic(plan);
+    return {
+      votes: limits.votes === Infinity ? 0 : (usage.votes / limits.votes) * 100,
+      certificates: limits.certificates === Infinity ? 0 : (usage.certificates / limits.certificates) * 100,
+      storage: (usage.storage / (limits.storage * 1024 * 1024 * 1024)) * 100 // Convert GB to bytes
+    };
+  }
+
+  public calculateOverage(usage: any, limits: any): any {
+    return {
+      votes: Math.max(0, usage.votes - limits.votes),
+      certificates: Math.max(0, usage.certificates - limits.certificates),
+      storage: Math.max(0, usage.storage - (limits.storage * 1024 * 1024 * 1024))
+    };
+  }
+
+  public getPlanFeatures(plan: PlanKey): string[] {
+    const features = {
+      foundation: ['Basic Analytics', 'Email Support', '2 API Keys'],
+      growth: ['Advanced Analytics', 'Priority Support', '5 API Keys', 'Integrations'],
+      premium: ['Custom Reports', 'Phone Support', '15 API Keys', 'Advanced Integrations', 'NFT Features'],
+      enterprise: ['White-label', 'Dedicated Support', 'Unlimited API Keys', 'Custom Features', 'SLA']
+    };
+    return features[plan] || [];
+  }
+
+  public async getAvailableDiscounts(businessId: string, tenant: any): Promise<any[]> {
+    const discounts = [];
+    
+    // Check for Web3 token discounts
+    if (tenant?.certificateWallet) {
+      const tokenDiscountService = new TokenDiscountService();
+      const tokenDiscount = await tokenDiscountService.getCouponForWallet(tenant.certificateWallet);
+      if (tokenDiscount) {
+        discounts.push({
+          type: 'web3_token',
+          description: 'NFT Holder Discount',
+          discount: '10%'
+        });
+      }
+    }
+    
+    // Check for loyalty discounts
+    const loyaltyDiscount = await this.checkLoyaltyDiscount(businessId);
+    if (loyaltyDiscount) {
+      discounts.push(loyaltyDiscount);
+    }
+    
+    return discounts;
+  }
+
+  public generatePlanRecommendations(usage: any, currentPlan: PlanKey): string[] {
+    const recommendations = [];
+    const utilization = this.calculateUtilization(usage, currentPlan);
+    
+    if (utilization.votes > 80) {
+      recommendations.push('Consider upgrading to avoid hitting vote limits');
+    }
+    
+    if (utilization.certificates > 80) {
+      recommendations.push('Certificate usage is high - upgrade for more capacity');
+    }
+    
+    if (currentPlan === 'foundation' && usage.apiCalls > 50) {
+      recommendations.push('Upgrade to Growth plan for better API limits');
+    }
+    
+    return recommendations;
+  }
+
+  public generateUsageRecommendations(usage: any, limits: any, projections: any): string[] {
+    const recommendations = [];
+    
+    if (projections.votesNextMonth > limits.votes) {
+      recommendations.push('Projected to exceed vote limits next month');
+    }
+    
+    if (usage.storage > limits.storage * 0.9) {
+      recommendations.push('Storage usage is high - consider upgrading');
+    }
+    
+    return recommendations;
+  }
+
+  public async calculatePricingSummary(plan: PlanKey, couponCode?: string, addons: string[] = []): Promise<any> {
+    const basePlan = PLAN_DEFINITIONS[plan];
+    
+    // Ensure price is always a number
+    let total = Number(basePlan.price) || 0;
+
+    // Add addon pricing
+    const addonPricing = addons.reduce((sum, addon) => {
+      return sum + this.getAddonPrice(addon);
+    }, 0);
+
+    total += addonPricing;
+
+    // Apply coupon discount
+    let discount = 0;
+    if (couponCode) {
+      discount = await this.calculateCouponDiscount(couponCode, total);
+    }
+
+    return {
+      basePrice: Number(basePlan.price) || 0,
+      addons: addonPricing,
+      subtotal: total,
+      discount,
+      total: total - discount,
+      currency: 'USD'
+    };
+  }
+
+  public getAddonPrice(addon: string): number {
+    const addonPrices: Record<string, number> = {
+      'extra_storage': 5,
+      'priority_support': 15,
+      'custom_domain': 10,
+      'advanced_analytics': 20
+    };
+    return addonPrices[addon] || 0;
+  }
+
+  public async calculateCouponDiscount(couponCode: string, amount: number): Promise<number> {
+    try {
+      const coupon = await this.stripe.coupons.retrieve(couponCode);
+      if (coupon.percent_off) {
+        return (amount * coupon.percent_off) / 100;
+      }
+      if (coupon.amount_off) {
+        return coupon.amount_off / 100; // Convert cents to dollars
+      }
+    } catch (error) {
+      logger.warn('Invalid coupon code:', { couponCode: couponCode });  
+    }
+    return 0;
+  }
 }

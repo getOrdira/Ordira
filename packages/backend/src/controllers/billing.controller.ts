@@ -80,8 +80,8 @@ export async function createCheckoutSession(
 
     // Get current subscription info
     const currentBilling = await billingService.getBillingInfo(businessId).catch(() => null);
-    const isUpgrade = currentBilling && getPlanLevel(plan) > getPlanLevel(currentBilling.plan);
-    const isDowngrade = currentBilling && getPlanLevel(plan) < getPlanLevel(currentBilling.plan);
+    const isUpgrade = currentBilling && billingService.getPlanLevel(plan) > billingService.getPlanLevel(currentBilling.plan);
+    const isDowngrade = currentBilling && billingService.getPlanLevel(plan) < billingService.getPlanLevel(currentBilling.plan);
 
     // Check for Web3 token discounts
    let tokenDiscount = null;
@@ -114,7 +114,7 @@ if (req.tenant?.web3Settings?.certificateWallet) {
     trackManufacturerAction(isUpgrade ? 'upgrade_plan' : 'create_subscription');
 
     // Calculate pricing summary
-    const pricingSummary = await calculatePricingSummary(plan, couponCode, addons);
+    const pricingSummary = await billingService.calculatePricingSummary(plan, couponCode, addons);
 
     res.json({
       sessionId: checkoutSession.id,
@@ -179,7 +179,7 @@ export async function changePlan(
     }
 
     // Fix the method call to pass all required arguments
-const isDowngrade = getPlanLevel(plan) < getPlanLevel(currentPlan);
+const isDowngrade = billingService.getPlanLevel(plan) < billingService.getPlanLevel(currentPlan);
 if (isDowngrade) {
   // Check if downgrade is allowed based on current usage
   const usageCheck = await billingService.validateDowngrade(currentPlan, plan, businessId);
@@ -228,7 +228,7 @@ if (isDowngrade) {
         effectiveDate: result.effectiveDate,
         prorationAmount: result.prorationAmount
       },
-      newFeatures: getPlanFeatures(plan),
+      newFeatures: billingService.getPlanFeatures(plan),
       message: `Successfully ${isDowngrade ? 'downgraded' : 'upgraded'} to ${plan} plan`
     });
   } catch (error) {
@@ -258,20 +258,20 @@ export async function getPlan(
     // Get available plans and features
     const availablePlans = Object.entries(PLAN_DEFINITIONS).map(([key, def]) => ({
       id: key,
-      name: formatPlanName(key),
+      name: billingService.formatPlanName(key),
       features: def,
       currentPlan: key === billingInfo.plan,
-      canUpgradeTo: getPlanLevel(key as PlanKey) > getPlanLevel(billingInfo.plan),
-      canDowngradeTo: getPlanLevel(key as PlanKey) < getPlanLevel(billingInfo.plan)
+      canUpgradeTo: billingService.getPlanLevel(key as PlanKey) > billingService.getPlanLevel(billingInfo.plan),
+      canDowngradeTo: billingService.getPlanLevel(key as PlanKey) < billingService.getPlanLevel(billingInfo.plan)
     }));
 
     // Check for available discounts
-    const availableDiscounts = await getAvailableDiscounts(businessId, req.tenant);
+    const availableDiscounts = await billingService.getAvailableDiscounts(businessId, req.tenant);
 
     res.json({
        currentPlan: {
     id: billingInfo.plan,
-    name: formatPlanName(billingInfo.plan),
+    name: billingService.formatPlanName(billingInfo.plan),
     features: PLAN_DEFINITIONS[billingInfo.plan as keyof typeof PLAN_DEFINITIONS] || PLAN_DEFINITIONS.foundation,
     subscriptionStatus: billingInfo.subscriptionStatus,
     currentPeriodEnd: billingInfo.currentPeriodEnd,
@@ -279,8 +279,8 @@ export async function getPlan(
   },
       usage: {
         current: usageStats,
-        limits: getPlanLimits(billingInfo.plan),
-        utilizationPercentage: calculateUtilization(usageStats, billingInfo.plan)
+        limits: billingService.getPlanLimitsPublic(billingInfo.plan),
+        utilizationPercentage: billingService.calculateUtilization(usageStats, billingInfo.plan)
       },
       billing: {
         customerId: billingInfo.stripeCustomerId,
@@ -291,7 +291,7 @@ export async function getPlan(
       },
       availablePlans,
       discounts: availableDiscounts,
-      recommendations: generatePlanRecommendations(usageStats, billingInfo.plan)
+      recommendations: billingService.generatePlanRecommendations(usageStats, billingInfo.plan)
     });
   } catch (error) {
     logger.error('Get plan error:', error);
@@ -315,7 +315,7 @@ export async function getUsageStats(
     // Get detailed usage analytics
     const usage = await billingService.getDetailedUsage(businessId, period as string);
     const currentPlan = req.tenant?.plan || 'foundation';
-    const planLimits = getPlanLimits(currentPlan);
+    const planLimits = billingService.getPlanLimitsPublic(currentPlan);
 
     // Calculate projections
     const projections = await billingService.calculateUsageProjections(businessId);
@@ -324,10 +324,10 @@ export async function getUsageStats(
       period,
       currentUsage: usage,
       limits: planLimits,
-      utilization: calculateUtilization(usage, currentPlan),
+      utilization: billingService.calculateUtilization(usage, currentPlan),
       projections,
-      overage: calculateOverage(usage, planLimits),
-      recommendations: generateUsageRecommendations(usage, planLimits, projections)
+      overage: billingService.calculateOverage(usage, planLimits),
+      recommendations: billingService.generateUsageRecommendations(usage, planLimits, projections)
     });
   } catch (error) {
     logger.error('Usage stats error:', error);
@@ -553,172 +553,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription): Pro
   await billingService.handleSubscriptionCreated(subscription);
 }
 
-// Helper functions
-function getPlanLevel(plan: PlanKey): number {
-  const levels = { foundation: 1, growth: 2, premium: 3, enterprise: 4 };
-  return levels[plan] || 0;
-}
-
-function formatPlanName(plan: string): string {
-  return plan.charAt(0).toUpperCase() + plan.slice(1);
-}
-
-function getPlanLimits(plan: PlanKey) {
-  return {
-    votes: PLAN_DEFINITIONS[plan].votes,
-    certificates: PLAN_DEFINITIONS[plan].certificates,
-    apiKeys: getPlanApiKeyLimit(plan),
-    storage: getPlanStorageLimit(plan)
-  };
-}
-
-function getPlanApiKeyLimit(plan: PlanKey): number {
-  const limits = { foundation: 2, growth: 5, premium: 15, enterprise: 50 };
-  return limits[plan] || 1;
-}
-
-function getPlanStorageLimit(plan: PlanKey): number {
-  const limits = { foundation: 1, growth: 5, premium: 25, enterprise: 100 }; // GB
-  return limits[plan] || 0.5;
-}
-
-function calculateUtilization(usage: any, plan: PlanKey): any {
-  const limits = getPlanLimits(plan);
-  return {
-    votes: limits.votes === Infinity ? 0 : (usage.votes / limits.votes) * 100,
-    certificates: limits.certificates === Infinity ? 0 : (usage.certificates / limits.certificates) * 100,
-    storage: (usage.storage / (limits.storage * 1024 * 1024 * 1024)) * 100 // Convert GB to bytes
-  };
-}
-
-function calculateOverage(usage: any, limits: any): any {
-  return {
-    votes: Math.max(0, usage.votes - limits.votes),
-    certificates: Math.max(0, usage.certificates - limits.certificates),
-    storage: Math.max(0, usage.storage - (limits.storage * 1024 * 1024 * 1024))
-  };
-}
-
-function getPlanFeatures(plan: PlanKey): string[] {
-  const features = {
-    foundation: ['Basic Analytics', 'Email Support', '2 API Keys'],
-    growth: ['Advanced Analytics', 'Priority Support', '5 API Keys', 'Integrations'],
-    premium: ['Custom Reports', 'Phone Support', '15 API Keys', 'Advanced Integrations', 'NFT Features'],
-    enterprise: ['White-label', 'Dedicated Support', 'Unlimited API Keys', 'Custom Features', 'SLA']
-  };
-  return features[plan] || [];
-}
-
-async function getAvailableDiscounts(businessId: string, tenant: any): Promise<any[]> {
-  const discounts = [];
-  
-  // Check for Web3 token discounts
-  if (tenant?.certificateWallet) {
-    const tokenDiscount = await tokenDiscountService.getCouponForWallet(tenant.certificateWallet);
-    if (tokenDiscount) {
-      discounts.push({
-        type: 'web3_token',
-        description: 'NFT Holder Discount',
-        discount: '10%'
-      });
-    }
-  }
-  
-  // Check for loyalty discounts
-  const loyaltyDiscount = await billingService.checkLoyaltyDiscount(businessId);
-  if (loyaltyDiscount) {
-    discounts.push(loyaltyDiscount);
-  }
-  
-  return discounts;
-}
-
-function generatePlanRecommendations(usage: any, currentPlan: PlanKey): string[] {
-  const recommendations = [];
-  const utilization = calculateUtilization(usage, currentPlan);
-  
-  if (utilization.votes > 80) {
-    recommendations.push('Consider upgrading to avoid hitting vote limits');
-  }
-  
-  if (utilization.certificates > 80) {
-    recommendations.push('Certificate usage is high - upgrade for more capacity');
-  }
-  
-  if (currentPlan === 'foundation' && usage.apiCalls > 50) {
-    recommendations.push('Upgrade to Growth plan for better API limits');
-  }
-  
-  return recommendations;
-}
-
-function generateUsageRecommendations(usage: any, limits: any, projections: any): string[] {
-  const recommendations = [];
-  
-  if (projections.votesNextMonth > limits.votes) {
-    recommendations.push('Projected to exceed vote limits next month');
-  }
-  
-  if (usage.storage > limits.storage * 0.9) {
-    recommendations.push('Storage usage is high - consider upgrading');
-  }
-  
-  return recommendations;
-}
-
-async function calculatePricingSummary(plan: PlanKey, couponCode?: string, addons: string[] = []): Promise<any> {
-  const basePlan = PLAN_DEFINITIONS[plan];
-  
-  // Ensure price is always a number
-  let total = Number(basePlan.price) || 0;
-
-  // Add addon pricing
-  const addonPricing = addons.reduce((sum, addon) => {
-    return sum + getAddonPrice(addon);
-  }, 0);
-
-  total += addonPricing;
-
-  // Apply coupon discount
-  let discount = 0;
-  if (couponCode) {
-    discount = await calculateCouponDiscount(couponCode, total);
-  }
-
-  return {
-    basePrice: Number(basePlan.price) || 0,
-    addons: addonPricing,
-    subtotal: total,
-    discount,
-    total: total - discount,
-    currency: 'USD'
-  };
-}
-
-function getAddonPrice(addon: string): number {
-  const addonPrices: Record<string, number> = {
-    'extra_storage': 5,
-    'priority_support': 15,
-    'custom_domain': 10,
-    'advanced_analytics': 20
-  };
-  return addonPrices[addon] || 0;
-}
-
-async function calculateCouponDiscount(couponCode: string, amount: number): Promise<number> {
-  try {
-    const coupon = await stripe.coupons.retrieve(couponCode);
-    if (coupon.percent_off) {
-      return (amount * coupon.percent_off) / 100;
-    }
-    if (coupon.amount_off) {
-      return coupon.amount_off / 100; // Convert cents to dollars
-    }
-  } catch (error) {
-    logger.warn('Invalid coupon code:', { couponCode: couponCode });  
-  }
-  return 0;
-}
+// Helper functions moved to BillingService - now using service methods
 
 
 

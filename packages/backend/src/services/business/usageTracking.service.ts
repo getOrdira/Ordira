@@ -1,6 +1,6 @@
 // src/services/business/usageTracking.service.ts
 import { Billing } from '../../models/billing.model';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import { Business } from '../../models/business.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../../constants/plans';
 import { createAppError } from '../../middleware/error.middleware';
@@ -51,7 +51,7 @@ export class UsageTrackingService {
         throw createAppError('Failed to update usage tracking', 500, 'USAGE_UPDATE_FAILED');
       }
 
-      logger.info('Usage updated for business ${businessId}:', usageUpdate);
+      logger.info(`Usage updated for business ${businessId}:`, usageUpdate);
     } catch (error: any) {
       logger.error('Usage tracking update error:', error);
       if (error.statusCode) {
@@ -167,7 +167,7 @@ export class UsageTrackingService {
         }
       );
 
-      logger.info('Monthly usage reset for business ${businessId}');
+      logger.info(`Monthly usage reset for business ${businessId}`);
     } catch (error: any) {
       logger.error('Reset monthly usage error:', error);
       throw createAppError(`Failed to reset usage: ${error.message}`, 500, 'USAGE_RESET_ERROR');

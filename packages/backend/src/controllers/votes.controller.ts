@@ -281,73 +281,23 @@ export const submitVote = asyncHandler(async (
     throw createAppError('Maximum 10 proposals can be voted on at once', 400, 'TOO_MANY_PROPOSALS');
   }
 
-  // Record pending votes and check for duplicate votes
-  const voteRecords = [];
-  for (const proposalId of proposalIds) {
-    try {
-      const voteId = new mongoose.Types.ObjectId().toString();
-      await PendingVote.create({ 
-        businessId, 
-        proposalId, 
-        userId, 
-        voteId,
-        voteType: voteType || 'for',
-        reason: reason?.trim()
-      });
-      
-      voteRecords.push({
-        proposalId,
-        voteId,
-        voteType: voteType || 'for',
-        recordedAt: new Date().toISOString()
-      });
-    } catch (error: any) {
-      if (error.code === 11000) {
-        throw createAppError(`You have already voted for proposal ${proposalId}`, 409, 'DUPLICATE_VOTE');
-      }
-      throw error;
-    }
-  }
+  const result = await votingBusinessService.queueVotes(businessId, userId, proposalIds, { voteType, reason });
 
-  // Check if we've reached the batching threshold
-  const allPendingVotes = await PendingVote.find({ businessId });
-  const BATCH_THRESHOLD = parseInt(process.env.VOTE_BATCH_THRESHOLD || '20');
-  
-  let batchSubmitted = false;
-  let batchResult = null;
-
-  if (allPendingVotes.length >= BATCH_THRESHOLD) {
-    try {
-      // Process pending votes through service
-      batchResult = await votingBusinessService.processPendingVotes(businessId);
-      
-      if (batchResult) {
-        // Clear pending votes after successful batch submission
-        await PendingVote.deleteMany({ businessId });
-        batchSubmitted = true;
-      }
-    } catch (error: any) {
-      logger.error('Failed to submit batch votes:', error);
-      // Continue with individual vote recording even if batch fails
-    }
-  }
-
-  // Return standardized response
-  if (batchSubmitted && batchResult) {
+  if (result.batchSubmitted && result.batchResult) {
     res.status(201).json({
       success: true,
       message: 'Votes recorded and batch submitted to blockchain',
       data: {
-        votes: voteRecords,
+        votes: result.voteRecords,
         batch: {
           submitted: true,
-          transactionHash: batchResult.txHash,
-          totalVotes: allPendingVotes.length,
+          transactionHash: result.batchResult.txHash,
+          totalVotes: result.totalPending,
           submittedAt: new Date().toISOString()
         },
         blockchain: {
           network: process.env.BLOCKCHAIN_NETWORK || 'base',
-          explorer: `https://basescan.org/tx/${batchResult.txHash}`
+          explorer: `https://basescan.org/tx/${result.batchResult.txHash}`
         }
       }
     });
@@ -356,15 +306,15 @@ export const submitVote = asyncHandler(async (
       success: true,
       message: 'Votes recorded. Will be submitted to blockchain when threshold is reached.',
       data: {
-        votes: voteRecords,
+        votes: result.voteRecords,
         pending: {
-          totalPending: allPendingVotes.length,
-          threshold: BATCH_THRESHOLD,
-          remaining: BATCH_THRESHOLD - allPendingVotes.length
+          totalPending: result.totalPending,
+          threshold: result.threshold,
+          remaining: result.threshold - result.totalPending
         },
         batch: {
           submitted: false,
-          willSubmitWhen: `${BATCH_THRESHOLD} votes are collected`
+          willSubmitWhen: `${result.threshold} votes are collected`
         }
       }
     });
@@ -395,73 +345,17 @@ export const listVotes = asyncHandler(async (
   const pageNum = parseInt(page);
   const limitNum = Math.min(parseInt(limit), 100);
 
-  // Get votes through service
-  const votes = await votingBusinessService.getBusinessVotes(businessId);
-
-  // Get pending votes
-  const pendingVotesQuery: any = { businessId };
-  if (proposalId) pendingVotesQuery.proposalId = proposalId;
-  if (userId) pendingVotesQuery.userId = userId;
-
-  const pendingVotes = await PendingVote.find(pendingVotesQuery)
-    .sort({ createdAt: -1 })
-    .lean();
-
-  // Filter submitted votes if needed
-  const filteredVotes = votes.filter(vote => {
-    if (proposalId && vote.proposalId !== proposalId) return false;
-    if (userId && vote.voter !== userId) return false;
-    return true;
+  const listing = await votingBusinessService.getVotesListing(businessId, {
+    proposalId,
+    userId,
+    page: pageNum,
+    limit: limitNum
   });
 
-  // Apply pagination to submitted votes
-  const total = filteredVotes.length;
-  const startIndex = (pageNum - 1) * limitNum;
-  const paginatedVotes = filteredVotes.slice(startIndex, startIndex + limitNum);
-
-  // Get voting statistics
-  const votingStats = await votingBusinessService.getVotingStats(businessId);
-
-  // Return standardized response
   res.json({
     success: true,
     message: 'Votes retrieved successfully',
-    data: {
-      submittedVotes: paginatedVotes.map(vote => ({
-        id: vote.proposalId,
-        proposalId: vote.proposalId,
-        voter: vote.voter,
-        transactionHash: vote.txHash,
-        submittedAt: vote.createdAt || new Date().toISOString(),
-        status: 'confirmed'
-      })),
-      pendingVotes: pendingVotes.map(vote => ({
-        id: vote._id.toString(),
-        proposalId: vote.proposalId,
-        userId: vote.userId,
-        voteId: vote.voteId,
-        recordedAt: vote.createdAt,
-        status: 'pending'
-      })),
-      stats: {
-        totalSubmitted: votingStats.totalVotes,
-        totalPending: votingStats.pendingVotes,
-        totalProposals: votingStats.totalProposals,
-        batchThreshold: parseInt(process.env.VOTE_BATCH_THRESHOLD || '20')
-      },
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
-        hasNext: pageNum < Math.ceil(total / limitNum),
-        hasPrev: pageNum > 1
-      },
-      filters: {
-        proposalId,
-        userId
-      }
-    }
+    data: listing
   });
 });
 
@@ -716,72 +610,15 @@ export const getProposalResults = asyncHandler(async (
 
   const { proposalId } = req.params;
 
-  // Get proposal details (reuse existing logic)
-  const proposals = await votingBusinessService.getBusinessProposals(businessId);
-  const proposal = proposals.find(p => p.proposalId === proposalId);
-  
-  if (!proposal) {
-    throw createAppError('Proposal not found', 404, 'PROPOSAL_NOT_FOUND');
-  }
-
-  // Get all votes for this proposal
-  const allVotes = await votingBusinessService.getBusinessVotes(businessId);
-  const proposalVotes = allVotes.filter(vote => vote.proposalId === proposalId);
-  const pendingVotes = await PendingVote.find({ businessId, proposalId }).lean();
-
-  // Calculate product selection breakdown (since this is product selection voting)
-  const productSelections = new Map();
-  
-  // Count selections from submitted votes
-  proposalVotes.forEach(vote => {
-    const productId = vote.selectedProductId;
-    if (productId) {
-      productSelections.set(productId, (productSelections.get(productId) || 0) + 1);
-    }
-  });
-  
-  // Count selections from pending votes  
-  pendingVotes.forEach(vote => {
-    const productId = vote.selectedProductId;
-    if (productId) {
-      productSelections.set(productId, (productSelections.get(productId) || 0) + 1);
-    }
-  });
-
-  const totalVotes = proposalVotes.length + pendingVotes.length;
-  const topProducts = Array.from(productSelections.entries())
-    .map(([productId, count]) => ({ productId, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+  const result = await votingBusinessService.getProposalResultsData(businessId, proposalId);
 
   res.json({
     success: true,
     message: 'Proposal results retrieved successfully',
     data: {
-      proposal: {
-        id: proposal.proposalId,
-        description: proposal.description,
-        status: proposal.status || 'active',
-        createdAt: proposal.createdAt
-      },
-      results: {
-        totalVotes,
-        topProducts,
-        totalUniqueProducts: productSelections.size,
-        mostPopularProduct: topProducts.length > 0 ? {
-          productId: topProducts[0].productId,
-          votes: topProducts[0].count,
-          percentage: Math.round((topProducts[0].count / totalVotes) * 100)
-        } : null,
-        competitionLevel: productSelections.size > 5 ? 'high' : productSelections.size > 2 ? 'medium' : 'low'
-      },
-      participation: {
-        submittedVotes: proposalVotes.length,
-        pendingVotes: pendingVotes.length,
-        // Would need total eligible voters from business settings
-        eligibleVoters: 100, // Placeholder
-        participationRate: totalVotes > 0 ? `${Math.round((totalVotes / 100) * 100)}%` : '0%'
-      },
+      proposal: result.proposal,
+      results: result.results,
+      participation: result.participation,
       generatedAt: new Date().toISOString()
     }
   });

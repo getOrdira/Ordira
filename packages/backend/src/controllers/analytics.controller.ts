@@ -134,7 +134,7 @@ export async function getTransactionsAnalytics(
     peakTransactionDay: data.timeSeries?.reduce((peak, current) => 
       current.count > peak.count ? current : peak
     ) ?? null,
-    recommendations: generateBusinessRecommendations(data)
+    recommendations: analyticsService.generateBusinessRecommendations(data)
   },
   metadata: {
     businessId,
@@ -644,9 +644,9 @@ export async function getDashboardAnalytics(
       ...dashboardData,
       planFeatures: {
         currentPlan: userPlan,
-        availableMetrics: getPlanMetrics(userPlan),
+        availableMetrics: analyticsService.getPlanMetrics(userPlan),
         upgradeRecommendations: userPlan === 'foundation' ? 
-          generateUpgradeRecommendations(dashboardData) : null
+          analyticsService.generateUpgradeRecommendations(dashboardData) : null
       },
       metadata: {
         businessId,
@@ -715,7 +715,7 @@ export async function exportAnalytics(
     const filename = `analytics_${type}_${timestamp}.${format}`;
     
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', getContentType(format as string));
+    res.setHeader('Content-Type', analyticsService.getContentType(format as string));
 
     if (format === 'json') {
       res.json(exportData);
@@ -779,57 +779,3 @@ export async function generateCustomReport(
   }
 }
 
-// Helper functions
-function generateBusinessRecommendations(data: any): string[] {
-  const recommendations: string[] = [];
-  
-  if (data.trends?.volumeGrowth < 0) {
-    recommendations.push('Consider implementing customer retention strategies');
-  }
-  
-  if (data.summary?.averageValue < 100) {
-    recommendations.push('Explore opportunities to increase average transaction value');
-  }
-  
-  if (data.engagement?.rate < 0.3) {
-    recommendations.push('Focus on improving customer engagement and interaction');
-  }
-  
-  return recommendations;
-}
-
-function getPlanMetrics(plan: string): string[] {
-  const baseMetrics = ['basic_stats', 'time_series', 'totals'];
-  
-  switch (plan) {
-    case 'growth':
-      return [...baseMetrics, 'trends', 'comparisons'];
-    case 'premium':
-      return [...baseMetrics, 'trends', 'comparisons', 'predictions', 'exports'];
-    case 'enterprise':
-      return [...baseMetrics, 'trends', 'comparisons', 'predictions', 'exports', 'custom_reports', 'real_time'];
-    default:
-      return baseMetrics;
-  }
-}
-
-function generateUpgradeRecommendations(data: any): any {
-  return {
-    suggestedPlan: 'growth',
-    reasons: [
-      'Access to trend analysis and growth predictions',
-      'Enhanced reporting capabilities',
-      'Comparative analytics with industry benchmarks'
-    ],
-    potentialValue: 'Unlock insights that could improve performance by 15-25%'
-  };
-}
-
-function getContentType(format: string): string {
-  switch (format) {
-    case 'csv': return 'text/csv';
-    case 'pdf': return 'application/pdf';
-    case 'json': return 'application/json';
-    default: return 'application/octet-stream';
-  }
-}

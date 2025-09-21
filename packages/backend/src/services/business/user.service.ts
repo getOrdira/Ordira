@@ -1,6 +1,6 @@
 // src/services/business/user.service.ts
 import { User, IUser } from '../../models/user.model';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import { NotificationService } from './notification.service';
 import { AnalyticsBusinessService } from './analytics.service';
 import { UtilsService } from '../utils/utils.service';
@@ -160,7 +160,7 @@ export class UserService {
     
     // Fix 3: Replace sendUserWelcome with simple logging or remove entirely
     try {
-      logger.info('User created successfully: ${user.email} (${user.firstName || ', Unknown'});`);
+      logger.info(`User created successfully: ${user.email} (${user.firstName || 'Unknown'});`);
       // If you have a working welcome method, use that instead
     } catch (error) {
       logger.warn('Failed to log user creation:', error);
@@ -209,7 +209,7 @@ export class UserService {
       
       // Fix 4: Replace sendAccountSuspensionNotice with logging or working method
       try {
-        logger.info('User suspended: ${user.email} - Reason: ${data.suspensionReason || ', Terms violation'}`);
+        logger.info(`User suspended: ${user.email} - Reason: ${data.suspensionReason || 'Terms violation'}`);
         // If you have a working suspension notification method, use that instead
       } catch (error) {
         logger.warn('Failed to log user suspension:', error);
@@ -923,5 +923,241 @@ async recordBrandInteraction(userId: string, businessId: string, type: string): 
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
+  }
+
+  // ===== Controller-extracted helper functions =====
+
+  public generateLoginSuggestions(user: any): string[] {
+    const suggestions: string[] = [];
+    
+    if (user.analytics.totalVotes === 0) {
+      suggestions.push('Cast your first vote to get started');
+    }
+    
+    if (user.analytics.totalVotes < 5) {
+      suggestions.push('Explore trending product proposals');
+    }
+    
+    return suggestions;
+  }
+
+  public getRelevantAnnouncements(user: any): string[] {
+    return [
+      'New brands have joined the platform',
+      'Your votes from last month influenced 3 products',
+      'Check out the latest voting campaigns'
+    ];
+  }
+
+  public generateProfileRecommendations(user: any, insights: any): string[] {
+    const recommendations: string[] = [];
+    
+    if (!user.firstName) {
+      recommendations.push('Add your name for a personalized experience');
+    }
+    
+    if (!user.profilePictureUrl) {
+      recommendations.push('Upload a profile picture');
+    }
+    
+    if (insights.tier === 'low') {
+      recommendations.push('Start voting to increase your engagement');
+    }
+    
+    return recommendations;
+  }
+
+  public generateUpdateImpact(changes: string[]): string[] {
+    const impact: string[] = [];
+    
+    if (changes.includes('preferences')) {
+      impact.push('Notification settings updated');
+    }
+    
+    if (changes.includes('firstName') || changes.includes('lastName')) {
+      impact.push('Profile display name updated');
+    }
+    
+    return impact;
+  }
+
+  public generatePostVoteActions(user: any, businessId: string): string[] {
+    return [
+      'See how your vote compares to others',
+      'Explore more products from this brand',
+      'Share your voting experience',
+      'Check voting results when available'
+    ];
+  }
+
+  public calculateAverageVotesPerMonth(user: any): number {
+    const monthsActive = Math.max(1, Math.floor(
+      (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30)
+    ));
+    return Math.round(user.analytics.totalVotes / monthsActive * 10) / 10;
+  }
+
+  public findMostActiveMonth(votes: any[]): string | null {
+    if (!votes.length) return null;
+    
+    const monthCounts: Record<string, number> = {};
+    votes.forEach(vote => {
+      const month = new Date(vote.votedAt).toISOString().substring(0, 7);
+      monthCounts[month] = (monthCounts[month] || 0) + 1;
+    });
+    
+    const mostActive = Object.entries(monthCounts)
+      .sort(([,a], [,b]) => b - a)[0];
+    
+    return mostActive ? mostActive[0] : null;
+  }
+
+  public generateVotingInsights(votes: any[], stats: any): string[] {
+    const insights: string[] = [];
+    
+    if (stats.totalVotes > 10) {
+      insights.push('You\'re an active voter!');
+    }
+    
+    if (votes.length > 0) {
+      const recentVotes = votes.filter(v => 
+        Date.now() - new Date(v.votedAt).getTime() < 7 * 24 * 60 * 60 * 1000
+      );
+      if (recentVotes.length > 0) {
+        insights.push(`You've voted ${recentVotes.length} times this week`);
+      }
+    }
+    
+    return insights;
+  }
+
+  public analyzeUserDistribution(users: any[]): any {
+    const distribution = {
+      byStatus: {} as Record<string, number>,
+      byEngagement: { low: 0, medium: 0, high: 0 },
+      verified: 0,
+      unverified: 0
+    };
+    
+    users.forEach(user => {
+      distribution.byStatus[user.status] = (distribution.byStatus[user.status] || 0) + 1;
+      
+      if (user.isEmailVerified) distribution.verified++;
+      else distribution.unverified++;
+      
+      if (user.analytics.totalVotes === 0) distribution.byEngagement.low++;
+      else if (user.analytics.totalVotes < 10) distribution.byEngagement.medium++;
+      else distribution.byEngagement.high++;
+    });
+    
+    return distribution;
+  }
+
+  public analyzeEngagementLevels(users: any[]): any {
+    const totalUsers = users.length;
+    if (totalUsers === 0) return { average: 0, distribution: {} };
+    
+    const totalVotes = users.reduce((sum, user) => sum + user.analytics.totalVotes, 0);
+    
+    return {
+      averageVotesPerUser: Math.round(totalVotes / totalUsers * 10) / 10,
+      highlyEngaged: users.filter(u => u.analytics.totalVotes >= 10).length,
+      moderatelyEngaged: users.filter(u => u.analytics.totalVotes >= 1 && u.analytics.totalVotes < 10).length,
+      lowEngagement: users.filter(u => u.analytics.totalVotes === 0).length
+    };
+  }
+
+  public generateUserTrends(users: any[]): any {
+    const now = new Date();
+    const lastMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    const newUsers = users.filter(u => new Date(u.createdAt) >= lastMonth).length;
+    const activeUsers = users.filter(u => new Date(u.analytics.lastActiveAt) >= lastMonth).length;
+    
+    return {
+      newUsersLastMonth: newUsers,
+      activeUsersLastMonth: activeUsers,
+      growthRate: users.length > 0 ? Math.round((newUsers / users.length) * 100) : 0
+    };
+  }
+
+  public calculatePlatformHealth(analytics: any): { score: number; status: string } {
+    let score = 100;
+    
+    if (analytics.overview.averageVotesPerUser < 2) score -= 20;
+    if (analytics.growth.growthRate < 5) score -= 15;
+    if (analytics.growth.retentionRate < 70) score -= 25;
+    
+    const status = score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical';
+    return { score, status };
+  }
+
+  public generateAnalyticsRecommendations(analytics: any): string[] {
+    const recommendations: string[] = [];
+    
+    if (analytics.overview.averageVotesPerUser < 2) {
+      recommendations.push('Focus on increasing user engagement');
+    }
+    
+    if (analytics.growth.retentionRate < 70) {
+      recommendations.push('Improve user retention strategies');
+    }
+    
+    return recommendations;
+  }
+
+  public generateAnalyticsAlerts(analytics: any): string[] {
+    const alerts: string[] = [];
+    
+    if (analytics.growth.growthRate < 0) {
+      alerts.push('User growth is negative');
+    }
+    
+    if (analytics.engagement.lowEngagement > analytics.engagement.highlyEngaged) {
+      alerts.push('More users have low engagement than high engagement');
+    }
+    
+    return alerts;
+  }
+
+  public generateBenchmarks(analytics: any, period: string): any {
+    return {
+      industry: {
+        averageVotesPerUser: 3.2,
+        retentionRate: 75,
+        engagementRate: 45
+      },
+      platform: {
+        averageVotesPerUser: analytics.overview.averageVotesPerUser,
+        retentionRate: analytics.growth.retentionRate,
+        engagementRate: analytics.engagement.engagementRate
+      },
+      period
+    };
+  }
+
+  public analyzeSearchResults(users: any[], query: string): string {
+    if (users.length === 0) return 'no-matches';
+    if (users.length < 5) return 'few-matches';
+    return 'good-matches';
+  }
+
+  public generateSearchSuggestions(query: string, resultCount: number): string[] {
+    const suggestions: string[] = [];
+    
+    if (resultCount === 0) {
+      suggestions.push('Try searching with different keywords');
+      suggestions.push('Check spelling and try again');
+    }
+    
+    return suggestions;
+  }
+
+  public generateRelatedSearches(query: string): string[] {
+    return [
+      `${query} active users`,
+      `${query} recent votes`,
+      `${query} engagement`
+    ];
   }
 }
