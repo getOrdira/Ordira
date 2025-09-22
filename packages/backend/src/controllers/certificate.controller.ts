@@ -10,6 +10,7 @@ import { getServices } from '../services/container.service';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Certificate } from '../models/certificate.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
+import { NftService } from '../services/blockchain/nft.service';
 
 // ✨ Enhanced request interfaces with Web3 support
 interface CertificateRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
@@ -136,12 +137,16 @@ export async function createCertificate(
       billing: billingService,
       notifications: notificationsService,
       analytics: analyticsService,
-      nft: nftService
+      nft: nftService,
     } = getServices();
 
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    const certificateData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const certificateData = req.validatedBody;
 
     // ✨ Get brand settings for Web3 capabilities
     const brandSettings = await BrandSettings.findOne({ business: businessId });
@@ -292,13 +297,7 @@ export async function createCertificate(
     // Track certificate creation
     trackManufacturerAction('create_certificate');
 
-    // ✨ Update usage tracking
-    try {
-      await usageTrackingService.updateUsage(businessId, { certificates: 1 });
-    } catch (usageError) {
-      logger.warn('Failed to update usage tracking:', usageError);
-      // Don't fail the certificate creation if usage tracking fails
-    }
+    // Note: Usage tracking handled by middleware
 
     // Send delivery notification
     await certificateService.processCertificateDelivery(mintResult, certificateData.deliveryOptions, hasWeb3);
@@ -380,7 +379,11 @@ export async function transferCertificates(
 
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    const { certificateIds, brandWallet, transferOptions } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { certificateIds, brandWallet, transferOptions } = req.validatedBody;
 
     // Check Web3 permissions
     const brandSettings = await BrandSettings.findOne({ business: businessId });
@@ -901,7 +904,11 @@ export async function createBatchCertificates(
 
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    const batchData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const batchData = req.validatedBody;
 
     // Validate batch permissions using new plan system
     const planLimits = certificateService.getPlanLimits(userPlan);
@@ -998,13 +1005,7 @@ export async function createBatchCertificates(
     // Track batch creation
     trackManufacturerAction('create_batch_certificates');
 
-    // ✨ Update usage tracking for batch
-    try {
-      await usageTrackingService.updateUsage(businessId, { certificates: recipientCount });
-    } catch (usageError) {
-      logger.warn('Failed to update batch usage tracking:', usageError);
-      // Don't fail the batch creation if usage tracking fails
-    }
+    // Note: Usage tracking handled by middleware
 
     res.status(202).json({
       success: true,
@@ -1057,7 +1058,11 @@ export async function revokeCertificate(
 
     const businessId = req.userId!;
     const { id } = req.params;
-    const { reason, notifyRecipient = true, burnNft = false } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { reason, notifyRecipient = true, burnNft = false } = req.validatedBody;
 
     // Get certificate
     const certificate = await Certificate.findOne({

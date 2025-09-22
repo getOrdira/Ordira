@@ -28,8 +28,10 @@ import { InvitationService } from './business/invitation.service';
 import { EmailGatingService } from './business/emailGating.service';
 import { ManufacturerAccountService } from './business/manufacturerAccount.service';
 import { SubscriptionService } from './business/subscription.service';
+import { SupplyChainService } from './blockchain/supplyChain.service';
 import { QrCodeService } from './external/qrCode.service';
 import { SecurityAuditService } from './security/securityAudit.service';
+import { UsageTrackingService } from './business/usageTracking.service';
 
 /**
  * Dependency Injection Container
@@ -78,8 +80,10 @@ export class ServiceContainer {
     this.services.set('emailGatingService', new EmailGatingService());
     this.services.set('manufacturerAccountService', new ManufacturerAccountService());
     this.services.set('subscriptionService', new SubscriptionService());
+    this.services.set('usageTrackingService', new UsageTrackingService());
     // External/Platform Services
     this.services.set('domainMappingService', new DomainMappingService());
+    this.services.set('supplyChainService', SupplyChainService.getInstance());
     this.services.set('qrCodeService', new QrCodeService());
     this.services.set('securityAuditService', SecurityAuditService.getInstance());
 
@@ -166,6 +170,8 @@ export const getInvitationService = () => getContainer().get<InvitationService>(
 export const getEmailGatingService = () => getContainer().get<EmailGatingService>('emailGatingService');
 export const getManufacturerAccountService = () => getContainer().get<ManufacturerAccountService>('manufacturerAccountService');
 export const getSubscriptionService = () => getContainer().get<SubscriptionService>('subscriptionService');
+export const getUsageTrackingService = () => getContainer().get<UsageTrackingService>('usageTrackingService');
+export const getSupplyChainService = () => getContainer().get<SupplyChainService>('supplyChainService');
 export const getQrCodeService = () => getContainer().get<QrCodeService>('qrCodeService');
 export const getSecurityAuditService = () => getContainer().get<SecurityAuditService>('securityAuditService');
 
@@ -184,6 +190,7 @@ export const getServices = () => ({
   media: getMediaService(),
   manufacturer: getManufacturerService(),
   brandAccount: getBrandAccountService(),
+  brandProfile: getBrandProfileService(),
   billing: getBillingService(),
   shopify: getShopifyService(),
   wix: getWixService(),
@@ -192,5 +199,7 @@ export const getServices = () => ({
   stripe: getStripeService(),
   tokenDiscount: getTokenDiscountService(),
   nft: getNftService(),
-  domainMapping: getDomainMappingService()
+  domainMapping: getDomainMappingService(),
+  supplyChain: getSupplyChainService(),
+  usageTracking: getUsageTrackingService()
 });

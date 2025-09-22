@@ -81,6 +81,39 @@ export class SupplyChainService {
     return SupplyChainService.instance;
   }
 
+  // ===== Instance wrappers for DI usage =====
+  public async deployContract(businessId: string, manufacturerName: string) {
+    return SupplyChainService.deploySupplyChainContract(businessId, manufacturerName);
+    }
+
+  public async createEndpoint(contractAddress: string, endpointData: EndpointData, businessId: string) {
+    return SupplyChainService.createEndpoint(contractAddress, endpointData, businessId);
+  }
+
+  public async registerProduct(contractAddress: string, productData: ProductData, businessId: string) {
+    return SupplyChainService.registerProduct(contractAddress, productData, businessId);
+  }
+
+  public async logEvent(contractAddress: string, eventData: EventData, businessId: string) {
+    return SupplyChainService.logEvent(contractAddress, eventData, businessId);
+  }
+
+  public async getContractStats(contractAddress: string, businessId: string) {
+    return SupplyChainService.getContractStats(contractAddress, businessId);
+  }
+
+  public async getEndpoints(contractAddress: string, businessId: string) {
+    return SupplyChainService.getEndpoints(contractAddress, businessId);
+  }
+
+  public async getProducts(contractAddress: string, businessId: string) {
+    return SupplyChainService.getProducts(contractAddress, businessId);
+  }
+
+  public async getProductEvents(contractAddress: string, productId: string, businessId: string) {
+    return SupplyChainService.getProductEvents(contractAddress, productId, businessId);
+  }
+
   // ===== FACTORY CONTRACT MANAGEMENT =====
 
   /**

@@ -150,6 +150,111 @@ export class SubscriptionService {
     return await this.mapToSummary(subscription);
   }
 
+  // ===== Controller helper extractions =====
+  public getAvailableTiersData(): Array<{ id: string; name: string; price: number }> {
+    return [
+      { id: 'foundation', name: 'Foundation', price: 39.99 },
+      { id: 'growth', name: 'Growth', price: 59.99 },
+      { id: 'premium', name: 'Premium', price: 119.99 },
+      { id: 'enterprise', name: 'Enterprise', price: 499.99 }
+    ];
+  }
+
+  public getTierFeatures(tier: string): string[] {
+    const features = {
+      foundation: ['Basic Analytics', 'Email Support', 'API Access', '1GB Storage'],
+      growth: ['Advanced Analytics', 'Priority Support', 'Webhooks', '5GB Storage', 'Custom Branding'],
+      premium: ['Real-time Analytics', 'Custom Domain', '25GB Storage', 'Advanced Integrations'],
+      enterprise: ['White-label', 'Dedicated Support', 'SLA', '100GB Storage', 'Custom Features', 'On-premise Option']
+    } as const;
+    return (features as any)[tier] || [];
+  }
+
+  public generateOnboardingSteps(tier: string): string[] {
+    const steps = ['Complete profile setup', 'Upload your first product', 'Explore analytics dashboard'];
+    if (tier === 'enterprise') steps.push('Schedule onboarding call', 'Configure custom features');
+    return steps;
+  }
+
+  public calculateHealthScore(subscription: any): { score: number; status: string; factors: string[] } {
+    let score = 100;
+    const factors: string[] = [];
+    if (subscription.usagePercentages?.votes > 90) { score -= 20; factors.push('Vote usage very high'); }
+    else if (subscription.usagePercentages?.votes > 80) { score -= 10; factors.push('Vote usage high'); }
+    if (subscription.usagePercentages?.nfts > 90) { score -= 20; factors.push('NFT usage very high'); }
+    if (subscription.status !== 'active') { score -= 30; factors.push(`Subscription ${subscription.status}`); }
+    if (subscription.billing?.isTrialPeriod) {
+      const daysLeft = Math.ceil((new Date(subscription.billing.trialEndsAt).getTime() - Date.now()) / 86400000);
+      if (daysLeft <= 3) { score -= 15; factors.push('Trial ending soon'); }
+    }
+    const status = score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical';
+    return { score: Math.max(0, score), status, factors };
+  }
+
+  public identifyRiskFactors(subscription: any): string[] {
+    const risks: string[] = [];
+    if (subscription.usagePercentages?.votes > 95) risks.push('Vote limit nearly exceeded');
+    if (subscription.billing?.isTrialPeriod) {
+      const daysLeft = Math.ceil((new Date(subscription.billing.trialEndsAt).getTime() - Date.now()) / 86400000);
+      if (daysLeft <= 7) risks.push('Trial expiring within 7 days');
+    }
+    if (subscription.status === 'past_due') risks.push('Payment overdue');
+    return risks;
+  }
+
+  public findOptimizationOpportunities(subscription: any): string[] {
+    const ops: string[] = [];
+    if (subscription.tier !== 'foundation' && subscription.usagePercentages?.votes < 30) ops.push('Consider downgrading to save costs');
+    if (subscription.usagePercentages?.votes > 80 && subscription.tier !== 'enterprise') ops.push('Upgrade to higher tier for better limits');
+    return ops;
+  }
+
+  public generateTierComparison(currentTier: string) {
+    const tiers = ['foundation', 'growth', 'premium', 'enterprise'];
+    const i = tiers.indexOf(currentTier);
+    return { current: currentTier, canUpgrade: i < tiers.length - 1, canDowngrade: i > 0, nextTier: i < tiers.length - 1 ? tiers[i + 1] : null, previousTier: i > 0 ? tiers[i - 1] : null };
+  }
+
+  public generateImmediateActions(subscription: any): string[] {
+    const actions: string[] = [];
+    if (subscription.billing?.isTrialPeriod) {
+      const daysLeft = Math.ceil((new Date(subscription.billing.trialEndsAt).getTime() - Date.now()) / 86400000);
+      if (daysLeft <= 3) actions.push('Add billing information to continue service');
+    }
+    if (subscription.usagePercentages?.votes > 90) actions.push('Consider upgrading plan to avoid hitting limits');
+    return actions;
+  }
+
+  public generatePlannedActions(): string[] {
+    return ['Review monthly usage patterns', 'Evaluate tier optimization opportunities', 'Plan for growth and scaling needs'];
+  }
+
+  public analyzeSubscriptionChanges(current: any, updated: any, changes: any) {
+    const analysis = {
+      tierChange: !!changes.tier && changes.tier !== current.tier,
+      billingChange: !!changes.billingCycle && changes.billingCycle !== current.billing?.billingCycle,
+      statusChange: !!changes.status && changes.status !== current.status,
+      immediate: [] as string[],
+      billing: [] as string[],
+      additionalSteps: [] as string[]
+    };
+    if (analysis.tierChange) {
+      analysis.immediate.push(`Tier changed from ${current.tier} to ${changes.tier}`);
+      analysis.billing.push('New tier pricing applies from next billing cycle');
+    }
+    return analysis;
+  }
+
+  public generateImmediateImpact(changes: any): string[] { return changes.immediate || []; }
+  public generateBillingImpact(changes: any): string[] { return changes.billing || []; }
+  public generateFeatureImpact(): string[] { return ['Feature access updated based on new tier']; }
+  public generateLimitImpact(): string[] { return ['Usage limits updated to match new tier']; }
+  public generateWinBackOffers(_subscription: any, reason?: string): string[] {
+    const offers: string[] = [];
+    if (reason === 'cost') offers.push('20% discount for next 3 months');
+    return offers;
+  }
+
  /**
  * Update an existing subscription
  */

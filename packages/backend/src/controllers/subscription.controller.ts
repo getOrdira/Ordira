@@ -9,42 +9,7 @@ import { getSubscriptionService } from '../services/container.service';
 const subscriptionService = getSubscriptionService();
 
 
-// ====================
-// HELPER FUNCTIONS
-// ====================
-
-function getAvailableTiersData(): any[] {
-  return [
-    { id: 'foundation', name: 'Foundation', price: 39.99 },
-    { id: 'growth', name: 'Growth', price: 59.99 },
-    { id: 'premium', name: 'Premium', price: 119.99 },
-    { id: 'enterprise', name: 'Enterprise', price: 499.99 }
-  ];
-}
-
-function getTierFeatures(tier: string): string[] {
-  const features = {
-    foundation: ['Basic Analytics', 'Email Support', 'API Access', '1GB Storage'],
-    growth: ['Advanced Analytics', 'Priority Support', 'Webhooks', '5GB Storage', 'Custom Branding'],
-    premium: ['Real-time Analytics', 'Custom Domain', '25GB Storage', 'Advanced Integrations'],
-    enterprise: ['White-label', 'Dedicated Support', 'SLA', '100GB Storage', 'Custom Features', 'On-premise Option']
-  };
-  return features[tier as keyof typeof features] || [];
-}
-
-function generateOnboardingSteps(tier: string): string[] {
-  const baseSteps = [
-    'Complete profile setup',
-    'Upload your first product',
-    'Explore analytics dashboard'
-  ];
-
-  if (tier === 'enterprise') {
-    baseSteps.push('Schedule onboarding call', 'Configure custom features');
-  }
-
-  return baseSteps;
-}
+// Controller helper logic moved to SubscriptionService
 
 function calculateHealthScore(subscription: any): { score: number; status: string; factors: string[] } {
   let score = 100;
@@ -392,17 +357,17 @@ export const getCurrentSubscription = asyncHandler(async (
 
     // Calculate additional insights
     const insights = {
-      healthScore: calculateHealthScore(subscription),
-      riskFactors: identifyRiskFactors(subscription),
-      optimizationOpportunities: findOptimizationOpportunities(subscription),
-      tierComparison: generateTierComparison(subscription.tier)
+      healthScore: subscriptionService.calculateHealthScore(subscription),
+      riskFactors: subscriptionService.identifyRiskFactors(subscription),
+      optimizationOpportunities: subscriptionService.findOptimizationOpportunities(subscription),
+      tierComparison: subscriptionService.generateTierComparison(subscription.tier)
     };
 
     // Generate actionable recommendations
     const actions = {
-      immediate: generateImmediateActions(subscription),
+      immediate: subscriptionService.generateImmediateActions(subscription),
       suggested: analytics.recommendations,
-      planned: generatePlannedActions(subscription)
+      planned: subscriptionService.generatePlannedActions()
     };
 
     res.json({
@@ -439,7 +404,7 @@ export const getCurrentSubscription = asyncHandler(async (
         data: {
           hasSubscription: false,
           setupRequired: true,
-          availableTiers: getAvailableTiersData(),
+          availableTiers: subscriptionService.getAvailableTiersData(),
           defaultTier: 'foundation',
           trialAvailable: true,
           trialDays: 14,
@@ -482,8 +447,8 @@ export const createSubscription = asyncHandler(async (
 
   // Generate onboarding information
   const onboarding = {
-    nextSteps: generateOnboardingSteps(subscription.tier),
-    features: getTierFeatures(subscription.tier),
+    nextSteps: subscriptionService.generateOnboardingSteps(subscription.tier),
+    features: subscriptionService.getTierFeatures(subscription.tier),
     limits: subscription.limits,
     resources: {
       documentation: '/docs/getting-started',
@@ -532,7 +497,7 @@ export const updateSubscription = asyncHandler(async (
   const updatedSubscription = await subscriptionService.updateSubscription(businessId, updateData);
 
   // Analyze the changes made
-  const changes = analyzeSubscriptionChanges(currentSubscription, updatedSubscription, updateData);
+  const changes = subscriptionService.analyzeSubscriptionChanges(currentSubscription, updatedSubscription, updateData);
 
   // Generate impact assessment
   const impact = {
@@ -594,7 +559,7 @@ export const cancelSubscription = asyncHandler(async (
     pause: !cancelImmediately ? 'Consider pausing instead of canceling' : null,
     downgrade: subscription.tier !== 'foundation' ? 'Consider downgrading to a lower tier' : null,
     feedback: feedback ? 'Thank you for your feedback - we\'ll use it to improve' : 'We\'d love to hear why you\'re canceling',
-    winBack: generateWinBackOffers(subscription, reason)
+    winBack: subscriptionService.generateWinBackOffers(subscription, reason)
   };
 
   res.json({
@@ -748,36 +713,36 @@ export const getAvailableTiers = asyncHandler(async (
     foundation: {
       id: 'foundation',
       name: 'Foundation',
-      price: { monthly: 39, yearly: 479 },
+      price: { monthly: 39.99, yearly: 479 },
       limits: { votes: 100, nfts: 50, api: 500, storage: 1 },
-      features: getTierFeatures('foundation'),
+      features: subscriptionService.getTierFeatures('foundation'),
       recommended: false,
       popular: false
     },
     growth: {
       id: 'growth',
       name: 'Growth',
-      price: { monthly: 59, yearly: 720 },
+      price: { monthly: 59.99, yearly: 720 },
       limits: { votes: 500, nfts: 150, api: 2000, storage: 5 },
-      features: getTierFeatures('growth'),
+      features: subscriptionService.getTierFeatures('growth'),
       recommended: true,
       popular: true
     },
     premium: {
       id: 'premium',
       name: 'Premium',
-      price: { monthly: 119, yearly: 1428 },
+      price: { monthly: 119.99, yearly: 1428 },
       limits: { votes: 2000, nfts: 300, api: 10000, storage: 25 },
-      features: getTierFeatures('premium'),
+      features: subscriptionService.getTierFeatures('premium'),
       recommended: false,
       popular: false
     },
     enterprise: {
       id: 'enterprise',
       name: 'Enterprise',
-      price: { monthly: 499, yearly: 4788 },
+      price: { monthly: 499.99, yearly: 4788 },
       limits: { votes: 'unlimited', nfts: 'unlimited', api: 'unlimited', storage: 100 },
-      features: getTierFeatures('enterprise'),
+      features: subscriptionService.getTierFeatures('enterprise'),
       recommended: false,
       popular: false,
       customPricing: true

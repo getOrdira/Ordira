@@ -3,14 +3,14 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { ManufacturerAccountService } from '../services/business/manufacturerAccount.service';
+import { getManufacturerAccountService } from '../services/container.service';
 import { Location } from '../models/location.model';
 import { SupplyChainEvent } from '../models/supplyChainEvent.model';
 import { Product } from '../models/product.model';
 import { hasCreatedAt, hasMongoDocumentProperties } from '../utils/typeGuards';
 
-// Initialize service
-const manufacturerAccountService = new ManufacturerAccountService();
+// Initialize service via container
+const manufacturerAccountService = getManufacturerAccountService();
 
 /**
  * GET /api/manufacturer/supply-chain/overview

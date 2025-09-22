@@ -191,7 +191,11 @@ export async function updateBrandProfile(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const updateData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const updateData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Get service instance
@@ -285,7 +289,11 @@ export async function submitVerification(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const verificationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const verificationData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Check if verification is already in progress
@@ -402,7 +410,11 @@ export async function deactivateAccount(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { reason, feedback, deleteData = false, confirmPassword } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { reason, feedback, deleteData = false, confirmPassword } = req.validatedBody;
 
     // Verify password for security
     const { brandAccount: brandAccountService } = getServices();
@@ -528,7 +540,11 @@ export async function exportAccountData(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { format = 'json', includeAnalytics = false } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { format = 'json', includeAnalytics = false } = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Validate export permissions

@@ -60,6 +60,10 @@ export async function createKey(
     }
 
     // Validate and process request data with explicit typing
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
     const {
       name = 'Default API Key',
       permissions = ['read'] as string[], // ← Add explicit type
@@ -67,7 +71,7 @@ export async function createKey(
       rateLimits,
       allowedOrigins,
       description
-    } = req.validatedBody || req.body;
+    } = req.validatedBody;
 
     // Validate permissions against plan with explicit typing
     const allowedPermissions: string[] = apiKeyService.getPlanPermissions(userPlan);
@@ -266,7 +270,11 @@ export async function bulkUpdateKeys(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { action, keyIds, reason } = req.validatedBody || req.body;
+  if (!req.validatedBody) {
+    res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+    return;
+  }
+  const { action, keyIds, reason } = req.validatedBody;
 
     if (!action || !keyIds || !Array.isArray(keyIds) || keyIds.length === 0) {
       res.status(400).json({
@@ -444,12 +452,16 @@ export async function exportKeys(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
     const {
       format = 'json',
       includeUsageStats = false,
       includeAuditLog = false,
       keyIds
-    } = req.validatedBody || req.body;
+    } = req.validatedBody;
 
     // Get service instance
     const { apiKey: apiKeyService } = getServices();
@@ -633,6 +645,10 @@ export async function updateKey(
       return;
     }
 
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
     const {
       name,
       permissions,
@@ -641,7 +657,7 @@ export async function updateKey(
       allowedOrigins,
       description,
       isActive
-    } = req.validatedBody || req.body;
+    } = req.validatedBody;
 
     // Validate permissions if being updated
     if (permissions) {

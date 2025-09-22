@@ -50,7 +50,14 @@ export async function addDomainMapping(
   try {
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    const { domain, certificateType = 'letsencrypt', forceHttps = true, autoRenewal = true, customCertificate } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({
+        error: 'Request validation required - missing validatedBody',
+        code: 'VALIDATION_REQUIRED'
+      });
+      return;
+    }
+    const { domain, certificateType = 'letsencrypt', forceHttps = true, autoRenewal = true, customCertificate } = req.validatedBody;
 
     // Validate plan permissions for custom domains
     if (!['growth', 'premium', 'enterprise'].includes(userPlan)) {
@@ -434,7 +441,14 @@ export async function updateDomainMapping(
   try {
     const businessId = req.userId!;
     const { domainId } = req.params;
-    const updateData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({
+        error: 'Request validation required - missing validatedBody',
+        code: 'VALIDATION_REQUIRED'
+      });
+      return;
+    }
+    const updateData = req.validatedBody;
 
     // Get existing mapping
     const existingMapping = await domainMappingService.getDomainMapping(businessId, domainId);

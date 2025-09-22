@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { getBrandProfileService } from '../services/container.service';
+import { getServices } from '../services/container.service';
 import { isUnifiedAuthRequest, safeString } from '../utils/typeGuards';
 
 // Enhanced request interfaces
@@ -41,7 +41,7 @@ interface ManufacturerViewRequest extends UnifiedAuthRequest, ValidatedRequest {
 }
 
 // Initialize service via container
-const brandProfileService = getBrandProfileService();
+const { brandProfile: brandProfileService } = getServices();
 
 /**
  * GET /api/brands
@@ -321,7 +321,11 @@ export async function reportBrand(
 ): Promise<void> {
   try {
     const { id: brandId } = req.params;
-    const { reason, description, evidence } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { reason, description, evidence } = req.validatedBody;
 
     if (!brandId) {
       res.status(400).json({
@@ -410,7 +414,11 @@ export async function provideBrandRecommendationFeedback(
 ): Promise<void> {
   try {
     const manufacturerId = req.userId!;
-    const { brandId, feedback, rating, reason } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { brandId, feedback, rating, reason } = req.validatedBody;
 
     // Record feedback using service
     await brandProfileService.recordRecommendationFeedback(manufacturerId, brandId, {

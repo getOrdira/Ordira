@@ -6,7 +6,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { getBillingService, getNotificationsService, getStripeService, getTokenDiscountService } from '../services/container.service';
+import { getBillingService, getServices } from '../services/container.service';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 import { clearPlanCache } from '../middleware/rateLimiter.middleware';
 import { Billing } from '../models/billing.model';
@@ -38,6 +38,7 @@ interface WebhookRequest extends Request {
 }
 
 // Services are now injected via container
+const { billing: billingService, notifications: notificationsService, tokenDiscount: tokenDiscountService } = getServices();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2022-11-15'
@@ -60,7 +61,11 @@ export async function createCheckoutSession(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { plan, couponCode, addons = [] } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { plan, couponCode, addons = [] } = req.validatedBody;
 
     if (!isPlanKey(plan)) {
        res.status(400).json({ 
@@ -72,7 +77,6 @@ export async function createCheckoutSession(
     }
 
     // Get current subscription info
-    const billingService = getBillingService();
     const currentBilling = await billingService.getBillingInfo(businessId).catch(() => null);
     const isUpgrade = currentBilling && billingService.getPlanLevel(plan) > billingService.getPlanLevel(currentBilling.plan);
     const isDowngrade = currentBilling && billingService.getPlanLevel(plan) < billingService.getPlanLevel(currentBilling.plan);
@@ -80,7 +84,7 @@ export async function createCheckoutSession(
     // Check for Web3 token discounts
    let tokenDiscount = null;
 if (req.tenant?.web3Settings?.certificateWallet) {
-  tokenDiscount = await getTokenDiscountService().getCouponForWallet(
+  tokenDiscount = await tokenDiscountService.getCouponForWallet(
     req.tenant.web3Settings.certificateWallet
   );
 }
@@ -203,7 +207,7 @@ if (isDowngrade) {
     trackManufacturerAction(isDowngrade ? 'downgrade_plan' : 'upgrade_plan');
 
     // Send notification email
-    await getNotificationsService().sendPlanChangeNotification(
+    await notificationsService.sendPlanChangeNotification(
       businessId,
       currentPlan,
       plan,
@@ -245,7 +249,6 @@ export async function getPlan(
     const businessId = req.userId!;
 
     // Get comprehensive billing information
-    const billingService = getBillingService();
     const billingInfo = await billingService.getComprehensiveBillingInfo(businessId);
     
     // Get usage statistics
@@ -309,7 +312,6 @@ export async function getUsageStats(
     const { period = '30d' } = req.query;
 
     // Get detailed usage analytics
-    const billingService = getBillingService();
     const usage = await billingService.getDetailedUsage(businessId, period as string);
     const currentPlan = req.tenant?.plan || 'foundation';
     const planLimits = billingService.getPlanLimitsPublic(currentPlan);
@@ -343,7 +345,11 @@ export async function updatePaymentMethod(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { paymentMethodId, billingAddress } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { paymentMethodId, billingAddress } = req.validatedBody;
 
     if (!paymentMethodId) {
        res.status(400).json({
@@ -355,7 +361,6 @@ export async function updatePaymentMethod(
 
     // Update payment method with billing address
     // Current method signature: updatePaymentMethod(businessId: string, paymentMethodId: string)
-    const billingService = getBillingService();
     const result = await billingService.updatePaymentMethod(businessId, paymentMethodId);
 
     // Track payment method update
@@ -383,10 +388,13 @@ export async function cancelSubscription(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { reason, feedback, cancelImmediately = false } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { reason, feedback, cancelImmediately = false } = req.validatedBody;
 
     // Process cancellation
-    const billingService = getBillingService();
     const result = await billingService.cancelSubscription(businessId, {
       reason,
       feedback,
@@ -398,7 +406,7 @@ export async function cancelSubscription(
     trackManufacturerAction('cancel_subscription');
 
     // Send cancellation confirmation
-    await getNotificationsService().sendCancellationConfirmation(businessId, result);
+    await notificationsService.sendCancellationConfirmation(businessId, result);
 
     res.json({
       success: true,
@@ -510,10 +518,10 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
     
     if (invoice.billing_reason === 'subscription_cycle') {
       // Process renewal with token discount re-evaluation
-      await getBillingService().processRenewal(subscriptionId);
+      await billingService.processRenewal(subscriptionId);
       
       // Send renewal notification
-      await getNotificationsService().sendRenewalConfirmation(subscriptionId);
+      await notificationsService.sendRenewalConfirmation(subscriptionId);
     }
     
     // Clear any cached billing info
@@ -534,18 +542,18 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   const subscriptionId = invoice.subscription!.toString();
   
   // Handle failed payment
-  await getBillingService().handleFailedPayment(subscriptionId, invoice.id);
+  await billingService.handleFailedPayment(subscriptionId, invoice.id);
   
   // Send payment failed notification
-  await getNotificationsService().sendPaymentFailedNotification(subscriptionId);
+  await notificationsService.sendPaymentFailedNotification(subscriptionId);
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-  await getBillingService().syncSubscriptionUpdate(subscription);
+  await billingService.syncSubscriptionUpdate(subscription);
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-  await getBillingService().handleSubscriptionCancellation(subscription.id);
+  await billingService.handleSubscriptionCancellation(subscription.id);
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription): Promise<void> {

@@ -475,7 +475,11 @@ export async function getComparativeAnalytics(
     }
 
     const businessId = req.tenant.business.toString();
-    const { currentPeriod, previousPeriod, metrics } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { currentPeriod, previousPeriod, metrics } = req.validatedBody;
 
     if (!currentPeriod || !previousPeriod || !metrics) {
       res.status(400).json({ 
@@ -794,7 +798,11 @@ export async function generateCustomReport(
       return;
     }
 
-    const reportConfig = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const reportConfig = req.validatedBody;
 
     // Generate custom report
     const report = await analyticsService.generateCustomReport(businessId, {

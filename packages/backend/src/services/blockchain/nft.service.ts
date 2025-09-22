@@ -209,6 +209,54 @@ export class NftService {
     this.storageService = new StorageService();
   }
 
+  /**
+   * Instance wrapper for deploying NFT contracts
+   */
+  public async deployNFTContract(params: {
+    name: string;
+    symbol: string;
+    baseUri: string;
+    businessId: string;
+  }): Promise<ContractDeployment> {
+    return NftService.deployNFTContract(params);
+  }
+
+  /**
+   * Instance wrapper for minting with auto-transfer
+   */
+  public async mintNFTWithAutoTransfer(params: {
+    contractAddress: string;
+    recipient: string;
+    tokenUri: string;
+    businessId: string;
+    productId: string;
+  }): Promise<{
+    tokenId: string;
+    txHash: string;
+    recipient: string;
+    blockNumber: number;
+    contractAddress: string;
+    certificateId?: string;
+    transferScheduled: boolean;
+    brandWallet?: string;
+  }> {
+    return NftService.mintNFTWithAutoTransfer(params);
+  }
+
+  /**
+   * Instance wrapper for retrying failed transfers
+   */
+  public async retryFailedTransfers(businessId: string, limit: number = 10) {
+    return NftService.retryFailedTransfers(businessId, limit);
+  }
+
+  /**
+   * Instance wrapper for pending transfers
+   */
+  public async getPendingTransfers(businessId: string) {
+    return NftService.getPendingTransfers(businessId);
+  }
+
   // ===== PRIVATE HELPERS =====
   
   private async getNftFactoryContract() {

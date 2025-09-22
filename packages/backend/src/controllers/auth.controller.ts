@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { getAuthService, getManufacturerService, getNotificationsService } from '../services/container.service';
+import { getServices } from '../services/container.service';
 import { getRequestBody, safeString, safeBoolean } from '../utils/typeGuards';
 import { 
   sendErrorResponse, 
@@ -85,6 +85,8 @@ interface UpdateSecurityPreferencesRequest extends Request, UnifiedAuthRequest, 
 
 
 
+// Resolve services via container for consistency
+const { auth: authService, manufacturer: manufacturerService, notifications: notificationsService } = getServices();
 /**
  * POST /api/auth/register/business
  * Enhanced business registration with security features and validation
@@ -100,23 +102,22 @@ export async function registerBusinessHandler(
       throw createValidationError('Request validation required - missing validatedBody');
     }
     
-    const authService = getAuthService();
-    const notificationsService = getNotificationsService();
+    // Services resolved above via container
 
     // Add security context
-    const securityContext = getAuthService().createSecurityContext(req, {
+    const securityContext = authService.createSecurityContext(req, {
       registrationSource: 'web'
     });
 
     // Enhanced registration with security logging
-    const result = await getAuthService().registerBusiness({
+    const result = await authService.registerBusiness({
       ...registrationData,
       securityContext
     });
 
     // Send welcome email if registration successful
     if (result.businessId) {
-      await getNotificationsService().sendWelcomeEmail(
+      await notificationsService.sendWelcomeEmail(
         registrationData.email,
         `${registrationData.firstName} ${registrationData.lastName}`,
         'brand'
@@ -135,7 +136,7 @@ export async function registerBusinessHandler(
   // Enhanced error logging with context
   logger.error('Business registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
-    ip: getAuthService().getClientIp(req),
+    ip: authService.getClientIp(req),
     email: safeString(getRequestBody(req)?.email),
     timestamp: new Date()
   });
@@ -161,12 +162,12 @@ export async function verifyBusinessHandler(
     }
     
     // Add security context for verification tracking
-    const securityContext = getAuthService().createSecurityContext(req, {
+    const securityContext = authService.createSecurityContext(req, {
       verificationAttempt: true
     });
 
     // Enhanced verification with attempt tracking
-    const result = await getAuthService().verifyBusiness({
+    const result = await authService.verifyBusiness({
       ...verificationData,
       securityContext
     });
@@ -188,7 +189,7 @@ export async function verifyBusinessHandler(
   // Log failed verification attempts for security
   logger.warn('Business verification failed:', {
     businessId: safeString(getRequestBody(req)?.businessId),
-    ip: getAuthService().getClientIp(req),
+    ip: authService.getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -213,13 +214,13 @@ export async function loginBusinessHandler(
     }
     
     // Enhanced security context
-    const securityContext = getAuthService().createSecurityContext(req, {
+    const securityContext = authService.createSecurityContext(req, {
       loginAttempt: true,
       deviceFingerprint: safeString(getRequestBody(req)?.deviceFingerprint)
     });
 
     // Enhanced login with security checks
-    const result = await getAuthService().loginBusiness({
+    const result = await authService.loginBusiness({
       ...loginData,
       securityContext
     });
@@ -233,15 +234,15 @@ export async function loginBusinessHandler(
 
     // Set secure cookie if remember me is enabled
     if (loginData.rememberMe) {
-      res.cookie('remember_token', result.rememberToken, getAuthService().getRememberTokenCookieOptions());
+      res.cookie('remember_token', result.rememberToken, authService.getRememberTokenCookieOptions());
     }
 
-    res.json(getAuthService().formatAuthResponse(result, securityContext));
+    res.json(authService.formatAuthResponse(result, securityContext));
   } catch (error) {
     // Enhanced error logging for security monitoring
     logger.warn('Business login failed:', {
       identifier: (req.validatedBody as LoginBusinessInput)?.emailOrPhone,
-      ip: getAuthService().getClientIp(req),
+      ip: authService.getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
@@ -267,18 +268,18 @@ export async function registerUserHandler(
     const userType = 'user';
     
     // Add security context
-    const securityContext = getAuthService().createSecurityContext(req, {
+    const securityContext = authService.createSecurityContext(req, {
       registrationSource: 'web'
     });
 
     // Enhanced user registration
-    await getAuthService().registerUser({
+    await authService.registerUser({
       ...registrationData,
       securityContext
     });
 
     // Send welcome email
-    await getNotificationsService().sendWelcomeEmail(
+    await notificationsService.sendWelcomeEmail(
       registrationData.email,
       registrationData.firstName || 'User',
       userType
@@ -295,7 +296,7 @@ export async function registerUserHandler(
 } catch (error) {
   logger.error('User registration error:', {
     error: error instanceof Error ? error.message : 'Unknown error',
-    ip: getAuthService().getClientIp(req),
+    ip: authService.getClientIp(req),
     email: safeString(getRequestBody(req)?.email),
     timestamp: new Date()
   });
@@ -321,14 +322,14 @@ export async function verifyUserHandler(
     
     // Add security context
     const securityContext = {
-      ipAddress: getAuthService().getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       verificationAttempt: true,
       timestamp: new Date()
     };
 
     // Enhanced verification
-    const result = await getAuthService().verifyUser({
+    const result = await authService.verifyUser({
       ...verificationData,
       securityContext
     });
@@ -349,7 +350,7 @@ export async function verifyUserHandler(
 } catch (error) {
   logger.warn('User verification failed:', {
     email: safeString(getRequestBody(req)?.email),
-    ip: getAuthService().getClientIp(req),
+    ip: authService.getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -376,13 +377,13 @@ export async function changePasswordHandler(
 
     // Get security context
     const securityContext = {
-      ipAddress: getAuthService().getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     // Change password through service
-    await getAuthService().changePassword(userId, {
+    await authService.changePassword(userId, {
       currentPassword,
       newPassword,
       securityContext
@@ -417,15 +418,15 @@ export async function resendVerificationHandler(
     }
 
     const securityContext = {
-      ipAddress: getAuthService().getClientIp(req),
+      ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     if (businessId || type === 'business') {
-      await getAuthService().resendBusinessVerification(businessId);
+      await authService.resendBusinessVerification(businessId);
     } else {
-      await getAuthService().resendUserVerification(email);
+      await authService.resendUserVerification(email);
     }
 
     // Log resend attempt
@@ -460,7 +461,7 @@ export async function checkEmailAvailabilityHandler(
       throw new Error('Request validation required - missing validatedBody');
     }
 
-    const availability = await getAuthService().checkEmailAvailability(email);
+    const availability = await authService.checkEmailAvailability(email);
 
     res.json({
       email,
@@ -489,7 +490,7 @@ export async function validatePasswordStrengthHandler(
       throw new Error('Request validation required - missing validatedBody');
     }
 
-    const validation = getAuthService().validatePasswordStrength(password);
+    const validation = authService.validatePasswordStrength(password);
 
     res.json({
       password: '***', // Never return the actual password
@@ -518,7 +519,7 @@ export async function getActiveSessionsHandler(
     const userId = req.userId!;
     
     // Get active sessions from service
-    const sessions = await getAuthService().getActiveSessions(userId);
+    const sessions = await authService.getActiveSessions(userId);
 
     // Add current session indicator
     const currentToken = req.headers.authorization?.split(' ')[1];
@@ -565,10 +566,10 @@ export async function revokeSessionHandler(
       return;
     }
 
-    await getAuthService().revokeSession(userId, sessionId);
+    await authService.revokeSession(userId, sessionId);
 
     // Log session revocation
-    logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${getAuthService().getClientIp(req)}');
+logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${authService.getClientIp(req)}');
 
     res.json({
       message: 'Session revoked successfully',
@@ -607,7 +608,7 @@ export async function revokeAllSessionsHandler(
     }
 
     // Verify password before revoking sessions
-    const isValidPassword = await getAuthService().verifyUserPassword(userId, currentPassword);
+    const isValidPassword = await authService.verifyUserPassword(userId, currentPassword);
     if (!isValidPassword) {
       res.status(401).json({
         error: 'Invalid password',
@@ -616,10 +617,10 @@ export async function revokeAllSessionsHandler(
       return;
     }
 
-    const revokedCount = await getAuthService().revokeAllSessions(userId, currentToken);
+    const revokedCount = await authService.revokeAllSessions(userId, currentToken);
 
     // Log mass session revocation
-    logger.info('All sessions revoked for user ${userId} from IP: ${getAuthService().getClientIp(req)}', {
+logger.info('All sessions revoked for user ${userId} from IP: ${authService.getClientIp(req)}', {
       revokedCount,
       reason: reason || 'user_request'
     });
@@ -649,7 +650,7 @@ export async function getLoginHistoryHandler(
     const userId = req.userId!;
     const { page = 1, limit = 20, startDate, endDate } = req.query;
 
-    const history = await getAuthService().getLoginHistory(userId, {
+const history = await authService.getLoginHistory(userId, {
       page: parseInt(page as string),
       limit: parseInt(limit as string),
       startDate: startDate ? new Date(startDate as string) : undefined,
@@ -684,7 +685,7 @@ export async function getSecurityEventsHandler(
     const userId = req.userId!;
     const { page = 1, limit = 20, eventType } = req.query;
 
-    const events = await getAuthService().getSecurityEvents(userId, {
+const events = await authService.getSecurityEvents(userId, {
       page: parseInt(page as string),
       limit: parseInt(limit as string),
       eventType: eventType as string
@@ -721,10 +722,10 @@ export async function updateSecurityPreferencesHandler(
       throw new Error('Request validation required - missing validatedBody');
     }
 
-    const updatedPreferences = await getAuthService().updateSecurityPreferences(userId, preferences);
+const updatedPreferences = await authService.updateSecurityPreferences(userId, preferences);
 
     // Log security preference update
-    logger.info('Security preferences updated for user ${userId} from IP: ${getAuthService().getClientIp(req)}');
+logger.info('Security preferences updated for user ${userId} from IP: ${authService.getClientIp(req)}');
 
     res.json({
       message: 'Security preferences updated successfully',
@@ -760,7 +761,7 @@ export async function loginUserHandler(
     
     // Enhanced security context
     const securityContext = {
-      ipAddress: getAuthService().getClientIp(req),
+ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       loginAttempt: true,
       timestamp: new Date(),
@@ -768,7 +769,7 @@ export async function loginUserHandler(
     };
 
     // Enhanced login
-    const result = await getAuthService().loginUser({
+const result = await authService.loginUser({
       email,
       password,
       rememberMe,
@@ -804,7 +805,7 @@ export async function loginUserHandler(
   } catch (error) {
     logger.warn('User login failed:', {
       email: safeString(getRequestBody(req)?.email), 
-      ip: getAuthService().getClientIp(req),
+ip: authService.getClientIp(req),
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date()
     });
@@ -828,13 +829,13 @@ export async function forgotPasswordHandler(
     }
     
     const securityContext = {
-      ipAddress: getAuthService().getClientIp(req),
+ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     // Initiate password reset
-    await getAuthService().initiatePasswordReset({
+await authService.initiatePasswordReset({
       email,
       securityContext
     });
@@ -848,7 +849,7 @@ export async function forgotPasswordHandler(
     // Log for security monitoring but don't expose details
     logger.warn('Password reset attempt:', {
       identifier: safeString(getRequestBody(req)?.email) || safeString(getRequestBody(req)?.phone),
-      ip: getAuthService().getClientIp(req),
+ip: authService.getClientIp(req),
       timestamp: new Date()
     });
     
@@ -876,13 +877,13 @@ export async function resetPasswordHandler(
     }
     
     const securityContext = {
-      ipAddress: getAuthService().getClientIp(req),
+ipAddress: authService.getClientIp(req),
       userAgent: req.headers['user-agent'] || 'Unknown',
       timestamp: new Date()
     };
 
     // Complete password reset
-    await getAuthService().confirmPasswordReset({
+await authService.confirmPasswordReset({
       ...resetData,
       securityContext
     });
@@ -897,7 +898,7 @@ export async function resetPasswordHandler(
   } catch (error) {
   logger.warn('Password reset failed:', {
       token: safeString(getRequestBody(req)?.token)?.substring(0, 8) + '...',
-    ip: getAuthService().getClientIp(req),
+ip: authService.getClientIp(req),
     error: error instanceof Error ? error.message : 'Unknown error',
     timestamp: new Date()
   });
@@ -921,14 +922,14 @@ export async function logoutHandler(
 
     if (token && userId) {
       // Invalidate the token
-      await getAuthService().invalidateToken(token, userId);
+await authService.invalidateToken(token, userId);
     }
 
     // Clear remember me cookie
     res.clearCookie('remember_token');
 
     // Log logout
-    logger.info('User logout: ${userId} from IP: ${getAuthService().getClientIp(req)}');
+logger.info('User logout: ${userId} from IP: ${authService.getClientIp(req)}');
 
     res.json({
       message: 'Logged out successfully'
@@ -961,7 +962,7 @@ export async function refreshTokenHandler(
     }
 
     // Generate new token
-    const newToken = await getAuthService().refreshToken(currentToken, userId);
+const newToken = await authService.refreshToken(currentToken, userId);
 
     res.json({
       token: newToken,
@@ -987,14 +988,14 @@ export async function getCurrentUserHandler(
     const userId = req.userId!;
     
     // Get comprehensive user information
-    const userInfo = await getAuthService().getCurrentUser(userId);
+const userInfo = await authService.getCurrentUser(userId);
 
     res.json({
       user: userInfo,
       permissions: userInfo.permissions || [],
       lastActivity: new Date(),
       sessionInfo: {
-        ipAddress: getAuthService().getClientIp(req),
+ipAddress: authService.getClientIp(req),
         userAgent: req.headers['user-agent']
       }
     });

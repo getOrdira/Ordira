@@ -187,7 +187,11 @@ export async function updateBrandSettings(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const updateData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const updateData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Get service instance
@@ -284,7 +288,11 @@ export async function updateCertificateWallet(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { certificateWallet, signature, message } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { certificateWallet, signature, message } = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Get service instance
@@ -602,7 +610,11 @@ export async function updateQuickBranding(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const updateData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const updateData = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();
@@ -641,7 +653,11 @@ export async function updateSubdomain(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { subdomain } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { subdomain } = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();
@@ -684,7 +700,11 @@ export async function validateSubdomain(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { subdomain } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { subdomain } = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();
@@ -717,7 +737,11 @@ export async function setCustomDomain(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const { customDomain } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { customDomain } = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Validate plan access
@@ -825,7 +849,11 @@ export async function verifyCustomDomain(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { customDomain } = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const { customDomain } = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();
@@ -859,7 +887,11 @@ export async function configureShopifyIntegration(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const integrationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const integrationData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Get service instance
@@ -923,7 +955,11 @@ export async function updateShopifyIntegration(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const integrationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const integrationData = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();
@@ -955,7 +991,11 @@ export async function configureWooCommerceIntegration(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const integrationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const integrationData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Validate integration permissions
@@ -1003,7 +1043,11 @@ export async function updateWooCommerceIntegration(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const integrationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const integrationData = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();
@@ -1035,7 +1079,11 @@ export async function configureWixIntegration(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const integrationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const integrationData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Validate integration permissions
@@ -1087,7 +1135,11 @@ export async function updateWixIntegration(
 ): Promise<void> {
   try {
     const businessId = req.userId!;
-    const integrationData = req.validatedBody || req.body;
+    if (!req.validatedBody) {
+      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
+      return;
+    }
+    const integrationData = req.validatedBody;
 
     // Get service instance
     const { brandSettings: brandSettingsService } = getServices();

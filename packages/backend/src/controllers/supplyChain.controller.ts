@@ -5,8 +5,7 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { SupplyChainEvent } from '../models/supplyChainEvent.model';
-import { getAnalyticsService, getQrCodeService } from '../services/container.service';
-import { SupplyChainService } from '../services/blockchain/supplyChain.service';
+import { getAnalyticsService, getQrCodeService, getSupplyChainService } from '../services/container.service';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
 import { Product } from '../models/product.model';
@@ -17,6 +16,7 @@ import { hasCreatedAt, hasSupplyChainSettings } from '../utils/typeGuards';
 // Initialize services via container
 const analyticsService = getAnalyticsService();
 const qrCodeService = getQrCodeService();
+const supplyChainService = getSupplyChainService();
 const redisClient = new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 interface SupplyChainRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
@@ -237,7 +237,7 @@ export const deployContract = asyncHandler(async (
   }
 
   // Deploy contract
-  const deployment = await SupplyChainService.deploySupplyChainContract(businessId, manufacturerName);
+  const deployment = await supplyChainService.deployContract(businessId, manufacturerName);
 
   res.status(201).json({
     success: true,
@@ -268,7 +268,7 @@ export const getContract = asyncHandler(async (
   }
 
   const contractAddress = brandSettings.web3Settings.supplyChainContract;
-  const stats = await SupplyChainService.getContractStats(contractAddress, businessId);
+  const stats = await supplyChainService.getContractStats(contractAddress, businessId);
 
   res.json({
     success: true,
@@ -303,7 +303,7 @@ export const createEndpoint = asyncHandler(async (
   }
 
   const contractAddress = brandSettings.web3Settings.supplyChainContract;
-  const result = await SupplyChainService.createEndpoint(
+  const result = await supplyChainService.createEndpoint(
     contractAddress,
     { name, eventType, location },
     businessId
@@ -338,7 +338,7 @@ export const getEndpoints = asyncHandler(async (
   }
 
   const contractAddress = brandSettings.web3Settings.supplyChainContract;
-  const endpoints = await SupplyChainService.getEndpoints(contractAddress, businessId);
+  const endpoints = await supplyChainService.getEndpoints(contractAddress, businessId);
 
   res.json({
     success: true,
@@ -370,7 +370,7 @@ export const registerProduct = asyncHandler(async (
   }
 
   const contractAddress = brandSettings.web3Settings.supplyChainContract;
-  const result = await SupplyChainService.registerProduct(
+  const result = await supplyChainService.registerProduct(
     contractAddress,
     { productId, name, description },
     businessId
@@ -405,7 +405,7 @@ export const getProducts = asyncHandler(async (
   }
 
   const contractAddress = brandSettings.web3Settings.supplyChainContract;
-  const products = await SupplyChainService.getProducts(contractAddress, businessId);
+  const products = await supplyChainService.getProducts(contractAddress, businessId);
 
   res.json({
     success: true,
@@ -437,7 +437,7 @@ export const getProductEvents = asyncHandler(async (
   }
 
   const contractAddress = brandSettings.web3Settings.supplyChainContract;
-  const events = await SupplyChainService.getProductEvents(contractAddress, productId, businessId);
+  const events = await supplyChainService.getProductEvents(contractAddress, productId, businessId);
 
   res.json({
     success: true,
