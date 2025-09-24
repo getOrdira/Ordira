@@ -9,38 +9,37 @@ import { logger } from '../../utils/logger';
 import { configService } from './config.service';
 import { container, SERVICE_TOKENS } from './di-container.service';
 import { monitoringService } from '../external/monitoring.service';
+import { databaseOptimizationService } from '../external/database-optimization.service';
+import { enhancedDatabaseService } from '../external/enhanced-database.service';
+import { enhancedCacheService } from '../external/enhanced-cache.service';
 
 export class DatabaseInitService {
   /**
    * Initialize database connection and services
    */
   async initialize(): Promise<void> {
-    logger.info('🗄️ Initializing database connection...');
+    logger.info('🗄️ Initializing enhanced database connection...');
 
     try {
-      // Configure Mongoose settings
-      mongoose.set('strictQuery', false); // Suppress deprecation warning
-      
-      // Get database configuration
-      const dbConfig = configService.getDatabase();
-      
-      // Connect to MongoDB
-      await mongoose.connect(dbConfig.mongodb.uri, dbConfig.mongodb.options);
-      logger.info('✅ Connected to MongoDB with optimized configuration');
+      // Initialize enhanced database connection
+      await enhancedDatabaseService.initializeConnection();
 
       // Initialize database services
       await this.initializeDatabaseServices();
 
-      // Create optimized indexes
-      await this.createOptimizedIndexes();
+      // Create advanced indexes
+      await this.createAdvancedIndexes();
+
+      // Warm up cache
+      await this.warmupCache();
 
       // Start domain cache polling
       this.startDomainCachePolling();
 
-      logger.info('✅ Database initialization completed');
+      logger.info('✅ Enhanced database initialization completed');
 
     } catch (error) {
-      logger.error('❌ Database initialization failed:', error);
+      logger.error('❌ Enhanced database initialization failed:', error);
       throw error;
     }
   }
@@ -80,77 +79,62 @@ export class DatabaseInitService {
   }
 
   /**
-   * Create optimized database indexes
+   * Create advanced database indexes
    */
-  private async createOptimizedIndexes(): Promise<void> {
-    logger.info('📊 Creating optimized database indexes...');
+  private async createAdvancedIndexes(): Promise<void> {
+    logger.info('📊 Creating advanced database indexes...');
 
     try {
-      // Get models from container
-      const User = container.resolve(SERVICE_TOKENS.USER_MODEL) as typeof import('../../models/user.model').User;
-      const Business = container.resolve(SERVICE_TOKENS.BUSINESS_MODEL) as typeof import('../../models/business.model').Business;
-      const Manufacturer = container.resolve(SERVICE_TOKENS.MANUFACTURER_MODEL) as typeof import('../../models/manufacturer.model').Manufacturer;
-      const BrandSettings = container.resolve(SERVICE_TOKENS.BRAND_SETTINGS_MODEL) as typeof import('../../models/brandSettings.model').BrandSettings;
-      const VotingRecord = container.resolve(SERVICE_TOKENS.VOTING_RECORD_MODEL) as typeof import('../../models/votingRecord.model').VotingRecord;
-      const Certificate = container.resolve(SERVICE_TOKENS.CERTIFICATE_MODEL) as typeof import('../../models/certificate.model').Certificate;
+      // Use the database optimization service
+      await databaseOptimizationService.createAdvancedIndexes();
 
-      // Create indexes for User model
-      await User.collection.createIndex({ email: 1 }, { unique: true });
-      await User.collection.createIndex({ businessId: 1 });
-      await User.collection.createIndex({ createdAt: -1 });
-      await User.collection.createIndex({ isActive: 1, createdAt: -1 });
-
-      // Create indexes for Business model
-      await Business.collection.createIndex({ subdomain: 1 }, { unique: true, sparse: true });
-      await Business.collection.createIndex({ customDomain: 1 }, { unique: true, sparse: true });
-      await Business.collection.createIndex({ businessId: 1 }, { unique: true });
-      await Business.collection.createIndex({ isActive: 1, isEmailVerified: 1 });
-      await Business.collection.createIndex({ businessType: 1, isEmailVerified: 1 });
-      await Business.collection.createIndex({ industry: 1, isEmailVerified: 1 });
-      await Business.collection.createIndex({ createdAt: -1 });
-
-      // Create indexes for Manufacturer model
-      await Manufacturer.collection.createIndex({ email: 1 }, { unique: true });
-      await Manufacturer.collection.createIndex({ businessId: 1 });
-      await Manufacturer.collection.createIndex({ isActive: 1, lastLoginAt: -1 });
-      await Manufacturer.collection.createIndex({ isActive: 1, isEmailVerified: 1, profileScore: -1 });
-      await Manufacturer.collection.createIndex({ industry: 1, isActive: 1, profileScore: -1 });
-      await Manufacturer.collection.createIndex({ location: 1, isActive: 1 });
-      await Manufacturer.collection.createIndex({ createdAt: -1 });
-
-      // Create indexes for BrandSettings model
-      await BrandSettings.collection.createIndex({ businessId: 1 }, { unique: true });
-      await BrandSettings.collection.createIndex({ createdAt: -1 });
-
-      // Create indexes for VotingRecord model
-      await VotingRecord.collection.createIndex({ businessId: 1, productId: 1 });
-      await VotingRecord.collection.createIndex({ userId: 1, businessId: 1 });
-      await VotingRecord.collection.createIndex({ createdAt: -1 });
-
-      // Create indexes for Certificate model
-      await Certificate.collection.createIndex({ businessId: 1 });
-      await Certificate.collection.createIndex({ tokenId: 1 }, { unique: true, sparse: true });
-      await Certificate.collection.createIndex({ createdAt: -1 });
-
-      logger.info('✅ Database indexes created successfully');
+      logger.info('✅ Advanced database indexes created successfully');
 
       // Record index creation metrics
       monitoringService.recordMetric({
         name: 'database_indexes_created',
         value: 1,
-        tags: { status: 'success' }
+        tags: { status: 'success', type: 'advanced' }
       });
 
     } catch (error) {
-      logger.error('❌ Database index creation failed:', error);
+      logger.error('❌ Advanced database index creation failed:', error);
       
       monitoringService.recordMetric({
         name: 'database_indexes_created',
         value: 0,
-        tags: { status: 'failed', error: error.message }
+        tags: { status: 'failed', error: error.message, type: 'advanced' }
       });
       
       throw error;
+    }
+  }
+
+  /**
+   * Warm up cache with frequently accessed data
+   */
+  private async warmupCache(): Promise<void> {
+    logger.info('🔥 Warming up enhanced cache...');
+
+    try {
+      await enhancedCacheService.warmupCache();
+      
+      logger.info('✅ Enhanced cache warmup completed');
+
+      monitoringService.recordMetric({
+        name: 'cache_warmup_completed',
+        value: 1,
+        tags: { status: 'success' }
+      });
+
+    } catch (error) {
+      logger.error('❌ Enhanced cache warmup failed:', error);
+      
+      monitoringService.recordMetric({
+        name: 'cache_warmup_completed',
+        value: 0,
+        tags: { status: 'failed', error: error.message }
+      });
     }
   }
 
@@ -186,20 +170,14 @@ export class DatabaseInitService {
    * Gracefully close database connections
    */
   async close(): Promise<void> {
-    logger.info('📡 Closing database connections...');
+    logger.info('📡 Closing enhanced database connections...');
 
     try {
-      await mongoose.connection.close();
-      logger.info('✅ MongoDB connection closed');
-
-      monitoringService.recordMetric({
-        name: 'database_connection_status',
-        value: 0,
-        tags: { status: 'disconnected' }
-      });
+      await enhancedDatabaseService.closeConnection();
+      logger.info('✅ Enhanced database connections closed');
 
     } catch (error) {
-      logger.error('❌ Error closing MongoDB connection:', error);
+      logger.error('❌ Error closing enhanced database connections:', error);
       throw error;
     }
   }

@@ -11,6 +11,7 @@ import { BrandSettings } from '../models/brandSettings.model';
 import { Certificate } from '../models/certificate.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 import { NftService } from '../services/blockchain/nft.service';
+import { NotificationsService } from '../services/external/notifications.service';
 
 // ✨ Enhanced request interfaces with Web3 support
 interface CertificateRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
@@ -118,6 +119,7 @@ interface revokeCertificateRequest extends UnifiedAuthRequest, TenantRequest, Va
 }
 
 // Services are now injected via container
+const notificationsService = new NotificationsService();
 
 // Business logic functions moved to CertificateService
 
@@ -137,16 +139,12 @@ export async function createCertificate(
       billing: billingService,
       notifications: notificationsService,
       analytics: analyticsService,
-      nft: nftService,
+      usageTracking: usageTrackingService
     } = getServices();
 
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    if (!req.validatedBody) {
-      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
-      return;
-    }
-    const certificateData = req.validatedBody;
+    const certificateData = req.validatedBody || req.body;
 
     // ✨ Get brand settings for Web3 capabilities
     const brandSettings = await BrandSettings.findOne({ business: businessId });
@@ -259,7 +257,7 @@ export async function createCertificate(
       // Get or deploy NFT contract if needed
       let contractAddress = brandSettings?.web3Settings?.nftContract;
       if (!contractAddress && hasWeb3) {
-        const deployResult = await nftService.deployNFTContract({
+        const deployResult = await NftService.deployNFTContract({
           name: `${businessId} Certificates`,
           symbol: 'CERT',
           baseUri: `${process.env.METADATA_BASE_URL}/${businessId}/`,
@@ -276,7 +274,7 @@ export async function createCertificate(
       const tokenUri = `${process.env.METADATA_BASE_URL}/${businessId}/${certificateData.productId}`;
 
       // Mint NFT with auto-transfer capabilities
-      mintResult = await nftService.mintNFTWithAutoTransfer({
+      mintResult = await NftService.mintNFTWithAutoTransfer({
         contractAddress,
         recipient: certificateData.recipient,
         tokenUri,
@@ -297,7 +295,13 @@ export async function createCertificate(
     // Track certificate creation
     trackManufacturerAction('create_certificate');
 
-    // Note: Usage tracking handled by middleware
+    // ✨ Update usage tracking
+    try {
+      await usageTrackingService.updateUsage(businessId, { certificates: 1 });
+    } catch (usageError) {
+      logger.warn('Failed to update usage tracking:', usageError);
+      // Don't fail the certificate creation if usage tracking fails
+    }
 
     // Send delivery notification
     await certificateService.processCertificateDelivery(mintResult, certificateData.deliveryOptions, hasWeb3);
@@ -369,21 +373,9 @@ export async function transferCertificates(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      billing: billingService,
-      notifications: notificationsService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    if (!req.validatedBody) {
-      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
-      return;
-    }
-    const { certificateIds, brandWallet, transferOptions } = req.validatedBody;
+    const { certificateIds, brandWallet, transferOptions } = req.validatedBody || req.body;
 
     // Check Web3 permissions
     const brandSettings = await BrandSettings.findOne({ business: businessId });
@@ -517,13 +509,6 @@ export async function retryFailedTransfers(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      billing: billingService,
-      notifications: notificationsService
-    } = getServices();
-
     const businessId = req.userId!;
     const { limit = 10 } = req.query;
 
@@ -538,7 +523,7 @@ export async function retryFailedTransfers(
     }
 
     // Retry failed transfers
-    const retryResults = await nftService.retryFailedTransfers(businessId, Number(limit));
+    const retryResults = await NftService.retryFailedTransfers(businessId, Number(limit));
 
     // Track retry action
     trackManufacturerAction('retry_failed_transfers');
@@ -564,12 +549,6 @@ export async function listCertificates(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const {
@@ -660,8 +639,11 @@ export async function listCertificates(
 
     const total = await Certificate.countDocuments(query);
 
+    // Get services
+    const { certificate: certificateService } = getServices();
+
     // ✨ Get enhanced analytics with Web3 metrics
-    const analytics = await nftService.getCertificateAnalytics(businessId);
+    const analytics = await NftService.getCertificateAnalytics(businessId);
 
     // Track certificate list view
     trackManufacturerAction('view_certificates');
@@ -714,12 +696,6 @@ export async function getCertificate(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
     const { id } = req.params;
 
@@ -730,6 +706,9 @@ export async function getCertificate(
       })
       return;
     }
+
+    // Get services
+    const { certificate: certificateService } = getServices();
 
     // Get certificate with Web3 data
     const certificate = await Certificate.findOne({
@@ -749,8 +728,8 @@ export async function getCertificate(
     let blockchainData = null;
     if (certificate.contractAddress && certificate.tokenId) {
       try {
-        const tokenOwner = await nftService.getTokenOwner(certificate.contractAddress, certificate.tokenId);
-        const tokenUri = await nftService.getTokenURI(certificate.contractAddress, certificate.tokenId);
+        const tokenOwner = await NftService.getTokenOwner(certificate.contractAddress, certificate.tokenId);
+        const tokenUri = await NftService.getTokenURI(certificate.contractAddress, certificate.tokenId);
         
         blockchainData = {
           contractAddress: certificate.contractAddress,
@@ -810,12 +789,6 @@ export async function getWeb3Analytics(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
     const { 
@@ -838,9 +811,9 @@ export async function getWeb3Analytics(
 
     // Get comprehensive analytics
     const [certificateAnalytics, transferAnalytics, globalAnalytics] = await Promise.all([
-     nftService.getCertificateAnalytics(businessId),
+     NftService.getCertificateAnalytics(businessId),
      brandSettings.transferAnalytics,
-     userPlan === 'enterprise' ? certificateService.getGlobalTransferAnalytics() : null
+     userPlan === 'enterprise' ? NftService.getGlobalTransferAnalytics() : null
     ]);
 
     // Track analytics view
@@ -861,8 +834,8 @@ export async function getWeb3Analytics(
             : '0'
         },
         ...(globalAnalytics && { global: globalAnalytics }),
-        insights: certificateService.generateWeb3Insights(certificateAnalytics, transferAnalytics),
-        recommendations: certificateService.generateWeb3Recommendations(certificateAnalytics, transferAnalytics, userPlan)
+        insights: NftService.generateWeb3Insights(certificateAnalytics, transferAnalytics),
+        recommendations: NftService.generateWeb3Recommendations(certificateAnalytics, transferAnalytics, userPlan)
       },
       web3Status: {
         walletConnected: !!brandSettings.web3Settings?.certificateWallet,
@@ -894,25 +867,13 @@ export async function createBatchCertificates(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      billing: billingService,
-      notifications: notificationsService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
-    if (!req.validatedBody) {
-      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
-      return;
-    }
-    const batchData = req.validatedBody;
+    const batchData = req.validatedBody || req.body;
 
     // Validate batch permissions using new plan system
-    const planLimits = certificateService.getPlanLimits(userPlan);
-    if (!planLimits.hasWeb3) {
+    const planLimits = PLAN_DEFINITIONS[userPlan as PlanKey];
+    if (!planLimits.features.hasWeb3) {
       res.status(403).json({
         error: 'Batch certificate creation requires Growth plan or higher',
         currentPlan: userPlan,
@@ -925,7 +886,7 @@ export async function createBatchCertificates(
     const recipientCount = batchData.recipients.length;
 
     // Validate batch size limits
-    const batchLimits = certificateService.getBatchLimits(userPlan);
+    const batchLimits = NftService.getBatchLimits(userPlan);
     if (recipientCount > batchLimits.maxBatchSize) {
       res.status(400).json({
         error: 'Batch size exceeds plan limits',
@@ -953,7 +914,7 @@ export async function createBatchCertificates(
         },
         options: {
           upgradeAvailable: userPlan !== 'enterprise',
-          overageAllowed: planLimits.allowOverage
+          overageAllowed: planLimits.features.allowOverage
         },
         code: 'INSUFFICIENT_QUOTA'
       });
@@ -966,8 +927,8 @@ export async function createBatchCertificates(
     const shouldAutoTransfer = brandSettings?.shouldAutoTransfer() || false;
     
     if (hasWeb3 && shouldAutoTransfer) {
-      const transferUsage = await certificateService.getTransferUsage(businessId);
-      const transferLimits = certificateService.getTransferLimits(userPlan);
+      const transferUsage = await NftService.getTransferUsage(businessId);
+      const transferLimits = NftService.getTransferLimits(userPlan);
       
       if (transferUsage.thisMonth + recipientCount > transferLimits.transfersPerMonth) {
          res.status(403).json({
@@ -986,7 +947,7 @@ export async function createBatchCertificates(
     }
 
     // Create batch job with Web3 support
-    const batchJob = await certificateService.createBatchCertificateJob(businessId, {
+    const batchJob = await NftService.createBatchCertificateJob(businessId, {
       ...batchData,
       planLevel: userPlan,
       hasWeb3,
@@ -995,7 +956,7 @@ export async function createBatchCertificates(
       initiatedBy: businessId,
       jobMetadata: {
         recipientCount,
-        estimatedDuration: certificateService.calculateBatchDuration(recipientCount, batchData.batchOptions, hasWeb3),
+        estimatedDuration: NftService.calculateBatchDuration(recipientCount, batchData.batchOptions, hasWeb3),
         priority: certificateService.determineBatchPriority(userPlan),
         web3Enabled: hasWeb3,
         autoTransferEnabled: shouldAutoTransfer
@@ -1005,7 +966,13 @@ export async function createBatchCertificates(
     // Track batch creation
     trackManufacturerAction('create_batch_certificates');
 
-    // Note: Usage tracking handled by middleware
+    // ✨ Update usage tracking for batch
+    try {
+      await NftService.updateUsage(businessId, { certificates: recipientCount });
+    } catch (usageError) {
+      logger.warn('Failed to update batch usage tracking:', usageError);
+      // Don't fail the batch creation if usage tracking fails
+    }
 
     res.status(202).json({
       success: true,
@@ -1020,7 +987,7 @@ export async function createBatchCertificates(
         enabled: hasWeb3,
         autoTransferEnabled: shouldAutoTransfer,
         batchTransferEnabled: batchData.batchOptions?.batchTransfer || false,
-        estimatedGasCost: hasWeb3 ? certificateService.calculateEstimatedGasCost(recipientCount) : null
+        estimatedGasCost: hasWeb3 ? NftService.calculateEstimatedGasCost(recipientCount) : null
       },
       processing: {
         queuePosition: batchJob.queuePosition,
@@ -1049,20 +1016,9 @@ export async function revokeCertificate(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      notifications: notificationsService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
     const { id } = req.params;
-    if (!req.validatedBody) {
-      res.status(400).json({ error: 'Request validation required - missing validatedBody', code: 'VALIDATION_REQUIRED' });
-      return;
-    }
-    const { reason, notifyRecipient = true, burnNft = false } = req.validatedBody;
+    const { reason, notifyRecipient = true, burnNft = false } = req.validatedBody || req.body;
 
     // Get certificate
     const certificate = await Certificate.findOne({
@@ -1158,12 +1114,6 @@ export async function getPendingTransfers(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Get service instances
-    const {
-      certificate: certificateService,
-      analytics: analyticsService
-    } = getServices();
-
     const businessId = req.userId!;
 
     // Check Web3 permissions
@@ -1177,7 +1127,7 @@ export async function getPendingTransfers(
     }
 
     // Get pending transfers
-    const pendingTransfers = await nftService.getPendingTransfers(businessId);
+    const pendingTransfers = await NftService.getPendingTransfers(businessId);
 
     res.json({
       success: true,
@@ -1263,8 +1213,4 @@ export async function getBatchProgress(
     next(error);
   }
 }
-
-// ✨ Enhanced Helper Functions
-
-// All business logic functions have been moved to CertificateService
 
