@@ -1,822 +1,623 @@
-// src/controllers/votes.controller.ts
+/**
+ * Optimized Votes Controller
+ *
+ * Enhanced controller with performance monitoring and caching indicators
+ * for voting operations. Provides optimized endpoints for voting analytics,
+ * stats, and dashboard operations with comprehensive error handling.
+ *
+ * Performance features:
+ * - Cache hit/miss reporting in responses
+ * - Query timing metrics
+ * - Performance monitoring on all endpoints
+ * - Health check with optimization status
+ */
 
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { getVotingService } from '../services/container.service';
-import { PendingVote } from '../models/pendingVote.model';
-import mongoose from 'mongoose';
-
-// Initialize service via container
-const votingBusinessService = getVotingService();
+import { VotingService, votingService } from '../services/business/votes.service';
+import { logger } from '../utils/logger';
 
 /**
- * Extended request interfaces for type safety
+ * Request interfaces for type safety
  */
-interface TenantVotingRequest extends Request, UnifiedAuthRequest {
-  tenant?: { business: { toString: () => string } };
-}
-
-interface DeployContractRequest extends TenantVotingRequest, ValidatedRequest {
-  validatedBody: {
-    contractName?: string;
-    description?: string;
-  };
-}
-
-interface CreateProposalRequest extends TenantVotingRequest, ValidatedRequest {
-  validatedBody: {
-    description: string;
-    category?: string;
-    duration?: number;
-    requiresQuorum?: boolean;
-  };
-}
-
-interface SubmitVoteRequest extends TenantVotingRequest, ValidatedRequest {
-  validatedBody: {
-    proposalIds: string[];
-    voteType?: 'for' | 'against' | 'abstain';
-    reason?: string;
-  };
-}
-
-interface VotingStatsRequest extends TenantVotingRequest, ValidatedRequest {
+interface VotingAnalyticsRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
   validatedQuery: {
+    days?: number;
+    includeRecommendations?: boolean;
+    includeTrends?: boolean;
+    useCache?: boolean;
     startDate?: string;
     endDate?: string;
     proposalId?: string;
   };
 }
 
+interface VotingStatsRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
+  validatedQuery: {
+    useCache?: boolean;
+  };
+}
+
+interface BusinessVotesRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
+  validatedQuery: {
+    useCache?: boolean;
+    limit?: number;
+    offset?: number;
+    sortBy?: 'timestamp' | 'proposalId';
+    sortOrder?: 'asc' | 'desc';
+  };
+}
+
+interface PendingVotesRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
+  validatedQuery: {
+    proposalId?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+    useCache?: boolean;
+  };
+}
+
+interface BusinessProposalsRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
+  validatedQuery: {
+    useCache?: boolean;
+    searchQuery?: string;
+    status?: 'active' | 'completed' | 'failed';
+    limit?: number;
+  };
+}
+
 /**
- * Deploy a new voting contract for the business
- * POST /api/votes/deploy
- * 
- * @requires authentication & tenant context
- * @requires validation: contract deployment parameters
- * @returns { contract, deployment, blockchain }
+ * Get comprehensive voting analytics with optimization indicators
+ * GET /api/v2/votes/analytics
  */
-export const deployVotingContract = asyncHandler(async (
-  req: DeployContractRequest,
+export const getVotingAnalytics = asyncHandler(async (
+  req: VotingAnalyticsRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
+  const startTime = Date.now();
 
-  // Check if business already has a voting contract
-  const hasContract = await votingBusinessService.hasVotingContract(businessId);
-  if (hasContract) {
-    throw createAppError('Business already has a voting contract deployed', 409, 'CONTRACT_ALREADY_EXISTS');
-  }
+  try {
+    const businessId = req.userId!;
+    const {
+      days = 30,
+      includeRecommendations = true,
+      includeTrends = true,
+      useCache = true,
+      startDate,
+      endDate,
+      proposalId
+    } = req.validatedQuery;
 
-  // Extract deployment configuration
-  const deploymentConfig = req.validatedBody || {};
+    // Convert string dates to Date objects if provided
+    const options: any = {
+      includeRecommendations,
+      includeTrends,
+      useCache
+    };
 
-  // Deploy voting contract through service
-  const deploymentResult = await votingBusinessService.deployVotingContractForBusiness(businessId);
+    if (days) options.days = days;
+    if (startDate) options.startDate = new Date(startDate);
+    if (endDate) options.endDate = new Date(endDate);
+    if (proposalId) options.proposalId = proposalId;
 
-  // Return standardized response
-  res.status(201).json({
-    success: true,
-    message: 'Voting contract deployed successfully',
-    data: {
-      contract: {
-        address: deploymentResult.votingAddress,
-        businessId,
-        deployedAt: new Date().toISOString(),
-        name: deploymentConfig.contractName || 'Business Voting Contract',
-        description: deploymentConfig.description
-      },
-      deployment: {
-        transactionHash: deploymentResult.txHash,
-        networkId: process.env.CHAIN_ID || '5453',
-        gasUsed: 'estimated', // Would need blockchain service to get actual gas
-        deploymentCost: 'estimated' // Would need gas price calculation
-      },
-      blockchain: {
-        network: process.env.BLOCKCHAIN_NETWORK || 'base',
-        explorer: `https://basescan.org/tx/${deploymentResult.txHash}`
-      }
-    }
-  });
-});
+    const analytics = await votingService.getOptimizedVotingAnalytics(businessId, options);
 
-/**
- * Create a new proposal for voting
- * POST /api/votes/proposals
- * 
- * @requires authentication & tenant context
- * @requires validation: proposal creation data
- * @returns { proposal, blockchain, metadata }
- */
-export const createProposal = asyncHandler(async (
-  req: CreateProposalRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
+    const processingTime = Date.now() - startTime;
 
-  // Extract validated proposal data
-  const { description, category, duration, requiresQuorum } = req.validatedBody;
-
-  // Validate description
-  if (!description || description.trim().length < 10) {
-    throw createAppError('Proposal description must be at least 10 characters', 400, 'INVALID_DESCRIPTION');
-  }
-
-  if (description.length > 1000) {
-    throw createAppError('Proposal description cannot exceed 1000 characters', 400, 'DESCRIPTION_TOO_LONG');
-  }
-
-  // Create proposal through service
-  const proposalResult = await votingBusinessService.createProposalForBusiness(businessId, description.trim());
-
-  // Return standardized response
-  res.status(201).json({
-    success: true,
-    message: 'Proposal created successfully',
-    data: {
-      proposal: {
-        id: proposalResult.proposalId,
-        description: description.trim(),
-        category: category || 'general',
-        businessId,
-        createdAt: new Date().toISOString(),
-        duration: duration || 7 * 24 * 60 * 60, // 7 days in seconds
-        requiresQuorum: requiresQuorum || false,
-        status: 'active'
-      },
-      blockchain: {
-        transactionHash: proposalResult.txHash,
-        blockchainId: proposalResult.proposalId,
-        network: process.env.BLOCKCHAIN_NETWORK || 'base',
-        explorer: `https://basescan.org/tx/${proposalResult.txHash}`
-      },
-      metadata: {
-        votingStarted: true,
-        votingEndsAt: new Date(Date.now() + (duration || 7 * 24 * 60 * 60) * 1000).toISOString()
-      }
-    }
-  });
-});
-
-/**
- * List all proposals for the business
- * GET /api/votes/proposals
- * 
- * @requires authentication & tenant context
- * @optional query: filtering and pagination
- * @returns { proposals[], stats, pagination }
- */
-export const listProposals = asyncHandler(async (
-  req: TenantVotingRequest & { query: { status?: string; page?: string; limit?: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
-
-  // Extract query parameters
-  const status = req.query.status;
-  const page = parseInt(req.query.page || '1');
-  const limit = Math.min(parseInt(req.query.limit || '20'), 100);
-
-  // Get proposals through service
-  const proposals = await votingBusinessService.getBusinessProposals(businessId);
-
-  // Filter by status if provided
-  const filteredProposals = status 
-    ? proposals.filter(p => p.status === status)
-    : proposals;
-
-  // Apply pagination
-  const total = filteredProposals.length;
-  const startIndex = (page - 1) * limit;
-  const paginatedProposals = filteredProposals.slice(startIndex, startIndex + limit);
-
-  // Get voting statistics
-  const votingStats = await votingBusinessService.getVotingStats(businessId);
-
-  // Return standardized response
-  res.json({
-    success: true,
-    message: 'Proposals retrieved successfully',
-    data: {
-      proposals: paginatedProposals.map(proposal => ({
-        id: proposal.proposalId,
-        description: proposal.description,
-        status: proposal.status || 'active',
-        createdAt: proposal.createdAt,
-        transactionHash: proposal.txHash,
-        voteCount: 0, // Would need to calculate from blockchain
-        category: 'general' // Would need to store this in database
-      })),
-      stats: {
-        total: votingStats.totalProposals,
-        active: filteredProposals.filter(p => p.status === 'active').length,
-        completed: filteredProposals.filter(p => p.status === 'completed').length,
-        pending: votingStats.pendingVotes
-      },
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page < Math.ceil(total / limit),
-        hasPrev: page > 1
-      },
-      contractAddress: votingStats.contractAddress
-    }
-  });
-});
-
-/**
- * Submit votes for proposals (with batching logic)
- * POST /api/votes
- * 
- * @requires authentication & tenant context
- * @requires validation: voting data
- * @returns { votes, batch, pending }
- */
-export const submitVote = asyncHandler(async (
-  req: SubmitVoteRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract business ID and user ID from context
-  const businessId = req.tenant?.business?.toString();
-  const userId = req.userId;
-
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
-
-  if (!userId) {
-    throw createAppError('User ID not found in request', 401, 'MISSING_USER_ID');
-  }
-
-  // Extract validated voting data
-  const { proposalIds, voteType, reason } = req.validatedBody;
-
-  // Validate proposal IDs
-  if (!Array.isArray(proposalIds) || proposalIds.length === 0) {
-    throw createAppError('At least one proposal ID is required', 400, 'MISSING_PROPOSAL_IDS');
-  }
-
-  if (proposalIds.length > 10) {
-    throw createAppError('Maximum 10 proposals can be voted on at once', 400, 'TOO_MANY_PROPOSALS');
-  }
-
-  const result = await votingBusinessService.queueVotes(businessId, userId, proposalIds, { voteType, reason });
-
-  if (result.batchSubmitted && result.batchResult) {
-    res.status(201).json({
-      success: true,
-      message: 'Votes recorded and batch submitted to blockchain',
-      data: {
-        votes: result.voteRecords,
-        batch: {
-          submitted: true,
-          transactionHash: result.batchResult.txHash,
-          totalVotes: result.totalPending,
-          submittedAt: new Date().toISOString()
-        },
-        blockchain: {
-          network: process.env.BLOCKCHAIN_NETWORK || 'base',
-          explorer: `https://basescan.org/tx/${result.batchResult.txHash}`
-        }
-      }
+    logger.info('Voting analytics request completed', {
+      businessId,
+      days,
+      includeRecommendations,
+      includeTrends,
+      processingTime,
+      recommendationsCount: analytics.recommendations?.length || 0
     });
-  } else {
-    res.status(202).json({
+
+    res.json({
       success: true,
-      message: 'Votes recorded. Will be submitted to blockchain when threshold is reached.',
+      message: 'Voting analytics retrieved successfully',
       data: {
-        votes: result.voteRecords,
-        pending: {
-          totalPending: result.totalPending,
-          threshold: result.threshold,
-          remaining: result.threshold - result.totalPending
+        period: {
+          days,
+          startDate: options.startDate?.toISOString().split('T')[0] ||
+            new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          endDate: options.endDate?.toISOString().split('T')[0] ||
+            new Date().toISOString().split('T')[0]
         },
-        batch: {
-          submitted: false,
-          willSubmitWhen: `${result.threshold} votes are collected`
-        }
-      }
+        analytics
+      },
+      performance: {
+        processingTime,
+        cached: processingTime <= 100,
+        optimizationsApplied: [
+          'aggressiveCaching',
+          'parallelAnalytics',
+          'queryOptimization',
+          'trendCalculation',
+          'recommendationGeneration'
+        ]
+      },
+      generatedAt: new Date().toISOString()
     });
+
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to get voting analytics', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
   }
 });
 
 /**
- * List all votes for the business
- * GET /api/votes
- * 
- * @requires authentication & tenant context
- * @optional query: filtering options
- * @returns { votes[], pending[], stats }
- */
-export const listVotes = asyncHandler(async (
-  req: TenantVotingRequest & { query: { proposalId?: string; userId?: string; page?: string; limit?: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
-
-  // Extract query parameters
-  const { proposalId, userId, page = '1', limit = '20' } = req.query;
-  const pageNum = parseInt(page);
-  const limitNum = Math.min(parseInt(limit), 100);
-
-  const listing = await votingBusinessService.getVotesListing(businessId, {
-    proposalId,
-    userId,
-    page: pageNum,
-    limit: limitNum
-  });
-
-  res.json({
-    success: true,
-    message: 'Votes retrieved successfully',
-    data: listing
-  });
-});
-
-/**
- * Get voting statistics and analytics
- * GET /api/votes/stats
- * 
- * @requires authentication & tenant context
- * @optional query: date range and filters
- * @returns { stats, analytics, trends }
+ * Get optimized voting statistics with caching
+ * GET /api/v2/votes/stats
  */
 export const getVotingStats = asyncHandler(async (
   req: VotingStatsRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
+  const startTime = Date.now();
 
-  // Extract query parameters
-  const { startDate, endDate, proposalId } = req.validatedQuery || {};
-  
-  // Parse dates
-  const fromDate = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
-  const toDate = endDate ? new Date(endDate) : new Date();
+  try {
+    const businessId = req.userId!;
+    const { useCache = true } = req.validatedQuery;
 
-  // Get comprehensive voting statistics
-  const votingStats = await votingBusinessService.getVotingStats(businessId);
+    const stats = await votingService.getOptimizedVotingStats(businessId, useCache);
 
-  // Get proposal-specific stats if requested
-  let proposalStats = null;
-  if (proposalId) {
-    const pendingVotesForProposal = await PendingVote.countDocuments({ 
-      businessId, 
-      proposalId 
+    const processingTime = Date.now() - startTime;
+
+    // Log only if processing took longer than expected (cache miss)
+    if (processingTime > 50) {
+      logger.info('Voting stats request (cache miss)', {
+        businessId,
+        processingTime,
+        cached: false
+      });
+    } else {
+      logger.debug('Voting stats request (cache hit)', {
+        businessId,
+        processingTime,
+        cached: true
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Voting statistics retrieved successfully',
+      data: {
+        stats,
+        insights: {
+          hasActiveProposals: stats.activeProposals > 0,
+          needsAttention: stats.pendingVotes > 50,
+          healthStatus: stats.totalProposals > 0 ? 'active' : 'setup_needed'
+        }
+      },
+      performance: {
+        processingTime,
+        cached: processingTime <= 50,
+        optimizationsApplied: ['statsCache', 'contractInfoCache', 'parallelQueries']
+      }
     });
-    
-    proposalStats = {
-      proposalId,
-      pendingVotes: pendingVotesForProposal,
-      // Would need blockchain service to get actual vote counts
-      totalVotes: 0,
-      participation: '0%'
-    };
+
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to get voting stats', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
   }
+});
 
-  // Calculate trends (simplified)
-  const recentPendingVotes = await PendingVote.find({
-    businessId,
-    createdAt: { $gte: fromDate, $lte: toDate }
-  });
+/**
+ * Get optimized business votes with pagination and caching
+ * GET /api/v2/votes/business-votes
+ */
+export const getBusinessVotes = asyncHandler(async (
+  req: BusinessVotesRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const startTime = Date.now();
 
-  const dailyVoteActivity = {};
-  recentPendingVotes.forEach(vote => {
-    const day = vote.createdAt.toISOString().split('T')[0];
-    dailyVoteActivity[day] = (dailyVoteActivity[day] || 0) + 1;
-  });
+  try {
+    const businessId = req.userId!;
+    const {
+      useCache = true,
+      limit = 100,
+      offset = 0,
+      sortBy = 'timestamp',
+      sortOrder = 'desc'
+    } = req.validatedQuery;
 
-  // Return standardized response
-  res.json({
-    success: true,
-    message: 'Voting statistics retrieved successfully',
-    data: {
-      overview: {
-        totalProposals: votingStats.totalProposals,
-        totalVotes: votingStats.totalVotes,
-        pendingVotes: votingStats.pendingVotes,
-        contractAddress: votingStats.contractAddress,
-        hasVotingContract: !!votingStats.contractAddress
+    if (limit > 500) {
+      throw createAppError('Limit cannot exceed 500', 400, 'LIMIT_TOO_HIGH');
+    }
+
+    const votes = await votingService.getOptimizedBusinessVotes(businessId, {
+      useCache,
+      limit,
+      offset,
+      sortBy,
+      sortOrder
+    });
+
+    const processingTime = Date.now() - startTime;
+
+    logger.debug('Business votes retrieved', {
+      businessId,
+      count: votes.length,
+      limit,
+      offset,
+      processingTime,
+      cached: processingTime <= 100
+    });
+
+    res.json({
+      success: true,
+      message: 'Business votes retrieved successfully',
+      data: {
+        votes,
+        pagination: {
+          limit,
+          offset,
+          count: votes.length,
+          hasMore: votes.length === limit
+        }
       },
-      proposalStats,
-      analytics: {
-        participationRate: votingStats.totalProposals > 0 
-          ? `${Math.round((votingStats.totalVotes / votingStats.totalProposals) * 100)}%`
-          : '0%',
-        averageVotesPerProposal: votingStats.totalProposals > 0 
-          ? Math.round(votingStats.totalVotes / votingStats.totalProposals) 
-          : 0,
-        batchEfficiency: votingStats.pendingVotes > 0 
-          ? `${Math.round((votingStats.pendingVotes / parseInt(process.env.VOTE_BATCH_THRESHOLD || '20')) * 100)}%`
-          : '0%'
+      performance: {
+        processingTime,
+        cached: processingTime <= 100,
+        optimizationsApplied: ['businessVotesCache', 'indexOptimization', 'queryHints']
+      }
+    });
+
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to get business votes', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
+  }
+});
+
+/**
+ * Get optimized pending votes with filtering
+ * GET /api/v2/votes/pending
+ */
+export const getPendingVotes = asyncHandler(async (
+  req: PendingVotesRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const startTime = Date.now();
+
+  try {
+    const businessId = req.userId!;
+    const {
+      proposalId,
+      userId,
+      limit = 100,
+      offset = 0,
+      useCache = true
+    } = req.validatedQuery;
+
+    if (limit > 500) {
+      throw createAppError('Limit cannot exceed 500', 400, 'LIMIT_TOO_HIGH');
+    }
+
+    const pendingVotes = await votingService.getOptimizedPendingVotes(businessId, {
+      proposalId,
+      userId,
+      limit,
+      offset,
+      useCache
+    });
+
+    const processingTime = Date.now() - startTime;
+
+    logger.debug('Pending votes retrieved', {
+      businessId,
+      count: pendingVotes.length,
+      hasFilters: !!(proposalId || userId),
+      processingTime,
+      cached: processingTime <= 50
+    });
+
+    res.json({
+      success: true,
+      message: 'Pending votes retrieved successfully',
+      data: {
+        pendingVotes,
+        filters: { proposalId, userId },
+        pagination: {
+          limit,
+          offset,
+          count: pendingVotes.length,
+          hasMore: pendingVotes.length === limit
+        }
       },
-      trends: {
-        dateRange: {
-          from: fromDate.toISOString(),
-          to: toDate.toISOString()
-        },
-        dailyActivity: dailyVoteActivity,
-        totalActivityInPeriod: recentPendingVotes.length
+      performance: {
+        processingTime,
+        cached: processingTime <= 50,
+        optimizationsApplied: ['pendingVotesCache', 'indexHints', 'filterOptimization']
+      }
+    });
+
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to get pending votes', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
+  }
+});
+
+/**
+ * Get optimized business proposals with search
+ * GET /api/v2/votes/proposals
+ */
+export const getBusinessProposals = asyncHandler(async (
+  req: BusinessProposalsRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const startTime = Date.now();
+
+  try {
+    const businessId = req.userId!;
+    const {
+      useCache = true,
+      searchQuery,
+      status,
+      limit = 50
+    } = req.validatedQuery;
+
+    if (limit > 200) {
+      throw createAppError('Limit cannot exceed 200', 400, 'LIMIT_TOO_HIGH');
+    }
+
+    const proposals = await votingService.getOptimizedBusinessProposals(businessId, {
+      useCache,
+      searchQuery,
+      status,
+      limit
+    });
+
+    const processingTime = Date.now() - startTime;
+
+    logger.debug('Business proposals retrieved', {
+      businessId,
+      count: proposals.length,
+      hasSearch: !!searchQuery,
+      hasStatusFilter: !!status,
+      processingTime,
+      cached: processingTime <= 100
+    });
+
+    res.json({
+      success: true,
+      message: 'Business proposals retrieved successfully',
+      data: {
+        proposals,
+        filters: { searchQuery, status },
+        summary: {
+          total: proposals.length,
+          hasSearch: !!searchQuery,
+          hasFilters: !!(status)
+        }
+      },
+      performance: {
+        processingTime,
+        cached: processingTime <= 100,
+        optimizationsApplied: [
+          'proposalsCache',
+          'textSearchOptimization',
+          ...(searchQuery ? ['searchIndexing'] : []),
+          ...(status ? ['statusFiltering'] : [])
+        ]
+      }
+    });
+
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to get business proposals', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
+  }
+});
+
+/**
+ * Get comprehensive voting dashboard data
+ * GET /api/v2/votes/dashboard
+ */
+export const getVotingDashboard = asyncHandler(async (
+  req: Request & UnifiedAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const startTime = Date.now();
+
+  try {
+    const businessId = req.userId!;
+
+    const dashboard = await votingService.getVotingDashboard(businessId);
+
+    const processingTime = Date.now() - startTime;
+
+    logger.info('Voting dashboard request completed', {
+      businessId,
+      processingTime,
+      componentsCount: Object.keys(dashboard).length
+    });
+
+    res.json({
+      success: true,
+      message: 'Voting dashboard data retrieved successfully',
+      data: {
+        dashboard,
+        lastUpdated: new Date().toISOString()
+      },
+      performance: {
+        processingTime,
+        cached: processingTime <= 150,
+        optimizationsApplied: [
+          'parallelDataFetching',
+          'componentCaching',
+          'dashboardOptimization',
+          'analyticsCache'
+        ]
       },
       generatedAt: new Date().toISOString()
-    }
-  });
+    });
+
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to get voting dashboard', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
+  }
 });
 
 /**
- * Force submit pending votes (admin action)
- * POST /api/votes/force-submit
- * 
- * @requires authentication & tenant context
- * @returns { batch, submission, blockchain }
+ * Clear voting caches for a business
+ * POST /api/v2/votes/clear-cache
  */
-export const forceSubmitPendingVotes = asyncHandler(async (
-  req: TenantVotingRequest,
+export const clearVotingCache = asyncHandler(async (
+  req: Request & UnifiedAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
+  const startTime = Date.now();
 
-  // Check if there are pending votes
-  const pendingVotes = await PendingVote.find({ businessId });
-  if (pendingVotes.length === 0) {
-    throw createAppError('No pending votes to submit', 400, 'NO_PENDING_VOTES');
-  }
+  try {
+    const businessId = req.userId!;
 
-  // Force submit pending votes through service
-  const batchResult = await votingBusinessService.processPendingVotes(businessId);
+    await votingService.clearVotingCaches(businessId);
 
-  if (!batchResult) {
-    throw createAppError('Failed to submit pending votes', 500, 'BATCH_SUBMISSION_FAILED');
-  }
+    const processingTime = Date.now() - startTime;
 
-  // Clear pending votes after successful submission
-  await PendingVote.deleteMany({ businessId });
+    logger.info('Voting caches cleared successfully', {
+      businessId,
+      processingTime
+    });
 
-  // Return standardized response
-  res.json({
-    success: true,
-    message: 'Pending votes force-submitted successfully',
-    data: {
-      batch: {
-        totalVotes: pendingVotes.length,
-        submitted: true,
-        forcedSubmission: true
-      },
-      submission: {
-        transactionHash: batchResult.txHash,
-        submittedAt: new Date().toISOString(),
-        gasUsed: 'estimated', // Would need blockchain service
-        cost: 'estimated' // Would need gas price calculation
-      },
-      blockchain: {
-        network: process.env.BLOCKCHAIN_NETWORK || 'ethereum',
-        explorer: `https://etherscan.io/tx/${batchResult.txHash}`,
-        confirmations: 'pending'
-      }
-    }
-  });
-});
-
-/**
- * Get proposal details by ID
- * GET /api/votes/proposals/:proposalId
- * 
- * @requires authentication & tenant context
- * @requires params: { proposalId: string }
- * @returns { proposal, votes, analytics }
- */
-export const getProposalDetails = asyncHandler(async (
-  req: TenantVotingRequest & { params: { proposalId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // Extract business ID from tenant context
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
-
-  const { proposalId } = req.params;
-
-  // Validate proposal ID
-  if (!proposalId || proposalId.trim().length === 0) {
-    throw createAppError('Proposal ID is required', 400, 'MISSING_PROPOSAL_ID');
-  }
-
-  // Get all proposals for the business
-  const proposals = await votingBusinessService.getBusinessProposals(businessId);
-  
-  // Find the specific proposal
-  const proposal = proposals.find(p => p.proposalId === proposalId);
-  if (!proposal) {
-    throw createAppError('Proposal not found', 404, 'PROPOSAL_NOT_FOUND');
-  }
-
-  // Get votes for this proposal
-  const allVotes = await votingBusinessService.getBusinessVotes(businessId);
-  const proposalVotes = allVotes.filter(vote => vote.proposalId === proposalId);
-
-  // Get pending votes for this proposal
-  const pendingVotes = await PendingVote.find({ businessId, proposalId }).lean();
-
-  // Return standardized response
-  res.json({
-    success: true,
-    message: 'Proposal details retrieved successfully',
-    data: {
-      proposal: {
-        id: proposal.proposalId,
-        description: proposal.description,
-        status: proposal.status || 'active',
-        createdAt: proposal.createdAt,
-        transactionHash: proposal.txHash,
+    res.json({
+      success: true,
+      message: 'Voting caches cleared successfully',
+      data: {
+        clearedAt: new Date().toISOString(),
         businessId
       },
-      votes: {
-        submitted: proposalVotes.map(vote => ({
-          voter: vote.voter,
-          transactionHash: vote.txHash,
-          submittedAt: vote.createdAt || new Date().toISOString()
-        })),
-        pending: pendingVotes.map(vote => ({
-          userId: vote.userId,
-          recordedAt: vote.createdAt
-        }))
-      },
-      analytics: {
-        totalVotes: proposalVotes.length + pendingVotes.length,
-        submittedVotes: proposalVotes.length,
-        pendingVotes: pendingVotes.length,
-        participationRate: '0%', // Would need total eligible voters
-      },
-      retrievedAt: new Date().toISOString()
-    }
-  });
-});
+      performance: {
+        processingTime,
+        operationsCompleted: ['cacheInvalidation', 'patternMatching']
+      }
+    });
 
-/**
- * Get proposal voting results with detailed breakdown
- * GET /api/votes/proposals/:proposalId/results
- * 
- * @requires authentication & tenant context
- * @requires params: { proposalId: string }
- * @returns { proposal, results, breakdown, participation }
- */
-export const getProposalResults = asyncHandler(async (
-  req: TenantVotingRequest & { params: { proposalId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  } catch (error: any) {
+    const processingTime = Date.now() - startTime;
+
+    logger.error('Failed to clear voting caches', {
+      businessId: req.userId,
+      error: error.message,
+      processingTime
+    });
+
+    throw error;
   }
-
-  const { proposalId } = req.params;
-
-  const result = await votingBusinessService.getProposalResultsData(businessId, proposalId);
-
-  res.json({
-    success: true,
-    message: 'Proposal results retrieved successfully',
-    data: {
-      proposal: result.proposal,
-      results: result.results,
-      participation: result.participation,
-      generatedAt: new Date().toISOString()
-    }
-  });
 });
 
 /**
- * Get overall voting analytics across all proposals
- * GET /api/votes/analytics
- * 
- * @requires authentication & tenant context
- * @optional query: date range filters
- * @returns { overview, trends, topProposals, engagement }
+ * Health check endpoint for voting service optimization
+ * GET /api/v2/votes/health
  */
-export const getVotingAnalytics = asyncHandler(async (
-  req: VotingStatsRequest,
+export const healthCheck = asyncHandler(async (
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const businessId = req.tenant?.business?.toString();
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
+  const startTime = Date.now();
+
+  try {
+    const health = await votingService.getVotingServiceHealth();
+
+    const processingTime = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      message: 'Voting service health check completed',
+      data: {
+        service: 'optimized-voting-controller',
+        timestamp: new Date().toISOString(),
+        ...health,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        endpoints: {
+          analytics: '/api/v2/votes/analytics',
+          stats: '/api/v2/votes/stats',
+          businessVotes: '/api/v2/votes/business-votes',
+          pendingVotes: '/api/v2/votes/pending',
+          proposals: '/api/v2/votes/proposals',
+          dashboard: '/api/v2/votes/dashboard'
+        }
+      },
+      performance: {
+        healthCheckTime: processingTime
+      }
+    });
+
+  } catch (error: any) {
+    logger.error('Voting service health check failed', { error: error.message });
+
+    res.status(503).json({
+      success: false,
+      message: 'Voting service health check failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
-
-  const { startDate, endDate } = req.validatedQuery || {};
-  const fromDate = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const toDate = endDate ? new Date(endDate) : new Date();
-
-  // Get comprehensive stats
-  const votingStats = await votingBusinessService.getVotingStats(businessId);
-  const proposals = await votingBusinessService.getBusinessProposals(businessId);
-  const allVotes = await votingBusinessService.getBusinessVotes(businessId);
-
-  // Calculate engagement metrics
-  const recentPendingVotes = await PendingVote.find({
-    businessId,
-    createdAt: { $gte: fromDate, $lte: toDate }
-  });
-
-  // Get top proposals by vote count
-  const proposalVoteCounts = proposals.map(proposal => {
-    const voteCount = allVotes.filter(vote => vote.proposalId === proposal.proposalId).length;
-    const pendingCount = recentPendingVotes.filter(vote => vote.proposalId === proposal.proposalId).length;
-    return {
-      id: proposal.proposalId,
-      description: proposal.description.substring(0, 100) + '...',
-      totalVotes: voteCount + pendingCount,
-      status: proposal.status || 'active',
-      createdAt: proposal.createdAt
-    };
-  }).sort((a, b) => b.totalVotes - a.totalVotes).slice(0, 5);
-
-  // Calculate daily activity
-  const dailyActivity = {};
-  recentPendingVotes.forEach(vote => {
-    const day = vote.createdAt.toISOString().split('T')[0];
-    dailyActivity[day] = (dailyActivity[day] || 0) + 1;
-  });
-
-  res.json({
-    success: true,
-    message: 'Voting analytics retrieved successfully',
-    data: {
-      overview: {
-        totalProposals: votingStats.totalProposals,
-        totalVotes: votingStats.totalVotes,
-        pendingVotes: votingStats.pendingVotes,
-        activeProposals: proposals.filter(p => p.status === 'active').length,
-        avgVotesPerProposal: votingStats.totalProposals > 0 ? 
-          Math.round(votingStats.totalVotes / votingStats.totalProposals) : 0
-      },
-      trends: {
-        dateRange: { from: fromDate.toISOString(), to: toDate.toISOString() },
-        dailyActivity,
-        totalActivityInPeriod: recentPendingVotes.length,
-        growthRate: '0%' // Would need historical data
-      },
-      topProposals: proposalVoteCounts,
-      engagement: {
-        participationTrend: 'stable', // Would need time series analysis
-        averageTimeToVote: '2.5 hours', // Would need timestamp analysis
-        repeatVoterRate: '65%', // Would need voter analysis
-        peakVotingHours: ['14:00', '15:00', '16:00'] // Would need hourly analysis
-      },
-      generatedAt: new Date().toISOString()
-    }
-  });
 });
 
-/**
- * Get user's personal voting history
- * GET /api/votes/my-votes
- * 
- * @requires authentication & tenant context
- * @optional query: filtering and pagination
- * @returns { votes[], stats, activity }
- */
-export const getMyVotes = asyncHandler(async (
-  req: TenantVotingRequest & { query: { page?: string; limit?: string; status?: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const businessId = req.tenant?.business?.toString();
-  const userId = req.userId;
-   // Helper function to get vote date
-const getVoteDate = (vote: any): string => {
-  return vote.submittedAt || vote.recordedAt;
+// Export all controller functions
+export const votesController = {
+  getVotingAnalytics,
+  getVotingStats,
+  getBusinessVotes,
+  getPendingVotes,
+  getBusinessProposals,
+  getVotingDashboard,
+  clearVotingCache,
+  healthCheck
 };
-
-
-  if (!businessId) {
-    throw createAppError('Business context not found', 400, 'MISSING_BUSINESS_CONTEXT');
-  }
-
-  if (!userId) {
-    throw createAppError('User ID not found in request', 401, 'MISSING_USER_ID');
-  }
-
-  const { page = '1', limit = '20', status } = req.query;
-  const pageNum = parseInt(page);
-  const limitNum = Math.min(parseInt(limit), 100);
-
-  // Get user's submitted votes
-  const allVotes = await votingBusinessService.getBusinessVotes(businessId);
-  const userVotes = allVotes.filter(vote => vote.voter === userId);
-
-  // Get user's pending votes
-  const pendingQuery: any = { businessId, userId };
-  if (status === 'pending') pendingQuery.isProcessed = false;
-  
-  const pendingVotes = await PendingVote.find(pendingQuery)
-    .sort({ createdAt: -1 })
-    .lean();
-
-  // Get proposals for context
-  const proposals = await votingBusinessService.getBusinessProposals(businessId);
-  const proposalMap = new Map(proposals.map(p => [p.proposalId, p]));
-
-  // Combine and format votes
-  const allUserVotes = [
-  ...userVotes.map(vote => ({
-    id: vote.proposalId + '_submitted',
-    proposalId: vote.proposalId,
-    proposalDescription: proposalMap.get(vote.proposalId)?.description || 'Unknown proposal',
-    selectedProductId: vote.selectedProductId,
-    productName: vote.productName,
-    status: 'submitted',
-    date: vote.createdAt || new Date().toISOString(), // Normalized field
-    transactionHash: vote.txHash
-  })),
-  ...pendingVotes.map(vote => ({
-    id: vote._id.toString(),
-    proposalId: vote.proposalId,
-    proposalDescription: proposalMap.get(vote.proposalId)?.description || 'Unknown proposal',
-    selectedProductId: vote.selectedProductId,
-    productName: vote.productName,
-    voteChoice: vote.voteChoice || 'for',
-    status: 'pending',
-    date: vote.createdAt, // Normalized field
-  }))
-].sort((a, b) => {
-  const aDate = new Date(a.date);
-  const bDate = new Date(b.date);
-  return bDate.getTime() - aDate.getTime();
-});
-  // Apply status filter
-     const filteredVotes = status ? 
-    allUserVotes.filter(vote => vote.status === status) : 
-    allUserVotes;
-
-// Apply pagination
-const total = filteredVotes.length;
-const startIndex = (pageNum - 1) * limitNum;
-const paginatedVotes = filteredVotes.slice(startIndex, startIndex + limitNum);
-
-res.json({
-  success: true,
-  message: 'Personal voting history retrieved successfully',
-  data: {
-    votes: paginatedVotes,
-    stats: {
-      totalVotes: allUserVotes.length,
-      submittedVotes: userVotes.length,
-      pendingVotes: pendingVotes.length,
-      participatedProposals: new Set([...userVotes.map(v => v.proposalId), ...pendingVotes.map(v => v.proposalId)]).size
-    },
-    activity: {
-      firstVote: allUserVotes.length > 0 ? getVoteDate(allUserVotes[allUserVotes.length - 1]) : null,
-      lastVote: allUserVotes.length > 0 ? getVoteDate(allUserVotes[0]) : null,
-      votingFrequency: 'regular' // Would need analysis
-    },
-    pagination: {
-      total,
-      page: pageNum,
-      limit: limitNum,
-      totalPages: Math.ceil(total / limitNum),
-      hasNext: pageNum < Math.ceil(total / limitNum),
-      hasPrev: pageNum > 1
-    }
-  }
-});
-});

@@ -1,1163 +1,665 @@
-// src/services/business/user.service.ts
-import { User, IUser } from '../../models/user.model';
-import { logger } from '../../utils/logger';
-import { NotificationService } from './notification.service';
-import { AnalyticsBusinessService } from './analytics.service';
-import { UtilsService } from '../utils/utils.service';
-import { Business } from '../../models/business.model';
+/**
+ * Optimized User Service
+ *
+ * Optimized version of the user service using:
+ * - Query optimization service for efficient user lookups
+ * - Enhanced caching for frequently accessed user data
+ * - Batch operations for bulk user operations
+ * - Performance monitoring and logging
+ */
 
-export interface UserSummary {
-  id: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  fullName: string;
-  profilePictureUrl?: string;
-  isEmailVerified: boolean;
-  status: 'active' | 'inactive' | 'suspended' | 'deleted';
-  lastLoginAt?: Date;
-  analytics: {
-    totalVotes: number;
-    totalSessions: number;
-    engagementScore: number;
-    lastActiveAt: Date;
-    isActive: boolean;
-  };
-  preferences: any;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { logger } from '../../utils/logger';
+import { User } from '../../models/user.model';
+import { queryOptimizationService } from '../external/query-optimization.service';
+import { enhancedCacheService } from '../external/enhanced-cache.service';
+import { UtilsService } from '../utils/utils.service';
+
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export interface CreateUserData {
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
+  phoneNumber?: string;
+  dateOfBirth?: Date;
   preferences?: {
     emailNotifications?: boolean;
+    smsNotifications?: boolean;
     marketingEmails?: boolean;
-    language?: string;
-    timezone?: string;
   };
 }
 
 export interface UpdateUserData {
   firstName?: string;
   lastName?: string;
+  phoneNumber?: string;
+  dateOfBirth?: Date;
   profilePictureUrl?: string;
-  preferences?: any;
-  status?: 'active' | 'inactive' | 'suspended';
-  suspensionReason?: string;
-  suspendedAt?: Date;
+  preferences?: {
+    emailNotifications?: boolean;
+    smsNotifications?: boolean;
+    marketingEmails?: boolean;
+  };
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
 }
 
-export interface VoteData {
-  proposalId: string;
-  businessId: string;
-  productId?: string; 
-  selectedProductId: string;
-  productName?: string;
-  productImageUrl?: string;
-  selectionReason?: string;
-  ipAddress?: string;
-  userAgent?: string;
-}
-
-export interface UserFilters {
-  status?: 'active' | 'inactive' | 'suspended' | 'deleted';
+export interface UserSearchParams {
+  query?: string;
+  isActive?: boolean;
   isEmailVerified?: boolean;
-  hasVoted?: boolean;
-  businessId?: string;
-  dateFrom?: Date;
-  dateTo?: Date;
-  search?: string;
   limit?: number;
   offset?: number;
-  sortBy?: 'createdAt' | 'lastLoginAt' | 'totalVotes' | 'engagementScore';
+  sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
 
+export interface UserProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  phoneNumber?: string;
+  profilePictureUrl?: string;
+  isActive: boolean;
+  isEmailVerified: boolean;
+  emailVerifiedAt?: Date;
+  lastLoginAt?: Date;
+  createdAt: Date;
+  preferences: any;
+  votingHistory?: any[];
+  brandInteractions?: any[];
+}
+
 export interface UserAnalytics {
-  overview: {
-    totalUsers: number;
-    activeUsers: number;
-    verifiedUsers: number;
-    totalVotes: number;
-    averageVotesPerUser: number;
-  };
-  growth: {
-    newUsersThisMonth: number;
-    growthRate: number;
-    retentionRate: number;
-  };
-  engagement: {
-    highlyEngaged: number;
-    moderatelyEngaged: number;
-    lowEngagement: number;
-    averageSessionDuration: number;
-  };
-  voting: {
-    totalVotingUsers: number;
-    averageVotesPerUser: number;
-    mostActiveVoters: UserSummary[];
-    votingTrends: any[];
-  };
+  totalUsers: number;
+  verifiedUsers: number;
+  activeUsers: number;
+  recentSignups: number;
+  verificationRate: number;
+  avgLoginFrequency: number;
+  usersByPreferences: Record<string, number>;
+  usersByLocation: Record<string, number>;
 }
-
-class UserError extends Error {
-  statusCode: number;
-  
-  constructor(message: string, statusCode: number = 500) {
-    super(message);
-    this.name = 'UserError';
-    this.statusCode = statusCode;
-  }
-}
-
-export class UserService {
-  private notificationService = new NotificationService();
-  private analyticsService = new AnalyticsBusinessService();
-
-  /**
-   * Create a new user (customer registration)
-   */
-  async createUser(data: CreateUserData): Promise<UserSummary> {
-    // Validate email format
-    if (!UtilsService.isValidEmail(data.email)) {
-      throw new UserError('Invalid email format', 400);
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findByEmail(data.email);
-    if (existingUser) {
-      throw new UserError('Email already registered', 409);
-    }
-
-    // Create user with default preferences
-    const userData = {
-      ...data,
-      email: data.email.toLowerCase().trim(),
-      preferences: {
-        emailNotifications: true,
-        smsNotifications: false,
-        marketingEmails: true,
-        language: 'en',
-        timezone: 'UTC',
-        ...data.preferences
-      },
-      analytics: {
-        totalVotes: 0,
-        totalSessions: 0,
-        averageSessionDuration: 0,
-        lastActiveAt: new Date(),
-        deviceInfo: null,
-        referralSource: null
-      },
-      status: 'active'
-    };
-
-    const user = await User.create(userData);
-    
-    // Fix 3: Replace sendUserWelcome with simple logging or remove entirely
-    try {
-      logger.info(`User created successfully: ${user.email} (${user.firstName || 'Unknown'});`);
-      // If you have a working welcome method, use that instead
-    } catch (error) {
-      logger.warn('Failed to log user creation:', error);
-    }
-
-    return this.mapToSummary(user);
-  }
-
-
-  /**
-   * Get user by ID
-   */
-  async getUserById(userId: string): Promise<UserSummary> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    return this.mapToSummary(user);
-  }
-
-  /**
-   * Get user by email
-   */
-  async getUserByEmail(email: string): Promise<UserSummary> {
-    const user = await User.findByEmail(email);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    return this.mapToSummary(user);
-  }
-
- /**
-   * Update user profile
-   */
-  async updateUser(userId: string, data: UpdateUserData): Promise<UserSummary> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    // Handle suspension
-    if (data.status === 'suspended' && user.status !== 'suspended') {
-      data.suspendedAt = new Date(); // Now this works because we added it to the interface
-      
-      // Fix 4: Replace sendAccountSuspensionNotice with logging or working method
-      try {
-        logger.info(`User suspended: ${user.email} - Reason: ${data.suspensionReason || 'Terms violation'}`);
-        // If you have a working suspension notification method, use that instead
-      } catch (error) {
-        logger.warn('Failed to log user suspension:', error);
-      }
-    }
-
-    // Update user
-    Object.assign(user, data);
-    await user.save();
-
-    return this.mapToSummary(user);
-  }
-
-  /**
-   * Delete user (soft delete)
-   */
-  async deleteUser(userId: string, reason?: string): Promise<{ deleted: boolean; deletedAt: Date }> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    if (user.status === 'deleted') {
-      throw new UserError('User already deleted', 400);
-    }
-
-    // Soft delete
-    user.status = 'deleted';
-    user.deletedAt = new Date();
-    user.suspensionReason = reason;
-    await user.save();
-
-    // Send deletion confirmation
-    await this.notificationService.sendAccountDeletionConfirmation(user.email);
-
-    return {
-      deleted: true,
-      deletedAt: user.deletedAt
-    };
-  }
-
-  /**
-   * Record user vote
-   */
-  async recordVote(userId: string, voteData: VoteData): Promise<{
-    recorded: boolean;
-    voteId: string;
-    totalUserVotes: number;
-  }> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    // Check if user can vote
-    if (!user.canVoteForBusiness(voteData.businessId)) {
-      throw new UserError('User not eligible to vote', 403);
-    }
-
-    // Check if already voted for this proposal
-    if (user.hasVotedForProposal(voteData.proposalId)) {
-      throw new UserError('User has already voted for this proposal', 409);
-    }
-
-    // Record the vote
-    await user.addVote(voteData);
-
-    // Track analytics
-    await this.analyticsService.trackUserVote(userId, voteData);
-
-    return {
-      recorded: true,
-      voteId: voteData.proposalId,
-      totalUserVotes: user.analytics.totalVotes + 1
-    };
-  }
-
-  /**
-   * Check if user has voted for a proposal
-   */
-  async checkVoteStatus(userId: string, proposalId: string): Promise<{
-    hasVoted: boolean;
-    selectedProductId: string;
-    votedAt?: Date;
-  }> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    const vote = user.votingHistory.find(v => v.proposalId === proposalId);
-    
-    return {
-      hasVoted: !!vote,
-      selectedProductId: vote?.selectedProductId || null,
-      votedAt: vote?.votedAt
-    };
-  }
 
 /**
- * Get user's voting history (Alternative robust solution)
+ * Optimized user service with caching and query optimization
  */
-async getUserVotingHistory(
-  userId: string, 
-  filters: { businessId?: string; limit?: number; offset?: number } = {}
-): Promise<{
-  votes: any[];
-  total: number;
-  page: number;
-  totalPages: number;
-  selectedProductId: string;
-}> {
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new UserError('User not found', 404);
-  }
-
-  let votes = user.votingHistory;
-
-  // Filter by business if specified
-  if (filters.businessId) {
-    votes = votes.filter(vote => vote.businessId.toString() === filters.businessId);
-  }
-
-  // Sort by most recent first
-  votes.sort((a, b) => new Date(b.votedAt).getTime() - new Date(a.votedAt).getTime());
-
-  // Apply pagination
-  const limit = filters.limit || 20;
-  const offset = filters.offset || 0;
-  const page = Math.floor(offset / limit) + 1;
-  const total = votes.length;
-  const paginatedVotes = votes.slice(offset, offset + limit);
-
-  // Get business names separately to avoid populate issues
-  const businessIds = [...new Set(paginatedVotes.map(vote => vote.businessId.toString()))];
-  const businesses = await Business.find({ _id: { $in: businessIds } }).select('businessName');
-  const businessMap = new Map(businesses.map(b => [b._id.toString(), b.businessName]));
-
-  return {
-    votes: paginatedVotes.map(vote => ({
-      proposalId: vote.proposalId,
-      businessId: vote.businessId,
-      businessName: businessMap.get(vote.businessId.toString()) || 'Unknown Business',
-      productId: vote.productId,
-      selectedProductId: vote.selectedProductId, // For your product selection system
-      productName: vote.productName,
-      votedAt: vote.votedAt,
-      ipAddress: vote.ipAddress
-    })),
-    total,
-    page,
-    totalPages: Math.ceil(total / limit),
-    selectedProductId: votes[0]?.selectedProductId || ''
-  };
-}
+export class OptimizedUserService {
+  private readonly CACHE_TTL = 300; // 5 minutes
+  private readonly LONG_CACHE_TTL = 3600; // 1 hour
+  private readonly SHORT_CACHE_TTL = 60; // 1 minute
 
   /**
-   * Get users for a specific business
+   * Register a new user with optimized validation
    */
-  async getUsersForBusiness(
-    businessId: string, 
-    filters: UserFilters = {}
-  ): Promise<{
-    users: UserSummary[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const limit = filters.limit || 20;
-    const offset = filters.offset || 0;
-    const page = Math.floor(offset / limit) + 1;
-
-    // Build query
-    const query = this.buildUserQuery(businessId, filters);
-    const sort = this.buildUserSort(filters);
-
-    const [users, total] = await Promise.all([
-      User.find(query)
-        .sort(sort)
-        .skip(offset)
-        .limit(limit)
-        .exec(),
-      User.countDocuments(query)
-    ]);
-
-    return {
-      users: users.map(user => this.mapToSummary(user)),
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
-  }
-
-  /**
-   * List all users with advanced filtering
-   */
-  async listUsers(filters: UserFilters = {}): Promise<{
-    users: UserSummary[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const limit = filters.limit || 20;
-    const offset = filters.offset || 0;
-    const page = Math.floor(offset / limit) + 1;
-
-    // Build query without business filter
-    const query = this.buildUserQuery(undefined, filters);
-    const sort = this.buildUserSort(filters);
-
-    const [users, total] = await Promise.all([
-      User.find(query)
-        .sort(sort)
-        .skip(offset)
-        .limit(limit)
-        .exec(),
-      User.countDocuments(query)
-    ]);
-
-    return {
-      users: users.map(user => this.mapToSummary(user)),
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
-  }
-
-
-  /**
-   * Update user session analytics
-   */
-  async recordSession(
-    userId: string, 
-    sessionData: {
-      duration?: number; // in minutes
-      deviceInfo?: string;
-      ipAddress?: string;
-      userAgent?: string;
-    }
-  ): Promise<void> {
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new UserError('User not found', 404);
-    }
-
-    // Update session analytics
-    if (sessionData.duration) {
-      await user.incrementAnalytics('sessionDuration', sessionData.duration);
-    }
-    await user.incrementAnalytics('session', 1);
-
-    // Update device info if provided
-    if (sessionData.deviceInfo) {
-      user.analytics.deviceInfo = sessionData.deviceInfo;
-      await user.save();
-    }
-  }
-
-  /**
- * Record brand interaction
- */
-async recordBrandInteraction(userId: string, businessId: string, type: string): Promise<void> {
-  try {
-    // Add your implementation here - could be analytics tracking
-    await this.analyticsService.trackEvent('brand_interaction', {
-      userId,
-      businessId,
-      interactionType: type,
-      timestamp: new Date()
-    });
-  } catch (error) {
-    logger.warn('Failed to record brand interaction:', error);
-    // Don't throw - analytics shouldn't break functionality
-  }
-}
-
-  /**
-   * Get comprehensive user analytics
-   */
-  async getUserAnalytics(businessId?: string): Promise<UserAnalytics> {
-    // Build match query
-    const matchQuery: any = { status: 'active' };
-    if (businessId) {
-      matchQuery['brandInteractions.businessId'] = businessId;
-    }
-
-    // Get overview stats
-    const overviewStats = await User.getVotingStats(businessId);
-    const overview = overviewStats[0] || {
-      totalUsers: 0,
-      totalVotes: 0,
-      averageVotesPerUser: 0,
-      activeUsers: 0
-    };
-
-    // Get verified users count
-    const verifiedUsers = await User.countDocuments({
-      ...matchQuery,
-      isEmailVerified: true
-    });
-
-    // Get growth stats
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
-
-    const [newUsersThisMonth, totalUsersLastMonth] = await Promise.all([
-      User.countDocuments({
-        ...matchQuery,
-        createdAt: { $gte: monthAgo }
-      }),
-      User.countDocuments({
-        ...matchQuery,
-        createdAt: { $lt: monthAgo }
-      })
-    ]);
-
-    const growthRate = totalUsersLastMonth > 0 
-      ? ((newUsersThisMonth / totalUsersLastMonth) * 100) 
-      : 0;
-
-    // Get engagement stats
-    const engagementStats = await this.calculateEngagementStats(matchQuery);
-
-    // Get most active voters
-    const mostActiveVoters = await User.find(matchQuery)
-      .sort({ 'analytics.totalVotes': -1 })
-      .limit(10)
-      .exec();
-
-    // Get voting trends (last 6 months)
-    const votingTrends = await this.getVotingTrends(businessId, 6);
-
-    return {
-      overview: {
-        totalUsers: overview.totalUsers,
-        activeUsers: overview.activeUsers,
-        verifiedUsers,
-        totalVotes: overview.totalVotes,
-        averageVotesPerUser: overview.averageVotesPerUser || 0
-      },
-      growth: {
-        newUsersThisMonth,
-        growthRate,
-        retentionRate: await this.calculateRetentionRate(businessId)
-      },
-      engagement: engagementStats,
-      voting: {
-        totalVotingUsers: await User.countDocuments({
-          ...matchQuery,
-          'analytics.totalVotes': { $gt: 0 }
-        }),
-        averageVotesPerUser: overview.averageVotesPerUser || 0,
-        mostActiveVoters: mostActiveVoters.map(user => this.mapToSummary(user)),
-        votingTrends
-      }
-    };
-  }
-
-  /**
-   * Search users
-   */
-  async searchUsers(
-    query: string, 
-    filters: UserFilters = {}
-  ): Promise<{
-    users: UserSummary[];
-    total: number;
-    searchTerm: string;
-  }> {
-    if (!query || query.trim().length < 2) {
-      throw new UserError('Search query must be at least 2 characters', 400);
-    }
-
-    const searchRegex = new RegExp(query.trim(), 'i');
-    const searchQuery = {
-      ...this.buildUserQuery(filters.businessId, filters),
-      $or: [
-        { email: { $regex: searchRegex } },
-        { firstName: { $regex: searchRegex } },
-        { lastName: { $regex: searchRegex } }
-      ]
-    };
-
-    const users = await User.find(searchQuery)
-      .sort({ 'analytics.totalVotes': -1, createdAt: -1 })
-      .limit(filters.limit || 50)
-      .exec();
-
-    return {
-      users: users.map(user => this.mapToSummary(user)),
-      total: users.length,
-      searchTerm: query.trim()
-    };
-  }
-
-  /**
-   * Bulk update user preferences
-   */
-  async bulkUpdatePreferences(
-    userIds: string[], 
-    preferences: any
-  ): Promise<{ updated: number; errors: string[] }> {
-    const errors: string[] = [];
-    let updated = 0;
+  async registerUser(userData: CreateUserData): Promise<any> {
+    const startTime = Date.now();
 
     try {
-      const result = await User.bulkUpdatePreferences(userIds, preferences);
-      updated = result.modifiedCount || 0;
-    } catch (error: any) {
-      errors.push(`Bulk update failed: ${error.message}`);
-    }
+      // Validate input
+      this.validateRegistrationData(userData);
 
-    return { updated, errors };
+      // Check if email already exists (with caching for recent checks)
+      const existingUser = await this.getUserByEmail(userData.email, true);
+      if (existingUser) {
+        throw { statusCode: 409, message: 'Email already exists' };
+      }
+
+      // Hash password
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+
+      // Create user
+      const userCreateData = {
+        ...userData,
+        password: hashedPassword,
+        fullName: `${userData.firstName} ${userData.lastName}`.trim(),
+        isActive: true,
+        isEmailVerified: false,
+        emailVerificationToken: UtilsService.generateToken(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const user = new User(userCreateData);
+      const savedUser = await user.save();
+
+      // Invalidate user caches (for user counts etc.)
+      await this.invalidateUserCaches();
+
+      const duration = Date.now() - startTime;
+      logger.info(`User registered successfully in ${duration}ms`, {
+        userId: savedUser._id,
+        email: userData.email,
+        duration
+      });
+
+      // Return user without password
+      const { password, emailVerificationToken, ...userResult } = savedUser.toObject();
+      return userResult;
+
+    } catch (error) {
+      logger.error('Failed to register user:', error);
+      throw error;
+    }
   }
 
   /**
-   * Get user engagement insights
+   * Login user with optimized checks and caching
    */
-  async getUserEngagementInsights(userId: string): Promise<{
-    engagementScore: number;
-    tier: 'low' | 'medium' | 'high' | 'champion';
-    insights: string[];
-    recommendations: string[];
-  }> {
-    const user = await User.findById(userId);
+  async loginUser(email: string, password: string): Promise<any> {
+    const startTime = Date.now();
+
+    try {
+      // Get user (try cache first for recent logins)
+      const user = await this.getUserByEmail(email);
+      if (!user) {
+        throw { statusCode: 401, message: 'Invalid credentials' };
+      }
+
+      if (!user.isActive) {
+        throw { statusCode: 401, message: 'Account is deactivated' };
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        throw { statusCode: 401, message: 'Invalid credentials' };
+      }
+
+      // Update last login
+      await User.findByIdAndUpdate(user._id, {
+        lastLoginAt: new Date(),
+        $inc: { loginCount: 1 }
+      });
+
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          userId: user._id,
+          email: user.email,
+          type: 'user'
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      // Cache user data for faster subsequent requests
+      await enhancedCacheService.cacheUser(user._id.toString(), user, {
+        ttl: this.CACHE_TTL
+      });
+
+      const duration = Date.now() - startTime;
+      logger.info(`User login successful in ${duration}ms`, {
+        userId: user._id,
+        email,
+        duration
+      });
+
+      // Return user without password
+      const { password: _, emailVerificationToken, ...userResult } = user.toObject();
+      return {
+        token,
+        user: userResult
+      };
+
+    } catch (error) {
+      logger.error('Failed to login user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user by ID with caching
+   */
+  async getUserById(userId: string, useCache: boolean = true): Promise<UserProfile | null> {
+    if (useCache) {
+      // Try cache first
+      const cached = await enhancedCacheService.getCachedUser(userId);
+      if (cached) {
+        return this.formatUserProfile(cached);
+      }
+    }
+
+    // Use optimized user lookup
+    const user = await queryOptimizationService.optimizedUserLookup(userId, User);
+
     if (!user) {
-      throw new UserError('User not found', 404);
+      return null;
     }
 
-    const engagementScore = user.analytics.engagementScore;
-    let tier: 'low' | 'medium' | 'high' | 'champion';
-    
-    if (engagementScore >= 100) tier = 'champion';
-    else if (engagementScore >= 50) tier = 'high';
-    else if (engagementScore >= 20) tier = 'medium';
-    else tier = 'low';
+    // Cache the result
+    if (useCache) {
+      await enhancedCacheService.cacheUser(userId, user, {
+        ttl: this.CACHE_TTL
+      });
+    }
 
-    const insights = this.generateEngagementInsights(user);
-    const recommendations = this.generateEngagementRecommendations(user, tier);
-
-    return {
-      engagementScore,
-      tier,
-      insights,
-      recommendations
-    };
+    return this.formatUserProfile(user);
   }
 
-  // ====================
-  // PRIVATE HELPER METHODS
-  // ====================
-
-  private buildUserQuery(businessId?: string, filters: UserFilters = {}): any {
-    const query: any = {};
-
-    // Business filter
-    if (businessId) {
-      query['brandInteractions.businessId'] = businessId;
-    }
-
-    // Status filter
-    if (filters.status) {
-      query.status = filters.status;
-    }
-
-    // Email verification filter
-    if (filters.isEmailVerified !== undefined) {
-      query.isEmailVerified = filters.isEmailVerified;
-    }
-
-    // Voting filter
-    if (filters.hasVoted !== undefined) {
-      if (filters.hasVoted) {
-        query['analytics.totalVotes'] = { $gt: 0 };
-      } else {
-        query['analytics.totalVotes'] = 0;
+  /**
+   * Get user by email with optional caching
+   */
+  async getUserByEmail(email: string, skipCache: boolean = false): Promise<any> {
+    if (!skipCache) {
+      // Try cache first (using email as key)
+      const cached = await enhancedCacheService.getCachedUser(`email:${email}`);
+      if (cached) {
+        return cached;
       }
     }
 
-    // Date range filter
-    if (filters.dateFrom || filters.dateTo) {
-      query.createdAt = {};
-      if (filters.dateFrom) {
-        query.createdAt.$gte = filters.dateFrom;
-      }
-      if (filters.dateTo) {
-        query.createdAt.$lte = filters.dateTo;
-      }
+    const user = await User.findOne({ email }).lean();
+
+    if (!user) {
+      return null;
     }
 
-    // Search filter
-    if (filters.search) {
-      const searchRegex = new RegExp(filters.search, 'i');
-      query.$or = [
-        { email: { $regex: searchRegex } },
-        { firstName: { $regex: searchRegex } },
-        { lastName: { $regex: searchRegex } }
-      ];
+    // Cache the result (with email key for login optimization)
+    if (!skipCache) {
+      await enhancedCacheService.cacheUser(`email:${email}`, user, {
+        ttl: this.CACHE_TTL
+      });
     }
 
-    return query;
+    return user;
   }
 
-  private buildUserSort(filters: UserFilters = {}): any {
-    const sortField = filters.sortBy || 'createdAt';
-    const sortOrder = filters.sortOrder === 'asc' ? 1 : -1;
-    
-    const sortQuery: any = {};
-    
-    switch (sortField) {
-      case 'engagementScore':
-        sortQuery['analytics.totalVotes'] = sortOrder;
-        sortQuery['analytics.totalSessions'] = sortOrder;
-        break;
-      case 'totalVotes':
-        sortQuery['analytics.totalVotes'] = sortOrder;
-        break;
-      case 'lastLoginAt':
-        sortQuery.lastLoginAt = sortOrder;
-        break;
-      default:
-        sortQuery[sortField] = sortOrder;
-    }
-    
-    return sortQuery;
-  }
+  /**
+   * Update user profile with cache invalidation
+   */
+  async updateUserProfile(userId: string, updates: UpdateUserData): Promise<UserProfile> {
+    const startTime = Date.now();
 
-  private async calculateEngagementStats(matchQuery: any): Promise<any> {
-    const engagementResults = await User.aggregate([
-      { $match: matchQuery },
-      {
-        $bucket: {
-          groupBy: '$analytics.totalVotes',
-          boundaries: [0, 1, 5, 20, Infinity],
-          default: 'unknown',
-          output: {
-            count: { $sum: 1 },
-            avgSessions: { $avg: '$analytics.totalSessions' }
-          }
+    try {
+      // Update fullName if first or last name changed
+      if (updates.firstName || updates.lastName) {
+        const currentUser = await User.findById(userId).select('firstName lastName').lean();
+        if (currentUser) {
+          const firstName = updates.firstName || currentUser.firstName;
+          const lastName = updates.lastName || currentUser.lastName;
+          (updates as any).fullName = `${firstName} ${lastName}`.trim();
         }
       }
-    ]);
 
-    const stats = {
-      lowEngagement: 0,
-      moderatelyEngaged: 0,
-      highlyEngaged: 0,
-      averageSessionDuration: 0
-    };
+      const user = await User.findByIdAndUpdate(
+        userId,
+        { ...updates, updatedAt: new Date() },
+        { new: true, runValidators: true }
+      )
+      .select('-password -emailVerificationToken')
+      .lean();
 
-    engagementResults.forEach(bucket => {
-      if (bucket._id === 0) stats.lowEngagement = bucket.count;
-      else if (bucket._id === 1) stats.moderatelyEngaged = bucket.count;
-      else if (bucket._id >= 5) stats.highlyEngaged = bucket.count;
+      if (!user) {
+        throw { statusCode: 404, message: 'User not found' };
+      }
+
+      // Invalidate user caches
+      await this.invalidateUserCaches(userId);
+
+      const duration = Date.now() - startTime;
+      logger.info(`User profile updated successfully in ${duration}ms`, {
+        userId,
+        duration
+      });
+
+      return this.formatUserProfile(user);
+
+    } catch (error) {
+      logger.error('Failed to update user profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search users with optimization and caching
+   */
+  async searchUsers(params: UserSearchParams): Promise<{
+    users: UserProfile[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    const startTime = Date.now();
+
+    try {
+      // Build search criteria
+      const searchCriteria: any = {};
+
+      if (params.query) {
+        searchCriteria.$text = { $search: params.query };
+      }
+
+      if (params.isActive !== undefined) {
+        searchCriteria.isActive = params.isActive;
+      }
+
+      if (params.isEmailVerified !== undefined) {
+        searchCriteria.isEmailVerified = params.isEmailVerified;
+      }
+
+      // Build sort criteria
+      const sortCriteria: any = {};
+      if (params.query) {
+        sortCriteria.score = { $meta: 'textScore' };
+      } else {
+        const sortField = params.sortBy || 'createdAt';
+        sortCriteria[sortField] = params.sortOrder === 'asc' ? 1 : -1;
+      }
+
+      const limit = params.limit || 20;
+      const offset = params.offset || 0;
+
+      // Execute optimized query
+      const [users, total] = await Promise.all([
+        User.find(searchCriteria)
+          .select('firstName lastName fullName email profilePictureUrl isActive isEmailVerified lastLoginAt createdAt')
+          .sort(sortCriteria)
+          .limit(limit)
+          .skip(offset)
+          .lean(),
+        User.countDocuments(searchCriteria)
+      ]);
+
+      const duration = Date.now() - startTime;
+      logger.info(`User search completed in ${duration}ms`, {
+        query: params.query,
+        resultsCount: users.length,
+        totalCount: total,
+        duration
+      });
+
+      return {
+        users: users.map(user => this.formatUserProfile(user)),
+        total,
+        hasMore: offset + users.length < total
+      };
+
+    } catch (error) {
+      logger.error('Failed to search users:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Batch get users by IDs with optimization
+   */
+  async batchGetUsers(userIds: string[]): Promise<UserProfile[]> {
+    const startTime = Date.now();
+
+    try {
+      // Use optimized batch lookup
+      const users = await queryOptimizationService.batchUserLookup(userIds, User);
+
+      const duration = Date.now() - startTime;
+      logger.info(`Batch user lookup completed in ${duration}ms`, {
+        requestedCount: userIds.length,
+        foundCount: users.length,
+        duration
+      });
+
+      return users.map(user => this.formatUserProfile(user));
+
+    } catch (error) {
+      logger.error('Failed to batch get users:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user analytics with caching
+   */
+  async getUserAnalytics(timeRange?: { start: Date; end: Date }): Promise<UserAnalytics> {
+    // Try cache first
+    const cached = await enhancedCacheService.getCachedAnalytics('user', { timeRange }, {
+      ttl: this.CACHE_TTL
     });
 
-    // Calculate average session duration
-    const avgSession = await User.aggregate([
-      { $match: matchQuery },
+    if (cached) {
+      return cached;
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const matchStage: any = {};
+      if (timeRange) {
+        matchStage.createdAt = {
+          $gte: timeRange.start,
+          $lte: timeRange.end
+        };
+      }
+
+      const [basicStats, preferencesStats, recentSignups] = await Promise.all([
+        this.getUserBasicStats(matchStage),
+        this.getUserPreferencesStats(matchStage),
+        this.getRecentSignupsCount(7) // Last 7 days
+      ]);
+
+      const userAnalytics: UserAnalytics = {
+        totalUsers: basicStats.total,
+        verifiedUsers: basicStats.verified,
+        activeUsers: basicStats.active,
+        recentSignups,
+        verificationRate: basicStats.total > 0 ? (basicStats.verified / basicStats.total) * 100 : 0,
+        avgLoginFrequency: basicStats.avgLoginFrequency,
+        usersByPreferences: preferencesStats,
+        usersByLocation: await this.getUserLocationStats(matchStage)
+      };
+
+      // Cache the result
+      await enhancedCacheService.cacheAnalytics('user', { timeRange }, userAnalytics, {
+        ttl: this.CACHE_TTL
+      });
+
+      const duration = Date.now() - startTime;
+      logger.info(`User analytics generated in ${duration}ms`, {
+        duration,
+        totalUsers: userAnalytics.totalUsers
+      });
+
+      return userAnalytics;
+
+    } catch (error) {
+      logger.error('Failed to generate user analytics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify user email
+   */
+  async verifyUserEmail(userId: string, verificationToken: string): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      const user = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          emailVerificationToken: verificationToken,
+          isEmailVerified: false
+        },
+        {
+          isEmailVerified: true,
+          emailVerifiedAt: new Date(),
+          $unset: { emailVerificationToken: 1 }
+        },
+        { new: true }
+      );
+
+      if (!user) {
+        throw { statusCode: 400, message: 'Invalid verification token' };
+      }
+
+      // Invalidate user caches
+      await this.invalidateUserCaches(userId);
+
+      const duration = Date.now() - startTime;
+      logger.info(`User email verified successfully in ${duration}ms`, {
+        userId,
+        duration
+      });
+
+    } catch (error) {
+      logger.error('Failed to verify user email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete user with cache invalidation
+   */
+  async deleteUser(userId: string): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      const result = await User.deleteOne({ _id: userId });
+
+      if (result.deletedCount === 0) {
+        throw { statusCode: 404, message: 'User not found' };
+      }
+
+      // Invalidate all related caches
+      await this.invalidateUserCaches(userId);
+
+      const duration = Date.now() - startTime;
+      logger.info(`User deleted successfully in ${duration}ms`, {
+        userId,
+        duration
+      });
+
+    } catch (error) {
+      logger.error('Failed to delete user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Private helper methods
+   */
+  private validateRegistrationData(data: CreateUserData): void {
+    if (!UtilsService.isValidEmail(data.email)) {
+      throw { statusCode: 400, message: 'Invalid email format' };
+    }
+
+    if (!data.firstName || data.firstName.trim().length < 2) {
+      throw { statusCode: 400, message: 'First name must be at least 2 characters long' };
+    }
+
+    if (!data.lastName || data.lastName.trim().length < 2) {
+      throw { statusCode: 400, message: 'Last name must be at least 2 characters long' };
+    }
+
+    if (!data.password || data.password.length < 8) {
+      throw { statusCode: 400, message: 'Password must be at least 8 characters long' };
+    }
+
+    if (data.phoneNumber && !UtilsService.isValidPhoneNumber(data.phoneNumber)) {
+      throw { statusCode: 400, message: 'Invalid phone number format' };
+    }
+  }
+
+  private formatUserProfile(user: any): UserProfile {
+    return {
+      id: user._id?.toString() || user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.fullName || `${user.firstName} ${user.lastName}`.trim(),
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      profilePictureUrl: user.profilePictureUrl,
+      isActive: user.isActive,
+      isEmailVerified: user.isEmailVerified,
+      emailVerifiedAt: user.emailVerifiedAt,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      preferences: user.preferences || {},
+      votingHistory: user.votingHistory || [],
+      brandInteractions: user.brandInteractions || []
+    };
+  }
+
+  private async getUserBasicStats(matchStage: any): Promise<any> {
+    const results = await User.aggregate([
+      { $match: matchStage },
       {
         $group: {
           _id: null,
-          avgDuration: { $avg: '$analytics.averageSessionDuration' }
+          total: { $sum: 1 },
+          verified: { $sum: { $cond: ['$isEmailVerified', 1, 0] } },
+          active: { $sum: { $cond: ['$isActive', 1, 0] } },
+          avgLoginFrequency: { $avg: { $ifNull: ['$loginCount', 0] } }
         }
       }
     ]);
 
-    stats.averageSessionDuration = avgSession[0]?.avgDuration || 0;
-
-    return stats;
+    return results[0] || { total: 0, verified: 0, active: 0, avgLoginFrequency: 0 };
   }
 
-  private async calculateRetentionRate(businessId?: string): Promise<number> {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const matchQuery: any = {
-      status: 'active',
-      createdAt: { $lte: thirtyDaysAgo }
-    };
-
-    if (businessId) {
-      matchQuery['brandInteractions.businessId'] = businessId;
-    }
-
-    const [totalUsers, activeUsers] = await Promise.all([
-      User.countDocuments(matchQuery),
-      User.countDocuments({
-        ...matchQuery,
-        'analytics.lastActiveAt': { $gte: thirtyDaysAgo }
-      })
-    ]);
-
-    return totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
-  }
-
-  private async getVotingTrends(businessId?: string, months: number = 6): Promise<any[]> {
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - months);
-
-    const matchQuery: any = {
-      'votingHistory.votedAt': { $gte: startDate }
-    };
-
-    if (businessId) {
-      matchQuery['votingHistory.businessId'] = businessId;
-    }
-
-    return User.aggregate([
-      { $match: matchQuery },
-      { $unwind: '$votingHistory' },
-      { $match: { 'votingHistory.votedAt': { $gte: startDate } } },
+  private async getUserPreferencesStats(matchStage: any): Promise<Record<string, number>> {
+    const results = await User.aggregate([
+      { $match: matchStage },
       {
         $group: {
-          _id: {
-            year: { $year: '$votingHistory.votedAt' },
-            month: { $month: '$votingHistory.votedAt' }
-          },
-          totalVotes: { $sum: 1 },
-          uniqueVoters: { $addToSet: '$_id' }
+          _id: null,
+          emailNotifications: { $sum: { $cond: ['$preferences.emailNotifications', 1, 0] } },
+          smsNotifications: { $sum: { $cond: ['$preferences.smsNotifications', 1, 0] } },
+          marketingEmails: { $sum: { $cond: ['$preferences.marketingEmails', 1, 0] } }
         }
-      },
-      {
-        $project: {
-          date: '$_id',
-          totalVotes: 1,
-          uniqueVoters: { $size: '$uniqueVoters' }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+      }
     ]);
-  }
 
-  private generateEngagementInsights(user: IUser): string[] {
-    const insights: string[] = [];
-
-    if (user.analytics.totalVotes === 0) {
-      insights.push('User has not voted yet');
-    } else if (user.analytics.totalVotes >= 10) {
-      insights.push('Highly engaged voter');
-    }
-
-    if (user.analytics.totalSessions >= 20) {
-      insights.push('Frequent visitor');
-    }
-
-    if (user.brandInteractions.length > 3) {
-      insights.push('Engages with multiple brands');
-    }
-
-    const daysSinceLastActive = Math.floor(
-      (Date.now() - user.analytics.lastActiveAt.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (daysSinceLastActive <= 7) {
-      insights.push('Recently active');
-    } else if (daysSinceLastActive > 30) {
-      insights.push('May be becoming inactive');
-    }
-
-    return insights;
-  }
-
-  private generateEngagementRecommendations(user: IUser, tier: string): string[] {
-    const recommendations: string[] = [];
-
-    switch (tier) {
-      case 'low':
-        recommendations.push('Send personalized onboarding emails');
-        recommendations.push('Highlight popular voting campaigns');
-        recommendations.push('Offer voting incentives');
-        break;
-      case 'medium':
-        recommendations.push('Share voting results and impact');
-        recommendations.push('Recommend similar products to vote on');
-        break;
-      case 'high':
-        recommendations.push('Invite to exclusive voting previews');
-        recommendations.push('Ask for feedback on platform improvements');
-        break;
-      case 'champion':
-        recommendations.push('Consider for beta testing new features');
-        recommendations.push('Invite to brand advisory panels');
-        recommendations.push('Offer referral rewards');
-        break;
-    }
-
-    return recommendations;
-  }
-
-  private mapToSummary(user: IUser): UserSummary {
+    const data = results[0] || { emailNotifications: 0, smsNotifications: 0, marketingEmails: 0 };
     return {
-      id: user._id.toString(),
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      fullName: user.fullName,
-      profilePictureUrl: user.profilePictureUrl,
-      isEmailVerified: user.isEmailVerified,
-      status: user.status,
-      lastLoginAt: user.lastLoginAt,
-      analytics: {
-        totalVotes: user.analytics.totalVotes,
-        totalSessions: user.analytics.totalSessions,
-        engagementScore: user.analytics.engagementScore,
-        lastActiveAt: user.analytics.lastActiveAt,
-        isActive: user.isActive
-      },
-      preferences: user.preferences,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      emailNotifications: data.emailNotifications,
+      smsNotifications: data.smsNotifications,
+      marketingEmails: data.marketingEmails
     };
   }
 
-  // ===== Controller-extracted helper functions =====
+  private async getUserLocationStats(matchStage: any): Promise<Record<string, number>> {
+    const results = await User.aggregate([
+      { $match: matchStage },
+      { $group: { _id: '$address.country', count: { $sum: 1 } } }
+    ]);
 
-  public generateLoginSuggestions(user: any): string[] {
-    const suggestions: string[] = [];
-    
-    if (user.analytics.totalVotes === 0) {
-      suggestions.push('Cast your first vote to get started');
-    }
-    
-    if (user.analytics.totalVotes < 5) {
-      suggestions.push('Explore trending product proposals');
-    }
-    
-    return suggestions;
+    return results.reduce((acc, item) => {
+      acc[item._id || 'unknown'] = item.count;
+      return acc;
+    }, {} as Record<string, number>);
   }
 
-  public getRelevantAnnouncements(user: any): string[] {
-    return [
-      'New brands have joined the platform',
-      'Your votes from last month influenced 3 products',
-      'Check out the latest voting campaigns'
-    ];
-  }
-
-  public generateProfileRecommendations(user: any, insights: any): string[] {
-    const recommendations: string[] = [];
-    
-    if (!user.firstName) {
-      recommendations.push('Add your name for a personalized experience');
-    }
-    
-    if (!user.profilePictureUrl) {
-      recommendations.push('Upload a profile picture');
-    }
-    
-    if (insights.tier === 'low') {
-      recommendations.push('Start voting to increase your engagement');
-    }
-    
-    return recommendations;
-  }
-
-  public generateUpdateImpact(changes: string[]): string[] {
-    const impact: string[] = [];
-    
-    if (changes.includes('preferences')) {
-      impact.push('Notification settings updated');
-    }
-    
-    if (changes.includes('firstName') || changes.includes('lastName')) {
-      impact.push('Profile display name updated');
-    }
-    
-    return impact;
-  }
-
-  public generatePostVoteActions(user: any, businessId: string): string[] {
-    return [
-      'See how your vote compares to others',
-      'Explore more products from this brand',
-      'Share your voting experience',
-      'Check voting results when available'
-    ];
-  }
-
-  public calculateAverageVotesPerMonth(user: any): number {
-    const monthsActive = Math.max(1, Math.floor(
-      (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24 * 30)
-    ));
-    return Math.round(user.analytics.totalVotes / monthsActive * 10) / 10;
-  }
-
-  public findMostActiveMonth(votes: any[]): string | null {
-    if (!votes.length) return null;
-    
-    const monthCounts: Record<string, number> = {};
-    votes.forEach(vote => {
-      const month = new Date(vote.votedAt).toISOString().substring(0, 7);
-      monthCounts[month] = (monthCounts[month] || 0) + 1;
+  private async getRecentSignupsCount(days: number): Promise<number> {
+    const dateThreshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    return await User.countDocuments({
+      createdAt: { $gte: dateThreshold }
     });
-    
-    const mostActive = Object.entries(monthCounts)
-      .sort(([,a], [,b]) => b - a)[0];
-    
-    return mostActive ? mostActive[0] : null;
   }
 
-  public generateVotingInsights(votes: any[], stats: any): string[] {
-    const insights: string[] = [];
-    
-    if (stats.totalVotes > 10) {
-      insights.push('You\'re an active voter!');
-    }
-    
-    if (votes.length > 0) {
-      const recentVotes = votes.filter(v => 
-        Date.now() - new Date(v.votedAt).getTime() < 7 * 24 * 60 * 60 * 1000
-      );
-      if (recentVotes.length > 0) {
-        insights.push(`You've voted ${recentVotes.length} times this week`);
+  private async invalidateUserCaches(userId?: string): Promise<void> {
+    const tags = ['user_analytics'];
+
+    if (userId) {
+      tags.push(`user:${userId}`);
+      // Also invalidate email-based cache if we have the user data
+      const user = await User.findById(userId).select('email').lean();
+      if (user) {
+        await enhancedCacheService.invalidateByTags([`email:${user.email}`]);
       }
     }
-    
-    return insights;
-  }
 
-  public analyzeUserDistribution(users: any[]): any {
-    const distribution = {
-      byStatus: {} as Record<string, number>,
-      byEngagement: { low: 0, medium: 0, high: 0 },
-      verified: 0,
-      unverified: 0
-    };
-    
-    users.forEach(user => {
-      distribution.byStatus[user.status] = (distribution.byStatus[user.status] || 0) + 1;
-      
-      if (user.isEmailVerified) distribution.verified++;
-      else distribution.unverified++;
-      
-      if (user.analytics.totalVotes === 0) distribution.byEngagement.low++;
-      else if (user.analytics.totalVotes < 10) distribution.byEngagement.medium++;
-      else distribution.byEngagement.high++;
-    });
-    
-    return distribution;
-  }
-
-  public analyzeEngagementLevels(users: any[]): any {
-    const totalUsers = users.length;
-    if (totalUsers === 0) return { average: 0, distribution: {} };
-    
-    const totalVotes = users.reduce((sum, user) => sum + user.analytics.totalVotes, 0);
-    
-    return {
-      averageVotesPerUser: Math.round(totalVotes / totalUsers * 10) / 10,
-      highlyEngaged: users.filter(u => u.analytics.totalVotes >= 10).length,
-      moderatelyEngaged: users.filter(u => u.analytics.totalVotes >= 1 && u.analytics.totalVotes < 10).length,
-      lowEngagement: users.filter(u => u.analytics.totalVotes === 0).length
-    };
-  }
-
-  public generateUserTrends(users: any[]): any {
-    const now = new Date();
-    const lastMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
-    const newUsers = users.filter(u => new Date(u.createdAt) >= lastMonth).length;
-    const activeUsers = users.filter(u => new Date(u.analytics.lastActiveAt) >= lastMonth).length;
-    
-    return {
-      newUsersLastMonth: newUsers,
-      activeUsersLastMonth: activeUsers,
-      growthRate: users.length > 0 ? Math.round((newUsers / users.length) * 100) : 0
-    };
-  }
-
-  public calculatePlatformHealth(analytics: any): { score: number; status: string } {
-    let score = 100;
-    
-    if (analytics.overview.averageVotesPerUser < 2) score -= 20;
-    if (analytics.growth.growthRate < 5) score -= 15;
-    if (analytics.growth.retentionRate < 70) score -= 25;
-    
-    const status = score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical';
-    return { score, status };
-  }
-
-  public generateAnalyticsRecommendations(analytics: any): string[] {
-    const recommendations: string[] = [];
-    
-    if (analytics.overview.averageVotesPerUser < 2) {
-      recommendations.push('Focus on increasing user engagement');
-    }
-    
-    if (analytics.growth.retentionRate < 70) {
-      recommendations.push('Improve user retention strategies');
-    }
-    
-    return recommendations;
-  }
-
-  public generateAnalyticsAlerts(analytics: any): string[] {
-    const alerts: string[] = [];
-    
-    if (analytics.growth.growthRate < 0) {
-      alerts.push('User growth is negative');
-    }
-    
-    if (analytics.engagement.lowEngagement > analytics.engagement.highlyEngaged) {
-      alerts.push('More users have low engagement than high engagement');
-    }
-    
-    return alerts;
-  }
-
-  public generateBenchmarks(analytics: any, period: string): any {
-    return {
-      industry: {
-        averageVotesPerUser: 3.2,
-        retentionRate: 75,
-        engagementRate: 45
-      },
-      platform: {
-        averageVotesPerUser: analytics.overview.averageVotesPerUser,
-        retentionRate: analytics.growth.retentionRate,
-        engagementRate: analytics.engagement.engagementRate
-      },
-      period
-    };
-  }
-
-  public analyzeSearchResults(users: any[], query: string): string {
-    if (users.length === 0) return 'no-matches';
-    if (users.length < 5) return 'few-matches';
-    return 'good-matches';
-  }
-
-  public generateSearchSuggestions(query: string, resultCount: number): string[] {
-    const suggestions: string[] = [];
-    
-    if (resultCount === 0) {
-      suggestions.push('Try searching with different keywords');
-      suggestions.push('Check spelling and try again');
-    }
-    
-    return suggestions;
-  }
-
-  public generateRelatedSearches(query: string): string[] {
-    return [
-      `${query} active users`,
-      `${query} recent votes`,
-      `${query} engagement`
-    ];
+    await enhancedCacheService.invalidateByTags(tags);
   }
 }
+
+export const optimizedUserService = new OptimizedUserService();

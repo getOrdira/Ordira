@@ -77,12 +77,12 @@ export class AppBootstrapService {
     container.registerInstance(SERVICE_TOKENS.S3_SERVICE, new S3Service());
 
     // Register business services
-    const { AuthService } = await import('../business/auth.service');
+    const { authService } = await import('../auth/index');
     const { securityService } = await import('../business/security.service');
     const { tenantService } = await import('../business/tenant.service');
     const { UtilsService } = await import('./utils.service');
 
-    container.registerInstance(SERVICE_TOKENS.AUTH_SERVICE, new AuthService());
+    container.registerInstance(SERVICE_TOKENS.AUTH_SERVICE, authService);
     container.registerInstance(SERVICE_TOKENS.SECURITY_SERVICE, securityService);
     container.registerInstance(SERVICE_TOKENS.TENANT_SERVICE, tenantService);
     container.registerInstance(SERVICE_TOKENS.UTILS_SERVICE, new UtilsService());
@@ -180,20 +180,122 @@ export class AppBootstrapService {
    * Setup performance middleware
    */
   private setupPerformanceMiddleware(): void {
-    // Compression
-    this.app.use(compression());
+    // Enhanced Compression with optimized settings
+    this.app.use(compression({
+      level: 6,                    // Compression level (1-9, 6 is good balance)
+      threshold: 100 * 1024,       // Only compress responses > 100KB
+      memLevel: 8,                 // Memory level (1-9, 8 is default)
+      windowBits: 15,              // Window size
+      chunkSize: 16 * 1024,        // 16KB chunks
+      filter: (req, res) => {
+        // Don't compress if explicitly disabled
+        if (req.headers['x-no-compression']) {
+          return false;
+        }
 
-    // Performance monitoring
+        // Don't compress responses that are already compressed
+        const contentEncoding = res.getHeader('Content-Encoding');
+        if (contentEncoding) {
+          return false;
+        }
+
+        // Don't compress certain content types
+        const contentType = res.getHeader('Content-Type');
+        if (contentType) {
+          const type = contentType.toString().toLowerCase();
+          const excludeTypes = [
+            'image/',
+            'video/',
+            'audio/',
+            'application/zip',
+            'application/gzip',
+            'application/x-compressed',
+            'application/pdf'
+          ];
+
+          if (excludeTypes.some(excludeType => type.includes(excludeType))) {
+            return false;
+          }
+        }
+
+        // Use built-in filter for everything else
+        return compression.filter(req, res);
+      }
+    }));
+
+    // Performance monitoring with additional metrics
     this.app.use((req, res, next) => {
       const start = Date.now();
+      const startMem = process.memoryUsage().heapUsed;
+
+      // Add request ID for tracking
+      const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      res.setHeader('X-Request-ID', requestId);
+
       res.on('finish', () => {
         const duration = Date.now() - start;
+        const endMem = process.memoryUsage().heapUsed;
+        const memoryDelta = endMem - startMem;
+
+        // Record HTTP metrics
         monitoringService.recordHttpMetrics(
           req.method,
           req.path,
           res.statusCode,
           duration
         );
+
+        // Record additional performance metrics
+        monitoringService.recordMetric({
+          name: 'http_request_memory_delta',
+          value: memoryDelta,
+          tags: {
+            method: req.method,
+            status_code: res.statusCode.toString(),
+            path: req.path
+          }
+        });
+
+        // Log slow requests
+        if (duration > 1000) {
+          logger.warn(`Slow request detected: ${req.method} ${req.path} - ${duration}ms`, {
+            requestId,
+            duration,
+            method: req.method,
+            path: req.path,
+            statusCode: res.statusCode,
+            userAgent: req.get('User-Agent'),
+            ip: req.ip
+          });
+        }
+
+        // Log memory-intensive requests
+        if (memoryDelta > 50 * 1024 * 1024) { // > 50MB
+          logger.warn(`Memory-intensive request: ${req.method} ${req.path} - ${Math.round(memoryDelta / 1024 / 1024)}MB`, {
+            requestId,
+            memoryDelta: Math.round(memoryDelta / 1024 / 1024),
+            method: req.method,
+            path: req.path
+          });
+        }
+      });
+
+      next();
+    });
+
+    // Response time header
+    this.app.use((req, res, next) => {
+      const start = Date.now();
+      res.on('finish', () => {
+        const duration = Date.now() - start;
+        res.setHeader('X-Response-Time', `${duration}ms`);
+
+        // Add performance hints
+        if (duration > 2000) {
+          res.setHeader('X-Performance-Warning', 'Very slow response');
+        } else if (duration > 1000) {
+          res.setHeader('X-Performance-Warning', 'Slow response');
+        }
       });
       next();
     });

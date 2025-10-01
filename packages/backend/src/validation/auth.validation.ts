@@ -209,6 +209,25 @@ export const registerBusinessSchema = Joi.object({
     .optional()
 });
 
+// Manufacturer registration validation
+export const registerManufacturerSchema = Joi.object({
+  name: commonSchemas.businessName,
+  email: commonSchemas.businessEmail,
+  password: commonSchemas.password,
+  description: commonSchemas.optionalLongText,
+  industry: commonSchemas.industry,
+  servicesOffered: commonSchemas.servicesOffered,
+  minimumOrderQuantity: commonSchemas.moq,
+  contactEmail: commonSchemas.optionalEmail,
+  website: commonSchemas.optionalUrl,
+  phone: commonSchemas.optionalPhone,
+  headquarters: Joi.object({
+    country: commonSchemas.shortText.optional(),
+    city: commonSchemas.shortText.optional(),
+    address: commonSchemas.mediumText.optional(),
+  }).optional(),
+});
+
 // Business verification validation
 export const verifyBusinessSchema = Joi.object({
   businessId: commonSchemas.mongoId,
@@ -256,6 +275,36 @@ const loginBusinessSchema = Joi.object({
       'any.required': 'Password is required'
     }),
   rememberMe: Joi.boolean().optional(),
+  deviceFingerprint: Joi.string().optional()
+});
+
+// Manufacturer verification validation
+export const verifyManufacturerSchema = Joi.object({
+  email: commonSchemas.businessEmail,
+
+  verificationCode: Joi.string()
+    .alphanum()
+    .length(6)
+    .uppercase()
+    .required()
+    .messages({
+      'string.length': 'Verification code must be exactly 6 characters',
+      'string.alphanum': 'Verification code can only contain letters and numbers'
+    }),
+
+  deviceFingerprint: Joi.string().optional()
+});
+
+// Manufacturer login validation
+export const loginManufacturerSchema = Joi.object({
+  email: commonSchemas.businessEmail,
+
+  password: Joi.string()
+    .min(1)
+    .max(128)
+    .required(),
+
+  rememberMe: Joi.boolean().default(false).optional(),
   deviceFingerprint: Joi.string().optional()
 });
 
@@ -310,6 +359,15 @@ export const registerUserSchema = Joi.object({
   
   // Referral tracking
   referralCode: Joi.string().trim().alphanum().min(3).max(20).optional()
+    .messages({
+      'string.alphanum': 'Referral code can only contain letters and numbers'
+    }),
+  
+  brandSlug: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .optional(),
 });
 
 // User verification validation
@@ -351,10 +409,7 @@ export const loginUserSchema = Joi.object({
 
 // Password reset validation
 export const forgotPasswordSchema = Joi.object({
-  emailOrPhone: Joi.alternatives()
-    .try(commonSchemas.email, commonSchemas.phone)
-    .required(),
-  
+  email: commonSchemas.email.required(),
   captchaToken: Joi.string().optional()
 });
 
@@ -389,10 +444,26 @@ export const changePasswordSchema = Joi.object({
 
 // Resend verification code
 export const resendVerificationSchema = Joi.object({
+  accountType: Joi.string().valid('business', 'user', 'manufacturer').required(),
   email: commonSchemas.email.optional(),
-  phone: commonSchemas.phone.optional(),
-  businessId: commonSchemas.mongoId.optional()
-}).or('email', 'phone', 'businessId');
+  businessId: commonSchemas.mongoId.optional(),
+  manufacturerId: commonSchemas.mongoId.optional()
+})
+  .custom((value, helpers) => {
+    if (value.accountType === 'business' && !value.businessId) {
+      return helpers.error('any.custom', { message: 'businessId is required for business accounts' });
+    }
+
+    if (value.accountType === 'user' && !value.email) {
+      return helpers.error('any.custom', { message: 'email is required for user accounts' });
+    }
+
+    if (value.accountType === 'manufacturer' && !value.manufacturerId) {
+      return helpers.error('any.custom', { message: 'manufacturerId is required for manufacturer accounts' });
+    }
+
+    return value;
+  });
 
 // Two-factor authentication setup
 export const setupTwoFactorSchema = Joi.object({
@@ -432,8 +503,11 @@ export const accountRecoverySchema = Joi.object({
 // Export all schemas for easy importing
 export const authValidationSchemas = {
   registerBusiness: registerBusinessSchema,
+  registerManufacturer: registerManufacturerSchema,
   verifyBusiness: verifyBusinessSchema,
+  verifyManufacturer: verifyManufacturerSchema,
   loginBusiness: loginBusinessSchema,
+  loginManufacturer: loginManufacturerSchema,
   registerUser: registerUserSchema,
   verifyUser: verifyUserSchema,
   loginUser: loginUserSchema,
@@ -445,3 +519,5 @@ export const authValidationSchemas = {
   verifyTwoFactor: verifyTwoFactorSchema,
   accountRecovery: accountRecoverySchema
 };
+
+

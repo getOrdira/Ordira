@@ -1,67 +1,23 @@
-// src/services/business/product.service.ts
-import { Product, IProduct } from '../../models/product.model';
+/**
+ * Optimized Product Service
+ * 
+ * Example of how to optimize existing services using the new optimization patterns.
+ * This replaces inefficient query patterns with optimized versions.
+ */
+
+import { logger } from '../../utils/logger';
+import { Product } from '../../models/product.model';
+import { Media } from '../../models/media.model';
+import { queryOptimizationService } from '../external/query-optimization.service';
+import { enhancedCacheService } from '../external/enhanced-cache.service';
 import { MediaService } from './media.service';
-
-class ProductError extends Error {
-  statusCode: number;
-  
-  constructor(message: string, statusCode: number = 500) {
-    super(message);
-    this.name = 'ProductError';
-    this.statusCode = statusCode;
-  }
-}
-
-export interface ProductSummary {
-  id: string;
-  title: string;
-  description?: string;
-  media: string[];
-  createdAt: Date;
-  updatedAt: Date;
-  businessId?: string;
-  manufacturerId?: string;
-  category?: string;
-  status: 'draft' | 'active' | 'archived';
-  voteCount?: number;
-  certificateCount?: number;
-}
-
-type ExtendedProduct = IProduct & {
-  manufacturer?: { toString(): string };
-  voteCount?: number;
-  certificateCount?: number;
-};
-
-export interface ProductFilters {
-  category?: string;
-  status?: 'draft' | 'active' | 'archived';
-  search?: string;
-  dateFrom?: Date;
-  dateTo?: Date;
-  hasMedia?: boolean;
-  limit?: number;
-  offset?: number;
-  sortBy?: 'createdAt' | 'title' | 'voteCount' | 'certificateCount';
-  sortOrder?: 'asc' | 'desc';
-  tags?: string[];
-  priceRange?: { min?: number; max?: number };
-}
-
-export interface ProductStats {
-  total: number;
-  byStatus: Record<string, number>;
-  byCategory: Record<string, number>;
-  withMedia: number;
-  withoutMedia: number;
-  averageVotes: number;
-  totalVotes: number;
-}
+import { paginationService } from '../utils/pagination.service';
+import { aggregationOptimizationService } from '../external/aggregation-optimization.service';
 
 export interface CreateProductData {
   title: string;
   description?: string;
-  media?: string[];
+  media?: string[]; // Media IDs
   category?: string;
   status?: 'draft' | 'active' | 'archived';
   sku?: string;
@@ -76,700 +32,586 @@ export interface CreateProductData {
   };
 }
 
-export interface UpdateProductData extends Partial<CreateProductData> {}
+export interface ProductFilters {
+  query?: string;
+  businessId?: string;
+  manufacturerId?: string;
+  category?: string;
+  status?: string;
+  priceMin?: number;
+  priceMax?: number;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
 
 /**
- * Enhanced product management service for brands and manufacturers
+ * Optimized product service with caching and query optimization
  */
 export class ProductService {
   private mediaService = new MediaService();
+  private readonly CACHE_TTL = 300; // 5 minutes
 
   /**
-   * Determine user context from request
-   */
-  public getUserContext(req: any): {
-    userId: string;
-    userType: 'business' | 'manufacturer';
-    businessId?: string;
-    manufacturerId?: string;
-  } {
-    // Check if it's a manufacturer request
-    if ('manufacturer' in req && req.manufacturer) {
-      return {
-        userId: req.userId!,
-        userType: 'manufacturer',
-        manufacturerId: req.userId!
-      };
-    }
-    
-    // Default to business request
-    const businessReq = req as any;
-    return {
-      userId: req.userId!,
-      userType: 'business',
-      businessId: businessReq.tenant?.business?.toString() || req.userId!
-    };
-  }
-
-  /**
-   * Build comprehensive filter options from query parameters
-   */
-  public buildFilterOptions(queryParams: any): ProductFilters {
-    const page = queryParams.page || 1;
-    const limit = Math.min(queryParams.limit || 20, 100);
-    const offset = (page - 1) * limit;
-
-    // Parse date filters
-    const dateFrom = queryParams.dateFrom ? new Date(queryParams.dateFrom) : undefined;
-    const dateTo = queryParams.dateTo ? new Date(queryParams.dateTo) : undefined;
-
-    return {
-      category: queryParams.category,
-      status: queryParams.status,
-      search: queryParams.search,
-      hasMedia: queryParams.hasMedia,
-      dateFrom,
-      dateTo,
-      sortBy: queryParams.sortBy || 'createdAt',
-      sortOrder: queryParams.sortOrder || 'desc',
-      limit,
-      offset,
-      tags: queryParams.tags?.split(','),
-      priceRange: queryParams.priceRange
-    };
-  }
-
-  /**
-   * Validate product data
-   */
-  public validateProductData(productData: any): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    if (!productData.title || productData.title.trim().length === 0) {
-      errors.push('Product title is required');
-    }
-
-    if (productData.title && productData.title.length > 200) {
-      errors.push('Product title cannot exceed 200 characters');
-    }
-
-    if (productData.media && productData.media.length > 20) {
-      errors.push('Maximum 20 media files allowed per product');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Generate product optimization suggestions
-   */
-  public generateProductSuggestions(productData: any): string[] {
-    const suggestions: string[] = [];
-    
-    if (!productData.description) {
-      suggestions.push('Consider adding a detailed description to improve discoverability');
-    }
-    if (!productData.media || productData.media.length === 0) {
-      suggestions.push('Upload product images to increase engagement');
-    }
-    if (!productData.category) {
-      suggestions.push('Select a category to help customers find your product');
-    }
-    
-    return suggestions;
-  }
-
-  /**
-   * Calculate product engagement score
-   */
-  public calculateEngagementScore(product: any): number {
-    const voteCount = product.voteCount || 0;
-    const certificateCount = product.certificateCount || 0;
-    return (voteCount * 2) + (certificateCount * 3);
-  }
-
-  /**
-   * Format product analytics data
-   */
-  public formatProductAnalytics(product: any): any {
-    return {
-      views: product.viewCount || 0,
-      votes: product.voteCount || 0,
-      certificates: product.certificateCount || 0,
-      engagementScore: this.calculateEngagementScore(product)
-    };
-  }
-
-  /**
-   * Get next steps for product optimization
-   */
-  public getProductNextSteps(): string[] {
-    return [
-      'Upload product images',
-      'Add detailed specifications',
-      'Set product status to active when ready'
-    ];
-  }
-
-  /**
-   * Retrieve all products for a business with enhanced filtering
-   */
-  async listProducts(
-    businessId: string,
-    manufacturerId?: string,
-    filters: ProductFilters = {}
-  ): Promise<{
-    products: ProductSummary[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const limit = filters.limit || 20;
-    const offset = filters.offset || 0;
-    const page = Math.floor(offset / limit) + 1;
-
-    const query = this.buildProductQuery(businessId, manufacturerId, filters);
-    const sortQuery = this.buildSortQuery(filters);
-
-    const [products, total] = await Promise.all([
-      Product
-        .find(query)
-        .sort(sortQuery)
-        .skip(offset)
-        .limit(limit)
-        .populate('media')
-        .exec(),
-      Product.countDocuments(query)
-    ]);
-
-    return {
-      products: products.map(this.mapToSummary),
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    };
-  }
-
-  /**
-   * Get a single product by ID with ownership verification
-   */
-  async getProduct(
-    productId: string,
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<ProductSummary> {
-    const query: any = { _id: productId };
-    if (businessId) query.business = businessId;
-    if (manufacturerId) query.manufacturer = manufacturerId;
-
-    const product = await Product.findOne(query).populate('media');
-    if (!product) {
-      throw { statusCode: 404, message: 'Product not found.' };
-    }
-
-    return this.mapToSummary(product);
-  }
-
-  /**
-   * Create a new product
+   * Create a product with optimized validation
    */
   async createProduct(
     data: CreateProductData,
     businessId?: string,
     manufacturerId?: string
-  ): Promise<ProductSummary> {
+  ): Promise<any> {
     if (!businessId && !manufacturerId) {
       throw new Error('Either businessId or manufacturerId must be provided');
     }
 
-    // Validate media IDs if provided
+    // Validate media exists before creating product
     if (data.media && data.media.length > 0) {
-      await this.validateMediaOwnership(data.media, businessId || manufacturerId!);
+      const mediaExists = await this.validateMediaOwnership(data.media, businessId || manufacturerId!);
+      if (!mediaExists) {
+        throw new Error('One or more media files do not exist or are not owned by the user');
+      }
     }
 
-    const productData: any = {
-      title: data.title,
-      description: data.description,
-      media: data.media || [],
-      category: data.category,
-      status: data.status || 'draft',
-      sku: data.sku,
-      price: data.price,
-      tags: data.tags || [],
-      specifications: data.specifications || {},
-      manufacturingDetails: data.manufacturingDetails
-    };
+    const startTime = Date.now();
 
-    if (businessId) {
-      productData.business = businessId;
-    }
-    if (manufacturerId) {
-      productData.manufacturer = manufacturerId;
-    }
+    try {
+      // Create product
+      const productData = {
+        ...data,
+        business: businessId,
+        manufacturer: manufacturerId,
+        specifications: new Map(Object.entries(data.specifications || {})),
+        manufacturingDetails: data.manufacturingDetails || {}
+      };
 
-    const product = await Product.create(productData);
-    return this.mapToSummary(product);
+      const product = new Product(productData);
+      const savedProduct = await product.save();
+
+      // Invalidate relevant caches
+      await this.invalidateProductCaches(businessId, manufacturerId);
+
+      const duration = Date.now() - startTime;
+      logger.info(`Product created successfully in ${duration}ms`, {
+        productId: savedProduct._id,
+        businessId,
+        manufacturerId,
+        duration
+      });
+
+      return savedProduct;
+
+    } catch (error) {
+      logger.error('Failed to create product:', error);
+      throw error;
+    }
   }
 
   /**
-   * Update an existing product
+   * Get products with optimized queries, caching, and memory-efficient pagination
    */
-  async updateProduct(
-    productId: string,
-    data: UpdateProductData,
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<ProductSummary> {
-    if (!businessId && !manufacturerId) {
-      throw new Error('Either businessId or manufacturerId must be provided');
+  async getProducts(filters: ProductFilters): Promise<any> {
+    const cacheKey = this.buildCacheKey('product_listing', filters);
+
+    // Try to get from cache first
+    const cachedResult = await enhancedCacheService.getCachedProductListing(filters, {
+      ttl: this.CACHE_TTL
+    });
+
+    if (cachedResult) {
+      logger.info('Product listing served from cache', {
+        filters: Object.keys(filters),
+        resultsCount: cachedResult.products?.length || 0
+      });
+      return cachedResult;
     }
 
-    // Validate media IDs if provided
-    if (data.media && data.media.length > 0) {
-      await this.validateMediaOwnership(data.media, businessId || manufacturerId!);
+    // Build query filter
+    const query: any = {};
+    if (filters.businessId) query.business = filters.businessId;
+    if (filters.manufacturerId) query.manufacturer = filters.manufacturerId;
+    if (filters.category) query.category = filters.category;
+    if (filters.status) query.status = filters.status;
+    if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
+      query.price = {};
+      if (filters.priceMin !== undefined) query.price.$gte = filters.priceMin;
+      if (filters.priceMax !== undefined) query.price.$lte = filters.priceMax;
     }
 
+    // Add text search if query provided
+    if (filters.query) {
+      query.$text = { $search: filters.query };
+    }
+
+    // Use hybrid pagination for optimal performance
+    const page = filters.offset ? Math.floor(filters.offset / (filters.limit || 20)) + 1 : 1;
+    const result = await paginationService.hybridPaginate(Product, query, {
+      page,
+      limit: filters.limit || 20,
+      strategy: 'auto',
+      select: 'title description category price status voteCount certificateCount viewCount createdAt business manufacturer',
+      sort: {
+        ...(filters.query ? { score: { $meta: 'textScore' } } : {}),
+        [filters.sortBy || 'createdAt']: filters.sortOrder === 'asc' ? 1 : -1
+      }
+    });
+
+    // Transform result to match expected format
+    const transformedResult = {
+      products: result.data,
+      total: 'totalCount' in result.pagination ? result.pagination.totalCount : undefined,
+      hasMore: result.pagination.hasNext,
+      queryTime: result.performance.queryTime,
+      pagination: result.pagination
+    };
+
+    // Cache the result
+    await enhancedCacheService.cacheProductListing({
+      ...filters,
+      limit: filters.limit || 20,
+      offset: filters.offset || 0
+    }, transformedResult.products, {
+      ttl: this.CACHE_TTL
+    });
+
+    return transformedResult;
+  }
+
+  /**
+   * Get single product with caching
+   */
+  async getProduct(productId: string, businessId?: string, manufacturerId?: string): Promise<any> {
+    const cacheKey = `product:${productId}:${businessId || manufacturerId}`;
+    
+    // Try cache first
+    const cached = await enhancedCacheService.getCachedUser(productId, {
+      keyPrefix: businessId || manufacturerId
+    });
+
+    if (cached) {
+      return cached;
+    }
+
+    // Build optimized query
     const query: any = { _id: productId };
     if (businessId) query.business = businessId;
     if (manufacturerId) query.manufacturer = manufacturerId;
 
-    const product = await Product.findOneAndUpdate(
-      query,
-      { $set: data },
-      { new: true }
-    ).populate('media');
+    const product = await Product.findOne(query)
+      .populate('media', 'fileName filePath mimeType fileSize')
+      .lean(); // Use lean() for better performance
 
     if (!product) {
-      throw { statusCode: 404, message: 'Product not found or unauthorized.' };
+      throw new Error('Product not found');
     }
 
-    return this.mapToSummary(product);
+    // Cache the result
+    await enhancedCacheService.cacheUser(productId, product, {
+      keyPrefix: businessId || manufacturerId,
+      ttl: this.CACHE_TTL
+    });
+
+    return product;
   }
 
   /**
-   * Delete a product
+   * Update product with cache invalidation
+   */
+  async updateProduct(
+    productId: string,
+    updates: Partial<CreateProductData>,
+    businessId?: string,
+    manufacturerId?: string
+  ): Promise<any> {
+    const query: any = { _id: productId };
+    if (businessId) query.business = businessId;
+    if (manufacturerId) query.manufacturer = manufacturerId;
+
+    const startTime = Date.now();
+
+    try {
+      // Convert specifications to Map if provided
+      if (updates.specifications) {
+        updates.specifications = new Map(Object.entries(updates.specifications)) as any;
+      }
+
+      const product = await Product.findOneAndUpdate(
+        query,
+        { ...updates, updatedAt: new Date() },
+        { new: true, runValidators: true }
+      ).lean();
+
+      if (!product) {
+        throw new Error('Product not found or unauthorized');
+      }
+
+      // Invalidate caches
+      await this.invalidateProductCaches(businessId, manufacturerId);
+
+      const duration = Date.now() - startTime;
+      logger.info(`Product updated successfully in ${duration}ms`, {
+        productId,
+        duration
+      });
+
+      return product;
+
+    } catch (error) {
+      logger.error('Failed to update product:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete product with cache invalidation
    */
   async deleteProduct(
     productId: string,
     businessId?: string,
     manufacturerId?: string
   ): Promise<void> {
-    if (!businessId && !manufacturerId) {
-      throw new Error('Either businessId or manufacturerId must be provided');
-    }
-
     const query: any = { _id: productId };
     if (businessId) query.business = businessId;
     if (manufacturerId) query.manufacturer = manufacturerId;
 
-    const result = await Product.deleteOne(query);
-    if (result.deletedCount === 0) {
-      throw { statusCode: 404, message: 'Product not found or unauthorized.' };
-    }
-  }
+    const startTime = Date.now();
 
-  /**
-   * Upload product images directly
-   */
-  async uploadProductImages(
-    productId: string,
-    files: Express.Multer.File[],
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<any[]> {
-    if (!businessId && !manufacturerId) {
-      throw new Error('Either businessId or manufacturerId must be provided');
-    }
+    try {
+      const result = await Product.deleteOne(query);
+      
+      if (result.deletedCount === 0) {
+        throw new Error('Product not found or unauthorized');
+      }
 
-    // Verify product exists and user has access
-    const query: any = { _id: productId };
-    if (businessId) query.business = businessId;
-    if (manufacturerId) query.manufacturer = manufacturerId;
+      // Invalidate caches
+      await this.invalidateProductCaches(businessId, manufacturerId);
 
-    const product = await Product.findOne(query);
-    if (!product) {
-      throw { statusCode: 404, message: 'Product not found or unauthorized.' };
-    }
-
-    // Upload images through media service
-    const uploadedImages = [];
-    for (const file of files) {
-      const media = await this.mediaService.saveMedia(file, businessId || manufacturerId!, {
-        category: 'product',
-        resourceId: productId,
-        description: `Product image for ${product.title}`
+      const duration = Date.now() - startTime;
+      logger.info(`Product deleted successfully in ${duration}ms`, {
+        productId,
+        duration
       });
-      uploadedImages.push(media);
-    }
 
-    // Update product with new image URLs
-    const imageUrls = uploadedImages.map(img => img.url);
-    const updatedMedia = [...(product.media || []), ...imageUrls];
-    
-    await Product.findByIdAndUpdate(productId, {
-      media: updatedMedia,
-      updatedAt: new Date()
-    });
-
-    return uploadedImages;
-  }
-
-  /**
-   * Get product statistics
-   */
-  async getProductStats(
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<ProductStats> {
-    if (!businessId && !manufacturerId) {
-      throw new Error('Either businessId or manufacturerId must be provided');
-    }
-
-    const query: any = {};
-    if (businessId) query.business = businessId;
-    if (manufacturerId) query.manufacturer = manufacturerId;
-
-    const [statsData, statusStats, categoryStats, mediaStats] = await Promise.all([
-      Product.aggregate([
-        { $match: query },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            totalVotes: { $sum: '$voteCount' },
-            averageVotes: { $avg: '$voteCount' }
-          }
-        }
-      ]),
-      Product.aggregate([
-        { $match: query },
-        { $group: { _id: '$status', count: { $sum: 1 } } }
-      ]),
-      Product.aggregate([
-        { $match: query },
-        { $group: { _id: '$category', count: { $sum: 1 } } }
-      ]),
-      Product.aggregate([
-        { $match: query },
-        {
-          $project: {
-            hasMedia: { $gt: [{ $size: { $ifNull: ['$media', []] } }, 0] }
-          }
-        },
-        {
-          $group: {
-            _id: '$hasMedia',
-            count: { $sum: 1 }
-          }
-        }
-      ])
-    ]);
-
-    const byStatus: Record<string, number> = {};
-    statusStats.forEach(stat => {
-      byStatus[stat._id || 'unknown'] = stat.count;
-    });
-
-    const byCategory: Record<string, number> = {};
-    categoryStats.forEach(stat => {
-      byCategory[stat._id || 'uncategorized'] = stat.count;
-    });
-
-    const mediaStatsMap = mediaStats.reduce((acc, stat) => {
-      acc[stat._id ? 'true' : 'false'] = stat.count;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return {
-      total: statsData[0]?.total || 0,
-      byStatus,
-      byCategory,
-      withMedia: mediaStatsMap['true'] || 0,
-      withoutMedia: mediaStatsMap['false'] || 0,
-      averageVotes: statsData[0]?.averageVotes || 0,
-      totalVotes: statsData[0]?.totalVotes || 0
-    };
-  }
-
-  /**
-   * Search products across the platform (for discovery)
-   */
-  async searchProducts(
-    query: string,
-    filters: {
-      category?: string;
-      userType?: 'brand' | 'manufacturer';
-      priceRange?: { min?: number; max?: number };
-      location?: string;
-      limit?: number;
-    } = {}
-  ): Promise<ProductSummary[]> {
-    const searchQuery: any = {
-      status: 'active',
-      $or: [
-        { title: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { tags: { $in: [new RegExp(query, 'i')] } }
-      ]
-    };
-
-    if (filters.category) {
-      searchQuery.category = filters.category;
-    }
-
-    if (filters.userType === 'brand') {
-      searchQuery.business = { $exists: true };
-    } else if (filters.userType === 'manufacturer') {
-      searchQuery.manufacturer = { $exists: true };
-    }
-
-    if (filters.priceRange) {
-      searchQuery.price = {};
-      if (filters.priceRange.min !== undefined) {
-        searchQuery.price.$gte = filters.priceRange.min;
-      }
-      if (filters.priceRange.max !== undefined) {
-        searchQuery.price.$lte = filters.priceRange.max;
-      }
-    }
-
-    const products = await Product
-      .find(searchQuery)
-      .sort({ createdAt: -1 })
-      .limit(filters.limit || 50)
-      .populate('media');
-
-    return products.map(this.mapToSummary);
-  }
-
-  /**
-   * Get products by category
-   */
-  async getProductsByCategory(
-    category: string,
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<ProductSummary[]> {
-    const query: any = { category, status: 'active' };
-    if (businessId) query.business = businessId;
-    if (manufacturerId) query.manufacturer = manufacturerId;
-
-    const products = await Product
-      .find(query)
-      .sort({ createdAt: -1 })
-      .populate('media');
-
-    return products.map(this.mapToSummary);
-  }
-
-  /**
-   * Get featured products (highest vote count)
-   */
-  async getFeaturedProducts(limit: number = 10): Promise<ProductSummary[]> {
-    const products = await Product
-      .find({ status: 'active' })
-      .sort({ voteCount: -1, createdAt: -1 })
-      .limit(limit)
-      .populate('media');
-
-    return products.map(this.mapToSummary);
-  }
-
-  /**
-   * Archive/unarchive product
-   */
-  async toggleArchiveStatus(
-    productId: string,
-    businessId?: string,
-    manufacturerId?: string
-  ): Promise<ProductSummary> {
-    const product = await this.getProduct(productId, businessId, manufacturerId);
-    const newStatus = product.status === 'archived' ? 'active' : 'archived';
-    
-    return this.updateProduct(productId, { status: newStatus }, businessId, manufacturerId);
-  }
-
-  /**
- * Bulk update products
- */
-async bulkUpdateProducts(
-  productIds: string[],
-  updates: UpdateProductData,
-  businessId?: string,
-  manufacturerId?: string
-): Promise<{ updated: number; errors: string[] }> {
-  try {
-    // Validate input parameters
-    if (!Array.isArray(productIds) || productIds.length === 0) {
-      throw new ProductError('Product IDs array is required and cannot be empty', 400);
-    }
-    
-    if (productIds.length > 100) {
-      throw new ProductError('Maximum 100 products can be updated at once', 400);
-    }
-    
-    if (!updates || Object.keys(updates).length === 0) {
-      throw new ProductError('Update data is required', 400);
-    }
-
-    // Validate all product IDs format (assuming MongoDB ObjectIds)
-    for (const productId of productIds) {
-      if (!productId?.trim()) {
-        throw new ProductError('Product ID cannot be empty', 400);
-      }
-      if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
-        throw new ProductError(`Invalid product ID format: ${productId}`, 400);
-      }
-    }
-
-    const errors: string[] = [];
-    let updated = 0;
-
-    for (const productId of productIds) {
-      try {
-        await this.updateProduct(productId, updates, businessId, manufacturerId);
-        updated++;
-      } catch (error: any) {
-        // Handle different types of errors with appropriate context
-        if (error instanceof ProductError) {
-          errors.push(`Failed to update ${productId}: ${error.message}`);
-        } else if (error.statusCode) {
-          errors.push(`Failed to update ${productId}: ${error.message}`);
-        } else {
-          errors.push(`Failed to update ${productId}: ${error.message || 'Unknown error'}`);
-        }
-      }
-    }
-
-    return { updated, errors };
-  } catch (error: any) {
-    if (error instanceof ProductError) {
+    } catch (error) {
+      logger.error('Failed to delete product:', error);
       throw error;
     }
-    
-    throw new ProductError(`Failed to bulk update products: ${error.message}`, 500);
-  }
-}
-
-  /**
-   * Get available product categories
-   */
-  async getAvailableCategories(): Promise<string[]> {
-    const categories = await Product.distinct('category', {
-      category: { $exists: true, $ne: null },
-      status: 'active'
-    });
-
-    return categories.filter(category => category && category.trim() !== '');
   }
 
   /**
-   * Increment vote count for a product
+   * Search products with full-text search optimization
    */
-  async incrementVoteCount(productId: string): Promise<void> {
-    await Product.findByIdAndUpdate(
-      productId,
-      { $inc: { voteCount: 1 } }
-    );
+  async searchProducts(searchParams: {
+    query: string;
+    businessId?: string;
+    manufacturerId?: string;
+    category?: string;
+    limit?: number;
+  }): Promise<any> {
+    const { query, businessId, manufacturerId, category, limit = 20 } = searchParams;
+
+    // Use optimized search with text index
+    const filters: ProductFilters = {
+      query,
+      businessId,
+      manufacturerId,
+      category,
+      status: 'active',
+      limit
+    };
+
+    return await this.getProducts(filters);
   }
 
   /**
-   * Increment certificate count for a product
+   * Get product analytics with caching
    */
-  async incrementCertificateCount(productId: string): Promise<void> {
-    await Product.findByIdAndUpdate(
-      productId,
-      { $inc: { certificateCount: 1 } }
-    );
-  }
-
-  /**
-   * Helper methods
-   */
-  private buildProductQuery(
+  async getProductAnalytics(
     businessId?: string,
     manufacturerId?: string,
-    filters: ProductFilters = {}
-  ): any {
-    const query: any = {};
+    dateRange?: { start: Date; end: Date }
+  ): Promise<any> {
+    const cacheKey = `product_analytics:${businessId || manufacturerId}:${JSON.stringify(dateRange)}`;
+    
+    // Try cache first
+    const cached = await enhancedCacheService.getCachedAnalytics('product', {
+      businessId,
+      manufacturerId,
+      dateRange
+    }, { ttl: 600 }); // 10 minutes cache
 
-    if (businessId) query.business = businessId;
-    if (manufacturerId) query.manufacturer = manufacturerId;
-
-    if (filters.category) {
-      query.category = filters.category;
+    if (cached) {
+      return cached;
     }
 
-    if (filters.status) {
-      query.status = filters.status;
+    const pipeline = [];
+
+    // Match stage
+    const matchStage: any = { status: 'active' };
+    if (businessId) matchStage.business = businessId;
+    if (manufacturerId) matchStage.manufacturer = manufacturerId;
+    if (dateRange) {
+      matchStage.createdAt = {
+        $gte: dateRange.start,
+        $lte: dateRange.end
+      };
     }
 
-    if (filters.search) {
-      query.$or = [
-        { title: { $regex: filters.search, $options: 'i' } },
-        { description: { $regex: filters.search, $options: 'i' } },
-        { tags: { $in: [new RegExp(filters.search, 'i')] } }
-      ];
-    }
+    pipeline.push({ $match: matchStage });
 
-    if (filters.dateFrom || filters.dateTo) {
-      query.createdAt = {};
-      if (filters.dateFrom) {
-        query.createdAt.$gte = filters.dateFrom;
+    // Aggregation pipeline
+    pipeline.push(
+      {
+        $group: {
+          _id: null,
+          totalProducts: { $sum: 1 },
+          totalVotes: { $sum: '$voteCount' },
+          totalCertificates: { $sum: '$certificateCount' },
+          totalViews: { $sum: '$viewCount' },
+          avgVotes: { $avg: '$voteCount' },
+          avgViews: { $avg: '$viewCount' },
+          categories: { $addToSet: '$category' },
+          avgPrice: { $avg: '$price' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalProducts: 1,
+          totalVotes: 1,
+          totalCertificates: 1,
+          totalViews: 1,
+          avgVotes: { $round: ['$avgVotes', 2] },
+          avgViews: { $round: ['$avgViews', 2] },
+          categories: 1,
+          avgPrice: { $round: ['$avgPrice', 2] }
+        }
       }
-      if (filters.dateTo) {
-        query.createdAt.$lte = filters.dateTo;
-      }
-    }
+    );
 
-    if (filters.hasMedia !== undefined) {
-      if (filters.hasMedia) {
-        query.media = { $exists: true, $not: { $size: 0 } };
-      } else {
-        query.$or = [
-          { media: { $exists: false } },
-          { media: { $size: 0 } }
-        ];
-      }
-    }
+    const startTime = Date.now();
+    const results = await Product.aggregate(pipeline);
+    const duration = Date.now() - startTime;
 
-    return query;
-  }
-
-  private buildSortQuery(filters: ProductFilters = {}): string {
-    const sortField = filters.sortBy || 'createdAt';
-    const sortOrder = filters.sortOrder === 'asc' ? '' : '-';
-    return `${sortOrder}${sortField}`;
-  }
-
-  private async validateMediaOwnership(mediaIds: string[], ownerId: string): Promise<void> {
-    // Validate that all media belongs to the owner
-    for (const mediaId of mediaIds) {
-      try {
-        await this.mediaService.getMediaById(mediaId, ownerId);
-      } catch (error) {
-        throw new Error(`Media ${mediaId} not found or unauthorized`);
-      }
-    }
-  }
-
-  private mapToSummary(product: IProduct): ProductSummary {
-    return {
-      id: product._id.toString(),
-      title: product.title,
-      description: product.description,
-      media: product.media ? product.media.map(m => m.toString()) : [],
-      createdAt: product.createdAt,
-      updatedAt: product.updatedAt,
-      businessId: product.business?.toString(),
-      manufacturerId: (product as ExtendedProduct).manufacturer?.toString(),
-      category: product.category || undefined,
-      status: (product.status as 'draft' | 'active' | 'archived') || 'draft',
-      voteCount: (product as ExtendedProduct).voteCount || 0,
-      certificateCount: (product as ExtendedProduct).certificateCount || 0
+    const analytics = results[0] || {
+      totalProducts: 0,
+      totalVotes: 0,
+      totalCertificates: 0,
+      totalViews: 0,
+      avgVotes: 0,
+      avgViews: 0,
+      categories: [],
+      avgPrice: 0
     };
+
+    // Cache the result
+    await enhancedCacheService.cacheAnalytics('product', {
+      businessId,
+      manufacturerId,
+      dateRange
+    }, analytics, { ttl: 600 });
+
+    logger.info(`Product analytics generated in ${duration}ms`, {
+      businessId,
+      manufacturerId,
+      duration,
+      analytics
+    });
+
+    return analytics;
+  }
+
+  /**
+   * Validate media ownership
+   */
+  private async validateMediaOwnership(mediaIds: string[], ownerId: string): Promise<boolean> {
+    const mediaCount = await Media.countDocuments({
+      _id: { $in: mediaIds },
+      $or: [
+        { business: ownerId },
+        { manufacturer: ownerId }
+      ]
+    });
+
+    return mediaCount === mediaIds.length;
+  }
+
+  /**
+   * Build cache key for product listings
+   */
+  private buildCacheKey(type: string, params: any): string {
+    const sortedParams = Object.keys(params)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = params[key];
+        return acc;
+      }, {} as any);
+    
+    return `${type}:${JSON.stringify(sortedParams)}`;
+  }
+
+  /**
+   * Invalidate product-related caches
+   */
+  private async invalidateProductCaches(businessId?: string, manufacturerId?: string): Promise<void> {
+    const tags = ['product_listing', 'product_analytics'];
+    
+    if (businessId) {
+      tags.push(`business:${businessId}`);
+    }
+    
+    if (manufacturerId) {
+      tags.push(`manufacturer:${manufacturerId}`);
+    }
+
+    await enhancedCacheService.invalidateByTags(tags);
+  }
+
+  /**
+   * Get products with optimized aggregation (replaces populate)
+   */
+  async getProductsWithAggregation(filters: ProductFilters): Promise<any> {
+    logger.info('Using optimized aggregation for product listing', { filters: Object.keys(filters) });
+
+    try {
+      // Build aggregation filters
+      const aggregationFilters: any = {};
+      if (filters.businessId) aggregationFilters.business = filters.businessId;
+      if (filters.manufacturerId) aggregationFilters.manufacturer = filters.manufacturerId;
+      if (filters.category) aggregationFilters.category = filters.category;
+      if (filters.status) aggregationFilters.status = filters.status;
+
+      const result = await aggregationOptimizationService.getProductsWithRelations(
+        aggregationFilters,
+        {
+          limit: filters.limit || 20,
+          skip: filters.offset || 0,
+          sort: {
+            [filters.sortBy || 'createdAt']: filters.sortOrder === 'asc' ? 1 : -1
+          },
+          cache: true,
+          cacheTTL: this.CACHE_TTL / 1000 // Convert to seconds
+        }
+      );
+
+      logger.info('Aggregation-based product listing completed', {
+        resultCount: result.data.length,
+        executionTime: result.executionTime,
+        cached: result.cached
+      });
+
+      return {
+        products: result.data,
+        total: result.data.length,
+        hasMore: result.data.length === (filters.limit || 20),
+        queryTime: result.executionTime,
+        optimizationType: 'aggregation',
+        cached: result.cached
+      };
+
+    } catch (error) {
+      logger.error('Aggregation-based product listing failed, falling back to regular query:', error);
+      // Fallback to original method
+      return this.getProducts(filters);
+    }
+  }
+
+  /**
+   * Get single product with aggregation optimization
+   */
+  async getProductWithAggregation(productId: string, businessId?: string, manufacturerId?: string): Promise<any> {
+    try {
+      const filters: any = { _id: productId };
+      if (businessId) filters.business = businessId;
+      if (manufacturerId) filters.manufacturer = manufacturerId;
+
+      const result = await aggregationOptimizationService.getProductsWithRelations(
+        filters,
+        {
+          limit: 1,
+          cache: true,
+          cacheTTL: this.CACHE_TTL / 1000
+        }
+      );
+
+      if (result.data.length === 0) {
+        throw new Error('Product not found');
+      }
+
+      return result.data[0];
+
+    } catch (error) {
+      logger.error('Aggregation-based product fetch failed, falling back:', error);
+      return this.getProduct(productId, businessId, manufacturerId);
+    }
+  }
+
+  /**
+   * Get manufacturer products with stats using aggregation
+   */
+  async getManufacturerProductsWithStats(manufacturerId: string): Promise<any> {
+    try {
+      const result = await aggregationOptimizationService.getManufacturersWithStats(
+        { _id: manufacturerId },
+        {
+          limit: 1,
+          cache: true,
+          cacheTTL: 300 // 5 minutes
+        }
+      );
+
+      if (result.data.length === 0) {
+        throw new Error('Manufacturer not found');
+      }
+
+      const manufacturer = result.data[0];
+
+      return {
+        manufacturer: {
+          _id: manufacturer._id,
+          name: manufacturer.name,
+          industry: manufacturer.industry,
+          isVerified: manufacturer.isVerified,
+          profileScore: manufacturer.profileScore
+        },
+        products: manufacturer.recentProducts || [],
+        stats: {
+          totalProducts: manufacturer.productCount || 0,
+          totalVotes: manufacturer.totalVotes || 0,
+          totalCertificates: manufacturer.certificateCount || 0,
+          avgPrice: manufacturer.avgProductPrice || 0
+        },
+        executionTime: result.executionTime,
+        cached: result.cached
+      };
+
+    } catch (error) {
+      logger.error('Aggregation-based manufacturer stats failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cache individual product
+   */
+  private async cacheProduct(productId: string, product: any, options: any): Promise<void> {
+    const key = `product:${productId}`;
+    await enhancedCacheService.cacheUser(productId, product, {
+      keyPrefix: options.keyPrefix || 'ordira',
+      ttl: options.ttl || this.CACHE_TTL
+    });
+  }
+
+  /**
+   * Get cached individual product
+   */
+  private async getCachedProduct(productId: string, options: any): Promise<any> {
+    const key = `product:${productId}`;
+    return await enhancedCacheService.getCachedUser(productId, {
+      keyPrefix: options.keyPrefix || 'ordira'
+    });
   }
 }
+
+export const productService = new ProductService();
+

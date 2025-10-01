@@ -76,31 +76,43 @@ export class EnhancedDatabaseService {
     return {
       uri: process.env.MONGODB_URI!,
       options: {
-        // Connection Pool Configuration
-        maxPoolSize: isProduction ? 20 : 10, // Maximum number of connections
-        minPoolSize: isProduction ? 5 : 2,   // Minimum number of connections
+        // Enhanced Connection Pool Configuration
+        maxPoolSize: isProduction ? 50 : 15, // Increased maximum connections for high concurrency
+        minPoolSize: isProduction ? 10 : 3,  // Increased minimum connections for availability
         maxIdleTimeMS: 30000,                // Close connections after 30s of inactivity
-        
-        // Timeout Configuration
+        maxConnecting: isProduction ? 5 : 3, // Maximum simultaneous connection attempts
+
+        // Optimized Timeout Configuration
         serverSelectionTimeoutMS: 5000,      // 5 second server selection timeout
         socketTimeoutMS: 45000,              // 45 second socket timeout
         connectTimeoutMS: 10000,             // 10 second connection timeout
-        
-        // Buffer Configuration
+        heartbeatFrequencyMS: 10000,         // Heart beat frequency
+
+        // Buffer Configuration for High Performance
         bufferMaxEntries: 0,                 // Disable mongoose buffering
         bufferCommands: false,               // Disable command buffering
-        
-        // Retry Configuration
+
+        // Enhanced Retry Configuration
         retryWrites: true,                   // Retry write operations
         retryReads: true,                    // Retry read operations
-        
-        // Read/Write Configuration
+        maxStalenessSeconds: 90,             // Max staleness for secondary reads
+
+        // Optimized Read/Write Configuration
         readPreference: isProduction ? 'secondaryPreferred' : 'primary',
+        readConcern: { level: isProduction ? 'majority' : 'local' },
         writeConcern: {
           w: isProduction ? 'majority' : 1,
           j: true,                           // Acknowledge writes to journal
           wtimeout: 5000                     // 5 second write concern timeout
-        }
+        },
+
+        // Additional Performance Options
+        compressors: isProduction ? ['snappy', 'zlib'] : [], // Enable compression in production
+        zlibCompressionLevel: 6,             // Compression level
+        appName: 'OrderPlatform',            // App name for monitoring
+
+        // Connection monitoring
+        monitorCommands: process.env.NODE_ENV === 'development'
       }
     };
   }

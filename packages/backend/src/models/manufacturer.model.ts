@@ -32,6 +32,15 @@ export interface IManufacturer extends Document {
   emailVerifiedAt?: Date;
   verificationToken?: string;
   
+  // Detailed Verification Workflow
+  verificationStatus?: 'unverified' | 'pending' | 'approved' | 'rejected' | 'expired';
+  verificationSubmittedAt?: Date;
+  verificationSubmissionId?: string;
+  verificationReviewedAt?: Date;
+  verificationReviewerId?: string;
+  verificationReviewNotes?: string;
+  verificationRejectionReasons?: string[];
+  
   // Subscription Plan
   plan?: 'starter' | 'professional' | 'enterprise' | 'unlimited';
   
@@ -323,6 +332,20 @@ const ManufacturerSchema = new Schema<IManufacturer>({
     type: String, 
     select: false // Don't include in queries by default
   },
+  
+  // Detailed Verification Workflow
+  verificationStatus: {
+    type: String,
+    enum: ['unverified', 'pending', 'approved', 'rejected', 'expired'],
+    default: 'unverified',
+    index: true
+  },
+  verificationSubmittedAt: { type: Date },
+  verificationSubmissionId: { type: String },
+  verificationReviewedAt: { type: Date },
+  verificationReviewerId: { type: String },
+  verificationReviewNotes: { type: String },
+  verificationRejectionReasons: [{ type: String }],
   
   // Subscription Plan
   plan: {

@@ -1,37 +1,68 @@
 // src/services/container.service.ts
 
-import { AuthService } from './business/auth.service';
-import { UserService } from './business/user.service';
+import { authService } from './auth/index';
+import { OptimizedUserService } from './business/user.service';
 import { ProductService } from './business/product.service';
-import { BrandSettingsService } from './business/brandSettings.service';
 import { ApiKeyService } from './business/apiKey.service';
-import { AnalyticsBusinessService } from './business/analytics.service';
-import { VotingBusinessService } from './business/votes.service';
+import { AnalyticsService } from './business/analytics.service';
+import { VotingService } from './business/votes.service';
 import { CertificateService } from './business/certificate.service';
 import { MediaService } from './business/media.service';
 import { BillingService } from './external/billing.service';
 import { ShopifyService } from './external/shopify.service';
 import { WixService } from './external/wix.service';
 import { WooCommerceService } from './external/woocommerce.service';
-import { ManufacturerService } from './business/manufacturer.service';
 import { NotificationsService } from './external/notifications.service';
 import { StripeService } from './external/stripe.service';
 import { TokenDiscountService } from './external/tokenDiscount.service';
-import { BrandAccountService } from './business/brandAccount.service';
 import { NftService } from './blockchain/nft.service';
 import { DomainMappingService } from './external/domainMapping.service';
 import { NotificationService } from './business/notification.service';
-import { BrandProfileService } from './business/brandProfile.service';
-import { ManufacturerProfileService } from './business/manufacturerProfile.service';
 import { PendingVoteService } from './business/pendingVote.service';
 import { InvitationService } from './business/invitation.service';
 import { EmailGatingService } from './business/emailGating.service';
-import { ManufacturerAccountService } from './business/manufacturerAccount.service';
 import { SubscriptionService } from './business/subscription.service';
 import { SupplyChainService } from './blockchain/supplyChain.service';
 import { QrCodeService } from './external/qrCode.service';
 import { SecurityAuditService } from './security/securityAudit.service';
 import { UsageTrackingService } from './business/usageTracking.service';
+import { 
+  BrandServices,
+  brandProfileCoreService,
+  brandSettingsCoreService,
+  brandAccountCoreService,
+  BrandAccountService,
+  VerificationService,
+  AnalyticsService as BrandAnalyticsService,
+  WalletService,
+  IntegrationsService,
+  DiscoveryService,
+  PlanValidationService,
+  DomainValidationService,
+  BrandValidationService,
+  BrandHelpersService,
+  CompletenessCalculatorService,
+  RecommendationEngineService
+} from './brands';
+
+// New modular manufacturers services
+import { 
+  ManufacturerServices,
+  manufacturerDataCoreService,
+  manufacturerAccountCoreService,
+  manufacturerProfileCoreService,
+  verificationService,
+  supplyChainService,
+  analyticsService,
+  manufacturerSearchService,
+  manufacturerMediaService,
+  scoreCalculatorService,
+  manufacturerHelpersService,
+  comparisonEngineService,
+  fileValidationService,
+  manufacturerValidationService,
+  planValidationService
+} from './manufacturers';
 
 /**
  * Dependency Injection Container
@@ -60,27 +91,68 @@ export class ServiceContainer {
    * Initialize all services as singletons
    */
   private initializeServices(): void {
-    // Business Services
-    this.services.set('authService', new AuthService());
-    this.services.set('userService', new UserService());
+    // Core Services
+    this.services.set('authService', authService);
+    this.services.set('userService', new OptimizedUserService());
     this.services.set('productService', new ProductService());
-    this.services.set('brandSettingsService', new BrandSettingsService());
+
+    // New Modular Brands Services
+    this.services.set('brandProfileCoreService', brandProfileCoreService);
+    this.services.set('brandSettingsCoreService', brandSettingsCoreService);
+    this.services.set('brandAccountCoreService', brandAccountCoreService);
+    
+    // Brands Feature Services
+    this.services.set('verificationService', new VerificationService());
+    this.services.set('brandAnalyticsService', new BrandAnalyticsService());
+    this.services.set('walletService', new WalletService());
+    this.services.set('integrationsService', new IntegrationsService());
+    this.services.set('discoveryService', new DiscoveryService());
+    
+    // Brands Validation Services
+    this.services.set('planValidationService', new PlanValidationService());
+    this.services.set('domainValidationService', new DomainValidationService());
+    this.services.set('brandValidationService', new BrandValidationService());
+    
+    // Brands Utility Services
+    this.services.set('brandHelpersService', new BrandHelpersService());
+    this.services.set('completenessCalculatorService', new CompletenessCalculatorService());
+    this.services.set('recommendationEngineService', new RecommendationEngineService());
+
+    // New Modular Manufacturers Services
+    this.services.set('manufacturerDataCoreService', manufacturerDataCoreService);
+    this.services.set('manufacturerAccountCoreService', manufacturerAccountCoreService);
+    this.services.set('manufacturerProfileCoreService', manufacturerProfileCoreService);
+    
+    // Manufacturers Feature Services
+    this.services.set('manufacturerVerificationService', verificationService);
+    this.services.set('manufacturerSupplyChainService', supplyChainService);
+    this.services.set('manufacturerAnalyticsService', analyticsService);
+    this.services.set('manufacturerSearchService', manufacturerSearchService);
+    this.services.set('manufacturerMediaService', manufacturerMediaService);
+    
+    // Manufacturers Utility Services
+    this.services.set('manufacturerScoreCalculatorService', scoreCalculatorService);
+    this.services.set('manufacturerHelpersService', manufacturerHelpersService);
+    this.services.set('manufacturerComparisonEngineService', comparisonEngineService);
+    
+    // Manufacturers Validation Services
+    this.services.set('manufacturerFileValidationService', fileValidationService);
+    this.services.set('manufacturerValidationService', manufacturerValidationService);
+    this.services.set('manufacturerPlanValidationService', planValidationService);
+    
     this.services.set('apiKeyService', new ApiKeyService());
-    this.services.set('analyticsService', new AnalyticsBusinessService());
-    this.services.set('votingService', new VotingBusinessService());
+    this.services.set('analyticsService', new AnalyticsService());
+    this.services.set('votingService', new VotingService());
     this.services.set('certificateService', new CertificateService());
     this.services.set('mediaService', new MediaService());
-    this.services.set('manufacturerService', new ManufacturerService());
     this.services.set('brandAccountService', new BrandAccountService());
-    this.services.set('brandProfileService', new BrandProfileService());
-    this.services.set('manufacturerProfileService', new ManufacturerProfileService());
     this.services.set('pendingVoteService', new PendingVoteService());
     this.services.set('notificationService', new NotificationService());
     this.services.set('invitationService', new InvitationService());
     this.services.set('emailGatingService', new EmailGatingService());
-    this.services.set('manufacturerAccountService', new ManufacturerAccountService());
     this.services.set('subscriptionService', new SubscriptionService());
     this.services.set('usageTrackingService', new UsageTrackingService());
+
     // External/Platform Services
     this.services.set('domainMappingService', new DomainMappingService());
     this.services.set('supplyChainService', SupplyChainService.getInstance());
@@ -142,19 +214,15 @@ export const getContainer = (): ServiceContainer => ServiceContainer.getInstance
 /**
  * Convenience functions for common services
  */
-export const getAuthService = () => getContainer().get<AuthService>('authService');
-export const getUserService = () => getContainer().get<UserService>('userService');
+export const getAuthService = () => getContainer().get<typeof authService>('authService');
+export const getUserService = () => getContainer().get<OptimizedUserService>('userService');
 export const getProductService = () => getContainer().get<ProductService>('productService');
-export const getBrandSettingsService = () => getContainer().get<BrandSettingsService>('brandSettingsService');
 export const getApiKeyService = () => getContainer().get<ApiKeyService>('apiKeyService');
-export const getAnalyticsService = () => getContainer().get<AnalyticsBusinessService>('analyticsService');
-export const getVotingService = () => getContainer().get<VotingBusinessService>('votingService');
+export const getAnalyticsService = () => getContainer().get<AnalyticsService>('analyticsService');
+export const getVotingService = () => getContainer().get<VotingService>('votingService');
 export const getCertificateService = () => getContainer().get<CertificateService>('certificateService');
 export const getMediaService = () => getContainer().get<MediaService>('mediaService');
-export const getManufacturerService = () => getContainer().get<ManufacturerService>('manufacturerService');
 export const getBrandAccountService = () => getContainer().get<BrandAccountService>('brandAccountService');
-export const getBrandProfileService = () => getContainer().get<BrandProfileService>('brandProfileService');
-export const getManufacturerProfileService = () => getContainer().get<ManufacturerProfileService>('manufacturerProfileService');
 export const getPendingVoteService = () => getContainer().get<PendingVoteService>('pendingVoteService');
 export const getBillingService = () => getContainer().get<BillingService>('billingService');
 export const getShopifyService = () => getContainer().get<ShopifyService>('shopifyService');
@@ -168,29 +236,94 @@ export const getNftService = () => getContainer().get<NftService>('nftService');
 export const getDomainMappingService = () => getContainer().get<DomainMappingService>('domainMappingService');
 export const getInvitationService = () => getContainer().get<InvitationService>('invitationService');
 export const getEmailGatingService = () => getContainer().get<EmailGatingService>('emailGatingService');
-export const getManufacturerAccountService = () => getContainer().get<ManufacturerAccountService>('manufacturerAccountService');
 export const getSubscriptionService = () => getContainer().get<SubscriptionService>('subscriptionService');
 export const getUsageTrackingService = () => getContainer().get<UsageTrackingService>('usageTrackingService');
 export const getSupplyChainService = () => getContainer().get<SupplyChainService>('supplyChainService');
 export const getQrCodeService = () => getContainer().get<QrCodeService>('qrCodeService');
 export const getSecurityAuditService = () => getContainer().get<SecurityAuditService>('securityAuditService');
 
+// New Modular Brands Services
+export const getBrandProfileCoreService = () => getContainer().get<typeof brandProfileCoreService>('brandProfileCoreService');
+export const getBrandSettingsCoreService = () => getContainer().get<typeof brandSettingsCoreService>('brandSettingsCoreService');
+export const getBrandAccountCoreService = () => getContainer().get<typeof brandAccountCoreService>('brandAccountCoreService');
+export const getVerificationService = () => getContainer().get<VerificationService>('verificationService');
+export const getBrandAnalyticsService = () => getContainer().get<BrandAnalyticsService>('brandAnalyticsService');
+export const getWalletService = () => getContainer().get<WalletService>('walletService');
+export const getIntegrationsService = () => getContainer().get<IntegrationsService>('integrationsService');
+export const getDiscoveryService = () => getContainer().get<DiscoveryService>('discoveryService');
+export const getPlanValidationService = () => getContainer().get<PlanValidationService>('planValidationService');
+export const getDomainValidationService = () => getContainer().get<DomainValidationService>('domainValidationService');
+export const getBrandValidationService = () => getContainer().get<BrandValidationService>('brandValidationService');
+export const getBrandHelpersService = () => getContainer().get<BrandHelpersService>('brandHelpersService');
+export const getCompletenessCalculatorService = () => getContainer().get<CompletenessCalculatorService>('completenessCalculatorService');
+export const getRecommendationEngineService = () => getContainer().get<RecommendationEngineService>('recommendationEngineService');
+
+// New Modular Manufacturers Services
+export const getManufacturerDataCoreService = () => getContainer().get<typeof manufacturerDataCoreService>('manufacturerDataCoreService');
+export const getManufacturerAccountCoreService = () => getContainer().get<typeof manufacturerAccountCoreService>('manufacturerAccountCoreService');
+export const getManufacturerProfileCoreService = () => getContainer().get<typeof manufacturerProfileCoreService>('manufacturerProfileCoreService');
+export const getManufacturerVerificationService = () => getContainer().get<typeof verificationService>('manufacturerVerificationService');
+export const getManufacturerSupplyChainService = () => getContainer().get<typeof supplyChainService>('manufacturerSupplyChainService');
+export const getManufacturerAnalyticsService = () => getContainer().get<typeof analyticsService>('manufacturerAnalyticsService');
+export const getManufacturerSearchService = () => getContainer().get<typeof manufacturerSearchService>('manufacturerSearchService');
+export const getManufacturerMediaService = () => getContainer().get<typeof manufacturerMediaService>('manufacturerMediaService');
+export const getManufacturerScoreCalculatorService = () => getContainer().get<typeof scoreCalculatorService>('manufacturerScoreCalculatorService');
+export const getManufacturerHelpersService = () => getContainer().get<typeof manufacturerHelpersService>('manufacturerHelpersService');
+export const getManufacturerComparisonEngineService = () => getContainer().get<typeof comparisonEngineService>('manufacturerComparisonEngineService');
+export const getManufacturerFileValidationService = () => getContainer().get<typeof fileValidationService>('manufacturerFileValidationService');
+export const getManufacturerValidationService = () => getContainer().get<typeof manufacturerValidationService>('manufacturerValidationService');
+export const getManufacturerPlanValidationService = () => getContainer().get<typeof planValidationService>('manufacturerPlanValidationService');
+
 /**
  * Helper function to get multiple services at once
  */
 export const getServices = () => ({
+  // Core Services
   auth: getAuthService(),
   user: getUserService(),
   product: getProductService(),
-  brandSettings: getBrandSettingsService(),
+
+  // New Modular Brands Services
+  brandProfile: getBrandProfileCoreService(),
+  brandSettings: getBrandSettingsCoreService(),
+  brandAccount: getBrandAccountCoreService(),
+  verification: getVerificationService(),
+  brandAnalytics: getBrandAnalyticsService(),
+  wallet: getWalletService(),
+  integrations: getIntegrationsService(),
+  discovery: getDiscoveryService(),
+  planValidation: getPlanValidationService(),
+  domainValidation: getDomainValidationService(),
+  brandValidation: getBrandValidationService(),
+  brandHelpers: getBrandHelpersService(),
+  completeness: getCompletenessCalculatorService(),
+  recommendations: getRecommendationEngineService(),
+
+  // New Modular Manufacturers Services
+  manufacturerData: getManufacturerDataCoreService(),
+  manufacturerAccount: getManufacturerAccountCoreService(),
+  manufacturerProfile: getManufacturerProfileCoreService(),
+  manufacturerVerification: getManufacturerVerificationService(),
+  manufacturerSupplyChain: getManufacturerSupplyChainService(),
+  manufacturerAnalytics: getManufacturerAnalyticsService(),
+  manufacturerSearch: getManufacturerSearchService(),
+  manufacturerMedia: getManufacturerMediaService(),
+  manufacturerScoreCalculator: getManufacturerScoreCalculatorService(),
+  manufacturerHelpers: getManufacturerHelpersService(),
+  manufacturerComparisonEngine: getManufacturerComparisonEngineService(),
+  manufacturerFileValidation: getManufacturerFileValidationService(),
+  manufacturerValidation: getManufacturerValidationService(),
+  manufacturerPlanValidation: getManufacturerPlanValidationService(),
+
+  // Legacy Services (to be migrated)
+  // brandSettingsLegacy: getBrandSettingsService(), // Commented out - using modular version
   apiKey: getApiKeyService(),
   analytics: getAnalyticsService(),
   voting: getVotingService(),
   certificate: getCertificateService(),
   media: getMediaService(),
-  manufacturer: getManufacturerService(),
-  brandAccount: getBrandAccountService(),
-  brandProfile: getBrandProfileService(),
+  // manufacturer: getManufacturerService(), // Commented out - using modular version
+  brandAccountLegacy: getBrandAccountService(),
   billing: getBillingService(),
   shopify: getShopifyService(),
   wix: getWixService(),
@@ -202,4 +335,50 @@ export const getServices = () => ({
   domainMapping: getDomainMappingService(),
   supplyChain: getSupplyChainService(),
   usageTracking: getUsageTrackingService()
+});
+
+/**
+ * Helper function to get brands services specifically
+ */
+export const getBrandsServices = () => ({
+  profile: getBrandProfileCoreService(),
+  settings: getBrandSettingsCoreService(),
+  account: getBrandAccountCoreService(),
+  verification: getVerificationService(),
+  analytics: getBrandAnalyticsService(),
+  wallet: getWalletService(),
+  integrations: getIntegrationsService(),
+  discovery: getDiscoveryService(),
+  planValidation: getPlanValidationService(),
+  domainValidation: getDomainValidationService(),
+  brandValidation: getBrandValidationService(),
+  helpers: getBrandHelpersService(),
+  completeness: getCompletenessCalculatorService(),
+});
+
+/**
+ * Helper function to get manufacturers services specifically
+ */
+export const getManufacturersServices = () => ({
+  // Core Services
+  data: getManufacturerDataCoreService(),
+  account: getManufacturerAccountCoreService(),
+  profile: getManufacturerProfileCoreService(),
+  
+  // Feature Services
+  verification: getManufacturerVerificationService(),
+  supplyChain: getManufacturerSupplyChainService(),
+  analytics: getManufacturerAnalyticsService(),
+  search: getManufacturerSearchService(),
+  media: getManufacturerMediaService(),
+  
+  // Utility Services
+  scoreCalculator: getManufacturerScoreCalculatorService(),
+  helpers: getManufacturerHelpersService(),
+  comparisonEngine: getManufacturerComparisonEngineService(),
+  
+  // Validation Services
+  fileValidation: getManufacturerFileValidationService(),
+  validation: getManufacturerValidationService(),
+  planValidation: getManufacturerPlanValidationService()
 });

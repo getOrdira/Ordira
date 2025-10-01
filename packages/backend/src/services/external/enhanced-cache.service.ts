@@ -7,13 +7,24 @@
 
 import { logger } from '../../utils/logger';
 import { cacheService } from './cache.service';
+import { redisClusterService } from './redis-cluster.service';
+import crypto from 'crypto';
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
   tags?: string[]; // Cache tags for invalidation
   keyPrefix?: string; // Key prefix for namespacing
   serialize?: boolean; // Whether to serialize complex objects
+  encrypt?: boolean; // Whether to encrypt sensitive data
+  sensitiveFields?: string[]; // Fields to encrypt
 }
+
+// Fields that should always be encrypted
+const SENSITIVE_FIELDS = [
+  'password', 'email', 'phone', 'ssn', 'creditCard',
+  'bankAccount', 'apiKey', 'token', 'secret', 'privateKey',
+  'personalData', 'address', 'dob', 'identityNumber'
+];
 
 export interface CacheStats {
   hits: number;
@@ -27,30 +38,241 @@ export class EnhancedCacheService {
   private readonly DEFAULT_TTL = 300; // 5 minutes
   private readonly LONG_TTL = 3600; // 1 hour
   private readonly SHORT_TTL = 60; // 1 minute
+  private readonly encryptionKey: Buffer | null;
+
+  constructor() {
+    this.encryptionKey = this.loadEncryptionKey();
+    if (!this.encryptionKey) {
+      logger.warn('CACHE_ENCRYPTION_KEY not set or invalid. Sensitive cache encryption disabled.');
+    }
+  }
 
   /**
-   * Cache user data with intelligent invalidation
+   * Load encryption key if provided and validate format
+   */
+  private loadEncryptionKey(): Buffer | null {
+    const rawKey = process.env.CACHE_ENCRYPTION_KEY;
+
+    if (!rawKey) {
+      return null;
+    }
+
+    try {
+      if (/^[0-9a-fA-F]+$/.test(rawKey) && rawKey.length === 64) {
+        return Buffer.from(rawKey, 'hex');
+      }
+
+      const bufferKey = Buffer.from(rawKey, 'base64');
+      if (bufferKey.length === 32) {
+        return bufferKey;
+      }
+
+      if (rawKey.length === 32) {
+        return Buffer.from(rawKey, 'utf8');
+      }
+
+      logger.error('CACHE_ENCRYPTION_KEY must be 32 bytes (64 hex chars or base64 encoded).');
+      return null;
+    } catch (error) {
+      logger.error('Failed to load CACHE_ENCRYPTION_KEY. Encryption disabled.', error);
+      return null;
+    }
+  }
+
+  /**
+   * Encrypt sensitive data
+   */
+  private encryptData(data: string): string {
+    if (!this.encryptionKey) {
+      throw new Error('Encryption key is not configured');
+    }
+
+    const iv = crypto.randomBytes(12); // Recommended IV size for GCM
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+
+    return [iv.toString('base64'), authTag.toString('base64'), encrypted.toString('base64')].join(':');
+  }
+
+  /**
+   * Decrypt sensitive data
+   */
+  private decryptData(encryptedData: string): string {
+    if (!this.encryptionKey) {
+      throw new Error('Encryption key is not configured');
+    }
+
+    const parts = encryptedData.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid encrypted data format');
+    }
+
+    const [ivB64, tagB64, payloadB64] = parts;
+    const iv = Buffer.from(ivB64, 'base64');
+    const tag = Buffer.from(tagB64, 'base64');
+    const payload = Buffer.from(payloadB64, 'base64');
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
+    decipher.setAuthTag(tag);
+
+    const decrypted = Buffer.concat([decipher.update(payload), decipher.final()]);
+    return decrypted.toString('utf8');
+  }
+
+  /**
+   * Check if data contains sensitive information
+   */
+  private containsSensitiveData(data: any): boolean {
+    if (typeof data !== 'object' || data === null) {
+      return false;
+    }
+
+    const checkObject = (obj: any): boolean => {
+      for (const key in obj) {
+        if (SENSITIVE_FIELDS.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
+          return true;
+        }
+        if (typeof obj[key] === 'object' && obj[key] !== null) {
+          if (checkObject(obj[key])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    return checkObject(data);
+  }
+
+  /**
+   * Sanitize and encrypt user data before caching
+   */
+  private sanitizeUserData(userData: any, encrypt: boolean = true): any {
+    if (!userData || typeof userData !== 'object') {
+      return userData;
+    }
+
+    const sanitized = { ...userData };
+
+    // Remove or encrypt sensitive fields
+    for (const field of SENSITIVE_FIELDS) {
+      if (sanitized[field]) {
+        if (encrypt && this.encryptionKey && field !== 'password') {
+          // Encrypt sensitive data (except passwords which should never be cached)
+          sanitized[field] = this.encryptData(JSON.stringify(sanitized[field]));
+          sanitized[`${field}_encrypted`] = true;
+        } else {
+          // Remove passwords and other highly sensitive data
+          delete sanitized[field];
+        }
+      }
+    }
+
+    // Always remove password-related fields
+    delete sanitized.password;
+    delete sanitized.passwordHash;
+    delete sanitized.hashedPassword;
+    delete sanitized.salt;
+
+    return sanitized;
+  }
+
+  /**
+   * Restore encrypted data after retrieval
+   */
+  private restoreUserData(cachedData: any): any {
+    if (!cachedData || typeof cachedData !== 'object') {
+      return cachedData;
+    }
+
+    const restored = { ...cachedData };
+
+    if (!this.encryptionKey) {
+      for (const field of SENSITIVE_FIELDS) {
+        if (restored[`${field}_encrypted`]) {
+          delete restored[field];
+          delete restored[`${field}_encrypted`];
+        }
+      }
+      return restored;
+    }
+
+    // Decrypt encrypted fields
+    for (const field of SENSITIVE_FIELDS) {
+      if (restored[`${field}_encrypted`] && restored[field]) {
+        try {
+          restored[field] = JSON.parse(this.decryptData(restored[field]));
+          delete restored[`${field}_encrypted`];
+        } catch (error) {
+          logger.warn(`Failed to decrypt cached field: ${field}`);
+          delete restored[field];
+          delete restored[`${field}_encrypted`];
+        }
+      }
+    }
+
+    return restored;
+  }
+
+  /**
+   * Cache user data with intelligent invalidation and encryption
    */
   async cacheUser(userId: string, userData: any, options: CacheOptions = {}): Promise<void> {
     const key = this.buildKey('user', userId, options.keyPrefix);
+
+    // Sanitize and encrypt sensitive data
+    const encryptionAvailable = Boolean(this.encryptionKey);
+    const shouldEncrypt = encryptionAvailable && options.encrypt !== false && this.containsSensitiveData(userData);
+    const sanitizedData = this.sanitizeUserData(userData, shouldEncrypt);
+
     const cacheOptions = {
       ttl: options.ttl || this.DEFAULT_TTL,
       prefix: options.keyPrefix
     };
 
-    await cacheService.set(key, userData, cacheOptions);
+    await cacheService.set(key, sanitizedData, cacheOptions);
     this.recordCacheOperation(key, 'set');
+
+    // Log security event for sensitive data caching
+    if (shouldEncrypt) {
+      logger.info('Cached user data with encryption:', {
+        userId: userId.substring(0, 8) + '...', // Partial ID for logging
+        dataType: 'encrypted_user_data',
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 
   /**
-   * Get cached user data
+   * Get cached user data with decryption
    */
   async getCachedUser(userId: string, options: CacheOptions = {}): Promise<any> {
     const key = this.buildKey('user', userId, options.keyPrefix);
     const result = await cacheService.get(key);
-    
-    this.recordCacheOperation(key, result ? 'hit' : 'miss');
-    return result;
+
+    if (!result) {
+      this.recordCacheOperation(key, 'miss');
+      return null;
+    }
+
+    this.recordCacheOperation(key, 'hit');
+
+    if (!this.encryptionKey) {
+      return result;
+    }
+
+    // Restore encrypted data
+    try {
+      const restoredData = this.restoreUserData(result);
+      return restoredData;
+    } catch (error) {
+      logger.error('Failed to restore cached user data:', {
+        userId: userId.substring(0, 8) + '...', // Partial ID for logging
+        timestamp: new Date().toISOString()
+      });
+      return null;
+    }
   }
 
   /**
@@ -370,12 +592,83 @@ export class EnhancedCacheService {
    */
   getCacheStats(): Record<string, CacheStats> {
     const stats: Record<string, CacheStats> = {};
-    
+
     for (const [key, stat] of this.stats.entries()) {
       stats[key] = { ...stat };
     }
-    
+
     return stats;
+  }
+
+  /**
+   * Get Redis cluster statistics
+   */
+  async getClusterStats(): Promise<any> {
+    try {
+      return await redisClusterService.getClusterStats();
+    } catch (error) {
+      logger.error('Failed to get cluster stats:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check Redis cluster health
+   */
+  async checkClusterHealth(): Promise<any> {
+    try {
+      return await redisClusterService.healthCheck();
+    } catch (error) {
+      logger.error('Failed to check cluster health:', error);
+      return { healthy: false, error: error.message };
+    }
+  }
+
+  /**
+   * Use Redis cluster for high-performance operations
+   */
+  async getFromCluster<T>(key: string): Promise<T | null> {
+    try {
+      return await redisClusterService.get<T>(key);
+    } catch (error) {
+      logger.error('Cluster get operation failed:', error);
+      // Fallback to regular cache service
+      return await cacheService.get<T>(key);
+    }
+  }
+
+  /**
+   * Set value in Redis cluster
+   */
+  async setInCluster<T>(key: string, value: T, ttl?: number): Promise<boolean> {
+    try {
+      const success = await redisClusterService.set(key, value, ttl);
+      if (success) {
+        // Also set in regular cache as backup
+        await cacheService.set(key, value, { ttl });
+      }
+      return success;
+    } catch (error) {
+      logger.error('Cluster set operation failed:', error);
+      // Fallback to regular cache service
+      return await cacheService.set(key, value, { ttl });
+    }
+  }
+
+  /**
+   * Delete from Redis cluster
+   */
+  async deleteFromCluster(key: string): Promise<boolean> {
+    try {
+      const success = await redisClusterService.delete(key);
+      // Also delete from regular cache
+      await cacheService.delete(key);
+      return success;
+    } catch (error) {
+      logger.error('Cluster delete operation failed:', error);
+      // Fallback to regular cache service
+      return await cacheService.delete(key);
+    }
   }
 
   /**

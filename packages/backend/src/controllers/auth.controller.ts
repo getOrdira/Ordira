@@ -1,1010 +1,375 @@
-// src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
-import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
-import { trackManufacturerAction } from '../middleware/metrics.middleware';
+import { logger } from '../utils/logger';
 import { getServices } from '../services/container.service';
-import { getRequestBody, safeString, safeBoolean } from '../utils/typeGuards';
-import { 
-  sendErrorResponse, 
-  sendSuccessResponse, 
-  createValidationError, 
-  createAuthError,
-  ErrorCodes 
-} from '../utils/errorResponse.util';
-import { 
+import {
   RegisterBusinessInput,
   VerifyBusinessInput,
   LoginBusinessInput,
   RegisterUserInput,
   VerifyUserInput,
-  LoginUserInput
-} from '../services/business/auth.service';
+  LoginUserInput,
+  RegisterManufacturerInput,
+  VerifyManufacturerInput,
+  LoginManufacturerInput,
+} from '../services/auth/types/authTypes.service';
 
-// Enhanced request interfaces
-interface AuthControllerRequest extends Request, ValidatedRequest {
-  ip: string;
-  headers: {
-    'user-agent'?: string;
-    'x-forwarded-for'?: string;
-    'x-real-ip'?: string;
-  };
+interface ValidatedBodyRequest<T> extends Request, ValidatedRequest {
+  validatedBody: T;
 }
 
-interface LoginUserRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
-  body: LoginUserInput;
-  validatedBody?: LoginUserInput;
+interface ResendVerificationBody {
+  accountType: 'business' | 'user' | 'manufacturer';
+  email?: string;
+  businessId?: string;
+  manufacturerId?: string;
 }
 
-
-interface BusinessUnifiedAuthRequest extends AuthControllerRequest {
-  body: RegisterBusinessInput | VerifyBusinessInput | LoginBusinessInput;
+interface ForgotPasswordBody {
+  email: string;
 }
 
-interface UserUnifiedAuthRequest extends AuthControllerRequest {
-  body: RegisterUserInput | VerifyUserInput | LoginUserInput;
+interface ResetPasswordBody {
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
-interface PasswordResetRequest extends AuthControllerRequest {
-  body: {
-    email?: string;
-    phone?: string;
-    token?: string;
-    newPassword?: string;
-    confirmPassword?: string;
-  };
-}
+const { auth: authService, notifications: notificationsService } = getServices();
 
-interface RevokeAllSessionsRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
-  validatedBody: {
-    currentPassword: string;
-    reason?: string;
-  };
-}
-
-interface ChangePasswordRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
-  validatedBody: {
-    currentPassword: string;
-    newPassword: string;
-  };
-}
-
-interface UpdateSecurityPreferencesRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
-  validatedBody: {
-    twoFactorEnabled?: boolean;
-    emailNotifications?: boolean;
-    smsNotifications?: boolean;
-    loginNotifications?: boolean;
-    ipWhitelist?: string[];
-    sessionTimeout?: number;
-    passwordChangeRequired?: boolean;
-    allowedDevices?: string[];
-  };
-}
-
-
-
-// Resolve services via container for consistency
-const { auth: authService, manufacturer: manufacturerService, notifications: notificationsService } = getServices();
-/**
- * POST /api/auth/register/business
- * Enhanced business registration with security features and validation
- */
 export async function registerBusinessHandler(
-  req: BusinessUnifiedAuthRequest,
+  req: ValidatedBodyRequest<RegisterBusinessInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const registrationData = req.validatedBody;
-    if (!registrationData) {
-      throw createValidationError('Request validation required - missing validatedBody');
-    }
-    
-    // Services resolved above via container
+    const securityContext = authService.extractSecurityContext(req);
 
-    // Add security context
-    const securityContext = authService.createSecurityContext(req, {
-      registrationSource: 'web'
-    });
-
-    // Enhanced registration with security logging
     const result = await authService.registerBusiness({
       ...registrationData,
-      securityContext
+      securityContext,
     });
 
-    // Send welcome email if registration successful
-    if (result.businessId) {
-      await notificationsService.sendWelcomeEmail(
-        registrationData.email,
-        `${registrationData.firstName} ${registrationData.lastName}`,
-        'brand'
-      );
+    if (notificationsService) {
+      const fullName = `${registrationData.firstName} ${registrationData.lastName}`.trim();
+      notificationsService
+        .sendWelcomeEmail(registrationData.email, fullName || 'Business Owner', 'brand')
+        .catch(error =>
+          logger.warn('Failed to send business welcome email', {
+            email: registrationData.email,
+            error: error instanceof Error ? error.message : error,
+          })
+        );
     }
 
-    // Log successful registration for analytics
-    logger.info('Business registration: ${result.businessId} from IP: ${securityContext.ipAddress}');
-
- sendSuccessResponse(res, {
-  businessId: result.businessId,
-  nextStep: 'email_verification',
-  estimatedVerificationTime: '5-10 minutes'
-}, 201, 'Business registered successfully. Please check your email for verification instructions.');
-} catch (error) {
-  // Enhanced error logging with context
-  logger.error('Business registration error:', {
-    error: error instanceof Error ? error.message : 'Unknown error',
-    ip: authService.getClientIp(req),
-    email: safeString(getRequestBody(req)?.email),
-    timestamp: new Date()
-  });
-  
-  const statusCode = error.statusCode || 500;
-  sendErrorResponse(res, error, statusCode);
-}
-}
-
-/**
- * POST /api/auth/verify/business
- * Enhanced business verification with attempt tracking
- */
-export async function verifyBusinessHandler(
-  req: BusinessUnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const verificationData = req.validatedBody;
-    if (!verificationData) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    
-    // Add security context for verification tracking
-    const securityContext = authService.createSecurityContext(req, {
-      verificationAttempt: true
+    res.status(201).json({
+      message: 'Business registered successfully. Please verify your email.',
+      data: result,
     });
-
-    // Enhanced verification with attempt tracking
-    const result = await authService.verifyBusiness({
-      ...verificationData,
-      securityContext
-    });
-
-    // Log successful verification
-    logger.info('Business verified: ${verificationData.businessId} from IP: ${securityContext.ipAddress}');
-
-    res.json({
-  token: result.token,
-  message: 'Business account verified successfully',
-  expiresIn: '7 days',
-  user: {
-    businessId: verificationData.businessId,
-    verified: true,
-    verifiedAt: new Date()
-  }
-});
-} catch (error) {
-  // Log failed verification attempts for security
-  logger.warn('Business verification failed:', {
-    businessId: safeString(getRequestBody(req)?.businessId),
-    ip: authService.getClientIp(req),
-    error: error instanceof Error ? error.message : 'Unknown error',
-    timestamp: new Date()
-  });
-  
-  next(error);
-}
-}
-
-/**
- * POST /api/auth/login/business
- * Enhanced business login with security features
- */
-export async function loginBusinessHandler(
-  req: BusinessUnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const loginData = req.validatedBody as LoginBusinessInput;
-    if (!loginData) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    
-    // Enhanced security context
-    const securityContext = authService.createSecurityContext(req, {
-      loginAttempt: true,
-      deviceFingerprint: safeString(getRequestBody(req)?.deviceFingerprint)
-    });
-
-    // Enhanced login with security checks
-    const result = await authService.loginBusiness({
-      ...loginData,
-      securityContext
-    });
-
-    // Log successful login
-    logger.info('Business login successful from IP: ${securityContext.ipAddress}', {
-      token: result.token ? 'present' : 'missing',
-      timestamp: new Date(),
-      userAgent: securityContext.userAgent
-    });
-
-    // Set secure cookie if remember me is enabled
-    if (loginData.rememberMe) {
-      res.cookie('remember_token', result.rememberToken, authService.getRememberTokenCookieOptions());
-    }
-
-    res.json(authService.formatAuthResponse(result, securityContext));
   } catch (error) {
-    // Enhanced error logging for security monitoring
-    logger.warn('Business login failed:', {
-      identifier: (req.validatedBody as LoginBusinessInput)?.emailOrPhone,
-      ip: authService.getClientIp(req),
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date()
-    });
-    
     next(error);
   }
 }
 
-/**
- * POST /api/auth/register/user
- * Enhanced user registration with validation and security
- */
-export async function registerUserHandler(
-  req: UserUnifiedAuthRequest,
+export async function registerManufacturerHandler(
+  req: ValidatedBodyRequest<RegisterManufacturerInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const registrationData = req.validatedBody;
-    if (!registrationData) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    const userType = 'user';
-    
-    // Add security context
-    const securityContext = authService.createSecurityContext(req, {
-      registrationSource: 'web'
-    });
+    const securityContext = authService.extractSecurityContext(req);
 
-    // Enhanced user registration
-    await authService.registerUser({
+    const result = await authService.registerManufacturer({
       ...registrationData,
-      securityContext
+      securityContext,
     });
 
-    // Send welcome email
-    await notificationsService.sendWelcomeEmail(
-      registrationData.email,
-      registrationData.firstName || 'User',
-      userType
-    );
-
-    // Log successful registration
-    logger.info('User registration: ${registrationData.email} from IP: ${securityContext.ipAddress}');
+    if (notificationsService) {
+      notificationsService
+        .sendWelcomeEmail(
+          registrationData.email,
+          registrationData.name || 'Manufacturer',
+          'manufacturer'
+        )
+        .catch(error =>
+          logger.warn('Failed to send manufacturer welcome email', {
+            email: registrationData.email,
+            error: error instanceof Error ? error.message : error,
+          })
+        );
+    }
 
     res.status(201).json({
-  message: 'User registered successfully. Please check your email for verification instructions.',
-  nextStep: 'email_verification',
-  email: registrationData.email
-});
-} catch (error) {
-  logger.error('User registration error:', {
-    error: error instanceof Error ? error.message : 'Unknown error',
-    ip: authService.getClientIp(req),
-    email: safeString(getRequestBody(req)?.email),
-    timestamp: new Date()
-  });
-  
-  next(error);
-}
+      message: 'Manufacturer registered successfully. Please verify your email.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
-/**
- * POST /api/auth/verify/user
- * Enhanced user verification with attempt tracking
- */
+export async function verifyManufacturerHandler(
+  req: ValidatedBodyRequest<VerifyManufacturerInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const securityContext = authService.extractSecurityContext(req);
+
+    const result = await authService.verifyManufacturer({
+      ...req.validatedBody,
+      securityContext,
+    });
+
+    res.json({
+      message: 'Manufacturer verified successfully.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function loginManufacturerHandler(
+  req: ValidatedBodyRequest<LoginManufacturerInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const securityContext = authService.extractSecurityContext(req);
+
+    const result = await authService.loginManufacturer({
+      ...req.validatedBody,
+      securityContext,
+    });
+
+    if (result.rememberToken) {
+      res.cookie('remember_token', result.rememberToken, {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    res.json({
+      message: 'Login successful.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function verifyBusinessHandler(
+  req: ValidatedBodyRequest<VerifyBusinessInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const securityContext = authService.extractSecurityContext(req);
+
+    const result = await authService.verifyBusiness({
+      ...req.validatedBody,
+      securityContext,
+    });
+
+    res.json({
+      message: 'Business verified successfully.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function loginBusinessHandler(
+  req: ValidatedBodyRequest<LoginBusinessInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const securityContext = authService.extractSecurityContext(req);
+
+    const result = await authService.loginBusiness({
+      ...req.validatedBody,
+      securityContext,
+    });
+
+    if (result.rememberToken) {
+      res.cookie('remember_token', result.rememberToken, {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    const responsePayload = authService.formatAuthResponse(result, securityContext);
+
+    res.json({
+      message: 'Login successful.',
+      data: responsePayload,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function registerUserHandler(
+  req: ValidatedBodyRequest<RegisterUserInput> & { params?: { brandSlug?: string } },
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const registrationData = req.validatedBody;
+    const securityContext = authService.extractSecurityContext(req);
+
+    const brandSlug = req.params?.brandSlug ?? (req as any).brandSlug;
+    const registrationPayload = {
+      ...registrationData,
+      brandSlug: registrationData.brandSlug ?? brandSlug,
+      securityContext,
+    };
+
+    const result = await authService.registerUser(registrationPayload);
+
+    if (notificationsService) {
+      notificationsService
+        .sendWelcomeEmail(
+          registrationData.email,
+          registrationData.firstName || 'User',
+          'user'
+        )
+        .catch(error =>
+          logger.warn('Failed to send user welcome email', {
+            email: registrationData.email,
+            error: error instanceof Error ? error.message : error,
+          })
+        );
+    }
+
+    res.status(201).json({
+      message: 'User registered successfully. Please verify your email.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function verifyUserHandler(
-  req: UserUnifiedAuthRequest,
+  req: ValidatedBodyRequest<VerifyUserInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const verificationData = req.validatedBody;
-    if (!verificationData) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    
-    // Add security context
-    const securityContext = {
-      ipAddress: authService.getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      verificationAttempt: true,
-      timestamp: new Date()
-    };
+    const securityContext = authService.extractSecurityContext(req);
 
-    // Enhanced verification
     const result = await authService.verifyUser({
-      ...verificationData,
-      securityContext
+      ...req.validatedBody,
+      securityContext,
     });
 
-    // Log successful verification
-    logger.info('User verified: ${verificationData.email} from IP: ${securityContext.ipAddress}');
-
     res.json({
-  token: result.token,
-  message: 'Email verified successfully',
-  expiresIn: '7 days',
-  user: {
-    email: verificationData.email,
-    verified: true,
-    verifiedAt: new Date()
-  }
-});
-} catch (error) {
-  logger.warn('User verification failed:', {
-    email: safeString(getRequestBody(req)?.email),
-    ip: authService.getClientIp(req),
-    error: error instanceof Error ? error.message : 'Unknown error',
-    timestamp: new Date()
-  });
-  
-  next(error);
-}
-}
-
-/**
- * POST /api/auth/change-password
- * Change password for authenticated users
- */
-export async function changePasswordHandler(
-  req: ChangePasswordRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const { currentPassword, newPassword } = req.validatedBody;
-    if (!currentPassword || !newPassword) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-
-    // Get security context
-    const securityContext = {
-      ipAddress: authService.getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      timestamp: new Date()
-    };
-
-    // Change password through service
-    await authService.changePassword(userId, {
-      currentPassword,
-      newPassword,
-      securityContext
-    });
-
-    // Log successful password change
-    logger.info('Password changed for user ${userId} from IP: ${securityContext.ipAddress}');
-
-    res.json({
-      message: 'Password changed successfully',
-      changedAt: new Date().toISOString()
+      message: 'Email verification successful.',
+      data: result,
     });
   } catch (error) {
-    logger.error('Change password error:', error);
     next(error);
   }
 }
 
-/**
- * POST /api/auth/resend-verification
- * Resend verification code
- */
+export async function loginUserHandler(
+  req: ValidatedBodyRequest<LoginUserInput>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const securityContext = authService.extractSecurityContext(req);
+
+    const result = await authService.loginUser({
+      ...req.validatedBody,
+      securityContext,
+    });
+
+    res.json({
+      message: 'Login successful.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function resendVerificationHandler(
-  req: AuthControllerRequest,
+  req: ValidatedBodyRequest<ResendVerificationBody>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const { email, businessId, type } = req.validatedBody;
-    if (!email || !businessId || !type) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
+    const { accountType, email, businessId, manufacturerId } = req.validatedBody;
 
-    const securityContext = {
-      ipAddress: authService.getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      timestamp: new Date()
-    };
-
-    if (businessId || type === 'business') {
-      await authService.resendBusinessVerification(businessId);
+    if (accountType === 'business') {
+      await authService.resendBusinessVerification(businessId!);
+    } else if (accountType === 'manufacturer') {
+      await authService.resendManufacturerVerification(manufacturerId!);
     } else {
-      await authService.resendUserVerification(email);
+      await authService.resendUserVerification(email!);
     }
-
-    // Log resend attempt
-    logger.info('Verification resent from IP: ${securityContext.ipAddress}', {
-      identifier: email || businessId,
-      type: type || 'user'
-    });
 
     res.json({
-      message: 'Verification code sent successfully',
-      nextStep: 'check_email',
-      estimatedDelivery: '2-5 minutes'
+      message: 'Verification code sent successfully.',
     });
   } catch (error) {
-    logger.error('Resend verification error:', error);
     next(error);
   }
 }
 
-/**
- * POST /api/auth/check-email
- * Check if email is available for registration
- */
-export async function checkEmailAvailabilityHandler(
-  req: AuthControllerRequest,
+export async function forgotPasswordHandler(
+  req: ValidatedBodyRequest<ForgotPasswordBody>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     const { email } = req.validatedBody;
-    if (!email) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
+    const securityContext = authService.extractSecurityContext(req);
 
-    const availability = await authService.checkEmailAvailability(email);
-
-    res.json({
+    await authService.requestPasswordReset({
       email,
-      available: availability.available,
-      reason: availability.reason,
-      suggestions: availability.suggestions || []
+      securityContext,
+    });
+
+    res.json({
+      message: 'If an account with that email exists, you will receive password reset instructions shortly.',
     });
   } catch (error) {
-    logger.error('Check email availability error:', error);
     next(error);
   }
 }
 
-/**
- * POST /api/auth/validate-password
- * Validate password strength
- */
-export async function validatePasswordStrengthHandler(
-  req: AuthControllerRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { password } = req.validatedBody;
-    if (!password) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-
-    const validation = authService.validatePasswordStrength(password);
-
-    res.json({
-      password: '***', // Never return the actual password
-      strength: validation.strength,
-      score: validation.score,
-      feedback: validation.feedback,
-      requirements: validation.requirements,
-      isValid: validation.isValid
-    });
-  } catch (error) {
-    logger.error('Validate password error:', error);
-    next(error);
-  }
-}
-
-/**
- * GET /api/auth/sessions
- * Get active sessions for authenticated user
- */
-export async function getActiveSessionsHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    
-    // Get active sessions from service
-    const sessions = await authService.getActiveSessions(userId);
-
-    // Add current session indicator
-    const currentToken = req.headers.authorization?.split(' ')[1];
-    const enhancedSessions = sessions.map((session: any) => ({
-      ...session,
-      isCurrent: session.token === currentToken,
-      location: {
-        ip: session.ipAddress,
-        // You could add geolocation here
-        country: 'Unknown',
-        city: 'Unknown'
-      }
-    }));
-
-    res.json({
-      sessions: enhancedSessions,
-      totalSessions: enhancedSessions.length,
-      currentSession: enhancedSessions.find((s: any) => s.isCurrent)
-    });
-  } catch (error) {
-    logger.error('Get active sessions error:', error);
-    next(error);
-  }
-}
-
-/**
- * DELETE /api/auth/sessions/:sessionId
- * Revoke specific session
- */
-export async function revokeSessionHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const { sessionId } = req.params;
-
-    if (!sessionId) {
-      res.status(400).json({
-        error: 'Session ID is required',
-        code: 'MISSING_SESSION_ID'
-      });
-      return;
-    }
-
-    await authService.revokeSession(userId, sessionId);
-
-    // Log session revocation
-logger.info('Session revoked: ${sessionId} by user ${userId} from IP: ${authService.getClientIp(req)}');
-
-    res.json({
-      message: 'Session revoked successfully',
-      sessionId,
-      revokedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error('Revoke session error:', error);
-    next(error);
-  }
-}
-
-/**
- * POST /api/auth/sessions/revoke-all
- * Revoke all sessions except current
- */
-export async function revokeAllSessionsHandler(
-  req: RevokeAllSessionsRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const { currentPassword, reason } = req.validatedBody;
-    if (!currentPassword) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    const currentToken = req.headers.authorization?.split(' ')[1];
-
-    if (!currentPassword) {
-      res.status(400).json({
-        error: 'Current password is required for security',
-        code: 'MISSING_PASSWORD'
-      });
-      return;
-    }
-
-    // Verify password before revoking sessions
-    const isValidPassword = await authService.verifyUserPassword(userId, currentPassword);
-    if (!isValidPassword) {
-      res.status(401).json({
-        error: 'Invalid password',
-        code: 'INVALID_PASSWORD'
-      });
-      return;
-    }
-
-    const revokedCount = await authService.revokeAllSessions(userId, currentToken);
-
-    // Log mass session revocation
-logger.info('All sessions revoked for user ${userId} from IP: ${authService.getClientIp(req)}', {
-      revokedCount,
-      reason: reason || 'user_request'
-    });
-
-    res.json({
-      message: 'All other sessions revoked successfully',
-      revokedCount,
-      reason: reason || 'user_request',
-      revokedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error('Revoke all sessions error:', error);
-    next(error);
-  }
-}
-
-/**
- * GET /api/auth/login-history
- * Get login history for authenticated user
- */
-export async function getLoginHistoryHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const { page = 1, limit = 20, startDate, endDate } = req.query;
-
-const history = await authService.getLoginHistory(userId, {
-      page: parseInt(page as string),
-      limit: parseInt(limit as string),
-      startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined
-    });
-
-    res.json({
-      loginHistory: history.entries,
-      pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
-        total: history.total,
-        pages: Math.ceil(history.total / parseInt(limit as string))
-      }
-    });
-  } catch (error) {
-    logger.error('Get login history error:', error);
-    next(error);
-  }
-}
-
-/**
- * GET /api/auth/security-events
- * Get security events for authenticated user
- */
-export async function getSecurityEventsHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const { page = 1, limit = 20, eventType } = req.query;
-
-const events = await authService.getSecurityEvents(userId, {
-      page: parseInt(page as string),
-      limit: parseInt(limit as string),
-      eventType: eventType as string
-    });
-
-    res.json({
-      securityEvents: events.entries,
-      pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
-        total: events.total,
-        pages: Math.ceil(events.total / parseInt(limit as string))
-      }
-    });
-  } catch (error) {
-    logger.error('Get security events error:', error);
-    next(error);
-  }
-}
-
-/**
- * PUT /api/auth/security-preferences
- * Update security preferences
- */
-export async function updateSecurityPreferencesHandler(
-  req: UpdateSecurityPreferencesRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const preferences = req.validatedBody;
-    if (!preferences) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-
-const updatedPreferences = await authService.updateSecurityPreferences(userId, preferences);
-
-    // Log security preference update
-logger.info('Security preferences updated for user ${userId} from IP: ${authService.getClientIp(req)}');
-
-    res.json({
-      message: 'Security preferences updated successfully',
-      preferences: updatedPreferences,
-      updatedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error('Update security preferences error:', error);
-    next(error);
-  }
-}
-
-/**
- * POST /api/auth/login/user
- * Enhanced user login with security features
- */
-export async function loginUserHandler(
-  req: UserUnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const loginData = req.validatedBody;
-    if (!loginData) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-
-    // Safely extract properties
-    const email = loginData.email;
-    const password = loginData.password;
-    const rememberMe = safeBoolean(getRequestBody(req)?.rememberMe, false);
-    const deviceFingerprint = safeString(getRequestBody(req)?.deviceFingerprint);
-    
-    // Enhanced security context
-    const securityContext = {
-ipAddress: authService.getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      loginAttempt: true,
-      timestamp: new Date(),
-      deviceFingerprint
-    };
-
-    // Enhanced login
-const result = await authService.loginUser({
-      email,
-      password,
-      rememberMe,
-      securityContext
-    });
-
-    // Log successful login
-    logger.info('User login: ${email} from IP: ${securityContext.ipAddress}');
-
-    // Set secure cookie if remember me is enabled
-    if (rememberMe && result.rememberToken) {
-      res.cookie('remember_token', result.rememberToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-      });
-    }
-
-    res.json({
-      token: result.token,
-      expiresIn: '7 days',
-      user: {
-        userId: result.userId,
-        email: result.email,
-        firstName: result.firstName,
-        lastName: result.lastName,
-        isEmailVerified: result.isEmailVerified,
-        preferences: result.preferences,
-        lastLoginAt: new Date()
-      }
-    });
-  } catch (error) {
-    logger.warn('User login failed:', {
-      email: safeString(getRequestBody(req)?.email), 
-ip: authService.getClientIp(req),
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date()
-    });
-    
-    next(error);
-  }
-}
-/**
- * POST /api/auth/forgot-password
- * Initiate password reset process with enhanced security
- */
-export async function forgotPasswordHandler(
-  req: PasswordResetRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { email, phone } = req.validatedBody;
-    if (!email && !phone) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    
-    const securityContext = {
-ipAddress: authService.getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      timestamp: new Date()
-    };
-
-    // Initiate password reset
-await authService.initiatePasswordReset({
-      email,
-      securityContext
-    });
-
-    // Always return success to prevent email enumeration
-    res.json({
-      message: 'If an account with that email exists, you will receive password reset instructions.',
-      nextStep: 'check_email'
-    });
-  } catch (error) {
-    // Log for security monitoring but don't expose details
-    logger.warn('Password reset attempt:', {
-      identifier: safeString(getRequestBody(req)?.email) || safeString(getRequestBody(req)?.phone),
-ip: authService.getClientIp(req),
-      timestamp: new Date()
-    });
-    
-    // Always return success to prevent enumeration attacks
-    res.json({
-      message: 'If an account with that email exists, you will receive password reset instructions.',
-      nextStep: 'check_email'
-    });
-  }
-}
-
-/**
- * POST /api/auth/reset-password
- * Complete password reset with token validation
- */
 export async function resetPasswordHandler(
-  req: PasswordResetRequest,
+  req: ValidatedBodyRequest<ResetPasswordBody>,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const resetData = req.validatedBody;
-    if (!resetData) {
-      throw new Error('Request validation required - missing validatedBody');
-    }
-    
-    const securityContext = {
-ipAddress: authService.getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'Unknown',
-      timestamp: new Date()
-    };
+    const { token, newPassword, confirmPassword } = req.validatedBody;
+    const securityContext = authService.extractSecurityContext(req);
 
-    // Complete password reset
-await authService.confirmPasswordReset({
-      ...resetData,
-      securityContext
+    await authService.resetPassword({
+      token,
+      newPassword,
+      confirmPassword,
+      securityContext,
     });
-
-    // Log successful password reset
-    logger.info('Password reset completed from IP: ${securityContext.ipAddress}');
 
     res.json({
-      message: 'Password reset successfully. You can now login with your new password.',
-      nextStep: 'login'
+      message: 'Password reset successfully. You can now log in with your new password.',
     });
   } catch (error) {
-  logger.warn('Password reset failed:', {
-      token: safeString(getRequestBody(req)?.token)?.substring(0, 8) + '...',
-ip: authService.getClientIp(req),
-    error: error instanceof Error ? error.message : 'Unknown error',
-    timestamp: new Date()
-  });
-  
-  next(error);
-}
-}
-
-/**
- * POST /api/auth/logout
- * Enhanced logout with token invalidation
- */
-export async function logoutHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId;
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (token && userId) {
-      // Invalidate the token
-await authService.invalidateToken(token, userId);
-    }
-
-    // Clear remember me cookie
-    res.clearCookie('remember_token');
-
-    // Log logout
-logger.info('User logout: ${userId} from IP: ${authService.getClientIp(req)}');
-
-    res.json({
-      message: 'Logged out successfully'
-    });
-  } catch (error) {
-    logger.error('Logout error:', error);
     next(error);
   }
 }
-
-/**
- * POST /api/auth/refresh
- * Refresh JWT token with enhanced security
- */
-export async function refreshTokenHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    const currentToken = req.headers.authorization?.split(' ')[1];
-
-    if (!currentToken) {
-       res.status(401).json({
-        error: 'No token provided',
-        code: 'MISSING_TOKEN'
-      })
-      return;
-    }
-
-    // Generate new token
-const newToken = await authService.refreshToken(currentToken, userId);
-
-    res.json({
-      token: newToken,
-      expiresIn: '7 days',
-      refreshedAt: new Date()
-    });
-  } catch (error) {
-    logger.error('Token refresh error:', error);
-    next(error);
-  }
-}
-
-/**
- * GET /api/auth/me
- * Get current user information with enhanced details
- */
-export async function getCurrentUserHandler(
-  req: UnifiedAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const userId = req.userId!;
-    
-    // Get comprehensive user information
-const userInfo = await authService.getCurrentUser(userId);
-
-    res.json({
-      user: userInfo,
-      permissions: userInfo.permissions || [],
-      lastActivity: new Date(),
-      sessionInfo: {
-ipAddress: authService.getClientIp(req),
-        userAgent: req.headers['user-agent']
-      }
-    });
-  } catch (error) {
-    logger.error('Get current user error:', error);
-    next(error);
-  }
-}
-
-
-
-

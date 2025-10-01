@@ -5,7 +5,6 @@ import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { getServices } from '../services/container.service';
 
-// Services are now injected via container
 
 /**
  * Extended request interfaces for type safety
@@ -23,6 +22,7 @@ interface UserRegisterRequest extends Request, ValidatedRequest{
     preferences?: {
       emailNotifications?: boolean;
       marketingEmails?: boolean;
+      smsNotifications?: boolean;
       language?: string;
       timezone?: string;
     };
@@ -105,14 +105,15 @@ export const registerUser = asyncHandler(async (
     throw createAppError('Password must be at least 8 characters long', 400, 'WEAK_PASSWORD');
   }
 
-  // Create user through service
-  const { user: userService, auth: authService } = getServices();
-  const user = await userService.createUser(registrationData);
+  const { auth: authService } = getServices();
+  const securityContext = authService.createSecurityContext(req, {
+    registrationSource: 'customer-registration'
+  });
 
-  // Send verification email through auth service
-  await authService.registerUser({
-    email: registrationData.email,
-    password: registrationData.password
+  const registrationResult = await authService.registerUser({
+    ...registrationData,
+    preferences: registrationData.preferences,
+    securityContext
   });
 
   // Generate welcome recommendations
@@ -128,11 +129,11 @@ export const registerUser = asyncHandler(async (
     message: 'User registered successfully. Please check your email for verification code.',
     data: {
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isEmailVerified: user.isEmailVerified
+        id: registrationResult.user.id,
+        email: registrationResult.user.email,
+        firstName: registrationResult.user.firstName,
+        lastName: registrationResult.user.lastName,
+        isEmailVerified: registrationResult.user.isEmailVerified
       },
       nextSteps: recommendations,
       verificationRequired: true,
@@ -825,17 +826,10 @@ export const resendVerification = asyncHandler(async (
 ): Promise<void> => {
   const { email } = req.validatedBody;
 
-  // Check if user exists and needs verification
-  const { user: userService } = getServices();
-  const user = await userService.getUserByEmail(email);
-  
-  if (user.isEmailVerified) {
-    throw createAppError('Email is already verified', 400, 'ALREADY_VERIFIED');
-  }
+  const { auth: authService } = getServices();
 
   // Resend verification through auth service
-  const { auth: authService } = getServices();
-  await authService.registerUser({ email, password: 'temp' }); // Password not used for resend
+  await authService.resendUserVerification(email);
 
   res.json({
     success: true,
