@@ -89,7 +89,7 @@ export class StorageProviderService {
    */
   async getSignedUrl(s3Key: string, expiresIn: number = 3600): Promise<string> {
     try {
-      const url = await S3Service.getSignedUrl(s3Key, expiresIn);
+      const url = await S3Service.getSignedUrl(s3Key, 'getObject', expiresIn);
       logger.info('Generated signed URL', { s3Key, expiresIn });
       return url;
     } catch (error: any) {

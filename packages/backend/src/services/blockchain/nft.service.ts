@@ -6,7 +6,7 @@ import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model'
 import { Certificate, ICertificate } from '../../models/certificate.model';
 import { Types } from 'mongoose';
 import { S3Service } from '../external/s3.service';
-import { StorageService } from '../business/storage.service';
+import { mediaAnalyticsService } from '../media';
 import { createAppError } from '../../middleware/error.middleware';
 import nftFactoryAbi from '../../abi/nftFactoryAbi.json';
 import erc721Abi from '../../abi/erc721Abi.json';
@@ -203,10 +203,8 @@ export interface Analytics {
 // ===== MAIN SERVICE CLASS =====
 
 export class NftService {
-  private storageService: StorageService;
-
   constructor() {
-    this.storageService = new StorageService();
+    // Using modular media analytics service
   }
 
   /**
@@ -1250,7 +1248,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
             }
           }
         ]),
-        this.storageService.getStorageStats(businessId)
+        mediaAnalyticsService.getStorageStatistics(businessId)
       ]);
 
       const stats = transferStats[0] || { totalTransfers: 0, totalCertificates: 0 };
@@ -1298,7 +1296,7 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
         Certificate.countDocuments(dateFilter),
         Certificate.countDocuments({ ...dateFilter, status: 'transferred_to_brand' }),
         Certificate.find(dateFilter).lean(),
-        this.storageService.getStorageStats(businessId)
+        mediaAnalyticsService.getStorageStatistics(businessId)
       ]);
 
       // Calculate trends (simplified)

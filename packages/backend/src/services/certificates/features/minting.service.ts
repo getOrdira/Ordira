@@ -14,7 +14,7 @@ import { Business } from '../../../models/business.model';
 import { NftService } from '../../blockchain/nft.service';
 import { AnalyticsService } from '../../business/analytics.service';
 import { eventHandlerService, NotificationCategory, NotificationEventType, NotificationPriority } from '../../notifications';
-import { MediaService } from '../../business/media.service';
+import { mediaUploadService } from '../../media';
 import { S3Service } from '../../external/s3.service';
 import { logger } from '../../../utils/logger';
 
@@ -57,7 +57,6 @@ export interface CreateCertInput {
 export class MintingService {
   private nftService = new NftService();
   private analyticsService = new AnalyticsService();
-  private mediaService = new MediaService();
 
   /**
    * Create certificate with S3 asset storage and automatic brand transfer
@@ -92,7 +91,7 @@ export class MintingService {
 
       if (input.certificateImage) {
         try {
-          const imageMedia = await this.mediaService.saveMedia(
+          const imageMedia = await mediaUploadService.saveMedia(
             input.certificateImage,
             businessId,
             {
@@ -242,7 +241,7 @@ export class MintingService {
       }
 
       // Upload new image
-      const imageMedia = await this.mediaService.saveMedia(
+      const imageMedia = await mediaUploadService.saveMedia(
         newImage,
         businessId,
         {

@@ -4,11 +4,16 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { getPendingVoteService, getVotingService } from '../services/container.service';
+import {
+  getPendingVoteService,
+  getVotingStatsService,
+  getVotingContractDeploymentService
+} from '../services/container.service';
 
 // Initialize services via container
 const pendingVoteService = getPendingVoteService();
-const votingService = getVotingService();
+const votingStatsService = getVotingStatsService();
+const votingContractDeploymentService = getVotingContractDeploymentService();
 
 /**
  * Extended request interfaces for type safety
@@ -88,7 +93,7 @@ export const getPendingVotes = asyncHandler(async (
   const [result, batchingInfo, votingStats] = await Promise.all([
     pendingVoteService.listPendingVotes(businessId, filterOptions),
     pendingVoteService.getBatchingInfo(businessId),
-    votingService.getVotingStats(businessId)
+    votingStatsService.getVotingStats(businessId)
   ]);
 
   // Return comprehensive response
@@ -221,8 +226,8 @@ export const processPendingVotes = asyncHandler(async (
   } = req.validatedBody || {};
 
   // Check if business has voting contract
-  const votingStats = await votingService.getVotingStats(businessId);
-  if (!votingStats.contractAddress) {
+  const contractAddress = await votingContractDeploymentService.getVotingContractAddress(businessId);
+  if (!contractAddress) {
     throw createAppError('No voting contract deployed for this business', 400, 'NO_VOTING_CONTRACT');
   }
 
@@ -243,7 +248,7 @@ export const processPendingVotes = asyncHandler(async (
     proposalId,
     maxGasPrice,
     forceProcess,
-    contractAddress: votingStats.contractAddress
+    contractAddress
   };
 
   const result = await pendingVoteService.processBatch(businessId, processingOptions);

@@ -2,7 +2,9 @@
 import { Business, IBusiness } from '../../../models/business.model';
 import { BrandSettings } from '../../../models/brandSettings.model';
 import { logger, logSafeInfo, logSafeError } from '../../../utils/logger';
-import { MediaService } from '../../business/media.service';
+import { MediaDataService } from '../../media/core/mediaData.service';
+import { storageProviderService } from '../../media/core/storageProvider.service';
+
 
 export interface ProfilePictureUploadResult {
   profilePictureUrl: string;
@@ -43,10 +45,10 @@ export interface DeactivationResult {
 }
 
 export class BrandAccountService {
-  private mediaService: MediaService;
+  private mediaService: MediaDataService;
 
   constructor() {
-    this.mediaService = new MediaService();
+    this.mediaService = new MediaDataService();
   }
 
   /**
@@ -137,7 +139,7 @@ export class BrandAccountService {
       }
 
       // Upload through media service
-      const media = await this.mediaService.saveMedia(file, businessId, {
+      const media = await storageProviderService.uploadFile(file, businessId, {
         category: 'profile',
         description: 'Brand profile picture',
         isPublic: true

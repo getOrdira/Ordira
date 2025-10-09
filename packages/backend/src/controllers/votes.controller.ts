@@ -16,8 +16,21 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { VotingService, votingService } from '../services/business/votes.service';
+import {
+  getVotingAnalyticsService,
+  getVotingStatsService,
+  getVotingDataService,
+  getVotingDashboardService,
+  getVotingProposalsService
+} from '../services/container.service';
 import { logger } from '../utils/logger';
+
+// Initialize modular voting services
+const votingAnalyticsService = getVotingAnalyticsService();
+const votingStatsService = getVotingStatsService();
+const votingDataService = getVotingDataService();
+const votingDashboardService = getVotingDashboardService();
+const votingProposalsService = getVotingProposalsService();
 
 /**
  * Request interfaces for type safety
@@ -104,7 +117,7 @@ export const getVotingAnalytics = asyncHandler(async (
     if (endDate) options.endDate = new Date(endDate);
     if (proposalId) options.proposalId = proposalId;
 
-    const analytics = await votingService.getOptimizedVotingAnalytics(businessId, options);
+    const analytics = await votingAnalyticsService.getVotingAnalytics(businessId, options);
 
     const processingTime = Date.now() - startTime;
 
@@ -172,7 +185,7 @@ export const getVotingStats = asyncHandler(async (
     const businessId = req.userId!;
     const { useCache = true } = req.validatedQuery;
 
-    const stats = await votingService.getOptimizedVotingStats(businessId, useCache);
+    const stats = await votingStatsService.getVotingStats(businessId, useCache);
 
     const processingTime = Date.now() - startTime;
 
@@ -247,7 +260,7 @@ export const getBusinessVotes = asyncHandler(async (
       throw createAppError('Limit cannot exceed 500', 400, 'LIMIT_TOO_HIGH');
     }
 
-    const votes = await votingService.getOptimizedBusinessVotes(businessId, {
+    const votes = await votingDataService.getBusinessVotes(businessId, {
       useCache,
       limit,
       offset,
@@ -323,7 +336,7 @@ export const getPendingVotes = asyncHandler(async (
       throw createAppError('Limit cannot exceed 500', 400, 'LIMIT_TOO_HIGH');
     }
 
-    const pendingVotes = await votingService.getOptimizedPendingVotes(businessId, {
+    const pendingVotes = await votingDataService.getPendingVotes(businessId, {
       proposalId,
       userId,
       limit,
@@ -398,7 +411,7 @@ export const getBusinessProposals = asyncHandler(async (
       throw createAppError('Limit cannot exceed 200', 400, 'LIMIT_TOO_HIGH');
     }
 
-    const proposals = await votingService.getOptimizedBusinessProposals(businessId, {
+    const proposals = await votingProposalsService.getBusinessProposals(businessId, {
       useCache,
       searchQuery,
       status,
@@ -467,7 +480,7 @@ export const getVotingDashboard = asyncHandler(async (
   try {
     const businessId = req.userId!;
 
-    const dashboard = await votingService.getVotingDashboard(businessId);
+    const dashboard = await votingDashboardService.getVotingDashboard(businessId);
 
     const processingTime = Date.now() - startTime;
 
@@ -524,7 +537,7 @@ export const clearVotingCache = asyncHandler(async (
   try {
     const businessId = req.userId!;
 
-    await votingService.clearVotingCaches(businessId);
+    await votingDashboardService.clearVotingCaches(businessId);
 
     const processingTime = Date.now() - startTime;
 
@@ -571,7 +584,7 @@ export const healthCheck = asyncHandler(async (
   const startTime = Date.now();
 
   try {
-    const health = await votingService.getVotingServiceHealth();
+    const health = await votingDashboardService.getVotingServiceHealth();
 
     const processingTime = Date.now() - startTime;
 

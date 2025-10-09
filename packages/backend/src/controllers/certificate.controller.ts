@@ -8,6 +8,12 @@ import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { Certificate } from '../models/certificate.model';
 import { BrandSettings } from '../models/brandSettings.model';
 import { NftService } from '../services/blockchain/nft.service';
+import { 
+  certificateDataService,
+  certificateAccountService,
+  mintingService 
+} from '../services/certificates';
+import { NotificationEventType } from '../services/notifications/types/notificationEventType';
 
 type ControllerRequest<B = unknown, Q = unknown, P = unknown> = UnifiedAuthRequest &
   TenantRequest &
@@ -198,14 +204,14 @@ export async function createCertificate(
       return;
     }
 
-    const { certificate: certificateService, usageTracking: usageTrackingService } = getServices();
+    const { usageTracking: usageTrackingService } = getServices();
+    const certificate = await mintingService.createCertificate(businessId, {
+  productId: body.productId,
+  recipient: body.recipient,
+  contactMethod: body.contactMethod ?? 'email',
+  metadata: body.certificateData
+});
 
-    const certificate = await certificateService.createCertificate(businessId, {
-      productId: body.productId,
-      recipient: body.recipient,
-      contactMethod: body.contactMethod ?? 'email',
-      metadata: body.certificateData
-    });
 
     trackManufacturerAction('create_certificate');
 
@@ -246,7 +252,7 @@ export async function createBatchCertificates(
       return;
     }
 
-    const { certificate: certificateService, usageTracking: usageTrackingService } = getServices();
+    const { usageTracking: usageTrackingService } = getServices();
 
     const inputs = body.certificates.map(item => ({
       productId: item.productId,
@@ -255,7 +261,7 @@ export async function createBatchCertificates(
       metadata: item.certificateData
     }));
 
-    const result = await certificateService.createBatchCertificates(businessId, inputs);
+    const result = await mintingService.createBatchCertificates(businessId, inputs);
 
     trackManufacturerAction('create_batch_certificates');
 
@@ -312,10 +318,10 @@ export async function listCertificates(
     const page = parsePositiveNumber(query.page, DEFAULT_PAGE);
     const limit = parsePositiveNumber(query.limit, DEFAULT_LIMIT);
 
-    const { certificate: certificateService } = getServices();
+    
 
     const [listResult, statistics] = await Promise.all([
-      certificateService.listCertificates(businessId, {
+      certificateDataService.listCertificates(businessId, {
         page,
         limit,
         status: query.status,
@@ -325,7 +331,7 @@ export async function listCertificates(
         dateFrom: toDate(query.startDate),
         dateTo: toDate(query.endDate)
       }),
-      certificateService.getCertificateStats(businessId)
+      certificateAccountService.getCertificateStats(businessId)
     ]);
 
     trackManufacturerAction('view_certificates');
@@ -361,9 +367,9 @@ export async function getCertificate(
       return;
     }
 
-    const { certificate: certificateService } = getServices();
+   
 
-    const certificate = await certificateService.getCertificate(params.id, businessId);
+    const certificate = await certificateDataService.getCertificate(params.id, businessId);
     const response = mapCertificateResponse(certificate);
 
     const ownershipStatus = certificate.transferredToBrand
@@ -598,13 +604,18 @@ export async function revokeCertificate(
 
     trackManufacturerAction('revoke_certificate');
 
-    const { notifications: notificationsService } = getServices();
     if (body.notifyRecipient) {
-      notificationsService?.sendCertificateRevocationNotification(businessId, {
-        certificateId: params.id,
-        tokenId: certificate.tokenId,
-        reason: body.reason,
-        revokedAt: certificate.revokedAt
+      const { triggersService } = await import('../services/notifications/features/triggers.service');
+      triggersService.handle({
+        type: NotificationEventType.CertificateRevoked,
+        recipient: { businessId, email: certificate.recipient },
+        payload: {
+          certificateId: params.id,
+          tokenId: certificate.tokenId,
+          reason: body.reason,
+          revokedAt: certificate.revokedAt,
+          recipient: certificate.recipient
+        }
       }).catch(error => {
         logger.warn('Failed to send certificate revocation notification', {
           certificateId: params.id,
@@ -720,12 +731,11 @@ export async function getWeb3Analytics(
       return;
     }
 
-    const { certificate: certificateService } = getServices();
 
     const timeframe = query.timeframe ?? '30d';
     const days = TIMEFRAME_TO_DAYS[timeframe] ?? 30;
 
-    const analytics = await certificateService.getCertificateUsage(businessId);
+    const analytics = await certificateAccountService.getCertificateUsage(businessId);
 
     trackManufacturerAction('view_web3_analytics');
 
