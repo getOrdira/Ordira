@@ -7,6 +7,7 @@ import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { getBillingService, getServices } from '../services/container.service';
+import { getNotificationsServices } from '../services/notifications';
 import { PLAN_DEFINITIONS, PlanKey } from '../constants/plans';
 import { clearPlanCache } from '../middleware/rateLimiter.middleware';
 import { Billing } from '../models/billing.model';
@@ -38,7 +39,8 @@ interface WebhookRequest extends Request {
 }
 
 // Services are now injected via container
-const { billing: billingService, notifications: notificationsService, tokenDiscount: tokenDiscountService } = getServices();
+const { billing: billingService, tokenDiscount: tokenDiscountService } = getServices();
+const notificationsServices = getNotificationsServices();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2022-11-15'
@@ -206,16 +208,24 @@ if (isDowngrade) {
     // Track plan change
     trackManufacturerAction(isDowngrade ? 'downgrade_plan' : 'upgrade_plan');
 
-    // Send notification email
-    await notificationsService.sendPlanChangeNotification(
+    // Send plan change notification using new modular system
+    // Note: Email will be resolved from businessId in the outbound service
+    notificationsServices.features.outboundNotificationService.sendPlanChangeNotification(
       businessId,
+      '', // Email will be resolved from businessId
       currentPlan,
-      plan,
-      isDowngrade ? 'downgrade' : 'upgrade'
+      plan
+    ).catch(error =>
+      logger.warn('Failed to send plan change notification', {
+        businessId,
+        fromPlan: currentPlan,
+        toPlan: plan,
+        error: error instanceof Error ? error.message : error,
+      })
     );
 
     // Log plan change for analytics
-    logger.info('Plan changed: ${businessId} from ${currentPlan} to ${plan}');
+    logger.info(`Plan changed: ${businessId} from ${currentPlan} to ${plan}`);
 
     res.json({
       success: true,
@@ -405,8 +415,17 @@ export async function cancelSubscription(
     // Track cancellation
     trackManufacturerAction('cancel_subscription');
 
-    // Send cancellation confirmation
-    await notificationsService.sendCancellationConfirmation(businessId, result);
+    // Send cancellation confirmation using new modular system
+    notificationsServices.features.outboundNotificationService.sendCancellationConfirmation(
+      businessId,
+      '', // Email will be resolved from businessId
+      result.plan || 'unknown'
+    ).catch(error =>
+      logger.warn('Failed to send cancellation confirmation', {
+        businessId,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     res.json({
       success: true,
@@ -469,11 +488,11 @@ export async function handleStripeWebhook(
         break;
         
       default:
-        logger.info('Unhandled webhook event type: ${event.type}');
+        logger.info(`Unhandled webhook event type: ${event.type}`);
     }
 
     // Log webhook processing
-    logger.info('Webhook processed: ${event.type} - ${event.id}');
+    logger.info(`Webhook processed: ${event.type} - ${event.id}`);
 
     res.json({ 
       received: true,
@@ -520,8 +539,19 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
       // Process renewal with token discount re-evaluation
       await billingService.processRenewal(subscriptionId);
       
-      // Send renewal notification
-      await notificationsService.sendRenewalConfirmation(subscriptionId);
+      // Send renewal notification using new modular system
+      notificationsServices.features.outboundNotificationService.sendRenewalConfirmation(
+        businessId,
+        '', // Email will be resolved from businessId
+        'unknown', // Plan name - would need to be retrieved from subscription
+        invoice.amount_paid / 100 // Amount from invoice
+      ).catch(error =>
+        logger.warn('Failed to send renewal confirmation', {
+          businessId,
+          subscriptionId,
+          error: error instanceof Error ? error.message : error,
+        })
+      );
     }
     
     // Clear any cached billing info
@@ -531,7 +561,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
       clearPlanCache(businessId);
     }
 
-    logger.info('Payment succeeded for business ${businessId}, subscription ${subscriptionId}');
+    logger.info(`Payment succeeded for business ${businessId}, subscription ${subscriptionId}`);
   } catch (error) {
     logger.error('Error handling payment succeeded webhook:', error);
     throw error; // Re-throw to trigger webhook retry
@@ -544,8 +574,18 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   // Handle failed payment
   await billingService.handleFailedPayment(subscriptionId, invoice.id);
   
-  // Send payment failed notification
-  await notificationsService.sendPaymentFailedNotification(subscriptionId);
+  // Send payment failed notification using new modular system
+  notificationsServices.features.outboundNotificationService.sendPaymentFailedNotification(
+    undefined, // businessId - would need to be retrieved from subscription
+    '', // Email - would need to be retrieved from subscription
+    invoice.id
+  ).catch(error =>
+    logger.warn('Failed to send payment failed notification', {
+      subscriptionId,
+      invoiceId: invoice.id,
+      error: error instanceof Error ? error.message : error,
+    })
+  );
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {

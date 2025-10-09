@@ -13,7 +13,7 @@ import { UtilsService } from '../../utils/utils.service';
 import { NotificationsService } from '../../external/notifications.service';
 import { User } from '../../../models/user.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { EmailGatingService } from '../../business/emailGating.service';
+import { getCustomerAccessService } from '../../container.service';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';
@@ -30,7 +30,7 @@ import {
 
 export class UserAuthService extends AuthBaseService {
   private notificationsService = new NotificationsService();
-  private emailGatingService = new EmailGatingService();
+  private customerAccessService = getCustomerAccessService();
 
   // ===== USER REGISTRATION =====
 
@@ -247,7 +247,7 @@ export class UserAuthService extends AuthBaseService {
       // Check email gating if business context provided
       let emailGatingInfo;
       if (businessId) {
-        const emailCheck = await this.emailGatingService.isEmailAllowed(normalizedEmail, businessId);
+        const emailCheck = await this.customerAccessService.isEmailAllowed(normalizedEmail, businessId);
         emailGatingInfo = emailCheck;
 
         if (!emailCheck.allowed) {
@@ -264,7 +264,7 @@ export class UserAuthService extends AuthBaseService {
         }
 
         // Record voting access asynchronously
-        this.emailGatingService.grantVotingAccess(normalizedEmail, businessId, user._id.toString())
+        this.customerAccessService.grantVotingAccess(normalizedEmail, businessId, user._id.toString())
           .catch(error => logger.warn('Failed to grant voting access', { error }));
       }
 
@@ -460,7 +460,7 @@ export class UserAuthService extends AuthBaseService {
   }> {
     try {
       const normalizedEmail = UtilsService.normalizeEmail(email);
-      return await this.emailGatingService.isEmailAllowed(normalizedEmail, businessId);
+      return await this.customerAccessService.isEmailAllowed(normalizedEmail, businessId);
     } catch (error) {
       logger.warn('Failed to check email gating access', { email: UtilsService.maskEmail(email), businessId, error });
       return {

@@ -284,6 +284,344 @@ export class BrandAccountService {
       return false;
     }
   }
+
+  /**
+   * Build profile metadata including plan info and analytics
+   */
+  async buildProfileMetadata(businessId: string, userPlan: string): Promise<ProfileMetadata> {
+    const business = await Business.findById(businessId).select('createdAt lastLoginAt');
+    
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+
+    return {
+      accountCreated: business.createdAt,
+      lastLogin: business.lastLoginAt || null,
+      planInfo: {
+        currentPlan: userPlan,
+        planFeatures: this.getPlanFeatures(userPlan)
+      },
+      analytics: {
+        profileViews: 0,
+        certificatesMinted: 0
+      }
+    };
+  }
+
+  /**
+   * Get plan features for a given plan level
+   */
+  getPlanFeatures(plan: string): string[] {
+    const features = {
+      foundation: ['Basic profile', 'Email support', '10 certificates/month'],
+      growth: ['Advanced analytics', 'Priority support', '100 certificates/month', 'Custom branding'],
+      premium: ['Custom branding', 'API access', 'Unlimited certificates', 'Custom domain'],
+      enterprise: ['White-label', 'Dedicated support', 'Custom features', 'SLA guarantee']
+    };
+    return features[plan as keyof typeof features] || features.foundation;
+  }
+
+  /**
+   * Get plan limitations for a given plan level
+   */
+  getPlanLimitations(plan: string): string[] {
+    const limitations = {
+      foundation: ['Limited analytics', 'Basic support', 'Certificate limit'],
+      growth: ['No custom domain', 'Limited API access'],
+      premium: ['No white-label', 'Standard SLA'],
+      enterprise: []
+    };
+    return limitations[plan as keyof typeof limitations] || limitations.foundation;
+  }
+
+  /**
+   * Generate profile recommendations based on completeness
+   */
+  generateProfileRecommendations(profile: any, plan: string): string[] {
+    const recommendations: string[] = [];
+    
+    if (!profile.description) {
+      recommendations.push('Add a business description to help customers understand your brand');
+    }
+    
+    if (!profile.profilePictureUrl) {
+      recommendations.push('Upload a profile picture to personalize your brand');
+    }
+    
+    if (!profile.industry) {
+      recommendations.push('Specify your industry to help with categorization');
+    }
+    
+    if (!profile.socialUrls || profile.socialUrls.length === 0) {
+      recommendations.push('Add social media links to increase brand visibility');
+    }
+    
+    if (plan === 'foundation') {
+      recommendations.push('Consider upgrading to Growth plan for advanced features');
+    }
+    
+    return recommendations;
+  }
+
+  /**
+   * Validate plan permissions for update data
+   */
+  validatePlanPermissions(updateData: any, userPlan: string): string[] {
+    const restrictedFields: string[] = [];
+    
+    // Premium+ only features
+    if (updateData.customDomain && !['premium', 'enterprise'].includes(userPlan)) {
+      restrictedFields.push('customDomain');
+    }
+    
+    if (updateData.whiteLabel && userPlan !== 'enterprise') {
+      restrictedFields.push('whiteLabel');
+    }
+    
+    if (updateData.apiAccess && !['premium', 'enterprise'].includes(userPlan)) {
+      restrictedFields.push('apiAccess');
+    }
+    
+    return restrictedFields;
+  }
+
+  /**
+   * Handle wallet address change with validation
+   */
+  async handleWalletAddressChange(businessId: string, newAddress: string, oldAddress?: string): Promise<void> {
+    logger.info(`Wallet address change for business ${businessId}`, {
+      oldAddress,
+      newAddress
+    });
+    
+    // Validate wallet address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(newAddress)) {
+      throw { statusCode: 400, message: 'Invalid wallet address format' };
+    }
+    
+    // Log the change for audit purposes
+    logger.info('Wallet address updated successfully', {
+      businessId,
+      newAddress
+    });
+  }
+
+  /**
+   * Get changed fields between current and update data
+   */
+  getChangedFields(current: any, update: any): string[] {
+    return Object.keys(update).filter(key => {
+      const currentValue = current[key];
+      const updateValue = update[key];
+      
+      // Handle nested objects
+      if (typeof currentValue === 'object' && typeof updateValue === 'object') {
+        return JSON.stringify(currentValue) !== JSON.stringify(updateValue);
+      }
+      
+      return currentValue !== updateValue;
+    });
+  }
+
+  /**
+   * Handle significant profile changes with notifications
+   */
+  async handleSignificantProfileChanges(businessId: string, currentProfile: any, updateData: any): Promise<void> {
+    const changedFields = this.getChangedFields(currentProfile, updateData);
+    const significantFields = ['businessName', 'industry', 'contactEmail', 'walletAddress'];
+    
+    const significantChanges = changedFields.filter(field => significantFields.includes(field));
+    
+    if (significantChanges.length > 0) {
+      logger.info('Significant profile changes detected', {
+        businessId,
+        changes: significantChanges
+      });
+    }
+  }
+
+  /**
+   * Get significant changes from update
+   */
+  getSignificantChanges(currentProfile: any, updateData: any): string[] {
+    const changedFields = this.getChangedFields(currentProfile, updateData);
+    const significantFields = ['businessName', 'industry', 'contactEmail', 'walletAddress', 'description'];
+    
+    return changedFields.filter(field => significantFields.includes(field));
+  }
+
+  /**
+   * Generate improvement recommendations
+   */
+  generateImprovementRecommendations(profile: any): string[] {
+    const recommendations: string[] = [];
+    
+    if (profile.profileCompleteness && profile.profileCompleteness < 100) {
+      recommendations.push('Complete your profile for better visibility');
+    }
+    
+    if (!profile.profilePictureUrl) {
+      recommendations.push('Add a professional profile picture');
+    }
+    
+    if (!profile.socialUrls || profile.socialUrls.length < 2) {
+      recommendations.push('Add more social media links to increase brand reach');
+    }
+    
+    recommendations.push('Keep your profile information up to date');
+    recommendations.push('Regularly update your business description');
+    
+    return recommendations;
+  }
+
+  /**
+   * Get verification status
+   */
+  async getVerificationStatus(businessId: string): Promise<any> {
+    // Placeholder - would integrate with verification service
+    return {
+      status: 'not_started',
+      submittedAt: null,
+      verifiedAt: null,
+      documents: []
+    };
+  }
+
+  /**
+   * Get required verification documents for plan
+   */
+  getRequiredVerificationDocs(userPlan: string): string[] {
+    const docs = {
+      foundation: ['businessLicense'],
+      growth: ['businessLicense', 'taxDocument'],
+      premium: ['businessLicense', 'taxDocument', 'proofOfAddress'],
+      enterprise: ['businessLicense', 'taxDocument', 'proofOfAddress', 'additionalDocuments']
+    };
+    return docs[userPlan as keyof typeof docs] || docs.foundation;
+  }
+
+  /**
+   * Submit verification documents
+   */
+  async submitVerification(businessId: string, data: any): Promise<any> {
+    // Placeholder - would integrate with verification service
+    logger.info('Verification submitted for business', { businessId });
+    
+    return {
+      id: `verification_${Date.now()}`,
+      businessId,
+      status: 'submitted',
+      submittedAt: new Date(),
+      documents: Object.keys(data).filter(key => key !== 'verificationNotes')
+    };
+  }
+
+  /**
+   * Get detailed verification status
+   */
+  async getDetailedVerificationStatus(businessId: string): Promise<any> {
+    return {
+      status: 'not_started',
+      progress: 0,
+      submittedAt: null,
+      reviewedAt: null,
+      verifiedAt: null,
+      documents: [],
+      notes: []
+    };
+  }
+
+  /**
+   * Get verification history
+   */
+  async getVerificationHistory(businessId: string): Promise<any[]> {
+    // Placeholder - would query verification history
+    return [];
+  }
+
+  /**
+   * Deactivate account
+   */
+  async deactivateAccount(businessId: string, data: DeactivationData): Promise<DeactivationResult> {
+    await Business.findByIdAndUpdate(businessId, {
+      isActive: false,
+      deactivatedAt: new Date(),
+      deactivationReason: data.reason,
+      deactivatedBy: data.deactivatedBy
+    });
+    
+    logger.info('Account deactivated', {
+      businessId,
+      reason: data.reason,
+      deleteData: data.deleteData
+    });
+    
+    return {
+      id: `deactivation_${Date.now()}`,
+      deactivatedAt: new Date(),
+      reactivationPossible: !data.deleteData,
+      dataRetentionPeriod: data.deleteData ? 30 : 365,
+      reason: data.reason,
+      feedback: data.feedback
+    };
+  }
+
+  /**
+   * Get account analytics
+   */
+  async getAccountAnalytics(businessId: string, options: any): Promise<any> {
+    // Placeholder - would integrate with analytics service
+    return {
+      profileViews: 0,
+      certificatesMinted: 0,
+      engagement: {
+        rate: 0
+      },
+      conversions: {
+        rate: 0
+      },
+      timeframe: options.timeframe
+    };
+  }
+
+  /**
+   * Get profile performance metrics
+   */
+  async getProfilePerformance(businessId: string): Promise<any> {
+    return {
+      views: 0,
+      engagement: 0,
+      completeness: 0,
+      lastUpdated: new Date()
+    };
+  }
+
+  /**
+   * Export account data
+   */
+  async exportAccountData(businessId: string, options: any): Promise<any> {
+    const business = await Business.findById(businessId).select('-password');
+    
+    if (!business) {
+      throw { statusCode: 404, message: 'Business not found' };
+    }
+    
+    const exportData = {
+      profile: business.toObject(),
+      exportedAt: new Date().toISOString(),
+      format: options.format,
+      includeAnalytics: options.includeAnalytics,
+      includeHistory: options.includeHistory
+    };
+    
+    if (options.format === 'json') {
+      return exportData;
+    }
+    
+    // For other formats, return stringified data
+    return JSON.stringify(exportData, null, 2);
+  }
 }
 
 export const brandAccountCoreService = new BrandAccountService();

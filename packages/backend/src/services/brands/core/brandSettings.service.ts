@@ -1660,6 +1660,223 @@ export class BrandSettingsCoreService {
 
     return features[userPlan as keyof typeof features] || features.foundation;
   }
+
+  // ===== Additional Controller Helper Methods =====
+
+  /**
+   * Validate domain changes during settings update
+   */
+  async validateDomainChanges(businessId: string, updateData: any, currentSettings: any): Promise<void> {
+    try {
+      // Validate subdomain changes
+      if (updateData.subdomain && updateData.subdomain !== currentSettings.subdomain) {
+        const available = await this.isSubdomainAvailable(updateData.subdomain);
+        if (!available) {
+          throw { statusCode: 400, message: 'Subdomain is not available' };
+        }
+
+        // Additional subdomain validation
+        const isValidSubdomain = /^[a-zA-Z0-9-]{3,63}$/.test(updateData.subdomain);
+        if (!isValidSubdomain) {
+          throw { statusCode: 400, message: 'Invalid subdomain format. Must be 3-63 characters, alphanumeric and hyphens only.' };
+        }
+      }
+      
+      // Validate custom domain changes
+      if (updateData.customDomain && updateData.customDomain !== currentSettings.customDomain) {
+        const isValidDomain = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/.test(updateData.customDomain);
+        if (!isValidDomain) {
+          throw { statusCode: 400, message: 'Invalid custom domain format' };
+        }
+
+        // Check if domain is already in use
+        const existing = await BrandSettings.findOne({ 
+          customDomain: updateData.customDomain,
+          business: { $ne: businessId }
+        });
+        
+        if (existing) {
+          throw { statusCode: 400, message: 'Custom domain is already in use' };
+        }
+
+        // Optional: Perform DNS validation
+        const domainValidation = await this.validateCustomDomain(updateData.customDomain);
+        if (!domainValidation.valid) {
+          logger.warn(`Custom domain validation warning for ${updateData.customDomain}: ${domainValidation.error}`);
+        }
+      }
+    } catch (error: any) {
+      logger.error('Domain validation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process wallet address change with verification
+   */
+  async processWalletChange(businessId: string, newWallet: string, currentWallet?: string): Promise<void> {
+    try {
+      if (newWallet !== currentWallet) {
+        // Validate wallet format
+        const validation = await this.validateWalletAddress(newWallet, { businessId });
+        
+        if (!validation.valid) {
+          throw { 
+            statusCode: 400, 
+            message: `Wallet validation failed: ${validation.errors?.join(', ')}` 
+          };
+        }
+
+        // Verify wallet ownership
+        const ownership = await this.verifyWalletOwnership(businessId, newWallet);
+        
+        if (!ownership.verified) {
+          logger.warn(`Wallet ownership not verified for business ${businessId}, wallet ${newWallet}`);
+          // Note: In production, you might want to require verification
+          // For now, we'll allow it but log a warning
+        }
+
+        logger.info(`Wallet address updated for business ${businessId}: ${currentWallet || 'none'} -> ${newWallet}`);
+      }
+    } catch (error: any) {
+      logger.error('Wallet change processing failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process integration updates for Shopify, WooCommerce, and Wix
+   */
+  async processIntegrationUpdates(businessId: string, updateData: any, currentSettings: any): Promise<void> {
+    try {
+      const updates: Promise<void>[] = [];
+
+      // Process Shopify integration changes
+      if (updateData.shopifyIntegration) {
+        logger.info(`Processing Shopify integration update for business ${businessId}`);
+        updates.push(this.updateShopifyIntegration(businessId, updateData.shopifyIntegration));
+      }
+      
+      // Process WooCommerce integration changes
+      if (updateData.wooCommerceIntegration) {
+        logger.info(`Processing WooCommerce integration update for business ${businessId}`);
+        updates.push(this.updateWooCommerceIntegration(businessId, updateData.wooCommerceIntegration));
+      }
+      
+      // Process Wix integration changes
+      if (updateData.wixIntegration) {
+        logger.info(`Processing Wix integration update for business ${businessId}`);
+        updates.push(this.updateWixIntegration(businessId, updateData.wixIntegration));
+      }
+
+      // Wait for all integration updates to complete
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        logger.info(`Successfully processed ${updates.length} integration updates for business ${businessId}`);
+      }
+    } catch (error: any) {
+      logger.error('Integration updates processing failed:', error);
+      throw new Error(`Failed to process integration updates: ${error.message}`);
+    }
+  }
+
+  /**
+   * Handle notifications for significant settings changes
+   */
+  async handleSettingsChangeNotifications(businessId: string, current: any, update: any): Promise<void> {
+    try {
+      const significantChanges = ['certificateWallet', 'customDomain', 'subdomain'];
+      const changedSignificantFields = significantChanges.filter(field => 
+        update[field] && current[field] !== update[field]
+      );
+      
+      if (changedSignificantFields.length > 0) {
+        logger.info('Significant brand settings changes detected', { 
+          businessId, 
+          changedFields: changedSignificantFields,
+          changes: changedSignificantFields.reduce((acc, field) => {
+            acc[field] = {
+              from: current[field] || 'not set',
+              to: update[field]
+            };
+            return acc;
+          }, {} as any)
+        });
+
+        // Here you could integrate with a notification service
+        // For example: await notificationService.notifySettingsChange(businessId, changedSignificantFields);
+      }
+
+      // Log other changes for audit trail
+      const allChangedFields = this.getChangedFields(current, update);
+      if (allChangedFields.length > 0) {
+        logger.info('Brand settings updated', {
+          businessId,
+          totalChanges: allChangedFields.length,
+          fields: allChangedFields
+        });
+      }
+    } catch (error: any) {
+      logger.error('Failed to handle settings change notifications:', error);
+      // Don't throw - notification failures shouldn't block settings updates
+    }
+  }
+
+  /**
+   * Get token discounts for a wallet address
+   */
+  async getTokenDiscounts(walletAddress: string): Promise<any> {
+    try {
+      // Validate wallet address
+      if (!ethers.isAddress(walletAddress)) {
+        logger.warn(`Invalid wallet address for token discount check: ${walletAddress}`);
+        return null;
+      }
+
+      // Attempt to import and use TokenDiscountService
+      try {
+        const { TokenDiscountService } = await import('../../external/tokenDiscount.service');
+        const tokenDiscountService = new TokenDiscountService();
+        const discounts = await tokenDiscountService.getDiscountInfoForWallet(walletAddress);
+        
+        logger.info(`Token discounts retrieved for wallet ${walletAddress}`, { 
+          hasDiscounts: !!discounts 
+        });
+        
+        return discounts;
+      } catch (importError) {
+        logger.warn('TokenDiscountService not available, returning null:', importError);
+        return null;
+      }
+    } catch (error: any) {
+      logger.error('Failed to get token discounts:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get integration changes between current and update data
+   */
+  getIntegrationChanges(current: any, update: any): string[] {
+    const changes: string[] = [];
+    
+    // Check Shopify changes
+    if (update.shopifyIntegration || update.shopifyDomain || update.shopifyAccessToken) {
+      changes.push('shopify');
+    }
+    
+    // Check WooCommerce changes
+    if (update.wooCommerceIntegration || update.wooDomain || update.wooConsumerKey) {
+      changes.push('woocommerce');
+    }
+    
+    // Check Wix changes
+    if (update.wixIntegration || update.wixDomain || update.wixApiKey) {
+      changes.push('wix');
+    }
+    
+    return changes;
+  }
 }
 
 export const brandSettingsCoreService = new BrandSettingsCoreService();

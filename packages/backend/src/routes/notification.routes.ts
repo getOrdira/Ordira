@@ -91,12 +91,7 @@ router.get(
 );
 
 /**
- * GET /api/notifications/unread/count
- * Get unread notifications count with breakdown
- * 
- * @requires authentication (business OR manufacturer)
- * @returns { count, hasUnread, breakdown }
- */
+ * GET /api/notifications/unread/count\r\n * Get unread notifications count with optional latest feed (supports ?since=ISO)\r\n * \r\n * @requires authentication (business OR manufacturer)\r\n * @returns { count, hasUnread, breakdown, latest }\r\n */
 router.get(
   '/unread/count',
   trackManufacturerAction('check_unread_count'),
@@ -495,4 +490,5 @@ router.use((error: any, req: any, res: any, next: any) => {
 });
 
 export default router;
+
 

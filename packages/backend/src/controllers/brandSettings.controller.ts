@@ -367,10 +367,10 @@ export async function updateCertificateWallet(
     // Track wallet update
     trackManufacturerAction('update_certificate_wallet');
 
-    // Send security notification
-    const { notifications: notificationsService } = getServices();
-    await notificationsService.sendWalletChangeNotification(businessId, {
-      previousWallet,
+    // Log wallet change for security audit
+    logger.info('Certificate wallet updated', {
+      businessId,
+      previousWallet: previousWallet || 'none',
       newWallet: certificateWallet,
       changeDate: new Date()
     });

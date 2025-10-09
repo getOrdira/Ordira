@@ -4,10 +4,10 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { getEmailGatingService } from '../services/container.service';
+import { getCustomerAccessService } from '../services/container.service';
 
 // Initialize service via container
-const emailGatingService = getEmailGatingService();
+const customerAccessService = getCustomerAccessService();
 
 /**
  * Extended request interfaces for type safety
@@ -100,10 +100,10 @@ export const getEmailGatingSettings = asyncHandler(async (
   const businessId = req.tenant?.business?.toString() || req.userId!;
 
   // Get current settings
-  const settings = await emailGatingService.getEmailGatingSettings(businessId);
+  const settings = await customerAccessService.getEmailGatingSettings(businessId);
 
   // Get customer stats for context
-  const analytics = await emailGatingService.getCustomerAnalytics(businessId);
+  const analytics = await customerAccessService.getCustomerAnalytics(businessId);
 
   res.json({
     success: true,
@@ -139,7 +139,7 @@ export const updateEmailGatingSettings = asyncHandler(async (
   }
 
   // Update settings
-  const updatedSettings = await emailGatingService.updateEmailGatingSettings(businessId, updateData);
+  const updatedSettings = await customerAccessService.updateEmailGatingSettings(businessId, updateData);
 
   // Analyze impact of changes
   const impact = analyzeSettingsImpact(updateData);
@@ -191,10 +191,10 @@ export const getCustomers = asyncHandler(async (
   };
 
   // Get customers
-  const result = await emailGatingService.getCustomers(businessId, filters);
+  const result = await customerAccessService.getCustomers(businessId, filters);
 
   // Get analytics for insights
-  const analytics = await emailGatingService.getCustomerAnalytics(businessId);
+  const analytics = await customerAccessService.getCustomerAnalytics(businessId);
 
   res.json({
     success: true,
@@ -257,7 +257,7 @@ export const addCustomers = asyncHandler(async (
   }
 
   // Add customers
-  const result = await emailGatingService.addCustomers(businessId, customers, source, req.userId);
+  const result = await customerAccessService.addCustomers(businessId, customers, source, req.userId);
 
   // Generate recommendations based on results
   const recommendations = generateImportRecommendations(result, customers.length);
@@ -311,7 +311,7 @@ export const importFromCSV = asyncHandler(async (
   }
 
   // Import from CSV
-  const result = await emailGatingService.importFromCSV(csvData, businessId, req.userId);
+  const result = await customerAccessService.importFromCSV(csvData, businessId, req.userId);
 
   // Generate import analysis
   const analysis = analyzeCSVImport(result, lines.length - 1);
@@ -356,7 +356,7 @@ export const syncFromShopify = asyncHandler(async (
   const businessId = req.tenant?.business?.toString() || req.userId!;
 
   // Sync from Shopify
-  const result = await emailGatingService.syncFromShopify(businessId);
+  const result = await customerAccessService.syncFromShopify(businessId);
 
   res.json({
     success: true,
@@ -402,7 +402,7 @@ export const checkEmailAccess = asyncHandler(async (
   }
 
   // Check email access
-  const result = await emailGatingService.isEmailAllowed(email.toLowerCase(), businessId);
+  const result = await customerAccessService.isEmailAllowed(email.toLowerCase(), businessId);
 
   res.json({
     success: true,
@@ -436,7 +436,7 @@ export const revokeCustomerAccess = asyncHandler(async (
   const { reason } = req.validatedBody || {};
 
   // Revoke access
-  const customer = await emailGatingService.revokeCustomerAccess(
+  const customer = await customerAccessService.revokeCustomerAccess(
     businessId,
     customerId,
     reason,
@@ -475,7 +475,7 @@ export const restoreCustomerAccess = asyncHandler(async (
   const { customerId } = req.validatedParams;
 
   // Restore access
-  const customer = await emailGatingService.restoreCustomerAccess(businessId, customerId);
+  const customer = await customerAccessService.restoreCustomerAccess(businessId, customerId);
 
   res.json({
     success: true,
@@ -520,7 +520,7 @@ export const bulkUpdateAccess = asyncHandler(async (
   }
 
   // Bulk update access
-  const result = await emailGatingService.bulkUpdateAccess(businessId, customerIds, hasAccess, reason);
+  const result = await customerAccessService.bulkUpdateAccess(businessId, customerIds, hasAccess, reason);
 
   res.json({
     success: true,
@@ -559,7 +559,7 @@ export const deleteCustomer = asyncHandler(async (
   const { customerId } = req.validatedParams;
 
   // Delete customer
-  const result = await emailGatingService.deleteCustomer(businessId, customerId);
+  const result = await customerAccessService.deleteCustomer(businessId, customerId);
 
   if (!result.deleted) {
     throw createAppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
@@ -598,7 +598,7 @@ export const getCustomerAnalytics = asyncHandler(async (
   const businessId = req.tenant?.business?.toString() || req.userId!;
 
   // Get comprehensive analytics
-  const analytics = await emailGatingService.getCustomerAnalytics(businessId);
+  const analytics = await customerAccessService.getCustomerAnalytics(businessId);
 
   // Generate insights
   const insights = generateAnalyticsInsights(analytics);

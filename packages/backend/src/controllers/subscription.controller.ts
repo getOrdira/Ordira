@@ -3,143 +3,10 @@ import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { getSubscriptionService } from '../services/container.service';
-
-// Initialize service via container
-const subscriptionService = getSubscriptionService();
+import { subscriptionServices } from '../services/subscriptions';
 
 
-// Controller helper logic moved to SubscriptionService
-
-function calculateHealthScore(subscription: any): { score: number; status: string; factors: string[] } {
-  let score = 100;
-  const factors: string[] = [];
-
-  // Check usage levels
-  if (subscription.usagePercentages.votes > 90) {
-    score -= 20;
-    factors.push('Vote usage very high');
-  } else if (subscription.usagePercentages.votes > 80) {
-    score -= 10;
-    factors.push('Vote usage high');
-  }
-
-  if (subscription.usagePercentages.nfts > 90) {
-    score -= 20;
-    factors.push('NFT usage very high');
-  }
-
-  // Check billing status
-  if (subscription.status !== 'active') {
-    score -= 30;
-    factors.push(`Subscription ${subscription.status}`);
-  }
-
-  // Check trial status
-  if (subscription.billing.isTrialPeriod) {
-    const daysLeft = Math.ceil((new Date(subscription.billing.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 3) {
-      score -= 15;
-      factors.push('Trial ending soon');
-    }
-  }
-
-  const status = score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical';
-  return { score, status, factors };
-}
-
-function identifyRiskFactors(subscription: any): string[] {
-  const risks: string[] = [];
-
-  if (subscription.usagePercentages.votes > 95) {
-    risks.push('Vote limit nearly exceeded');
-  }
-
-  if (subscription.billing.isTrialPeriod) {
-    const daysLeft = Math.ceil((new Date(subscription.billing.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 7) {
-      risks.push('Trial expiring within 7 days');
-    }
-  }
-
-  if (subscription.status === 'past_due') {
-    risks.push('Payment overdue');
-  }
-
-  return risks;
-}
-
-function findOptimizationOpportunities(subscription: any): string[] {
-  const opportunities: string[] = [];
-
-  // Check for underutilization
-  if (subscription.tier !== 'foundation' && subscription.usagePercentages.votes < 30) {
-    opportunities.push('Consider downgrading to save costs');
-  }
-
-  // Check for consistent high usage
-  if (subscription.usagePercentages.votes > 80 && subscription.tier !== 'enterprise') {
-    opportunities.push('Upgrade to higher tier for better limits');
-  }
-
-  return opportunities;
-}
-
-function generateTierComparison(currentTier: string): any {
-  const tiers = ['foundation', 'growth', 'premium', 'enterprise'];
-  const currentIndex = tiers.indexOf(currentTier);
-  
-  return {
-    current: currentTier,
-    canUpgrade: currentIndex < tiers.length - 1,
-    canDowngrade: currentIndex > 0,
-    nextTier: currentIndex < tiers.length - 1 ? tiers[currentIndex + 1] : null,
-    previousTier: currentIndex > 0 ? tiers[currentIndex - 1] : null
-  };
-}
-
-function generateImmediateActions(subscription: any): string[] {
-  const actions: string[] = [];
-
-  if (subscription.billing.isTrialPeriod) {
-    const daysLeft = Math.ceil((new Date(subscription.billing.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 3) {
-      actions.push('Add billing information to continue service');
-    }
-  }
-
-  if (subscription.usagePercentages.votes > 90) {
-    actions.push('Consider upgrading plan to avoid hitting limits');
-  }
-
-  return actions;
-}
-
-function generatePlannedActions(subscription: any): string[] {
-  return [
-    'Review monthly usage patterns',
-    'Evaluate tier optimization opportunities',
-    'Plan for growth and scaling needs'
-  ];
-}
-
-function analyzeSubscriptionChanges(current: any, updated: any, changes: any): any {
-  const analysis = {
-    tierChange: changes.tier && changes.tier !== current.tier,
-    billingChange: changes.billingCycle && changes.billingCycle !== current.billing.billingCycle,
-    statusChange: changes.status && changes.status !== current.status,
-    immediate: [] as string[],
-    billing: [] as string[],
-    additionalSteps: [] as string[]
-  };
-
-  if (analysis.tierChange) {
-    analysis.immediate.push(`Tier changed from ${current.tier} to ${changes.tier}`);
-    analysis.billing.push('New tier pricing applies from next billing cycle');
-  }
-
-  return analysis;
-}
+// Controller presentation helpers (non-business logic)
 
 function generateImmediateImpact(changes: any): string[] {
   return changes.immediate || [];
@@ -157,19 +24,6 @@ function generateLimitImpact(changes: any): string[] {
   return ['Usage limits updated to match new tier'];
 }
 
-function generateWinBackOffers(subscription: any, reason?: string): string[] {
-  const offers: string[] = [];
-  
-  if (reason === 'cost') {
-    offers.push('20% discount for next 3 months');
-  }
-  
-  if (subscription.tier !== 'foundation') {
-    offers.push('Temporary downgrade option');
-  }
-  
-  return offers;
-}
 
 function generateLimitRecommendations(limitCheck: any, limitInfo: any, type: string): string[] {
   const recommendations: string[] = [];
@@ -349,25 +203,18 @@ export const getCurrentSubscription = asyncHandler(async (
   const businessId = req.tenant?.business?.toString() || req.userId!;
 
   try {
-    // Get comprehensive subscription data
-    const [subscription, analytics] = await Promise.all([
-      subscriptionService.getSubscription(businessId),
-      subscriptionService.getSubscriptionAnalytics(businessId)
+    // Get comprehensive subscription data and insights
+    const [subscription, analytics, insights] = await Promise.all([
+      subscriptionServices.data.getSummaryForBusiness(businessId),
+      subscriptionServices.analytics.getUsageAnalytics(businessId),
+      subscriptionServices.analytics.buildInsights(businessId)
     ]);
-
-    // Calculate additional insights
-    const insights = {
-      healthScore: subscriptionService.calculateHealthScore(subscription),
-      riskFactors: subscriptionService.identifyRiskFactors(subscription),
-      optimizationOpportunities: subscriptionService.findOptimizationOpportunities(subscription),
-      tierComparison: subscriptionService.generateTierComparison(subscription.tier)
-    };
 
     // Generate actionable recommendations
     const actions = {
-      immediate: subscriptionService.generateImmediateActions(subscription),
+      immediate: insights.immediateActions,
       suggested: analytics.recommendations,
-      planned: subscriptionService.generatePlannedActions()
+      planned: insights.plannedActions
     };
 
     res.json({
@@ -378,7 +225,12 @@ export const getCurrentSubscription = asyncHandler(async (
         analytics: {
           trends: analytics.trends,
           projections: analytics.projections,
-          insights
+          insights: {
+            healthScore: insights.health,
+            riskFactors: insights.risks,
+            optimizationOpportunities: insights.optimization,
+            tierComparison: insights.tierComparison
+          }
         },
         actions,
         notifications: {
@@ -404,7 +256,7 @@ export const getCurrentSubscription = asyncHandler(async (
         data: {
           hasSubscription: false,
           setupRequired: true,
-          availableTiers: subscriptionService.getAvailableTiersData(),
+          availableTiers: subscriptionServices.tierManagement.getAvailableTiers(),
           defaultTier: 'foundation',
           trialAvailable: true,
           trialDays: 14,
@@ -440,15 +292,15 @@ export const createSubscription = asyncHandler(async (
   }
 
   // Create subscription
-  const subscription = await subscriptionService.createSubscription({
+  const subscription = await subscriptionServices.lifecycle.createSubscription({
     businessId,
     ...subscriptionData
   });
 
   // Generate onboarding information
   const onboarding = {
-    nextSteps: subscriptionService.generateOnboardingSteps(subscription.tier),
-    features: subscriptionService.getTierFeatures(subscription.tier),
+    nextSteps: subscriptionServices.tierManagement.generateOnboardingSteps(subscription.tier),
+    features: subscriptionServices.tierManagement.getTierFeatures(subscription.tier),
     limits: subscription.limits,
     resources: {
       documentation: '/docs/getting-started',
@@ -491,13 +343,13 @@ export const updateSubscription = asyncHandler(async (
   }
 
   // Get current subscription for comparison
-  const currentSubscription = await subscriptionService.getSubscription(businessId);
+  const currentSubscription = await subscriptionServices.data.getSummaryForBusiness(businessId);
 
   // Update subscription
-  const updatedSubscription = await subscriptionService.updateSubscription(businessId, updateData);
+  const updatedSubscription = await subscriptionServices.lifecycle.updateSubscription(businessId, updateData);
 
   // Analyze the changes made
-  const changes = subscriptionService.analyzeSubscriptionChanges(currentSubscription, updatedSubscription, updateData);
+  const changes = subscriptionServices.tierManagement.analyzeSubscriptionChanges(currentSubscription, updateData);
 
   // Generate impact assessment
   const impact = {
@@ -537,10 +389,10 @@ export const cancelSubscription = asyncHandler(async (
   const { cancelImmediately = false, reason, feedback } = req.validatedBody;
 
   // Get current subscription
-  const subscription = await subscriptionService.getSubscription(businessId);
+  const subscription = await subscriptionServices.data.getSummaryForBusiness(businessId);
 
   // Perform cancellation
-  const cancellationResult = await subscriptionService.cancelSubscription(
+  const cancellationResult = await subscriptionServices.lifecycle.cancelSubscription(
     businessId,
     cancelImmediately,
     reason
@@ -559,7 +411,7 @@ export const cancelSubscription = asyncHandler(async (
     pause: !cancelImmediately ? 'Consider pausing instead of canceling' : null,
     downgrade: subscription.tier !== 'foundation' ? 'Consider downgrading to a lower tier' : null,
     feedback: feedback ? 'Thank you for your feedback - we\'ll use it to improve' : 'We\'d love to hear why you\'re canceling',
-    winBack: subscriptionService.generateWinBackOffers(subscription, reason)
+    winBack: subscriptionServices.analytics.generateWinBackOffers(subscription, reason)
   };
 
   res.json({
@@ -608,18 +460,18 @@ export const checkUsageLimits = asyncHandler(async (
   switch (type) {
     case 'votes':
       [limitCheck, limitInfo] = await Promise.all([
-        subscriptionService.checkVotingLimits(businessId, count),
-        subscriptionService.getVotingLimits(businessId)
+        subscriptionServices.usageLimits.checkVotingLimits(businessId, count),
+        subscriptionServices.usageLimits.getVotingLimits(businessId)
       ]);
       break;
     case 'nfts':
       [limitCheck, limitInfo] = await Promise.all([
-        subscriptionService.checkNftLimits(businessId, count),
-        subscriptionService.getNftLimits(businessId)
+        subscriptionServices.usageLimits.checkNftLimits(businessId, count),
+        subscriptionServices.usageLimits.getNftLimits(businessId)
       ]);
       break;
     case 'api':
-      limitCheck = await subscriptionService.checkApiLimits(businessId, count);
+      limitCheck = await subscriptionServices.usageLimits.checkApiLimits(businessId, count);
       limitInfo = { message: 'API limit information' };
       break;
     default:
@@ -655,7 +507,7 @@ export const getSubscriptionAnalytics = asyncHandler(async (
   const { period = '30d', includeProjections = true, includeTrends = true } = req.validatedQuery;
 
   // Get comprehensive analytics
-  const analytics = await subscriptionService.getSubscriptionAnalytics(businessId);
+  const analytics = await subscriptionServices.analytics.getUsageAnalytics(businessId);
 
   // Calculate additional metrics
   const metrics = {
@@ -703,7 +555,7 @@ export const getAvailableTiers = asyncHandler(async (
   // Get current subscription if exists
   let currentSubscription = null;
   try {
-    currentSubscription = await subscriptionService.getSubscription(businessId);
+    currentSubscription = await subscriptionServices.data.getSummaryForBusiness(businessId);
   } catch (error) {
     // No subscription exists - that's fine
   }
@@ -715,7 +567,7 @@ export const getAvailableTiers = asyncHandler(async (
       name: 'Foundation',
       price: { monthly: 39.99, yearly: 479 },
       limits: { votes: 100, nfts: 50, api: 500, storage: 1 },
-      features: subscriptionService.getTierFeatures('foundation'),
+      features: subscriptionServices.tierManagement.getTierFeatures('foundation'),
       recommended: false,
       popular: false
     },
@@ -724,7 +576,7 @@ export const getAvailableTiers = asyncHandler(async (
       name: 'Growth',
       price: { monthly: 59.99, yearly: 720 },
       limits: { votes: 500, nfts: 150, api: 2000, storage: 5 },
-      features: subscriptionService.getTierFeatures('growth'),
+      features: subscriptionServices.tierManagement.getTierFeatures('growth'),
       recommended: true,
       popular: true
     },
@@ -733,7 +585,7 @@ export const getAvailableTiers = asyncHandler(async (
       name: 'Premium',
       price: { monthly: 119.99, yearly: 1428 },
       limits: { votes: 2000, nfts: 300, api: 10000, storage: 25 },
-      features: subscriptionService.getTierFeatures('premium'),
+      features: subscriptionServices.tierManagement.getTierFeatures('premium'),
       recommended: false,
       popular: false
     },
@@ -742,7 +594,7 @@ export const getAvailableTiers = asyncHandler(async (
       name: 'Enterprise',
       price: { monthly: 499.99, yearly: 4788 },
       limits: { votes: 'unlimited', nfts: 'unlimited', api: 'unlimited', storage: 100 },
-      features: subscriptionService.getTierFeatures('enterprise'),
+      features: subscriptionServices.tierManagement.getTierFeatures('enterprise'),
       recommended: false,
       popular: false,
       customPricing: true
@@ -798,13 +650,13 @@ export const recordUsage = asyncHandler(async (
   // Record the usage
   switch (type) {
     case 'votes':
-      await subscriptionService.recordVoteUsage(businessId, count);
+      await subscriptionServices.usageLimits.recordVoteUsage(businessId, count);
       break;
     case 'nfts':
-      await subscriptionService.recordNftUsage(businessId, count);
+      await subscriptionServices.usageLimits.recordNftUsage(businessId, count);
       break;
     case 'api':
-      await subscriptionService.recordApiUsage(businessId, count);
+      await subscriptionServices.usageLimits.recordApiUsage(businessId, count);
       break;
     default:
       throw createAppError('Invalid usage type', 400, 'INVALID_USAGE_TYPE');
@@ -812,9 +664,9 @@ export const recordUsage = asyncHandler(async (
 
   // Get updated limits
   const limits = type === 'votes' 
-    ? await subscriptionService.getVotingLimits(businessId)
+    ? await subscriptionServices.usageLimits.getVotingLimits(businessId)
     : type === 'nfts'
-    ? await subscriptionService.getNftLimits(businessId)
+    ? await subscriptionServices.usageLimits.getNftLimits(businessId)
     : { message: 'API usage recorded' };
 
   res.json({
@@ -845,7 +697,7 @@ export const resetUsage = asyncHandler(async (
   const businessId = req.tenant?.business?.toString() || req.userId!;
 
   // Reset usage (this should be admin-only in production)
-  const result = await subscriptionService.resetMonthlyUsage(businessId);
+  const result = await subscriptionServices.data.resetMonthlyUsage(businessId);
 
   res.json({
     success: true,

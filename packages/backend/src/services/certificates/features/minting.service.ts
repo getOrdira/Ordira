@@ -12,8 +12,8 @@ import { Certificate, ICertificate } from '../../../models/certificate.model';
 import { BrandSettings } from '../../../models/brandSettings.model';
 import { Business } from '../../../models/business.model';
 import { NftService } from '../../blockchain/nft.service';
-import { NotificationsService } from '../../external/notifications.service';
 import { AnalyticsService } from '../../business/analytics.service';
+import { eventHandlerService, NotificationCategory, NotificationEventType, NotificationPriority } from '../../notifications';
 import { MediaService } from '../../business/media.service';
 import { S3Service } from '../../external/s3.service';
 import { logger } from '../../../utils/logger';
@@ -56,7 +56,6 @@ export interface CreateCertInput {
 
 export class MintingService {
   private nftService = new NftService();
-  private notificationsService = new NotificationsService();
   private analyticsService = new AnalyticsService();
   private mediaService = new MediaService();
 
@@ -463,22 +462,31 @@ export class MintingService {
     shouldAutoTransfer: boolean,
     mintResult: any
   ): Promise<void> {
-    // Send customer notification
-    await this.sendCustomerNotification(cert, contactMethod, hasWeb3);
+    await this.sendCustomerNotification(cert, contactMethod, hasWeb3, mintResult);
 
-    // Send brand notification
-    await this.notificationsService.notifyBrandOfCertificateMinted(
-      cert.business.toString(),
-      cert._id.toString(),
-      {
+    await eventHandlerService.handle({
+      type: NotificationEventType.CertificateMinted,
+      recipient: { businessId: cert.business.toString() },
+      payload: {
+        certificateId: cert._id.toString(),
         recipient: cert.recipient,
-        tokenId: mintResult.tokenId,
-        txHash: mintResult.txHash,
-        transferScheduled: mintResult.transferScheduled,
-        brandWallet: mintResult.brandWallet,
-        autoTransferEnabled: shouldAutoTransfer
-      }
-    );
+        productId: (cert.product as any)?.toString?.() ?? undefined,
+        productName: (cert.metadata as any)?.productName,
+        tokenId: mintResult?.tokenId,
+        txHash: mintResult?.txHash,
+        transferScheduled: mintResult?.transferScheduled,
+        brandWallet: mintResult?.brandWallet,
+        autoTransferEnabled: shouldAutoTransfer,
+        certificateUrl: `${process.env.FRONTEND_URL}/brand/certificates/${cert._id.toString()}`,
+      },
+      metadata: {
+        category: NotificationCategory.Certificate,
+        priority: NotificationPriority.Medium,
+        title: 'Certificate minted',
+        message: `Certificate ${cert._id.toString()} has been minted successfully.`,
+        actionUrl: `/brand/certificates/${cert._id.toString()}`,
+      },
+    });
   }
 
   /**
@@ -487,31 +495,69 @@ export class MintingService {
   private async sendCustomerNotification(
     cert: ICertificate,
     contactMethod: string,
-    hasWeb3: boolean
+    hasWeb3: boolean,
+    mintResult: any
   ): Promise<void> {
     const link = `${process.env.FRONTEND_URL}/certificates/${cert._id}`;
-    const blockchainLink = cert.txHash ? `https://basescan.io/tx/${cert.txHash}` : null;
-    const imageUrl = cert.metadata?.imageUrl;
+    const blockchainLink = mintResult?.txHash
+      ? `https://basescan.io/tx/${mintResult.txHash}`
+      : cert.txHash
+        ? `https://basescan.io/tx/${cert.txHash}`
+        : null;
 
-    const subject = 'Your NFT Certificate is Ready';
-    let message = `Hello! Your certificate has been minted and is ready to view.\n\nView your certificate: ${link}\n\nToken ID: ${cert.tokenId}`;
+    const messageParts = [
+      'Hello! Your certificate has been minted and is ready to view.',
+      `View your certificate: ${link}`,
+    ];
+
+    const tokenId = mintResult?.tokenId ?? cert.tokenId;
+    if (tokenId) {
+      messageParts.push(`Token ID: ${tokenId}`);
+    }
 
     if (hasWeb3 && blockchainLink) {
-      message += `\n\nView on blockchain: ${blockchainLink}`;
+      messageParts.push(`View on blockchain: ${blockchainLink}`);
     }
 
     if (cert.transferScheduled) {
-      message += `\n\nYour certificate will be automatically transferred to your wallet shortly.`;
+      messageParts.push('Your certificate is scheduled for automatic transfer.');
     }
 
-    if (imageUrl) {
-      message += `\n\nCertificate image: ${imageUrl}`;
-    }
+    const message = messageParts.join('\n\n');
 
-    if (contactMethod === 'email') {
-      await this.notificationsService.sendEmail(cert.recipient, subject, message);
+    if (contactMethod === 'email' || contactMethod === 'wallet' || contactMethod === 'sms') {
+      await eventHandlerService.handle({
+        type: NotificationEventType.CertificateMinted,
+        recipient: { email: cert.recipient },
+        payload: {
+          certificateId: cert._id.toString(),
+          tokenId,
+          link,
+          blockchainLink,
+          contactMethod,
+          productName: (cert.metadata as any)?.productName,
+        },
+        metadata: {
+          category: NotificationCategory.Certificate,
+          priority: NotificationPriority.Medium,
+          title: 'Your certificate is ready',
+          message,
+          actionUrl: link,
+          channels: { email: true, inApp: false },
+        },
+      });
     }
   }
-}
 
+}
 export const mintingService = new MintingService();
+
+
+
+
+
+
+
+
+
+

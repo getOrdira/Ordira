@@ -56,6 +56,12 @@ export {
   DiscoveryService
 } from './features/discovery.service';
 
+export {
+  // Customer Access Management (Email Gating)
+  CustomerAccessService,
+  customerAccessService
+} from './features/customerAccess.service';
+
 // ===== VALIDATION SERVICES =====
 // Data validation and business rule enforcement
 
@@ -155,6 +161,13 @@ export type {
   EcosystemAnalytics
 } from './features/discovery.service';
 
+export type {
+  CustomerImportData,
+  EmailGatingSettings,
+  CustomerSummary,
+  CustomerFilters
+} from './features/customerAccess.service';
+
 // Validation Types
 export type {
   PlanFeatures,
@@ -206,11 +219,11 @@ export const BrandServices = {
 
 // ===== MODULE METADATA =====
 export const BrandModuleInfo = {
-  version: '2.0.0',
+  version: '2.1.0',
   description: 'Comprehensive brand management system',
   services: {
     core: ['BrandProfileCoreService', 'BrandAccountService', 'BrandSettingsCoreService'],
-    features: ['VerificationService', 'AnalyticsService', 'WalletService', 'IntegrationsService', 'DiscoveryService'],
+    features: ['VerificationService', 'AnalyticsService', 'WalletService', 'IntegrationsService', 'DiscoveryService', 'CustomerAccessService'],
     validation: ['PlanValidationService', 'DomainValidationService', 'BrandValidationService'],
     utils: ['BrandHelpersService', 'CompletenessCalculatorService', 'RecommendationEngineService']
   },
@@ -224,6 +237,8 @@ export const BrandModuleInfo = {
     'Recommendation Engine',
     'Completeness Calculation',
     'Domain Management',
-    'Plan Validation'
+    'Plan Validation',
+    'Customer Access Management',
+    'Email Gating & Whitelisting'
   ]
 } as const;

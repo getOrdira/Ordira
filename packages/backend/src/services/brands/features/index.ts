@@ -5,6 +5,7 @@ export { AnalyticsService } from './analytics.service';
 export { WalletService } from './wallet.service';
 export { IntegrationsService } from './integrations.service';
 export { DiscoveryService } from './discovery.service';
+export { CustomerAccessService, customerAccessService } from './customerAccess.service';
 
 export type {
   VerificationStatus,
@@ -39,3 +40,10 @@ export type {
   SearchSuggestion,
   EcosystemAnalytics
 } from './discovery.service';
+
+export type {
+  CustomerImportData,
+  EmailGatingSettings,
+  CustomerSummary,
+  CustomerFilters
+} from './customerAccess.service';

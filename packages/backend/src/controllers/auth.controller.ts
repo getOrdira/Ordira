@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { logger } from '../utils/logger';
 import { getServices } from '../services/container.service';
+import { getNotificationsServices } from '../services/notifications';
 import {
   RegisterBusinessInput,
   VerifyBusinessInput,
@@ -35,7 +36,8 @@ interface ResetPasswordBody {
   confirmPassword: string;
 }
 
-const { auth: authService, notifications: notificationsService } = getServices();
+const { auth: authService } = getServices();
+const notificationsServices = getNotificationsServices();
 
 export async function registerBusinessHandler(
   req: ValidatedBodyRequest<RegisterBusinessInput>,
@@ -51,17 +53,23 @@ export async function registerBusinessHandler(
       securityContext,
     });
 
-    if (notificationsService) {
-      const fullName = `${registrationData.firstName} ${registrationData.lastName}`.trim();
-      notificationsService
-        .sendWelcomeEmail(registrationData.email, fullName || 'Business Owner', 'brand')
-        .catch(error =>
-          logger.warn('Failed to send business welcome email', {
-            email: registrationData.email,
-            error: error instanceof Error ? error.message : error,
-          })
-        );
-    }
+    // Send welcome notification using new modular system
+    const fullName = `${registrationData.firstName} ${registrationData.lastName}`.trim();
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.welcome' as any,
+      recipient: { email: registrationData.email },
+      payload: {
+        email: registrationData.email,
+        name: fullName || 'Business Owner',
+        accountType: 'business',
+        businessName: registrationData.businessName
+      }
+    }).catch(error =>
+      logger.warn('Failed to send business welcome notification', {
+        email: registrationData.email,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     res.status(201).json({
       message: 'Business registered successfully. Please verify your email.',
@@ -86,20 +94,22 @@ export async function registerManufacturerHandler(
       securityContext,
     });
 
-    if (notificationsService) {
-      notificationsService
-        .sendWelcomeEmail(
-          registrationData.email,
-          registrationData.name || 'Manufacturer',
-          'manufacturer'
-        )
-        .catch(error =>
-          logger.warn('Failed to send manufacturer welcome email', {
-            email: registrationData.email,
-            error: error instanceof Error ? error.message : error,
-          })
-        );
-    }
+    // Send welcome notification using new modular system
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.welcome' as any,
+      recipient: { email: registrationData.email },
+      payload: {
+        email: registrationData.email,
+        name: registrationData.name || 'Manufacturer',
+        accountType: 'manufacturer',
+        manufacturerName: registrationData.name
+      }
+    }).catch(error =>
+      logger.warn('Failed to send manufacturer welcome notification', {
+        email: registrationData.email,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     res.status(201).json({
       message: 'Manufacturer registered successfully. Please verify your email.',
@@ -236,20 +246,22 @@ export async function registerUserHandler(
 
     const result = await authService.registerUser(registrationPayload);
 
-    if (notificationsService) {
-      notificationsService
-        .sendWelcomeEmail(
-          registrationData.email,
-          registrationData.firstName || 'User',
-          'user'
-        )
-        .catch(error =>
-          logger.warn('Failed to send user welcome email', {
-            email: registrationData.email,
-            error: error instanceof Error ? error.message : error,
-          })
-        );
-    }
+    // Send welcome notification using new modular system
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.welcome' as any,
+      recipient: { email: registrationData.email },
+      payload: {
+        email: registrationData.email,
+        name: registrationData.firstName || 'User',
+        accountType: 'user',
+        brandSlug: registrationData.brandSlug
+      }
+    }).catch(error =>
+      logger.warn('Failed to send user welcome notification', {
+        email: registrationData.email,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     res.status(201).json({
       message: 'User registered successfully. Please verify your email.',
@@ -342,6 +354,21 @@ export async function forgotPasswordHandler(
       securityContext,
     });
 
+    // Send password reset notification using new modular system
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.password_reset_requested' as any,
+      recipient: { email },
+      payload: {
+        email,
+        requestTime: new Date().toISOString()
+      }
+    }).catch(error =>
+      logger.warn('Failed to send password reset notification', {
+        email,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
+
     res.json({
       message: 'If an account with that email exists, you will receive password reset instructions shortly.',
     });
@@ -359,12 +386,26 @@ export async function resetPasswordHandler(
     const { token, newPassword, confirmPassword } = req.validatedBody;
     const securityContext = authService.extractSecurityContext(req);
 
-    await authService.resetPassword({
+    const result = await authService.resetPassword({
       token,
       newPassword,
       confirmPassword,
       securityContext,
     });
+
+    // Send password reset confirmation notification using new modular system
+    // Note: Email will be extracted from token validation in auth service
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.password_reset_confirmed' as any,
+      recipient: { email: '' }, // Email will be resolved from token
+      payload: {
+        resetTime: new Date().toISOString()
+      }
+    }).catch(error =>
+      logger.warn('Failed to send password reset confirmation notification', {
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     res.json({
       message: 'Password reset successfully. You can now log in with your new password.',

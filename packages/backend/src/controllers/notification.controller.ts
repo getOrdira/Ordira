@@ -1,24 +1,46 @@
-
 // src/controllers/notification.controller.ts
 
 import { Request, Response, NextFunction } from 'express';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
-import { getNotificationService } from '../services/container.service';
-import { hasPriority } from '../utils/typeGuards';
+import { getNotificationsServices } from '../services/container.service';
+import {
+  NotificationCategory,
+  NotificationPriority,
+  NotificationEventType,
+  NotificationRecipient,
+  NotificationSummary,
+  NotificationFilters,
+  NotificationEvent,
+} from '../services/notifications';
 
-// Initialize service via container
-const notificationService = getNotificationService();
+const notificationsServices = getNotificationsServices();
+const {
+  core: { notificationDataService },
+  features: { inboxService, analyticsService, maintenanceService, preferencesService },
+  workflows: { eventHandlerService },
+} = notificationsServices;
 
-/**
- * Extended request interfaces for type safety
- */
+const CATEGORY_UI: Record<string, { icon: string; label: string; href: string }> = {
+  [NotificationCategory.System]: { icon: 'bell', label: 'View notification', href: '/dashboard/notifications' },
+  [NotificationCategory.Billing]: { icon: 'credit-card', label: 'Manage billing', href: '/brand/billing' },
+  [NotificationCategory.Certificate]: { icon: 'badge-check', label: 'View certificates', href: '/brand/certificates' },
+  [NotificationCategory.Connection]: { icon: 'users', label: 'Manage connections', href: '/brand/connections' },
+  [NotificationCategory.Security]: { icon: 'shield-check', label: 'Review security alert', href: '/settings/security' },
+  [NotificationCategory.Account]: { icon: 'user-circle', label: 'Manage account', href: '/settings/profile' },
+  vote: { icon: 'check-circle', label: 'Review votes', href: '/brand/votes' },
+  invite: { icon: 'user-plus', label: 'Manage invites', href: '/brand/invitations' },
+  order: { icon: 'shopping-cart', label: 'Review orders', href: '/brand/orders' },
+};
+
+const DEFAULT_UI = CATEGORY_UI[NotificationCategory.System];
+
 interface BaseNotificationQuery {
   validatedQuery: {
     type?: string;
-    category?: 'system' | 'billing' | 'certificate' | 'vote' | 'invite' | 'order' | 'security';
-    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    category?: NotificationCategory | string;
+    priority?: NotificationPriority;
     read?: boolean;
     page?: number;
     limit?: number;
@@ -54,509 +76,361 @@ interface BaseCreateNotification {
     recipientId?: string;
     recipientType?: 'business' | 'manufacturer';
     type: string;
-    category: 'system' | 'billing' | 'certificate' | 'vote' | 'invite' | 'order' | 'security';
+    category: NotificationCategory | string;
     title?: string;
     message: string;
-    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    priority?: NotificationPriority;
     actionUrl?: string;
     expiresAt?: string;
-    data?: any;
+    data?: Record<string, unknown>;
   };
 }
 
 type CreateNotificationRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseCreateNotification;
 
-interface BaseBulkNotification {
-  validatedBody: {
-    recipients: Array<{
-      id: string;
-      type: 'business' | 'manufacturer';
-      email?: string;
-      name?: string;
-    }>;
-    subject: string;
-    message: string;
-    notificationType: string;
-    category: string;
-    priority?: 'low' | 'medium' | 'high' | 'urgent';
-    batchSize?: number;
-    delayBetweenBatches?: number;
+interface DecoratedNotification extends NotificationSummary {
+  icon: string;
+  cta: {
+    label: string;
+    href?: string;
+    isExternal?: boolean;
   };
+  isNew: boolean;
+  createdAtIso: string;
 }
 
-type BulkNotificationRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BaseBulkNotification;
-
-/**
- * Helper to determine user context
- */
 function getUserContext(req: UnifiedAuthRequest | UnifiedAuthRequest): {
   userId: string;
   userType: 'business' | 'manufacturer';
   businessId?: string;
   manufacturerId?: string;
 } {
-  // Check if it's a manufacturer request
   if ('manufacturer' in req && req.manufacturer) {
     return {
       userId: req.userId!,
       userType: 'manufacturer',
-      manufacturerId: req.userId!
+      manufacturerId: req.userId!,
     };
   }
-  
-  // Default to business request
+
   return {
     userId: req.userId!,
     userType: 'business',
-    businessId: req.userId!
+    businessId: req.userId!,
   };
 }
 
-/**
- * Get notifications for authenticated user with advanced filtering
- * GET /api/notifications
- * 
- * @requires authentication (business or manufacturer)
- * @optional query: filtering, pagination, sorting options
- * @returns { notifications[], stats, pagination, filters }
- */
+const toRecipient = (context: { businessId?: string; manufacturerId?: string }): NotificationRecipient => ({
+  businessId: context.businessId,
+  manufacturerId: context.manufacturerId,
+});
+
+const parseBoolean = (value: unknown): boolean | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (['true', '1', 'yes'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no'].includes(normalized)) {
+      return false;
+    }
+  }
+  return undefined;
+};
+
+const parseDate = (value?: string): Date | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const clampLimit = (limit?: number): number => {
+  if (!limit || Number.isNaN(limit) || limit <= 0) {
+    return 25;
+  }
+  return Math.min(limit, 100);
+};
+
+const decorateNotification = (summary: NotificationSummary): DecoratedNotification => {
+  const category = summary.category ?? NotificationCategory.System;
+  const ui = CATEGORY_UI[category] ?? DEFAULT_UI;
+  const createdAt = summary.createdAt instanceof Date ? summary.createdAt : new Date(summary.createdAt);
+
+  return {
+    ...summary,
+    icon: ui.icon,
+    cta: {
+      label: ui.label,
+      href: summary.actionUrl ?? ui.href,
+      isExternal: summary.actionUrl ? /^https?:\/\//i.test(summary.actionUrl) : false,
+    },
+    isNew: !summary.read && Date.now() - createdAt.getTime() < 24 * 60 * 60 * 1000,
+    createdAtIso: createdAt.toISOString(),
+  };
+};
+
+const groupByType = (notifications: NotificationSummary[]): Record<string, number> => {
+  return notifications.reduce<Record<string, number>>((acc, notification) => {
+    acc[notification.type] = (acc[notification.type] ?? 0) + 1;
+    return acc;
+  }, {});
+};
+
+const buildFilters = (
+  query: BaseNotificationQuery['validatedQuery'],
+  page: number,
+  limit: number,
+): NotificationFilters => ({
+  type: query?.type,
+  category: query?.category,
+  priority: query?.priority,
+  read: parseBoolean(query?.read),
+  limit,
+  offset: (page - 1) * limit,
+  dateFrom: parseDate(query?.dateFrom),
+  dateTo: parseDate(query?.dateTo),
+});
+
+const resolveEventType = (type: string): NotificationEventType | undefined => {
+  return (Object.values(NotificationEventType) as string[]).includes(type)
+    ? (type as NotificationEventType)
+    : undefined;
+};
+
 export const getNotifications = asyncHandler(async (
   req: NotificationListRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
-  // Extract and validate query parameters
-  const queryParams = req.validatedQuery || {};
-  const page = queryParams.page || 1;
-  const limit = Math.min(queryParams.limit || 20, 100); // Max 100 per page
-  const offset = (page - 1) * limit;
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
 
-  // Parse date filters
-  const dateFrom = queryParams.dateFrom ? new Date(queryParams.dateFrom) : undefined;
-  const dateTo = queryParams.dateTo ? new Date(queryParams.dateTo) : undefined;
+  const page = req.validatedQuery?.page && req.validatedQuery.page > 0 ? req.validatedQuery.page : 1;
+  const limit = clampLimit(req.validatedQuery?.limit);
+  const filters = buildFilters(req.validatedQuery, page, limit);
 
-  // Build comprehensive filter options
-  const filterOptions = {
-    type: queryParams.type,
-    category: queryParams.category,
-    priority: queryParams.priority,
-    read: queryParams.read,
-    dateFrom,
-    dateTo,
-    limit,
-    offset,
-    sortBy: queryParams.sortBy || 'createdAt',
-    sortOrder: queryParams.sortOrder || 'desc'
-  };
-
-  // Get notifications and stats through service
-  const [result, stats] = await Promise.all([
-    notificationService.listNotifications(
-      userContext.businessId,
-      userContext.manufacturerId,
-      filterOptions
-    ),
-    notificationService.getNotificationStats(
-      userContext.businessId,
-      userContext.manufacturerId
-    )
+  const [listResult, stats] = await Promise.all([
+    inboxService.listNotifications(recipient, filters),
+    analyticsService.getStats(recipient),
   ]);
 
-  // Return comprehensive response
+  const notifications = listResult.notifications.map(decorateNotification);
+
   res.json({
     success: true,
     message: 'Notifications retrieved successfully',
     data: {
-      notifications: result.notifications,
-      stats: {
-        total: result.total,
-        unread: result.unread,
-        read: result.total - result.unread,
-        byType: stats.byType,
-        recent: stats.recent
-      },
+      notifications,
+      stats,
       pagination: {
-        total: result.total,
         page,
         limit,
-        totalPages: Math.ceil(result.total / limit),
-        hasNext: page < Math.ceil(result.total / limit),
-        hasPrev: page > 1
+        total: listResult.total,
+        totalPages: Math.max(1, Math.ceil(listResult.total / limit)),
       },
-      filters: {
-        type: queryParams.type,
-        category: queryParams.category,
-        priority: queryParams.priority,
-        read: queryParams.read,
-        dateRange: {
-          from: dateFrom?.toISOString(),
-          to: dateTo?.toISOString()
-        },
-        sortBy: filterOptions.sortBy,
-        sortOrder: filterOptions.sortOrder
-      },
-      retrievedAt: new Date().toISOString()
-    }
+      filters: req.validatedQuery,
+      fetchedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Get notification statistics and analytics
- * GET /api/notifications/stats
- * 
- * @requires authentication (business or manufacturer)
- * @returns { totalStats, typeBreakdown, priorityBreakdown, recentActivity }
- */
 export const getNotificationStats = asyncHandler(async (
   req: UnifiedAuthRequest | UnifiedAuthRequest,
   res: Response,
-  next: NextFunction
- ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
+): Promise<void> => {
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
 
-  // Get comprehensive statistics through service
-  const stats = await notificationService.getNotificationStats(
-    userContext.businessId,
-    userContext.manufacturerId
-  );
+  const stats = await analyticsService.getStats(recipient);
 
-  // Return detailed statistics
   res.json({
     success: true,
-    message: 'Notification statistics retrieved successfully',
+    message: 'Notification stats retrieved successfully',
     data: {
-      overview: {
-        total: stats.total,
-        unread: stats.unread,
-        read: stats.total - stats.unread,
-        readPercentage: stats.total > 0 ? Math.round(((stats.total - stats.unread) / stats.total) * 100) : 0,
-        recent: stats.recent
-      },
-      breakdown: {
-        byType: stats.byType,
-        totalTypes: Object.keys(stats.byType).length
-      },
-      trends: {
-        recentActivity: stats.recent,
-        dailyAverage: Math.round(stats.recent / 7), // Last 7 days average
-        needsAttention: stats.unread > 10
-      },
-      generatedAt: new Date().toISOString()
-    }
+      stats,
+      retrievedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Mark a notification as read
- * PUT /api/notifications/:id/read
- * 
- * @requires authentication (business or manufacturer)
- * @requires params: { id: string }
- * @returns { notification, updated }
- */
 export const readNotification = asyncHandler(async (
   req: NotificationActionRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
-  // Extract notification ID from validated params
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
   const { id } = req.validatedParams;
 
-  // Mark notification as read through service
-  const updatedNotification = await notificationService.markAsRead(
-    id,
-    userContext.businessId,
-    userContext.manufacturerId
-  );
+  const updatedNotification = await inboxService.markAsRead(id, recipient);
+  const stats = await analyticsService.getStats(recipient);
 
-  // Return standardized response
   res.json({
     success: true,
     message: 'Notification marked as read',
     data: {
-      notification: updatedNotification,
-      readAt: new Date().toISOString()
-    }
+      notification: decorateNotification(updatedNotification),
+      stats,
+      updatedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Get notification details by ID
- * GET /api/notifications/:id
- * 
- * @requires authentication (business or manufacturer)
- * @requires params: { id: string }
- * @returns { notification, relatedNotifications }
- */
 export const getNotificationDetails = asyncHandler(async (
   req: NotificationActionRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
-  // Extract notification ID from validated params
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
   const { id } = req.validatedParams;
 
-  // Get notification details and related notifications
-  const [notification, relatedNotifications] = await Promise.all([
-    notificationService.getNotificationById(
-      id,
-      userContext.businessId,
-      userContext.manufacturerId
-    ),
-    notificationService.getNotificationsByType(
-      '', // Will be filled by the notification type
-      userContext.businessId,
-      userContext.manufacturerId,
-      5 // Limit to 5 related notifications
-    )
-  ]);
+  const notification = await inboxService.getNotificationById(id, recipient);
+  const related = await inboxService.getNotificationsByType(notification.type, recipient, 5);
 
-  // Get related notifications of the same type
-  const sameTypeNotifications = await notificationService.getNotificationsByType(
-    notification.type,
-    userContext.businessId,
-    userContext.manufacturerId,
-    5
-  );
-
-  // Return detailed response
   res.json({
     success: true,
     message: 'Notification details retrieved successfully',
     data: {
-      notification,
-      relatedNotifications: sameTypeNotifications.filter(n => n.id !== id),
-      retrievedAt: new Date().toISOString()
-    }
+      notification: decorateNotification(notification),
+      relatedNotifications: related
+        .filter((item) => item.id !== id)
+        .map(decorateNotification),
+      retrievedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Get unread notifications count
- * GET /api/notifications/unread/count
- * 
- * @requires authentication (business or manufacturer)
- * @returns { count, hasUnread, breakdown }
- */
 export const getUnreadCount = asyncHandler(async (
-  req: UnifiedAuthRequest | UnifiedAuthRequest,
+  req: UnifiedAuthRequest | UnifiedAuthRequest & { query?: { since?: string } },
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
+  const since = typeof req.query?.since === 'string' ? parseDate(req.query.since) : undefined;
 
-  // Get unread notifications and stats
-  const [unreadNotifications, stats] = await Promise.all([
-    notificationService.getUnreadNotifications(
-      userContext.businessId,
-      userContext.manufacturerId
-    ),
-    notificationService.getNotificationStats(
-      userContext.businessId,
-      userContext.manufacturerId
-    )
+  const [unreadResult, latestResult, stats] = await Promise.all([
+    inboxService.listNotifications(recipient, {
+      read: false,
+      limit: 50,
+      dateFrom: since,
+    }),
+    inboxService.listNotifications(recipient, {
+      limit: 10,
+      dateFrom: since,
+    }),
+    analyticsService.getStats(recipient),
   ]);
 
-  const count = unreadNotifications.length;
+  const unreadNotifications = unreadResult.notifications;
+  const latestNotifications = latestResult.notifications.map(decorateNotification);
+  const breakdownByType = groupByType(unreadNotifications);
 
-  // Group unread by type for breakdown
-  const typeBreakdown = unreadNotifications.reduce((acc, notification) => {
-    acc[notification.type] = (acc[notification.type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Return comprehensive unread information
   res.json({
     success: true,
-    message: 'Unread count retrieved successfully',
+    message: 'Unread notification insights retrieved successfully',
     data: {
-      count,
-      hasUnread: count > 0,
+      count: unreadResult.total,
+      hasUnread: unreadResult.total > 0,
       breakdown: {
-        byType: typeBreakdown,
-        urgent: unreadNotifications.filter(n => hasPriority(n) && n.priority === 'urgent').length,
-        high: unreadNotifications.filter(n => hasPriority(n) && n.priority === 'high').length,
-        recent: unreadNotifications.filter(n => 
-          new Date(n.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000
-        ).length
+        byType: breakdownByType,
+        urgent: unreadNotifications.filter((n) => n.priority === NotificationPriority.Urgent).length,
+        high: unreadNotifications.filter((n) => n.priority === NotificationPriority.High).length,
+        recent: unreadNotifications.filter((n) => new Date(n.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000).length,
       },
-      percentage: stats.total > 0 ? Math.round((count / stats.total) * 100) : 0,
-      checkedAt: new Date().toISOString()
-    }
+      percentage: stats.total > 0 ? Math.round((unreadResult.total / stats.total) * 100) : 0,
+      latest: latestNotifications,
+      since: since ? since.toISOString() : null,
+      checkedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Mark all notifications as read
- * PUT /api/notifications/read-all
- * 
- * @requires authentication (business or manufacturer)
- * @returns { markedCount, stats }
- */
 export const markAllAsRead = asyncHandler(async (
   req: UnifiedAuthRequest | UnifiedAuthRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
 
-  // Mark all notifications as read through service
-  const result = await notificationService.markAllAsRead(
-    userContext.businessId,
-    userContext.manufacturerId
-  );
+  const result = await inboxService.markAllAsRead(recipient);
+  const stats = await analyticsService.getStats(recipient);
 
-  // Get updated stats
-  const updatedStats = await notificationService.getNotificationStats(
-    userContext.businessId,
-    userContext.manufacturerId
-  );
-
-  // Return standardized response
   res.json({
     success: true,
     message: `${result.modified} notifications marked as read`,
     data: {
       markedCount: result.modified,
-      remainingUnread: updatedStats.unread,
-      totalNotifications: updatedStats.total,
-      updatedAt: new Date().toISOString()
-    }
+      remainingUnread: stats.unread,
+      totalNotifications: stats.total,
+      updatedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Get notifications by type
- * GET /api/notifications/type/:type
- * 
- * @requires authentication (business or manufacturer)
- * @requires params: { type: string }
- * @returns { notifications[], typeStats, insights }
- */
 export const getNotificationsByType = asyncHandler(async (
   req: (UnifiedAuthRequest | UnifiedAuthRequest) & { params: { type: string } },
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
   const { type } = req.params;
 
-  if (!type || type.trim().length === 0) {
-    throw createAppError('Notification type is required', 400, 'MISSING_TYPE');
-  }
+  const notifications = await inboxService.getNotificationsByType(type, recipient, 50);
+  const stats = await analyticsService.getStats(recipient);
 
-  // Get notifications by type and overall stats
-  const [notifications, allStats] = await Promise.all([
-    notificationService.getNotificationsByType(
-      type,
-      userContext.businessId,
-      userContext.manufacturerId,
-      50 // Increased limit for type-specific queries
-    ),
-    notificationService.getNotificationStats(
-      userContext.businessId,
-      userContext.manufacturerId
-    )
-  ]);
-
-  const typeCount = allStats.byType[type] || 0;
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  // Return comprehensive type-specific data
   res.json({
     success: true,
-    message: `Notifications of type '${type}' retrieved successfully`,
+    message: 'Notifications retrieved by type successfully',
     data: {
       type,
-      notifications,
-      stats: {
-        total: notifications.length,
-        unread: unreadCount,
-        read: notifications.length - unreadCount,
-        percentageOfAll: allStats.total > 0 ? Math.round((typeCount / allStats.total) * 100) : 0
-      },
+      notifications: notifications.map(decorateNotification),
+      stats,
       insights: {
-        mostRecentAt: notifications.length > 0 ? notifications[0].createdAt : null,
-        averagePerWeek: Math.round(typeCount / 4), // Rough estimate
-        needsAttention: unreadCount > 5
+        total: notifications.length,
+        unread: notifications.filter((n) => !n.read).length,
+        lastReceivedAt: notifications[0]?.createdAt ? new Date(notifications[0].createdAt).toISOString() : null,
       },
-      retrievedAt: new Date().toISOString()
-    }
+    },
   });
 });
 
-/**
- * Delete a notification
- * DELETE /api/notifications/:id
- * 
- * @requires authentication (business or manufacturer)
- * @requires params: { id: string }
- * @returns { deleted, notificationId }
- */
 export const deleteNotification = asyncHandler(async (
   req: NotificationActionRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
-  // Extract notification ID from validated params
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
   const { id } = req.validatedParams;
 
-  // Delete notification through service
-  await notificationService.deleteNotification(
-    id,
-    userContext.businessId,
-    userContext.manufacturerId
-  );
+  await inboxService.deleteNotification(id, recipient);
+  const stats = await analyticsService.getStats(recipient);
 
-  // Return standardized response
   res.json({
     success: true,
     message: 'Notification deleted successfully',
     data: {
-      deleted: true,
       notificationId: id,
-      deletedAt: new Date().toISOString()
-    }
+      deletedAt: new Date().toISOString(),
+      stats,
+    },
   });
 });
 
-/**
- * Perform bulk actions on notifications
- * POST /api/notifications/bulk
- * 
- * @requires authentication (business or manufacturer)
- * @requires validation: { notificationIds: string[], action: string }
- * @returns { processed, results, stats }
- */
 export const bulkNotificationAction = asyncHandler(async (
   req: BulkActionRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
-  // Extract validated bulk action data
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
   const { notificationIds, action } = req.validatedBody;
 
-  if (!notificationIds || notificationIds.length === 0) {
+  if (!notificationIds?.length) {
     throw createAppError('At least one notification ID is required', 400, 'MISSING_NOTIFICATION_IDS');
   }
 
@@ -564,131 +438,67 @@ export const bulkNotificationAction = asyncHandler(async (
     throw createAppError('Maximum 100 notifications can be processed at once', 400, 'TOO_MANY_NOTIFICATIONS');
   }
 
-  const validActions = ['read', 'unread', 'delete', 'archive'];
-  if (!validActions.includes(action)) {
-    throw createAppError(`Invalid action. Valid actions: ${validActions.join(', ')}`, 400, 'INVALID_ACTION');
+  const validActions: Record<typeof action, true> = { read: true, unread: true, delete: true, archive: true } as const;
+  if (!validActions[action]) {
+    throw createAppError('Invalid bulk action supplied', 400, 'INVALID_ACTION');
   }
 
-  const results = [];
-  let successCount = 0;
-  let errorCount = 0;
+  const results: Array<{ id: string; status: 'success' | 'error'; action: typeof action; error?: string }> = [];
 
-  // Process bulk actions using service methods
-  for (const notificationId of notificationIds) {
+  for (const id of notificationIds) {
     try {
       switch (action) {
         case 'read':
-          await notificationService.markAsRead(
-            notificationId,
-            userContext.businessId,
-            userContext.manufacturerId
-          );
+          await inboxService.markAsRead(id, recipient);
           break;
-        
         case 'delete':
-          await notificationService.deleteNotification(
-            notificationId,
-            userContext.businessId,
-            userContext.manufacturerId
-          );
+          await inboxService.deleteNotification(id, recipient);
           break;
-        
         case 'unread':
-          // Implement unread functionality if needed
-          throw new Error('Unread action not yet implemented');
-        
         case 'archive':
-          // Implement archive functionality if needed
-          throw new Error('Archive action not yet implemented');
-        
-        default:
-          throw new Error(`Unsupported action: ${action}`);
+          throw new Error(`${action} action not yet implemented`);
       }
-      
-      results.push({
-        id: notificationId,
-        status: 'success',
-        action
-      });
-      successCount++;
+
+      results.push({ id, status: 'success', action });
     } catch (error: any) {
       results.push({
-        id: notificationId,
+        id,
         status: 'error',
-        error: error.message || 'Unknown error'
+        action,
+        error: error?.message ?? 'Unexpected error',
       });
-      errorCount++;
     }
   }
 
-  // Get updated stats after bulk operation
-  const updatedStats = await notificationService.getNotificationStats(
-    userContext.businessId,
-    userContext.manufacturerId
-  );
+  const stats = await analyticsService.getStats(recipient);
 
-  // Return comprehensive response
   res.json({
     success: true,
-    message: `Bulk ${action} completed: ${successCount} successful, ${errorCount} failed`,
+    message: 'Bulk notification action processed',
     data: {
-      action,
       processed: notificationIds.length,
-      successful: successCount,
-      failed: errorCount,
       results,
-      updatedStats: {
-        total: updatedStats.total,
-        unread: updatedStats.unread,
-        read: updatedStats.total - updatedStats.unread
-      },
-      processedAt: new Date().toISOString()
-    }
+      stats,
+      completedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Bulk delete notifications using service method
- * DELETE /api/notifications/bulk
- * 
- * @requires authentication (business or manufacturer)
- * @requires validation: { notificationIds: string[] }
- * @returns { deleted, summary }
- */
 export const bulkDeleteNotifications = asyncHandler(async (
-  req: (UnifiedAuthRequest | UnifiedAuthRequest) & {
-    validatedBody: { notificationIds: string[] }
-  },
+  req: BulkActionRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
   const { notificationIds } = req.validatedBody;
 
-  if (!notificationIds || notificationIds.length === 0) {
+  if (!notificationIds?.length) {
     throw createAppError('At least one notification ID is required', 400, 'MISSING_NOTIFICATION_IDS');
   }
 
-  if (notificationIds.length > 100) {
-    throw createAppError('Maximum 100 notifications can be deleted at once', 400, 'TOO_MANY_NOTIFICATIONS');
-  }
+  const result = await inboxService.bulkDeleteNotifications(notificationIds, recipient);
+  const stats = await analyticsService.getStats(recipient);
 
-  // Use service bulk delete method
-  const result = await notificationService.bulkDeleteNotifications(
-    notificationIds,
-    userContext.businessId,
-    userContext.manufacturerId
-  );
-
-  // Get updated stats
-  const updatedStats = await notificationService.getNotificationStats(
-    userContext.businessId,
-    userContext.manufacturerId
-  );
-
-  // Return standardized response
   res.json({
     success: true,
     message: `${result.deleted} notifications deleted successfully`,
@@ -696,31 +506,19 @@ export const bulkDeleteNotifications = asyncHandler(async (
       deleted: result.deleted,
       requested: notificationIds.length,
       notFound: notificationIds.length - result.deleted,
-      updatedStats: {
-        total: updatedStats.total,
-        unread: updatedStats.unread
-      },
-      deletedAt: new Date().toISOString()
-    }
+      stats,
+      deletedAt: new Date().toISOString(),
+    },
   });
 });
 
-/**
- * Create a new notification (admin/system use)
- * POST /api/notifications
- * 
- * @requires authentication (business or manufacturer)
- * @requires validation: notification data
- * @returns { notification, created }
- */
 export const createNotification = asyncHandler(async (
   req: CreateNotificationRequest,
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  // Get user context
-  const userContext = getUserContext(req);
-  
+  const context = getUserContext(req);
+  const defaultRecipient = toRecipient(context);
+
   const {
     recipientId,
     recipientType,
@@ -728,73 +526,86 @@ export const createNotification = asyncHandler(async (
     category,
     title,
     message,
-    priority,
+    priority = NotificationPriority.Medium,
     actionUrl,
     expiresAt,
-    data
+    data,
   } = req.validatedBody;
 
-  // Determine recipient
-  const targetBusinessId = recipientType === 'business' 
-    ? (recipientId || userContext.businessId) 
-    : undefined;
-  const targetManufacturerId = recipientType === 'manufacturer' 
-    ? (recipientId || userContext.manufacturerId) 
-    : undefined;
+  const recipient: NotificationRecipient = {
+    businessId: recipientType === 'business' ? recipientId ?? defaultRecipient.businessId : defaultRecipient.businessId,
+    manufacturerId: recipientType === 'manufacturer' ? recipientId ?? defaultRecipient.manufacturerId : defaultRecipient.manufacturerId,
+  };
 
-  // Create notification through service
-  const notification = await notificationService.createNotification({
-    businessId: targetBusinessId,
-    manufacturerId: targetManufacturerId,
+  const eventType = resolveEventType(type);
+
+  if (eventType) {
+    const event: NotificationEvent = {
+      type: eventType,
+      recipient,
+      payload: data ?? {},
+      metadata: {
+        category: (category as NotificationCategory) ?? NotificationCategory.System,
+        priority,
+        title,
+        message,
+        actionUrl,
+      },
+    };
+
+    await eventHandlerService.handle(event);
+
+    const { notifications } = await inboxService.listNotifications(recipient, { limit: 1 });
+    const latest = notifications[0] ? decorateNotification(notifications[0]) : null;
+
+    res.status(202).json({
+      success: true,
+      message: 'Notification event processed',
+      data: {
+        notification: latest,
+        processedAt: new Date().toISOString(),
+      },
+    });
+    return;
+  }
+
+  const created = await notificationDataService.createNotification({
+    businessId: recipient.businessId,
+    manufacturerId: recipient.manufacturerId,
     type,
     message,
-    data: {
-      category,
-      title,
-      priority: priority || 'medium',
-      actionUrl,
-      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-      ...data
-    }
+    category: (category as NotificationCategory) ?? NotificationCategory.System,
+    priority,
+    title,
+    actionUrl,
+    data,
+    templateData: data,
   });
 
-  // Return standardized response
+  const summary = await inboxService.getNotificationById(created._id.toString(), recipient);
+
   res.status(201).json({
     success: true,
     message: 'Notification created successfully',
     data: {
-      notification,
-      createdAt: new Date().toISOString()
-    }
+      notification: decorateNotification(summary),
+      createdAt: new Date().toISOString(),
+    },
   });
 });
 
-
-/**
- * Clean up old notifications (maintenance endpoint)
- * DELETE /api/notifications/cleanup
- * 
- * @requires authentication
- * @optional query: { daysToKeep?: number }
- * @returns { cleaned, summary }
- */
 export const cleanupOldNotifications = asyncHandler(async (
-  req: (UnifiedAuthRequest | UnifiedAuthRequest) & { 
-    query: { daysToKeep?: string } 
-  },
+  req: (UnifiedAuthRequest | UnifiedAuthRequest) & { query: { daysToKeep?: string } },
   res: Response,
-  next: NextFunction
 ): Promise<void> => {
-  const daysToKeep = parseInt(req.query.daysToKeep || '90');
+  const daysToKeep = parseInt(req.query.daysToKeep ?? '90', 10);
 
-  if (daysToKeep < 1 || daysToKeep > 365) {
+  if (Number.isNaN(daysToKeep) || daysToKeep < 1 || daysToKeep > 365) {
     throw createAppError('Days to keep must be between 1 and 365', 400, 'INVALID_DAYS_TO_KEEP');
   }
 
-  // Use service cleanup method
-  const result = await notificationService.cleanupOldNotifications(daysToKeep);
+  const result = await maintenanceService.cleanupOldNotifications(daysToKeep);
 
-  // Return cleanup summary
   res.json({
     success: true,
     message: `${result.deleted} old notifications cleaned up`,
@@ -802,8 +613,79 @@ export const cleanupOldNotifications = asyncHandler(async (
       deleted: result.deleted,
       daysToKeep,
       cutoffDate: new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000).toISOString(),
-      cleanedAt: new Date().toISOString()
-    }
+      cleanedAt: new Date().toISOString(),
+    },
   });
 });
+
+// ====================
+// NOTIFICATION PREFERENCES ENDPOINTS
+// ====================
+
+interface BasePreferencesRequest {
+  validatedBody: {
+    channel?: {
+      email?: boolean;
+      inApp?: boolean;
+      webhook?: boolean;
+    };
+    categories?: Record<NotificationCategory, {
+      email?: boolean;
+      inApp?: boolean;
+      webhook?: boolean;
+    }>;
+    frequency?: 'immediate' | 'daily' | 'weekly';
+    timezone?: string;
+  };
+}
+
+type UpdatePreferencesRequest = (UnifiedAuthRequest | UnifiedAuthRequest) & ValidatedRequest & BasePreferencesRequest;
+
+export const getNotificationPreferences = asyncHandler(async (
+  req: UnifiedAuthRequest | UnifiedAuthRequest,
+  res: Response,
+): Promise<void> => {
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
+
+  const preferences = await preferencesService.resolve(recipient);
+
+  res.json({
+    success: true,
+    message: 'Notification preferences retrieved successfully',
+    data: {
+      preferences,
+      retrievedAt: new Date().toISOString(),
+    },
+  });
+});
+
+export const updateNotificationPreferences = asyncHandler(async (
+  req: UpdatePreferencesRequest,
+  res: Response,
+): Promise<void> => {
+  const context = getUserContext(req);
+  const recipient = toRecipient(context);
+  const { channel, categories, frequency, timezone } = req.validatedBody;
+
+  const currentPreferences = await preferencesService.resolve(recipient);
+  const updatedPreferences = {
+    channel: { ...currentPreferences.channel, ...channel },
+    categories: { ...categories },
+    frequency: frequency || currentPreferences.frequency,
+    timezone: timezone || currentPreferences.timezone,
+  };
+
+  await preferencesService.update(recipient, updatedPreferences);
+
+  res.json({
+    success: true,
+    message: 'Notification preferences updated successfully',
+    data: {
+      preferences: updatedPreferences,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+});
+
 

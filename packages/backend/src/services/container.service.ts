@@ -6,7 +6,29 @@ import { ProductService } from './business/product.service';
 import { ApiKeyService } from './business/apiKey.service';
 import { AnalyticsService } from './business/analytics.service';
 import { VotingService } from './business/votes.service';
-import { CertificateService } from './business/certificate.service';
+// New modular certificates services
+import { 
+  // Core Services
+  certificateDataService,
+  certificateAccountService,
+  
+  // Feature Services
+  mintingService,
+  transferService,
+  batchService,
+  deliveryService,
+  certificateAnalyticsService,
+  
+  // Utility Services
+  certificateHelpersService,
+  metadataGeneratorService,
+  imageGeneratorService,
+  
+  // Validation Services
+  certificateValidationService,
+  planValidationService as certificatePlanValidationService,
+  recipientValidationService
+} from './certificates';
 import { MediaService } from './business/media.service';
 import { BillingService } from './external/billing.service';
 import { ShopifyService } from './external/shopify.service';
@@ -17,11 +39,18 @@ import { StripeService } from './external/stripe.service';
 import { TokenDiscountService } from './external/tokenDiscount.service';
 import { NftService } from './blockchain/nft.service';
 import { DomainMappingService } from './external/domainMapping.service';
-import { NotificationService } from './business/notification.service';
+import { NotificationsServices as notificationsModule } from './notifications';
 import { PendingVoteService } from './business/pendingVote.service';
-import { InvitationService } from './business/invitation.service';
-import { EmailGatingService } from './business/emailGating.service';
-import { SubscriptionService } from './business/subscription.service';
+import { InvitationsService, invitationsService } from './connections';
+import {
+  subscriptionServices,
+  SubscriptionDataService,
+  SubscriptionLifecycleService,
+  SubscriptionUsageLimitsService,
+  SubscriptionAnalyticsService,
+  SubscriptionTierManagementService,
+  SubscriptionPlanValidationService
+} from './subscriptions';
 import { SupplyChainService } from './blockchain/supplyChain.service';
 import { QrCodeService } from './external/qrCode.service';
 import { SecurityAuditService } from './security/securityAudit.service';
@@ -42,7 +71,9 @@ import {
   BrandValidationService,
   BrandHelpersService,
   CompletenessCalculatorService,
-  RecommendationEngineService
+  RecommendationEngineService,
+  CustomerAccessService,
+  customerAccessService
 } from './brands';
 
 // New modular manufacturers services
@@ -117,6 +148,9 @@ export class ServiceContainer {
     this.services.set('brandHelpersService', new BrandHelpersService());
     this.services.set('completenessCalculatorService', new CompletenessCalculatorService());
     this.services.set('recommendationEngineService', new RecommendationEngineService());
+    
+    // Brand Feature Services
+    this.services.set('customerAccessService', customerAccessService);
 
     // New Modular Manufacturers Services
     this.services.set('manufacturerDataCoreService', manufacturerDataCoreService);
@@ -143,14 +177,43 @@ export class ServiceContainer {
     this.services.set('apiKeyService', new ApiKeyService());
     this.services.set('analyticsService', new AnalyticsService());
     this.services.set('votingService', new VotingService());
-    this.services.set('certificateService', new CertificateService());
+    
+    // New Modular Certificates Services
+    this.services.set('certificateDataService', certificateDataService);
+    this.services.set('certificateAccountService', certificateAccountService);
+    
+    // Certificates Feature Services
+    this.services.set('certificateMintingService', mintingService);
+    this.services.set('certificateTransferService', transferService);
+    this.services.set('certificateBatchService', batchService);
+    this.services.set('certificateDeliveryService', deliveryService);
+    this.services.set('certificateAnalyticsService', certificateAnalyticsService);
+    
+    // Certificates Utility Services
+    this.services.set('certificateHelpersService', certificateHelpersService);
+    this.services.set('certificateMetadataService', metadataGeneratorService);
+    this.services.set('certificateImageService', imageGeneratorService);
+    
+    // Certificates Validation Services
+    this.services.set('certificateValidationService', certificateValidationService);
+    this.services.set('certificatePlanValidationService', certificatePlanValidationService);
+    this.services.set('certificateRecipientValidationService', recipientValidationService);
+    
     this.services.set('mediaService', new MediaService());
     this.services.set('brandAccountService', new BrandAccountService());
     this.services.set('pendingVoteService', new PendingVoteService());
-    this.services.set('notificationService', new NotificationService());
-    this.services.set('invitationService', new InvitationService());
-    this.services.set('emailGatingService', new EmailGatingService());
-    this.services.set('subscriptionService', new SubscriptionService());
+    this.services.set('notificationsServices', notificationsModule);
+    this.services.set('invitationService', invitationsService);
+    
+    // New subscriptions services
+    this.services.set('subscriptionServices', subscriptionServices);
+    this.services.set('subscriptionDataService', subscriptionServices.data);
+    this.services.set('subscriptionLifecycleService', subscriptionServices.lifecycle);
+    this.services.set('subscriptionUsageLimitsService', subscriptionServices.usageLimits);
+    this.services.set('subscriptionAnalyticsService', subscriptionServices.analytics);
+    this.services.set('subscriptionTierManagementService', subscriptionServices.tierManagement);
+    this.services.set('subscriptionPlanValidationService', subscriptionServices.validation);
+    
     this.services.set('usageTrackingService', new UsageTrackingService());
 
     // External/Platform Services
@@ -220,7 +283,6 @@ export const getProductService = () => getContainer().get<ProductService>('produ
 export const getApiKeyService = () => getContainer().get<ApiKeyService>('apiKeyService');
 export const getAnalyticsService = () => getContainer().get<AnalyticsService>('analyticsService');
 export const getVotingService = () => getContainer().get<VotingService>('votingService');
-export const getCertificateService = () => getContainer().get<CertificateService>('certificateService');
 export const getMediaService = () => getContainer().get<MediaService>('mediaService');
 export const getBrandAccountService = () => getContainer().get<BrandAccountService>('brandAccountService');
 export const getPendingVoteService = () => getContainer().get<PendingVoteService>('pendingVoteService');
@@ -229,14 +291,22 @@ export const getShopifyService = () => getContainer().get<ShopifyService>('shopi
 export const getWixService = () => getContainer().get<WixService>('wixService');
 export const getWooCommerceService = () => getContainer().get<WooCommerceService>('wooCommerceService');
 export const getNotificationsService = () => getContainer().get<NotificationsService>('notificationsService');
-export const getNotificationService = () => getContainer().get<NotificationService>('notificationService');
+export const getNotificationsServices = () => getContainer().get<typeof notificationsModule>('notificationsServices');
 export const getStripeService = () => getContainer().get<StripeService>('stripeService');
 export const getTokenDiscountService = () => getContainer().get<TokenDiscountService>('tokenDiscountService');
 export const getNftService = () => getContainer().get<NftService>('nftService');
 export const getDomainMappingService = () => getContainer().get<DomainMappingService>('domainMappingService');
-export const getInvitationService = () => getContainer().get<InvitationService>('invitationService');
-export const getEmailGatingService = () => getContainer().get<EmailGatingService>('emailGatingService');
-export const getSubscriptionService = () => getContainer().get<SubscriptionService>('subscriptionService');
+export const getInvitationService = () => getContainer().get<InvitationsService>('invitationService');
+
+// New modular subscriptions services
+export const getSubscriptionServices = () => getContainer().get<typeof subscriptionServices>('subscriptionServices');
+export const getSubscriptionDataService = () => getContainer().get<SubscriptionDataService>('subscriptionDataService');
+export const getSubscriptionLifecycleService = () => getContainer().get<SubscriptionLifecycleService>('subscriptionLifecycleService');
+export const getSubscriptionUsageLimitsService = () => getContainer().get<SubscriptionUsageLimitsService>('subscriptionUsageLimitsService');
+export const getSubscriptionAnalyticsService = () => getContainer().get<SubscriptionAnalyticsService>('subscriptionAnalyticsService');
+export const getSubscriptionTierManagementService = () => getContainer().get<SubscriptionTierManagementService>('subscriptionTierManagementService');
+export const getSubscriptionPlanValidationService = () => getContainer().get<SubscriptionPlanValidationService>('subscriptionPlanValidationService');
+
 export const getUsageTrackingService = () => getContainer().get<UsageTrackingService>('usageTrackingService');
 export const getSupplyChainService = () => getContainer().get<SupplyChainService>('supplyChainService');
 export const getQrCodeService = () => getContainer().get<QrCodeService>('qrCodeService');
@@ -258,6 +328,9 @@ export const getBrandHelpersService = () => getContainer().get<BrandHelpersServi
 export const getCompletenessCalculatorService = () => getContainer().get<CompletenessCalculatorService>('completenessCalculatorService');
 export const getRecommendationEngineService = () => getContainer().get<RecommendationEngineService>('recommendationEngineService');
 
+// Brand Feature Services
+export const getCustomerAccessService = () => getContainer().get<typeof customerAccessService>('customerAccessService');
+
 // New Modular Manufacturers Services
 export const getManufacturerDataCoreService = () => getContainer().get<typeof manufacturerDataCoreService>('manufacturerDataCoreService');
 export const getManufacturerAccountCoreService = () => getContainer().get<typeof manufacturerAccountCoreService>('manufacturerAccountCoreService');
@@ -273,6 +346,21 @@ export const getManufacturerComparisonEngineService = () => getContainer().get<t
 export const getManufacturerFileValidationService = () => getContainer().get<typeof fileValidationService>('manufacturerFileValidationService');
 export const getManufacturerValidationService = () => getContainer().get<typeof manufacturerValidationService>('manufacturerValidationService');
 export const getManufacturerPlanValidationService = () => getContainer().get<typeof planValidationService>('manufacturerPlanValidationService');
+
+// New Modular Certificates Services
+export const getCertificateDataService = () => getContainer().get<typeof certificateDataService>('certificateDataService');
+export const getCertificateAccountService = () => getContainer().get<typeof certificateAccountService>('certificateAccountService');
+export const getCertificateMintingService = () => getContainer().get<typeof mintingService>('certificateMintingService');
+export const getCertificateTransferService = () => getContainer().get<typeof transferService>('certificateTransferService');
+export const getCertificateBatchService = () => getContainer().get<typeof batchService>('certificateBatchService');
+export const getCertificateDeliveryService = () => getContainer().get<typeof deliveryService>('certificateDeliveryService');
+export const getCertificateAnalyticsService = () => getContainer().get<typeof certificateAnalyticsService>('certificateAnalyticsService');
+export const getCertificateHelpersService = () => getContainer().get<typeof certificateHelpersService>('certificateHelpersService');
+export const getCertificateMetadataService = () => getContainer().get<typeof metadataGeneratorService>('certificateMetadataService');
+export const getCertificateImageService = () => getContainer().get<typeof imageGeneratorService>('certificateImageService');
+export const getCertificateValidationService = () => getContainer().get<typeof certificateValidationService>('certificateValidationService');
+export const getCertificatePlanValidationService = () => getContainer().get<typeof certificatePlanValidationService>('certificatePlanValidationService');
+export const getCertificateRecipientValidationService = () => getContainer().get<typeof recipientValidationService>('certificateRecipientValidationService');
 
 /**
  * Helper function to get multiple services at once
@@ -315,12 +403,27 @@ export const getServices = () => ({
   manufacturerValidation: getManufacturerValidationService(),
   manufacturerPlanValidation: getManufacturerPlanValidationService(),
 
+  // New Modular Certificates Services
+  certificateData: getCertificateDataService(),
+  certificateAccount: getCertificateAccountService(),
+  certificateMinting: getCertificateMintingService(),
+  certificateTransfer: getCertificateTransferService(),
+  certificateBatch: getCertificateBatchService(),
+  certificateDelivery: getCertificateDeliveryService(),
+  certificateAnalytics: getCertificateAnalyticsService(),
+  certificateHelpers: getCertificateHelpersService(),
+  certificateMetadata: getCertificateMetadataService(),
+  certificateImage: getCertificateImageService(),
+  certificateValidation: getCertificateValidationService(),
+  certificatePlanValidation: getCertificatePlanValidationService(),
+  certificateRecipientValidation: getCertificateRecipientValidationService(),
+
   // Legacy Services (to be migrated)
   // brandSettingsLegacy: getBrandSettingsService(), // Commented out - using modular version
   apiKey: getApiKeyService(),
   analytics: getAnalyticsService(),
   voting: getVotingService(),
-  certificate: getCertificateService(),
+  // certificate: getCertificateService(), // Commented out - using modular version
   media: getMediaService(),
   // manufacturer: getManufacturerService(), // Commented out - using modular version
   brandAccountLegacy: getBrandAccountService(),
@@ -328,7 +431,7 @@ export const getServices = () => ({
   shopify: getShopifyService(),
   wix: getWixService(),
   wooCommerce: getWooCommerceService(),
-  notifications: getNotificationsService(),
+  notifications: getNotificationsServices(),
   stripe: getStripeService(),
   tokenDiscount: getTokenDiscountService(),
   nft: getNftService(),
@@ -354,6 +457,7 @@ export const getBrandsServices = () => ({
   brandValidation: getBrandValidationService(),
   helpers: getBrandHelpersService(),
   completeness: getCompletenessCalculatorService(),
+  customerAccess: getCustomerAccessService(),
 });
 
 /**
@@ -382,3 +486,30 @@ export const getManufacturersServices = () => ({
   validation: getManufacturerValidationService(),
   planValidation: getManufacturerPlanValidationService()
 });
+
+/**
+ * Helper function to get certificates services specifically
+ */
+export const getCertificatesServices = () => ({
+  // Core Services
+  data: getCertificateDataService(),
+  account: getCertificateAccountService(),
+  
+  // Feature Services
+  minting: getCertificateMintingService(),
+  transfer: getCertificateTransferService(),
+  batch: getCertificateBatchService(),
+  delivery: getCertificateDeliveryService(),
+  analytics: getCertificateAnalyticsService(),
+  
+  // Utility Services
+  helpers: getCertificateHelpersService(),
+  metadata: getCertificateMetadataService(),
+  images: getCertificateImageService(),
+  
+  // Validation Services
+  certificate: getCertificateValidationService(),
+  plan: getCertificatePlanValidationService(),
+  recipient: getCertificateRecipientValidationService()
+});
+

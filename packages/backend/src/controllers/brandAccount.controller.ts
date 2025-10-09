@@ -6,6 +6,8 @@ import { TenantRequest } from '../middleware/tenant.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { getServices } from '../services/container.service';
+import { BrandServices } from '../services/brands';
+import { getNotificationsServices } from '../services/notifications';
 import { clearTenantCache } from '../middleware/tenant.middleware';
 
 // Enhanced request interfaces
@@ -66,12 +68,10 @@ export async function getBrandProfile(
     const businessId = req.userId!;
     const userPlan = req.tenant?.plan || 'foundation';
 
-    // Get comprehensive brand profile
-    const { brandAccount: brandAccountService } = getServices();
-    const profile = await brandAccountService.getComprehensiveBrandAccount(businessId);
-    
-    // Get additional metadata based on plan
-    const metadata = await brandAccountService.buildProfileMetadata(businessId, userPlan);
+    // Get comprehensive brand profile using new modular brands services
+    const profile = await BrandServices.account.getComprehensiveBrandAccount(businessId);
+  
+    const metadata = await BrandServices.account.buildProfileMetadata(businessId, userPlan);
 
     // Track profile view
     trackManufacturerAction('view_brand_profile');
@@ -79,17 +79,17 @@ export async function getBrandProfile(
     res.json({
       profile: {
         ...profile,
-        profileCompleteness: brandAccountService.calculateProfileCompleteness(profile),
+        profileCompleteness: BrandServices.account.calculateProfileCompleteness(profile),
         lastUpdated: profile.updatedAt,
-        accountAge: brandAccountService.calculateAccountAge(profile.createdAt)
+        accountAge: BrandServices.account.calculateAccountAge(profile.createdAt)
       },
       metadata,
       planInfo: {
         currentPlan: userPlan,
-        features: brandAccountService.getPlanFeatures(userPlan),
-        limitations: brandAccountService.getPlanLimitations(userPlan)
+        features: BrandServices.account.getPlanFeatures(userPlan),
+        limitations: BrandServices.account.getPlanLimitations(userPlan)
       },
-      recommendations: brandAccountService.generateProfileRecommendations(profile, userPlan)
+      recommendations: BrandServices.account.generateProfileRecommendations(profile, userPlan)
     });
   } catch (error) {
     logger.error('Get brand profile error:', error);
@@ -148,9 +148,8 @@ export async function uploadProfilePicture(
       return;
     }
 
-    // Upload and update profile picture through service
-    const { brandAccount: brandAccountService } = getServices();
-    const result = await brandAccountService.uploadProfilePicture(businessId, req.file);
+    // Upload and update profile picture through new modular brands service
+    const result = await BrandServices.account.uploadProfilePicture(businessId, req.file);
 
     // Track profile picture upload
     trackManufacturerAction('upload_brand_profile_picture');
@@ -198,11 +197,8 @@ export async function updateBrandProfile(
     const updateData = req.validatedBody;
     const userPlan = req.tenant?.plan || 'foundation';
 
-    // Get service instance
-    const { brandAccount: brandAccountService } = getServices();
-
-    // Validate plan permissions for certain fields
-    const restrictedFields = brandAccountService.validatePlanPermissions(updateData, userPlan);
+    // Get service instance using new modular brands services
+    const restrictedFields = BrandServices.account.validatePlanPermissions(updateData, userPlan);
     if (restrictedFields.length > 0) {
        res.status(403).json({
         error: 'Some fields require a higher plan',
@@ -215,20 +211,20 @@ export async function updateBrandProfile(
     }
 
     // Get current profile for comparison
-    const currentProfile = await brandAccountService.getBrandAccount(businessId);
+    const currentProfile = await BrandServices.account.getBrandAccount(businessId);
     
     // Process wallet address change if present
     if (updateData.walletAddress && updateData.walletAddress !== currentProfile.walletAddress) {
-      await brandAccountService.handleWalletAddressChange(businessId, updateData.walletAddress, currentProfile.walletAddress);
+      await BrandServices.account.handleWalletAddressChange(businessId, updateData.walletAddress, currentProfile.walletAddress);
     }
 
     // Update profile with enhanced tracking
-    const updatedProfile = await brandAccountService.updateBrandAccount(businessId, {
+    const updatedProfile = await BrandServices.account.updateBrandAccount(businessId, {
       ...updateData,
       lastUpdatedBy: businessId,
       lastUpdateSource: 'profile_page',
       updateMetadata: {
-        fieldsChanged: brandAccountService.getChangedFields(currentProfile, updateData),
+        fieldsChanged: BrandServices.account.getChangedFields(currentProfile, updateData),
         updateReason: 'manual_update',
         ipAddress: req.ip,
         userAgent: req.headers['user-agent']
@@ -249,11 +245,11 @@ export async function updateBrandProfile(
     trackManufacturerAction('update_brand_profile');
 
     // Send notifications for significant changes
-    await brandAccountService.handleSignificantProfileChanges(businessId, currentProfile, updateData);
+    await BrandServices.account.handleSignificantProfileChanges(businessId, currentProfile, updateData);
 
     // Calculate new profile completeness
-    const newCompleteness = brandAccountService.calculateProfileCompleteness(updatedProfile);
-    const completenessImproved = newCompleteness > brandAccountService.calculateProfileCompleteness(currentProfile);
+    const newCompleteness = BrandServices.account.calculateProfileCompleteness(updatedProfile);
+    const completenessImproved = newCompleteness > BrandServices.account.calculateProfileCompleteness(currentProfile);
 
     res.json({
       success: true,
@@ -265,12 +261,12 @@ export async function updateBrandProfile(
         fieldsUpdated: Object.keys(updateData),
         completenessImproved,
         newCompleteness,
-        significantChanges: brandAccountService.getSignificantChanges(currentProfile, updateData)
+        significantChanges: BrandServices.account.getSignificantChanges(currentProfile, updateData)
       },
       message: 'Brand profile updated successfully',
       recommendations: completenessImproved ? 
-        brandAccountService.generateImprovementRecommendations(updatedProfile) : 
-        brandAccountService.generateProfileRecommendations(updatedProfile, userPlan)
+        BrandServices.account.generateImprovementRecommendations(updatedProfile) : 
+        BrandServices.account.generateProfileRecommendations(updatedProfile, userPlan)
     });
   } catch (error) {
     logger.error('Update brand profile error:', error);
@@ -297,8 +293,7 @@ export async function submitVerification(
     const userPlan = req.tenant?.plan || 'foundation';
 
     // Check if verification is already in progress
-    const { brandAccount: brandAccountService } = getServices();
-    const currentStatus = await brandAccountService.getVerificationStatus(businessId);
+    const currentStatus = await BrandServices.account.getVerificationStatus(businessId);
     if (currentStatus.status === 'pending') {
        res.status(400).json({
         error: 'Verification already in progress',
@@ -309,7 +304,7 @@ export async function submitVerification(
     }
 
     // Validate required documents based on plan
-    const requiredDocs = brandAccountService.getRequiredVerificationDocs(userPlan);
+    const requiredDocs = BrandServices.account.getRequiredVerificationDocs(userPlan);
     const missingDocs = requiredDocs.filter(doc => !verificationData[doc]);
     
     if (missingDocs.length > 0) {
@@ -323,7 +318,7 @@ export async function submitVerification(
     }
 
     // Submit verification with enhanced tracking
-    const verification = await brandAccountService.submitVerification(businessId, {
+    const verification = await BrandServices.account.submitVerification(businessId, {
       ...verificationData,
       submittedAt: new Date(),
       submissionSource: 'brand_account',
@@ -340,12 +335,26 @@ export async function submitVerification(
     // Track verification submission
     trackManufacturerAction('submit_brand_verification');
 
-    // Send confirmation email
-    const { notifications: notificationsService } = getServices();
-    await notificationsService.sendVerificationSubmissionConfirmation(businessId, verification);
+    // Send confirmation email using new modular notifications system
+    const notificationsServices = getNotificationsServices();
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.verification_submitted' as any,
+      recipient: { businessId },
+      payload: {
+        verificationId: verification.id,
+        submittedAt: verification.submittedAt,
+        businessId
+      }
+    }).catch(error =>
+      logger.warn('Failed to send verification submission confirmation', {
+        businessId,
+        verificationId: verification.id,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     // Log verification submission for admin review
-    logger.info('Brand verification submitted: ${businessId} - ${verification.id}');
+    logger.info(`Brand verification submitted: ${businessId} - ${verification.id}`);
 
     res.status(201).json({
       success: true,
@@ -381,11 +390,10 @@ export async function getVerificationStatus(
     const businessId = req.userId!;
 
     // Get comprehensive verification status
-    const { brandAccount: brandAccountService } = getServices();
-    const status = await brandAccountService.getDetailedVerificationStatus(businessId);
+    const status = await BrandServices.account.getDetailedVerificationStatus(businessId);
     
     // Get verification history
-    const history = await brandAccountService.getVerificationHistory(businessId);
+    const history = await BrandServices.account.getVerificationHistory(businessId);
 
     res.json({
       currentStatus: status,
@@ -417,8 +425,7 @@ export async function deactivateAccount(
     const { reason, feedback, deleteData = false, confirmPassword } = req.validatedBody;
 
     // Verify password for security
-    const { brandAccount: brandAccountService } = getServices();
-    const passwordValid = await brandAccountService.verifyPassword(businessId, confirmPassword);
+    const passwordValid = await BrandServices.account.verifyPassword(businessId, confirmPassword);
     if (!passwordValid) {
        res.status(401).json({
         error: 'Invalid password',
@@ -440,7 +447,7 @@ export async function deactivateAccount(
     }
 
     // Process account deactivation
-    const deactivation = await brandAccountService.deactivateAccount(businessId, {
+    const deactivation = await BrandServices.account.deactivateAccount(businessId, {
       reason,
       feedback,
       deleteData,
@@ -451,12 +458,25 @@ export async function deactivateAccount(
     // Track account deactivation
     trackManufacturerAction('deactivate_brand_account');
 
-    // Send deactivation confirmation
-    const { notifications: notificationsService } = getServices();
-    await notificationsService.sendAccountDeactivationConfirmation(businessId, deactivation);
+    // Send deactivation confirmation using new modular notifications system
+    const notificationsServices = getNotificationsServices();
+    notificationsServices.workflows.eventHandlerService.handle({
+      type: 'account.deletion_confirmed' as any,
+      recipient: { businessId },
+      payload: {
+        reason,
+        deactivatedAt: deactivation.deactivatedAt,
+        businessId
+      }
+    }).catch(error =>
+      logger.warn('Failed to send account deactivation confirmation', {
+        businessId,
+        error: error instanceof Error ? error.message : error,
+      })
+    );
 
     // Log account deactivation
-    logger.info('Brand account deactivated: ${businessId} - Reason: ${reason}');
+    logger.info(`Brand account deactivated: ${businessId} - Reason: ${reason}`);
 
     res.json({
       success: true,
@@ -503,8 +523,7 @@ export async function getAccountAnalytics(
     }
 
     // Get account analytics
-    const { brandAccount: brandAccountService } = getServices();
-    const analytics = await brandAccountService.getAccountAnalytics(businessId, {
+    const analytics = await BrandServices.account.getAccountAnalytics(businessId, {
       timeframe: timeframe as string,
       includeEngagement: true,
       includeConversions: ['premium', 'enterprise'].includes(userPlan),
@@ -512,7 +531,7 @@ export async function getAccountAnalytics(
     });
 
     // Get profile performance metrics
-    const profileMetrics = await brandAccountService.getProfilePerformance(businessId);
+    const profileMetrics = await BrandServices.account.getProfilePerformance(businessId);
 
     res.json({
       timeframe,
@@ -557,8 +576,7 @@ export async function exportAccountData(
     }
 
     // Generate export data
-    const { brandAccount: brandAccountService } = getServices();
-    const exportData = await brandAccountService.exportAccountData(businessId, {
+    const exportData = await BrandServices.account.exportAccountData(businessId, {
       format,
       includeAnalytics: includeAnalytics && ['growth', 'premium', 'enterprise'].includes(userPlan),
       includeHistory: ['premium', 'enterprise'].includes(userPlan),
@@ -586,7 +604,7 @@ export async function exportAccountData(
   }
 }
 
-// Helper functions moved to BrandAccountService
+// Helper functions
 
 function getVerificationBenefits(): string[] {
   return [
@@ -599,9 +617,8 @@ function getVerificationBenefits(): string[] {
 }
 
 function getVerificationRequirements(plan: string): any {
-  const { brandAccount: brandAccountService } = getServices();
   return {
-    requiredDocuments: brandAccountService.getRequiredVerificationDocs(plan),
+    requiredDocuments: BrandServices.account.getRequiredVerificationDocs(plan),
     reviewTime: '3-5 business days',
     criteria: [
       'Valid business registration',

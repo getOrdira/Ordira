@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { trackManufacturerAction } from '../middleware/metrics.middleware';
-import { getServices } from '../services/container.service';
+import { BrandServices } from '../services/brands';
 import { isUnifiedAuthRequest, safeString } from '../utils/typeGuards';
 
 // Enhanced request interfaces
@@ -40,8 +40,7 @@ interface ManufacturerViewRequest extends UnifiedAuthRequest, ValidatedRequest {
   };
 }
 
-// Initialize service via container
-const { brandProfile: brandProfileService } = getServices();
+// Using modular BrandServices from services/brands
 
 /**
  * GET /api/brands
@@ -53,8 +52,8 @@ export async function listBrandProfiles(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Service only supports basic listing - no filtering in current implementation
-    const profiles = await brandProfileService.listBrandProfiles();
+    // Use modular service for listing brand profiles
+    const profiles = await BrandServices.profile.listBrandProfiles();
 
     // Apply basic client-side filtering if search is provided
     let filteredProfiles = profiles;
@@ -110,19 +109,19 @@ export async function getBrandProfile(
     }
 
     // Get basic brand profile from service
-    const profile = await brandProfileService.getBrandProfile(id);
+    const profile = await BrandServices.profile.getBrandProfile(id);
 
     // Get public analytics if available
-    const publicAnalytics = await brandProfileService.getPublicAnalytics(id);
+    const publicAnalytics = await BrandServices.profile.getPublicAnalytics(id);
 
     // Get related brands with proper options
-    const relatedBrands = await brandProfileService.getRelatedBrands(id, {
+    const relatedBrands = await BrandServices.profile.getRelatedBrands(id, {
       limit: 5,
       similarity: 'industry'
     });
 
     // Track profile view with new signature
-    await brandProfileService.trackProfileView(id, {
+    await BrandServices.profile.trackProfileView(id, {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       referrer: req.headers.referer,
@@ -168,16 +167,16 @@ export async function getBrandProfileForManufacturer(
     const { brandId } = req.params;
 
     // Get brand profile with manufacturer context
-    const profile = await brandProfileService.getBrandProfileForManufacturer(brandId, manufacturerId);
+    const profile = await BrandServices.profile.getBrandProfileForManufacturer(brandId, manufacturerId);
 
     // Get compatibility score with new signature that returns object
-    const compatibilityScore = await brandProfileService.calculateCompatibilityScore(
+    const compatibilityScore = await BrandServices.profile.calculateCompatibilityScore(
       brandId,
       manufacturerId
     );
 
     // Get connection opportunities with manufacturerId in options
-    const opportunities = await brandProfileService.getConnectionOpportunities(brandId, {
+    const opportunities = await BrandServices.profile.getConnectionOpportunities(brandId, {
       limit: 5,
       manufacturerId: manufacturerId
     });
@@ -223,11 +222,11 @@ export async function getFeaturedBrands(
 
     // Get featured brands using available service methods
     const [featuredBrands, trendingBrands, newestBrands, spotlightBrand, featuredCategories] = await Promise.all([
-      brandProfileService.getFeaturedBrands({ limit: limitNum }),
-      brandProfileService.getTrendingBrands({ limit: limitNum }),
-      brandProfileService.getNewestBrands({ limit: limitNum }),
-      brandProfileService.getSpotlightBrand(),
-      brandProfileService.getFeaturedCategories()
+      BrandServices.profile.getFeaturedBrands({ limit: limitNum }),
+      BrandServices.profile.getTrendingBrands({ limit: limitNum }),
+      BrandServices.profile.getNewestBrands({ limit: limitNum }),
+      BrandServices.profile.getSpotlightBrand(),
+      BrandServices.profile.getFeaturedCategories()
     ]);
 
     res.json({
@@ -264,12 +263,12 @@ export async function getSearchSuggestions(
     }
 
     // Get search suggestions from service
-    const suggestions = await brandProfileService.getSearchSuggestions(query as string);
+    const suggestions = await BrandServices.profile.getSearchSuggestions(query as string);
 
     // Get popular and trending terms
     const [popularTerms, trendingTerms] = await Promise.all([
-      brandProfileService.getPopularSearchTerms(),
-      brandProfileService.getTrendingSearchTerms()
+      BrandServices.profile.getPopularSearchTerms(),
+      BrandServices.profile.getTrendingSearchTerms()
     ]);
 
     res.json({
@@ -297,7 +296,7 @@ export async function getPublicBrandAnalytics(
     const { timeframe = '30d' } = req.query;
 
     // Get ecosystem analytics from service
-    const analytics = await brandProfileService.getEcosystemAnalytics({ timeframe });
+    const analytics = await BrandServices.profile.getEcosystemAnalytics({ timeframe });
 
     res.json({
       timeframe,
@@ -336,7 +335,7 @@ export async function reportBrand(
     }
 
     // Create report using service
-    const report = await brandProfileService.createBrandReport(brandId, {
+    const report = await BrandServices.profile.createBrandReport(brandId, {
       reason,
       description,
       evidence,
@@ -378,7 +377,7 @@ export async function getBrandRecommendations(
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
 
     // Get personalized recommendations from service
-    const recommendations = await brandProfileService.getPersonalizedRecommendations(manufacturerId, {
+    const recommendations = await BrandServices.profile.getPersonalizedRecommendations(manufacturerId, {
       type: 'brand_partnership',
       limit: limitNum
     });
@@ -421,7 +420,7 @@ export async function provideBrandRecommendationFeedback(
     const { brandId, feedback, rating, reason } = req.validatedBody;
 
     // Record feedback using service
-    await brandProfileService.recordRecommendationFeedback(manufacturerId, brandId, {
+    await BrandServices.profile.recordRecommendationFeedback(manufacturerId, brandId, {
       feedback,
       rating,
       reason,
@@ -463,7 +462,7 @@ export async function searchBrandProfiles(
     }
 
     // Search using service method
-    const results = await brandProfileService.searchBrandProfiles(search as string);
+    const results = await BrandServices.profile.searchBrandProfiles(search as string);
 
     res.json({
       query: search,
@@ -496,7 +495,7 @@ export async function getBrandBySubdomain(
       return;
     }
 
-    const profile = await brandProfileService.getBrandProfileBySubdomain(subdomain);
+    const profile = await BrandServices.profile.getBrandProfileBySubdomain(subdomain);
 
     if (!profile) {
       res.status(404).json({
@@ -536,7 +535,7 @@ export async function getBrandByCustomDomain(
       return;
     }
 
-    const profile = await brandProfileService.getBrandProfileByCustomDomain(domain);
+    const profile = await BrandServices.profile.getBrandProfileByCustomDomain(domain);
 
     if (!profile) {
       res.status(404).json({

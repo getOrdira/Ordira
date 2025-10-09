@@ -1,12 +1,22 @@
-// src/services/business/emailGating.service.ts
-import { AllowedCustomer, IAllowedCustomer } from '../../models/allowedCustomer.model';
-import { User } from '../../models/user.model';
-import { BrandSettings } from '../../models/brandSettings.model';
-import { NotificationService } from './notification.service';
-import { NotificationsService } from '../external/notifications.service';
-import { ShopifyService } from '../external/shopify.service';
-import { UtilsService } from '../utils/utils.service';
-import { logger } from '../../utils/logger'; 
+/**
+ * Customer Access Service (Brands Module)
+ *
+ * Manages customer access control and email gating for brand voting platforms.
+ * This service handles:
+ * - Email whitelist/blacklist management
+ * - Customer import from CSV, Shopify, and other sources
+ * - Voting access validation and grants
+ * - Customer analytics and engagement tracking
+ * - Bulk customer operations
+ */
+
+import { AllowedCustomer, IAllowedCustomer } from '../../../models/allowedCustomer.model';
+import { User } from '../../../models/user.model';
+import { BrandSettings } from '../../../models/brandSettings.model';
+import { getNotificationsServices } from '../../notifications';
+import { ShopifyService } from '../../external/shopify.service';
+import { UtilsService } from '../../utils/utils.service';
+import { logger } from '../../../utils/logger'; 
 
 export interface CustomerImportData {
   email: string;
@@ -57,18 +67,18 @@ export interface CustomerFilters {
   sortOrder?: 'asc' | 'desc';
 }
 
-class EmailGatingError extends Error {
+class CustomerAccessError extends Error {
   statusCode: number;
-  
+
   constructor(message: string, statusCode: number = 500) {
     super(message);
-    this.name = 'EmailGatingError';
+    this.name = 'CustomerAccessError';
     this.statusCode = statusCode;
   }
 }
 
-export class EmailGatingService {
-  private notificationsService = new NotificationsService();
+export class CustomerAccessService {
+  private notificationsServices = getNotificationsServices();
   private shopifyService = new ShopifyService();
 
   /**
@@ -143,7 +153,7 @@ export class EmailGatingService {
     const allowedCheck = await this.isEmailAllowed(email, businessId);
     
     if (!allowedCheck.allowed) {
-      throw new EmailGatingError(
+      throw new CustomerAccessError(
         allowedCheck.reason || 'Access denied',
         403
       );
@@ -267,7 +277,7 @@ export class EmailGatingService {
     
     // Validate required headers
     if (!headers.includes('email')) {
-      throw new EmailGatingError('CSV must contain an "email" column', 400);
+      throw new CustomerAccessError('CSV must contain an "email" column', 400);
     }
 
     const customers: CustomerImportData[] = [];
@@ -337,7 +347,7 @@ async syncFromShopify(businessId: string): Promise<{
     // Get Shopify settings from brand settings
     const brandSettings = await BrandSettings.findOne({ business: businessId });
     if (!brandSettings?.shopifyDomain || !brandSettings?.shopifyAccessToken) {
-      throw new EmailGatingError('Shopify integration not configured', 400);
+      throw new CustomerAccessError('Shopify integration not configured', 400);
     }
 
     // Get Shopify customers directly using Shopify Admin API
@@ -504,16 +514,20 @@ async revokeCustomerAccess(
   });
 
   if (!customer) {
-    throw new EmailGatingError('Customer not found', 404);
+    throw new CustomerAccessError('Customer not found', 404);
   }
 
   await customer.revokeAccess(reason, revokedBy);
   
   // Send notification to customer using the new method
-  await this.notificationsService.sendAccessRevokedNotification(
-    customer.email,
-    reason || 'Access revoked by brand'
-  );
+  await this.notificationsServices.workflows.eventHandlerService.handle({
+    type: 'customer.access_revoked' as any,
+    recipient: { email: customer.email },
+    payload: {
+      reason: reason || 'Access revoked by brand',
+      customerEmail: customer.email
+    }
+  });
 
   return this.mapToSummary(customer);
 }
@@ -528,13 +542,20 @@ async restoreCustomerAccess(businessId: string, customerId: string): Promise<Cus
   });
 
   if (!customer) {
-    throw new EmailGatingError('Customer not found', 404);
+    throw new CustomerAccessError('Customer not found', 404);
   }
 
   await customer.grantAccess();
   
   // Send welcome back notification using the new method
-  await this.notificationsService.sendAccessRestoredNotification(customer.email);
+  await this.notificationsServices.workflows.eventHandlerService.handle({
+    type: 'customer.access_restored' as any,
+    recipient: { email: customer.email },
+    payload: {
+      customerEmail: customer.email,
+      restorationDate: new Date().toLocaleDateString()
+    }
+  });
 
   return this.mapToSummary(customer);
 }
@@ -788,3 +809,5 @@ async restoreCustomerAccess(businessId: string, customerId: string): Promise<Cus
     };
   }
 }
+
+export const customerAccessService = new CustomerAccessService();
