@@ -1,6 +1,6 @@
 // src/services/connections/features/analyticsSharing.service.ts
 
-import { AnalyticsService as BrandAnalyticsService } from '../../business/analytics.service';
+import { AnalyticsService as BrandAnalyticsService } from '../../brands/features/analytics.service';
 import { analyticsService as manufacturerAnalyticsService } from '../../manufacturers/features/analytics.service';
 import { permissionsService } from './permissions.service';
 import { connectionDataService } from '../core/connectionData.service';
@@ -91,7 +91,7 @@ export class AnalyticsSharingService {
     timeRange?: { start: Date; end: Date }
   ): Promise<any> {
     await this.ensureCanShare(brandId, manufacturerId);
-    return this.brandAnalytics.getDashboardAnalytics(brandId, timeRange);
+    return this.brandAnalytics.getDashboardAnalytics(brandId);
   }
 
   /**
@@ -122,8 +122,8 @@ export class AnalyticsSharingService {
 
     const brandKpis = brandAnalytics
       ? {
-          totalVotes: brandAnalytics.votingAnalytics?.totalVotes ?? 0,
-          activeProducts: brandAnalytics.productAnalytics?.activeProducts ?? 0
+          totalVotes: brandAnalytics.overview?.certificatesIssued ?? 0,
+          activeProducts: brandAnalytics.overview?.profileViews ?? 0
         }
       : undefined;
 

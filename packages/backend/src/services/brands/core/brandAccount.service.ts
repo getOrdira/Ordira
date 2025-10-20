@@ -160,12 +160,11 @@ export class BrandAccountService {
 
       return {
         profilePictureUrl: media.url,
-        uploadedAt: media.createdAt,
-        filename: media.filename,
+        uploadedAt: new Date(),
+        filename: file.originalname,
         fileSize: file.size,
-        s3Key: media.s3Key,
-        s3Bucket: media.s3Bucket,
-        s3Region: media.s3Region
+        s3Key: media.key,
+        s3Bucket: media.bucket
       };
     } catch (error: any) {
       if (error.statusCode) {

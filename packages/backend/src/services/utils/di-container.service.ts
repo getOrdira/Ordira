@@ -172,9 +172,14 @@ export const SERVICE_TOKENS = {
   USER_MODEL: 'UserModel',
   BUSINESS_MODEL: 'BusinessModel',
   MANUFACTURER_MODEL: 'ManufacturerModel',
+  PRODUCT_MODEL: 'ProductModel',
   BRAND_SETTINGS_MODEL: 'BrandSettingsModel',
   VOTING_RECORD_MODEL: 'VotingRecordModel',
   CERTIFICATE_MODEL: 'CertificateModel',
+  MEDIA_MODEL: 'MediaModel',
+  SECURITY_EVENT_MODEL: 'SecurityEventModel',
+  ACTIVE_SESSION_MODEL: 'ActiveSessionModel',
+  BLACKLISTED_TOKEN_MODEL: 'BlacklistedTokenModel',
 } as const;
 
 export type ServiceToken = typeof SERVICE_TOKENS[keyof typeof SERVICE_TOKENS];

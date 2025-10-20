@@ -1,4 +1,6 @@
 // src/services/utils/utils.service.ts
+import { retryPolicyService } from '../infrastructure/resilience/features/retryPolicy.service';
+
 
 /**
  * Shared utility functions used across the application

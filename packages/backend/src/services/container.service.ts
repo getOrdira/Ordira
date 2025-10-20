@@ -2,6 +2,26 @@
 
 import { authService } from './auth/index';
 import { OptimizedUserService } from './business/user.service';
+import {
+  tenantServices,
+  tenantDataService,
+  tenantResolutionService,
+  tenantManagementService,
+  tenantAnalyticsService,
+  tenantCacheService,
+  tenantDomainValidationService
+} from './tenants';
+import {
+  userServices,
+  userAuthService,
+  userProfileService,
+  userSearchService,
+  userAnalyticsService,
+  userDataService,
+  userCacheService,
+  userProfileFormatterService,
+  userValidationService
+} from './users';
 import { ApiKeyService } from './business/apiKey.service';
 import {
   productDataService,
@@ -12,7 +32,22 @@ import {
   productCacheService,
   productValidationService
 } from './products';
-import { AnalyticsService } from './business/analytics.service';
+import {
+  platformAnalyticsDataService,
+  reportingDataService,
+  dashboardAggregationService,
+  platformInsightsService,
+  reportGenerationService,
+  systemHealthService,
+  analyticsValidationService,
+  PlatformAnalyticsDataService,
+  ReportingDataService,
+  DashboardAggregationService,
+  PlatformInsightsService,
+  ReportGenerationService,
+  SystemHealthService,
+  AnalyticsValidationService
+} from './analytics';
 import {
   votesServices,
   votingDataService,
@@ -26,7 +61,6 @@ import {
   votingValidationService
 } from './votes';
 import { 
-
   certificateDataService,
   certificateAccountService,
   mintingService,
@@ -67,6 +101,16 @@ import { SupplyChainService } from './blockchain/supplyChain.service';
 import { QrCodeService } from './external/qrCode.service';
 import { SecurityAuditService } from './security/securityAudit.service';
 import { UsageTrackingService } from './business/usageTracking.service';
+import {
+  usageServices,
+  usageLimitsService,
+  usageUpdatesService,
+  usagePlanService,
+  usageDataService,
+  usageCacheService,
+  usageForecastService,
+  usageValidationService
+} from './usage';
 import { 
   BrandServices,
   brandProfileCoreService,
@@ -137,7 +181,25 @@ export class ServiceContainer {
     // Core Services
     this.services.set('authService', authService);
     this.services.set('userService', new OptimizedUserService());
-    
+    this.services.set('userServices', userServices);
+    this.services.set('userAuthService', userAuthService);
+    this.services.set('userProfileService', userProfileService);
+    this.services.set('userSearchService', userSearchService);
+    this.services.set('userAnalyticsService', userAnalyticsService);
+    this.services.set('userDataService', userDataService);
+    this.services.set('userCacheService', userCacheService);
+    this.services.set('userProfileFormatterService', userProfileFormatterService);
+    this.services.set('userValidationService', userValidationService);
+
+    // New Modular Tenants Services
+    this.services.set('tenantServices', tenantServices);
+    this.services.set('tenantDataService', tenantDataService);
+    this.services.set('tenantResolutionService', tenantResolutionService);
+    this.services.set('tenantManagementService', tenantManagementService);
+    this.services.set('tenantAnalyticsService', tenantAnalyticsService);
+    this.services.set('tenantCacheService', tenantCacheService);
+    this.services.set('tenantDomainValidationService', tenantDomainValidationService);
+
     // New Modular Products Services
     this.services.set('productDataService', productDataService);
     this.services.set('productAccountService', productAccountService);
@@ -201,7 +263,15 @@ export class ServiceContainer {
     this.services.set('manufacturerPlanValidationService', planValidationService);
     
     this.services.set('apiKeyService', new ApiKeyService());
-    this.services.set('analyticsService', new AnalyticsService());
+    
+    // New Modular Analytics Services
+    this.services.set('platformAnalyticsDataService', platformAnalyticsDataService);
+    this.services.set('reportingDataService', reportingDataService);
+    this.services.set('dashboardAggregationService', dashboardAggregationService);
+    this.services.set('platformInsightsService', platformInsightsService);
+    this.services.set('reportGenerationService', reportGenerationService);
+    this.services.set('systemHealthService', systemHealthService);
+    this.services.set('analyticsValidationService', analyticsValidationService);
     
     // New Modular Voting Services
     this.services.set('votesServices', votesServices);
@@ -252,6 +322,14 @@ export class ServiceContainer {
     this.services.set('subscriptionPlanValidationService', subscriptionServices.validation);
     
     this.services.set('usageTrackingService', new UsageTrackingService());
+    this.services.set('usageServices', usageServices);
+    this.services.set('usageLimitsService', usageLimitsService);
+    this.services.set('usageUpdatesService', usageUpdatesService);
+    this.services.set('usagePlanService', usagePlanService);
+    this.services.set('usageDataService', usageDataService);
+    this.services.set('usageCacheService', usageCacheService);
+    this.services.set('usageForecastService', usageForecastService);
+    this.services.set('usageValidationService', usageValidationService);
 
     // External/Platform Services
     this.services.set('domainMappingService', new DomainMappingService());
@@ -316,6 +394,22 @@ export const getContainer = (): ServiceContainer => ServiceContainer.getInstance
  */
 export const getAuthService = () => getContainer().get<typeof authService>('authService');
 export const getUserService = () => getContainer().get<OptimizedUserService>('userService');
+export const getUserServices = () => getContainer().get<typeof userServices>('userServices');
+export const getUserAuthService = () => getContainer().get<typeof userAuthService>('userAuthService');
+export const getUserProfileService = () => getContainer().get<typeof userProfileService>('userProfileService');
+export const getUserSearchService = () => getContainer().get<typeof userSearchService>('userSearchService');
+export const getUserAnalyticsService = () => getContainer().get<typeof userAnalyticsService>('userAnalyticsService');
+export const getUserDataService = () => getContainer().get<typeof userDataService>('userDataService');
+export const getUserCacheService = () => getContainer().get<typeof userCacheService>('userCacheService');
+export const getUserFormatterService = () => getContainer().get<typeof userProfileFormatterService>('userProfileFormatterService');
+export const getUserValidationService = () => getContainer().get<typeof userValidationService>('userValidationService');
+export const getTenantServices = () => getContainer().get<typeof tenantServices>('tenantServices');
+export const getTenantDataService = () => getContainer().get<typeof tenantDataService>('tenantDataService');
+export const getTenantResolutionService = () => getContainer().get<typeof tenantResolutionService>('tenantResolutionService');
+export const getTenantManagementService = () => getContainer().get<typeof tenantManagementService>('tenantManagementService');
+export const getTenantAnalyticsService = () => getContainer().get<typeof tenantAnalyticsService>('tenantAnalyticsService');
+export const getTenantCacheService = () => getContainer().get<typeof tenantCacheService>('tenantCacheService');
+export const getTenantValidationService = () => getContainer().get<typeof tenantDomainValidationService>('tenantDomainValidationService');
 export const getApiKeyService = () => getContainer().get<ApiKeyService>('apiKeyService');
 
 // New Modular Products Services
@@ -326,7 +420,16 @@ export const getProductAnalyticsService = () => getContainer().get<typeof produc
 export const getProductAggregationService = () => getContainer().get<typeof productAggregationService>('productAggregationService');
 export const getProductCacheService = () => getContainer().get<typeof productCacheService>('productCacheService');
 export const getProductValidationService = () => getContainer().get<typeof productValidationService>('productValidationService');
-export const getAnalyticsService = () => getContainer().get<AnalyticsService>('analyticsService');
+
+// New Modular Analytics Services Getters
+export const getPlatformAnalyticsDataService = () => getContainer().get<typeof platformAnalyticsDataService>('platformAnalyticsDataService');
+export const getReportingDataService = () => getContainer().get<typeof reportingDataService>('reportingDataService');
+export const getDashboardAggregationService = () => getContainer().get<typeof dashboardAggregationService>('dashboardAggregationService');
+export const getPlatformInsightsService = () => getContainer().get<typeof platformInsightsService>('platformInsightsService');
+export const getReportGenerationService = () => getContainer().get<typeof reportGenerationService>('reportGenerationService');
+export const getSystemHealthService = () => getContainer().get<typeof systemHealthService>('systemHealthService');
+export const getAnalyticsValidationService = () => getContainer().get<typeof analyticsValidationService>('analyticsValidationService');
+
 export const getMediaService = () => getContainer().get<MediaDataService>('mediaService');
 export const getBrandAccountService = () => getContainer().get<BrandAccountService>('brandAccountService');
 export const getPendingVoteService = () => getContainer().get<PendingVoteService>('pendingVoteService');
@@ -352,6 +455,14 @@ export const getSubscriptionTierManagementService = () => getContainer().get<Sub
 export const getSubscriptionPlanValidationService = () => getContainer().get<SubscriptionPlanValidationService>('subscriptionPlanValidationService');
 
 export const getUsageTrackingService = () => getContainer().get<UsageTrackingService>('usageTrackingService');
+export const getUsageServicesRegistry = () => getContainer().get<typeof usageServices>('usageServices');
+export const getUsageLimitsService = () => getContainer().get<typeof usageLimitsService>('usageLimitsService');
+export const getUsageUpdatesService = () => getContainer().get<typeof usageUpdatesService>('usageUpdatesService');
+export const getUsagePlanService = () => getContainer().get<typeof usagePlanService>('usagePlanService');
+export const getUsageDataService = () => getContainer().get<typeof usageDataService>('usageDataService');
+export const getUsageCacheService = () => getContainer().get<typeof usageCacheService>('usageCacheService');
+export const getUsageForecastService = () => getContainer().get<typeof usageForecastService>('usageForecastService');
+export const getUsageValidationService = () => getContainer().get<typeof usageValidationService>('usageValidationService');
 export const getSupplyChainService = () => getContainer().get<SupplyChainService>('supplyChainService');
 export const getQrCodeService = () => getContainer().get<QrCodeService>('qrCodeService');
 export const getSecurityAuditService = () => getContainer().get<SecurityAuditService>('securityAuditService');
@@ -419,12 +530,27 @@ export const getVotingContractDeploymentService = () => getContainer().get<typeo
 export const getVotingValidationService = () => getContainer().get<typeof votingValidationService>('votingValidationService');
 
 /**
+ * Get all analytics services
+ */
+export const getAnalyticsServices = () => ({
+  platformData: getPlatformAnalyticsDataService(),
+  reporting: getReportingDataService(),
+  dashboard: getDashboardAggregationService(),
+  insights: getPlatformInsightsService(),
+  reportGeneration: getReportGenerationService(),
+  systemHealth: getSystemHealthService(),
+  validation: getAnalyticsValidationService()
+});
+
+/**
  * Helper function to get multiple services at once
  */
 export const getServices = () => ({
   // Core Services
   auth: getAuthService(),
   user: getUserService(),
+  userModules: getUserServices(),
+  tenantModules: getTenantServices(),
 
   // New Modular Products Services
   productData: getProductDataService(),
@@ -482,9 +608,18 @@ export const getServices = () => ({
   certificatePlanValidation: getCertificatePlanValidationService(),
   certificateRecipientValidation: getCertificateRecipientValidationService(),
 
+  // Usage Modules
+  usageRegistry: getUsageServicesRegistry(),
+  usageLimits: getUsageLimitsService(),
+  usageUpdates: getUsageUpdatesService(),
+  usagePlan: getUsagePlanService(),
+  usageData: getUsageDataService(),
+  usageCache: getUsageCacheService(),
+  usageForecast: getUsageForecastService(),
+  usageValidation: getUsageValidationService(),
+
   // Legacy Services (to be migrated)
   apiKey: getApiKeyService(),
-  analytics: getAnalyticsService(),
   media: getMediaService(),
   brandAccountLegacy: getBrandAccountService(),
   billing: getBillingService(),
@@ -612,4 +747,11 @@ export const getVotingServices = () => ({
   // Validation Services
   validation: getVotingValidationService()
 });
+
+
+
+
+
+
+
 

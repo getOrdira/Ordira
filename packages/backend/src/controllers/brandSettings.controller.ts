@@ -8,6 +8,7 @@ import { trackManufacturerAction } from '../middleware/metrics.middleware';
 import { getServices } from '../services/container.service';
 import { clearTenantCache } from '../middleware/tenant.middleware';
 import { hasShopifyAccessToken } from '../utils/typeGuards';
+import { mediaUploadService } from '../services/media';
 
 // Enhanced request interfaces
 interface BrandSettingsRequest extends Request, UnifiedAuthRequest, TenantRequest, ValidatedRequest {
@@ -463,7 +464,7 @@ export async function uploadBrandLogo(
 
     // Upload logo through media service
     
-    const media = await mediaService.saveMedia(req.file, businessId, {
+    const media = await mediaUploadService.saveMedia(req.file, businessId, {
       category: 'banner',
       description: 'Brand logo',
       isPublic: true
@@ -554,9 +555,9 @@ export async function uploadBrandBanner(
     }
 
     // Get service instance
-    const { brandSettings: brandSettingsService, media: mediaService } = getServices();
+    const { brandSettings: brandSettingsService } = getServices();
     
-    const media = await mediaService.saveMedia(req.file, businessId, {
+    const media = await mediaUploadService.saveMedia(req.file, businessId, {
       category: 'banner',
       description: 'Brand banner image',
       isPublic: true

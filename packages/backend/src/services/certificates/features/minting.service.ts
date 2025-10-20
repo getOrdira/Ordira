@@ -12,7 +12,7 @@ import { Certificate, ICertificate } from '../../../models/certificate.model';
 import { BrandSettings } from '../../../models/brandSettings.model';
 import { Business } from '../../../models/business.model';
 import { NftService } from '../../blockchain/nft.service';
-import { AnalyticsService } from '../../business/analytics.service';
+import { getPlatformAnalyticsDataService } from '../../container.service';
 import { eventHandlerService, NotificationCategory, NotificationEventType, NotificationPriority } from '../../notifications';
 import { mediaUploadService } from '../../media';
 import { S3Service } from '../../external/s3.service';
@@ -56,7 +56,6 @@ export interface CreateCertInput {
 
 export class MintingService {
   private nftService = new NftService();
-  private analyticsService = new AnalyticsService();
 
   /**
    * Create certificate with S3 asset storage and automatic brand transfer

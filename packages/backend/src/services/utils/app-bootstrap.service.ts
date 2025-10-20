@@ -94,6 +94,9 @@ export class AppBootstrapService {
     const { BrandSettings } = await import('../../models/brandSettings.model');
     const { VotingRecord } = await import('../../models/votingRecord.model');
     const { Certificate } = await import('../../models/certificate.model');
+    const { SecurityEventModel } = await import('../../models/securityEvent.model');
+    const { ActiveSessionModel } = await import('../../models/activeSession.model');
+    const { BlacklistedTokenModel } = await import('../../models/blacklistedToken.model');
 
     container.registerInstance(SERVICE_TOKENS.USER_MODEL, User);
     container.registerInstance(SERVICE_TOKENS.BUSINESS_MODEL, Business);
@@ -101,6 +104,9 @@ export class AppBootstrapService {
     container.registerInstance(SERVICE_TOKENS.BRAND_SETTINGS_MODEL, BrandSettings);
     container.registerInstance(SERVICE_TOKENS.VOTING_RECORD_MODEL, VotingRecord);
     container.registerInstance(SERVICE_TOKENS.CERTIFICATE_MODEL, Certificate);
+    container.registerInstance(SERVICE_TOKENS.SECURITY_EVENT_MODEL, SecurityEventModel);
+    container.registerInstance(SERVICE_TOKENS.ACTIVE_SESSION_MODEL, ActiveSessionModel);
+    container.registerInstance(SERVICE_TOKENS.BLACKLISTED_TOKEN_MODEL, BlacklistedTokenModel);
 
     logger.info('✅ Services registered in DI container');
   }

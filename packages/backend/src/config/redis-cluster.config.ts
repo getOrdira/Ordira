@@ -383,9 +383,10 @@ export function getRedisClusterConfig(environment: keyof RedisClusterEnvironment
  */
 export function generateSetupScript(environment: keyof RedisClusterEnvironmentConfig): string {
   const config = redisClusterConfigs[environment];
+  const nodeUrls = config.nodes.map(n => `${n.host}:${n.port}`).join(',');
+  const nodeList = config.nodes.map(n => `${n.host}:${n.port}`).join(' ');
 
-  return `
-#!/bin/bash
+  return `#!/bin/bash
 # Redis Cluster Setup Script for ${environment}
 # ${config.description}
 
@@ -393,7 +394,7 @@ echo "Setting up Redis cluster for ${environment}..."
 
 # Set environment variables
 export NODE_ENV=${environment}
-export REDIS_CLUSTER_NODES="${config.nodes.map(n => `${n.host}:${n.port}`).join(',')}"
+export REDIS_CLUSTER_NODES="${nodeUrls}"
 
 echo "Configuration:"
 echo "- Environment: ${environment}"
@@ -402,14 +403,13 @@ echo "- Node URLs: $REDIS_CLUSTER_NODES"
 
 # Verify Redis cluster connectivity
 echo "Testing Redis cluster connectivity..."
-for node in ${config.nodes.map(n => `${n.host}:${n.port}`).join(' ')}; do
+for node in ${nodeList}; do
   echo "Testing connection to $node..."
   timeout 5 bash -c "</dev/tcp/\${node%:*}/\${node#*:}" && echo "✅ $node is reachable" || echo "❌ $node is not reachable"
 done
 
-echo "Redis cluster setup completed!"
-  `;
-}`;
+echo "Redis cluster setup completed!"`;
+}
 
 /**
  * Health check configuration for load balancers
