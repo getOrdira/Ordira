@@ -1,4 +1,7 @@
 /**
+ * @deprecated This service has been migrated to the infrastructure/security module.
+ * Use securityScanningService from '@services/infrastructure/security' instead.
+ * 
  * Automated Security Scanning Service
  * 
  * Provides automated security scanning and vulnerability detection

@@ -78,6 +78,11 @@ export interface IBilling extends Document {
     lastUpdated: Date;
   };
   
+  // Overage charges
+  lastOverageCharge?: number;
+  lastOverageDate?: Date;
+  totalOverageCharges?: number;
+  
   // Billing notifications and preferences
   notificationSettings?: {
     upcomingRenewal: boolean;
@@ -375,6 +380,21 @@ const BillingSchema = new Schema<IBilling>(
         type: Date,
         default: Date.now
       }
+    },
+    
+    // Overage charges
+    lastOverageCharge: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    lastOverageDate: {
+      type: Date
+    },
+    totalOverageCharges: {
+      type: Number,
+      default: 0,
+      min: 0
     },
     
     // Billing notifications and preferences

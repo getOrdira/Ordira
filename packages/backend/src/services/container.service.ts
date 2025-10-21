@@ -77,12 +77,20 @@ import {
 } from './certificates';
 import { MediaDataService } from './media/core/mediaData.service';
 import { BillingService } from './external/billing.service';
-import { ShopifyService } from './external/shopify.service';
-import { WixService } from './external/wix.service';
-import { WooCommerceService } from './external/woocommerce.service';
+import {
+  ecommerceServices,
+  ecommerceProviders,
+  EcommerceOrderProcessingService,
+  EcommerceProductSyncService,
+  EcommerceWebhookOrchestratorService,
+  EcommerceConnectionHealthService,
+  EcommerceAnalyticsService
+} from './integrations/ecommerce';
+import type {
+  EcommerceProvider,
+  ProviderFeatureAdapters
+} from './integrations/ecommerce';
 import { NotificationsService } from './external/notifications.service';
-import { StripeService } from './external/stripe.service';
-import { TokenDiscountService } from './external/tokenDiscount.service';
 import { NftService } from './blockchain/nft.service';
 import { DomainMappingService } from './external/domainMapping.service';
 import { NotificationsServices as notificationsModule } from './notifications';
@@ -95,10 +103,27 @@ import {
   SubscriptionUsageLimitsService,
   SubscriptionAnalyticsService,
   SubscriptionTierManagementService,
-  SubscriptionPlanValidationService
+  SubscriptionPlanValidationService,
+  BillingManagementService,
+  StripeGatewayService,
+  TokenDiscountService
 } from './subscriptions';
 import { SupplyChainService } from './blockchain/supplyChain.service';
 import { QrCodeService } from './external/qrCode.service';
+import {
+  securityServices,
+  securityEventDataService as infrastructureSecurityEventDataService,
+  sessionDataService as infrastructureSecuritySessionDataService,
+  tokenBlacklistDataService as infrastructureTokenBlacklistDataService,
+  securityScanDataService as infrastructureSecurityScanDataService,
+  securityEventLoggerService as infrastructureSecurityEventLoggerService,
+  sessionManagementService as infrastructureSecuritySessionManagementService,
+  tokenRevocationService as infrastructureSecurityTokenRevocationService,
+  securityAnalyticsService as infrastructureSecurityAnalyticsService,
+  securityScanningService as infrastructureSecurityScanningService,
+  securityValidationService as infrastructureSecurityValidationService,
+  securityScanValidationService as infrastructureSecurityScanValidationService
+} from './infrastructure/security';
 import { SecurityAuditService } from './security/securityAudit.service';
 import { UsageTrackingService } from './business/usageTracking.service';
 import {
@@ -151,6 +176,8 @@ import {
   planValidationService
 } from './manufacturers';
 
+type EcommerceAdapterRegistry = Partial<Record<EcommerceProvider, ProviderFeatureAdapters>>;
+
 /**
  * Dependency Injection Container
  * Centralizes service instantiation and provides singleton instances
@@ -162,6 +189,18 @@ export class ServiceContainer {
 
   private constructor() {
     this.initializeServices();
+  }
+
+  private buildEcommerceAdapterRegistry(): EcommerceAdapterRegistry {
+    return Object.entries(ecommerceProviders).reduce<EcommerceAdapterRegistry>(
+      (registry, [provider, providerConfig]) => {
+        if (providerConfig.adapters) {
+          registry[provider as EcommerceProvider] = providerConfig.adapters;
+        }
+        return registry;
+      },
+      {}
+    );
   }
 
   /**
@@ -306,11 +345,56 @@ export class ServiceContainer {
     this.services.set('certificatePlanValidationService', certificatePlanValidationService);
     this.services.set('certificateRecipientValidationService', recipientValidationService);
     
+    // New Modular Security Services
+    this.services.set('securityServices', securityServices);
+    this.services.set('securityEventDataService', infrastructureSecurityEventDataService);
+    this.services.set('securitySessionDataService', infrastructureSecuritySessionDataService);
+    this.services.set('securityTokenBlacklistDataService', infrastructureTokenBlacklistDataService);
+    this.services.set('securityScanDataService', infrastructureSecurityScanDataService);
+    this.services.set('securityEventLoggerService', infrastructureSecurityEventLoggerService);
+    this.services.set('securitySessionManagementService', infrastructureSecuritySessionManagementService);
+    this.services.set('securityTokenRevocationService', infrastructureSecurityTokenRevocationService);
+    this.services.set('securityAnalyticsService', infrastructureSecurityAnalyticsService);
+    this.services.set('securityScanningService', infrastructureSecurityScanningService);
+    this.services.set('securityValidationService', infrastructureSecurityValidationService);
+    this.services.set('securityScanValidationService', infrastructureSecurityScanValidationService);
     this.services.set('mediaService', new MediaDataService());
     this.services.set('brandAccountService', new BrandAccountService());
     this.services.set('pendingVoteService', new PendingVoteService());
     this.services.set('notificationsServices', notificationsModule);
     this.services.set('invitationService', invitationsService);
+
+    // Ecommerce Integration Services
+    const ecommerceAdapterRegistry = this.buildEcommerceAdapterRegistry();
+    const ecommerceOrderProcessing = new EcommerceOrderProcessingService({
+      adapters: ecommerceAdapterRegistry
+    });
+    const ecommerceProductSync = new EcommerceProductSyncService({
+      adapters: ecommerceAdapterRegistry
+    });
+    const ecommerceWebhookOrchestrator = new EcommerceWebhookOrchestratorService({
+      adapters: ecommerceAdapterRegistry
+    });
+    const ecommerceConnectionHealth = new EcommerceConnectionHealthService(ecommerceAdapterRegistry);
+    const ecommerceAnalytics = new EcommerceAnalyticsService(
+      { adapters: ecommerceAdapterRegistry },
+      ecommerceConnectionHealth
+    );
+
+    this.services.set('ecommerceServicesRegistry', ecommerceServices);
+    this.services.set('ecommerceProvidersRegistry', ecommerceProviders);
+    this.services.set('ecommerceAdapterRegistry', ecommerceAdapterRegistry);
+    this.services.set('ecommerceIntegrationDataService', ecommerceServices.core.data);
+    this.services.set('ecommerceOAuthService', ecommerceServices.core.oauth);
+    this.services.set('ecommerceHttpClientFactoryService', ecommerceServices.core.httpClientFactory);
+    this.services.set('ecommerceWebhookRegistryService', ecommerceServices.core.webhookRegistry);
+    this.services.set('ecommerceCertificateDispatchService', ecommerceServices.core.certificateDispatch);
+    this.services.set('ecommerceUtilities', ecommerceServices.utils);
+    this.services.set('ecommerceOrderProcessingService', ecommerceOrderProcessing);
+    this.services.set('ecommerceProductSyncService', ecommerceProductSync);
+    this.services.set('ecommerceWebhookOrchestratorService', ecommerceWebhookOrchestrator);
+    this.services.set('ecommerceConnectionHealthService', ecommerceConnectionHealth);
+    this.services.set('ecommerceAnalyticsService', ecommerceAnalytics);
     
     // New subscriptions services
     this.services.set('subscriptionServices', subscriptionServices);
@@ -320,6 +404,7 @@ export class ServiceContainer {
     this.services.set('subscriptionAnalyticsService', subscriptionServices.analytics);
     this.services.set('subscriptionTierManagementService', subscriptionServices.tierManagement);
     this.services.set('subscriptionPlanValidationService', subscriptionServices.validation);
+    this.services.set('subscriptionBillingService', subscriptionServices.billing);
     
     this.services.set('usageTrackingService', new UsageTrackingService());
     this.services.set('usageServices', usageServices);
@@ -342,11 +427,8 @@ export class ServiceContainer {
 
     // External Services
     this.services.set('billingService', new BillingService());
-    this.services.set('shopifyService', new ShopifyService());
-    this.services.set('wixService', new WixService());
-    this.services.set('wooCommerceService', new WooCommerceService());
     this.services.set('notificationsService', new NotificationsService());
-    this.services.set('stripeService', new StripeService());
+    this.services.set('stripeService', new StripeGatewayService());
     this.services.set('tokenDiscountService', new TokenDiscountService());
   }
 
@@ -430,16 +512,29 @@ export const getReportGenerationService = () => getContainer().get<typeof report
 export const getSystemHealthService = () => getContainer().get<typeof systemHealthService>('systemHealthService');
 export const getAnalyticsValidationService = () => getContainer().get<typeof analyticsValidationService>('analyticsValidationService');
 
+// Ecommerce Integration Services Getters
+export const getEcommerceServicesRegistry = () => getContainer().get<typeof ecommerceServices>('ecommerceServicesRegistry');
+export const getEcommerceProvidersRegistry = () => getContainer().get<typeof ecommerceProviders>('ecommerceProvidersRegistry');
+export const getEcommerceAdapterRegistry = () => getContainer().get<EcommerceAdapterRegistry>('ecommerceAdapterRegistry');
+export const getEcommerceIntegrationDataService = () => getContainer().get<typeof ecommerceServices.core.data>('ecommerceIntegrationDataService');
+export const getEcommerceOAuthService = () => getContainer().get<typeof ecommerceServices.core.oauth>('ecommerceOAuthService');
+export const getEcommerceHttpClientFactoryService = () => getContainer().get<typeof ecommerceServices.core.httpClientFactory>('ecommerceHttpClientFactoryService');
+export const getEcommerceWebhookRegistryService = () => getContainer().get<typeof ecommerceServices.core.webhookRegistry>('ecommerceWebhookRegistryService');
+export const getEcommerceCertificateDispatchService = () => getContainer().get<typeof ecommerceServices.core.certificateDispatch>('ecommerceCertificateDispatchService');
+export const getEcommerceUtilities = () => getContainer().get<typeof ecommerceServices.utils>('ecommerceUtilities');
+export const getEcommerceOrderProcessingService = () => getContainer().get<EcommerceOrderProcessingService>('ecommerceOrderProcessingService');
+export const getEcommerceProductSyncService = () => getContainer().get<EcommerceProductSyncService>('ecommerceProductSyncService');
+export const getEcommerceWebhookOrchestratorService = () => getContainer().get<EcommerceWebhookOrchestratorService>('ecommerceWebhookOrchestratorService');
+export const getEcommerceConnectionHealthService = () => getContainer().get<EcommerceConnectionHealthService>('ecommerceConnectionHealthService');
+export const getEcommerceAnalyticsService = () => getContainer().get<EcommerceAnalyticsService>('ecommerceAnalyticsService');
+
 export const getMediaService = () => getContainer().get<MediaDataService>('mediaService');
 export const getBrandAccountService = () => getContainer().get<BrandAccountService>('brandAccountService');
 export const getPendingVoteService = () => getContainer().get<PendingVoteService>('pendingVoteService');
 export const getBillingService = () => getContainer().get<BillingService>('billingService');
-export const getShopifyService = () => getContainer().get<ShopifyService>('shopifyService');
-export const getWixService = () => getContainer().get<WixService>('wixService');
-export const getWooCommerceService = () => getContainer().get<WooCommerceService>('wooCommerceService');
 export const getNotificationsService = () => getContainer().get<NotificationsService>('notificationsService');
 export const getNotificationsServices = () => getContainer().get<typeof notificationsModule>('notificationsServices');
-export const getStripeService = () => getContainer().get<StripeService>('stripeService');
+export const getStripeService = () => getContainer().get<StripeGatewayService>('stripeService');
 export const getTokenDiscountService = () => getContainer().get<TokenDiscountService>('tokenDiscountService');
 export const getNftService = () => getContainer().get<NftService>('nftService');
 export const getDomainMappingService = () => getContainer().get<DomainMappingService>('domainMappingService');
@@ -453,6 +548,7 @@ export const getSubscriptionUsageLimitsService = () => getContainer().get<Subscr
 export const getSubscriptionAnalyticsService = () => getContainer().get<SubscriptionAnalyticsService>('subscriptionAnalyticsService');
 export const getSubscriptionTierManagementService = () => getContainer().get<SubscriptionTierManagementService>('subscriptionTierManagementService');
 export const getSubscriptionPlanValidationService = () => getContainer().get<SubscriptionPlanValidationService>('subscriptionPlanValidationService');
+export const getSubscriptionBillingService = () => getContainer().get<BillingManagementService>('subscriptionBillingService');
 
 export const getUsageTrackingService = () => getContainer().get<UsageTrackingService>('usageTrackingService');
 export const getUsageServicesRegistry = () => getContainer().get<typeof usageServices>('usageServices');
@@ -529,6 +625,20 @@ export const getVotingProposalManagementService = () => getContainer().get<typeo
 export const getVotingContractDeploymentService = () => getContainer().get<typeof votingContractDeploymentService>('votingContractDeploymentService');
 export const getVotingValidationService = () => getContainer().get<typeof votingValidationService>('votingValidationService');
 
+// New Modular Security Services
+export const getSecurityServices = () => getContainer().get<typeof securityServices>('securityServices');
+export const getSecurityEventDataService = () => getContainer().get<typeof infrastructureSecurityEventDataService>('securityEventDataService');
+export const getSecuritySessionDataService = () => getContainer().get<typeof infrastructureSecuritySessionDataService>('securitySessionDataService');
+export const getSecurityTokenBlacklistDataService = () => getContainer().get<typeof infrastructureTokenBlacklistDataService>('securityTokenBlacklistDataService');
+export const getSecurityScanDataService = () => getContainer().get<typeof infrastructureSecurityScanDataService>('securityScanDataService');
+export const getSecurityEventLoggerService = () => getContainer().get<typeof infrastructureSecurityEventLoggerService>('securityEventLoggerService');
+export const getSecuritySessionManagementService = () => getContainer().get<typeof infrastructureSecuritySessionManagementService>('securitySessionManagementService');
+export const getSecurityTokenRevocationService = () => getContainer().get<typeof infrastructureSecurityTokenRevocationService>('securityTokenRevocationService');
+export const getSecurityAnalyticsService = () => getContainer().get<typeof infrastructureSecurityAnalyticsService>('securityAnalyticsService');
+export const getSecurityScanningService = () => getContainer().get<typeof infrastructureSecurityScanningService>('securityScanningService');
+export const getSecurityValidationService = () => getContainer().get<typeof infrastructureSecurityValidationService>('securityValidationService');
+export const getSecurityScanValidationService = () => getContainer().get<typeof infrastructureSecurityScanValidationService>('securityScanValidationService');
+
 /**
  * Get all analytics services
  */
@@ -540,6 +650,28 @@ export const getAnalyticsServices = () => ({
   reportGeneration: getReportGenerationService(),
   systemHealth: getSystemHealthService(),
   validation: getAnalyticsValidationService()
+});
+
+/**
+ * Get all security services including scanning
+ */
+export const getSecurityScanServices = () => ({
+  // Core Data Services
+  eventData: getSecurityEventDataService(),
+  sessionData: getSecuritySessionDataService(),
+  tokenBlacklistData: getSecurityTokenBlacklistDataService(),
+  scanData: getSecurityScanDataService(),
+  
+  // Feature Services
+  eventLogger: getSecurityEventLoggerService(),
+  sessionManagement: getSecuritySessionManagementService(),
+  tokenRevocation: getSecurityTokenRevocationService(),
+  analytics: getSecurityAnalyticsService(),
+  scanning: getSecurityScanningService(),
+  
+  // Validation Services
+  validation: getSecurityValidationService(),
+  scanValidation: getSecurityScanValidationService()
 });
 
 /**
@@ -618,14 +750,15 @@ export const getServices = () => ({
   usageForecast: getUsageForecastService(),
   usageValidation: getUsageValidationService(),
 
+  // Ecommerce Integration Modules
+  ecommerce: getEcommerceServices(),
+
   // Legacy Services (to be migrated)
   apiKey: getApiKeyService(),
   media: getMediaService(),
   brandAccountLegacy: getBrandAccountService(),
+  subscriptionBilling: getSubscriptionBillingService(),
   billing: getBillingService(),
-  shopify: getShopifyService(),
-  wix: getWixService(),
-  wooCommerce: getWooCommerceService(),
   notifications: getNotificationsServices(),
   stripe: getStripeService(),
   tokenDiscount: getTokenDiscountService(),
@@ -633,6 +766,30 @@ export const getServices = () => ({
   domainMapping: getDomainMappingService(),
   supplyChain: getSupplyChainService(),
   usageTracking: getUsageTrackingService()
+});
+
+/**
+ * Helper function to get ecommerce services specifically
+ */
+export const getEcommerceServices = () => ({
+  registry: getEcommerceServicesRegistry(),
+  providers: getEcommerceProvidersRegistry(),
+  adapters: getEcommerceAdapterRegistry(),
+  core: {
+    data: getEcommerceIntegrationDataService(),
+    oauth: getEcommerceOAuthService(),
+    httpClientFactory: getEcommerceHttpClientFactoryService(),
+    webhookRegistry: getEcommerceWebhookRegistryService(),
+    certificateDispatch: getEcommerceCertificateDispatchService()
+  },
+  features: {
+    orderProcessing: getEcommerceOrderProcessingService(),
+    productSync: getEcommerceProductSyncService(),
+    webhookOrchestrator: getEcommerceWebhookOrchestratorService(),
+    connectionHealth: getEcommerceConnectionHealthService(),
+    analytics: getEcommerceAnalyticsService()
+  },
+  utils: getEcommerceUtilities()
 });
 
 /**
@@ -747,6 +904,8 @@ export const getVotingServices = () => ({
   // Validation Services
   validation: getVotingValidationService()
 });
+
+
 
 
 
