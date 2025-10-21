@@ -4,4 +4,8 @@ export * from './billing.templates';
 export * from './connections.templates';
 export * from './certificates.templates';
 export * from './account.templates';
+export * from './auth.templates';
+export * from './wallet.templates';
+export * from './messaging.templates';
+export * from './usage.templates';
 export * from './templateTypes';

@@ -164,10 +164,24 @@ export const SERVICE_TOKENS = {
   AUTH_SERVICE: 'AuthService',
   SECURITY_SERVICE: 'SecurityService',
   TENANT_SERVICE: 'TenantService',
-  
+
   // Utilities
   UTILS_SERVICE: 'UtilsService',
-  
+
+  // Supply Chain modular services
+  SUPPLY_CHAIN_REGISTRY: 'SupplyChainServicesRegistry',
+  SUPPLY_CHAIN_DEPLOYMENT_SERVICE: 'SupplyChainDeploymentService',
+  SUPPLY_CHAIN_ASSOCIATION_SERVICE: 'SupplyChainAssociationService',
+  SUPPLY_CHAIN_CONTRACT_READ_SERVICE: 'SupplyChainContractReadService',
+  SUPPLY_CHAIN_CONTRACT_WRITE_SERVICE: 'SupplyChainContractWriteService',
+  SUPPLY_CHAIN_QR_CODE_SERVICE: 'SupplyChainQrCodeService',
+  SUPPLY_CHAIN_DASHBOARD_SERVICE: 'SupplyChainDashboardService',
+  SUPPLY_CHAIN_ANALYTICS_SERVICE: 'SupplyChainAnalyticsService',
+  SUPPLY_CHAIN_PRODUCT_LIFECYCLE_SERVICE: 'SupplyChainProductLifecycleService',
+  SUPPLY_CHAIN_VALIDATION_SERVICE: 'SupplyChainValidationService',
+  SUPPLY_CHAIN_MAPPERS: 'SupplyChainMappers',
+  SUPPLY_CHAIN_LOG_SERVICE: 'SupplyChainLogParsingService',
+
   // Models (for dependency injection)
   USER_MODEL: 'UserModel',
   BUSINESS_MODEL: 'BusinessModel',

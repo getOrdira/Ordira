@@ -656,8 +656,7 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
     await this.save();
 
     // Send success notification
-    const { NotificationsService } = await import('../services/external/notifications.service');
-    const notificationsService = new NotificationsService();
+    const { notificationsService } = await import('../services/notifications/notifications.service');
     await notificationsService.sendTransferSuccessNotification(this.business.toString(), {
       certificateId: this._id.toString(),
       tokenId: this.tokenId,
@@ -683,8 +682,7 @@ CertificateSchema.methods.executeTransfer = async function(): Promise<boolean> {
     await this.save();
 
     // Send failure notification
-    const { NotificationsService } = await import('../services/external/notifications.service');
-    const notificationsService = new NotificationsService();
+    const { notificationsService } = await import('../services/notifications/notifications.service');
     await notificationsService.sendTransferFailureNotification(this.business.toString(), {
       certificateId: this._id.toString(),
       tokenId: this.tokenId,
@@ -1031,10 +1029,8 @@ CertificateSchema.post('remove', function(doc) {
   process.nextTick(async () => {
     try {
       // Get business details for notification
-      const { NotificationsService } = await import('../services/external/notifications.service');
+      const { notificationsService } = await import('../services/notifications/notifications.service');
       const { Business } = await import('./business.model');
-      
-      const notificationsService = new NotificationsService();
       const business = await Business.findById(doc.business).select('businessName email');
       
       if (business?.email) {

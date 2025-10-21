@@ -1,56 +1,25 @@
 // src/services/blockchain/supplyChain.service.ts
-import { BlockchainProviderService } from './provider.service';
 import { logger } from '../../utils/logger';
-import { BlockchainContractsService } from './contracts.service';
-import { UtilsService } from '../utils/utils.service';
-import { createAppError } from '../../middleware/error.middleware';
+import {
+  SupplyChainServicesRegistry,
+  ISupplyChainDeployment,
+  IEndpointData,
+  IProductData,
+  IEventData,
+  IContractStats,
+  ISupplyChainEndpoint,
+  ISupplyChainProduct,
+  ISupplyChainEvent,
+  IEndpointResult,
+  IProductResult,
+  IEventResult
+} from '../supplyChain';
 
-import supplyChainAbi from '../../abi/supplyChainAbi.json';
-import supplyChainFactoryAbi from '../../abi/supplyChainFactoryAbi.json';
-
-// ===== INTERFACES =====
-
-export interface SupplyChainDeployment {
-  contractAddress: string;
-  txHash: string;
-  blockNumber: number;
-  gasUsed: string;
-  deploymentCost: string;
-  businessId: string;
-  manufacturerName: string;
-}
-
-
-
-export interface EndpointData {
-  name: string;
-  eventType: 'sourced' | 'manufactured' | 'quality_checked' | 'packaged' | 'shipped' | 'delivered';
-  location: string;
-}
-
-export interface ProductData {
-  productId: string;
-  name: string;
-  description: string;
-}
-
-export interface EventData {
-  endpointId: number;
-  productId: string;
-  eventType: string;
-  location: string;
-  details: string;
-}
-
-export interface ContractStats {
-  totalEvents: number;
-  totalProducts: number;
-  totalEndpoints: number;
-  businessId: string;
-  manufacturerName: string;
-}
-
-// ===== ERROR CLASS =====
+export type SupplyChainDeployment = ISupplyChainDeployment;
+export type EndpointData = IEndpointData;
+export type ProductData = IProductData;
+export type EventData = IEventData;
+export type ContractStats = IContractStats;
 
 class SupplyChainError extends Error {
   statusCode: number;
@@ -62,16 +31,12 @@ class SupplyChainError extends Error {
   }
 }
 
-// ===== MAIN SERVICE CLASS =====
-
 export class SupplyChainService {
   private static instance: SupplyChainService;
-  private provider: BlockchainProviderService;
-  private contractsService: BlockchainContractsService;
+  private readonly registry: SupplyChainServicesRegistry;
 
   private constructor() {
-    this.provider = BlockchainProviderService;
-    this.contractsService = new BlockchainContractsService();
+    this.registry = SupplyChainServicesRegistry.getInstance();
   }
 
   public static getInstance(): SupplyChainService {
@@ -82,9 +47,10 @@ export class SupplyChainService {
   }
 
   // ===== Instance wrappers for DI usage =====
+
   public async deployContract(businessId: string, manufacturerName: string) {
     return SupplyChainService.deploySupplyChainContract(businessId, manufacturerName);
-    }
+  }
 
   public async createEndpoint(contractAddress: string, endpointData: EndpointData, businessId: string) {
     return SupplyChainService.createEndpoint(contractAddress, endpointData, businessId);
@@ -114,430 +80,180 @@ export class SupplyChainService {
     return SupplyChainService.getProductEvents(contractAddress, productId, businessId);
   }
 
-  // ===== FACTORY CONTRACT MANAGEMENT =====
+  // ===== Static legacy API =====
 
-  /**
-   * Get the SupplyChain factory contract
-   */
-  private async getSupplyChainFactoryContract() {
-    const { FactorySettings } = require('../../models/factorySettings.model');
-    const factorySettings = await FactorySettings.findOne({ type: 'supplychain' });
-
-    if (!factorySettings?.address) {
-      throw new SupplyChainError('SupplyChain factory not deployed. Please deploy factory first.', 500);
-    }
-
-    return BlockchainProviderService.getContract(factorySettings.address, supplyChainFactoryAbi);
-  }
-
-  /**
-   * Deploy a new SupplyChain contract for a business
-   */
   static async deploySupplyChainContract(
     businessId: string,
     manufacturerName: string
   ): Promise<SupplyChainDeployment> {
+    const service = SupplyChainService.getInstance();
+
     try {
-      if (!businessId?.trim()) {
-        throw new SupplyChainError('Business ID is required', 400);
-      }
-      if (!manufacturerName?.trim()) {
-        throw new SupplyChainError('Manufacturer name is required', 400);
-      }
+      const result = await service.registry.deploymentService.deployContract(businessId, manufacturerName);
 
-      const service = SupplyChainService.getInstance();
-      const factoryContract = await service.getSupplyChainFactoryContract();
-
-      // Estimate gas for deployment
-      const gasEstimate = await (factoryContract as unknown as { estimateGas: { deploySupplyChain: (args: [string, string], options: { value: string }) => Promise<bigint> } }).estimateGas.deploySupplyChain(
-        [businessId, manufacturerName],
-        { value: '10000000000000000' } // 0.01 ETH deployment fee
-      );
-
-      // Deploy contract
-      const tx = await (factoryContract as unknown as { write: { deploySupplyChain: (args: [string, string], options: { value: string; gasLimit?: bigint }) => Promise<{ hash: string }> } }).write.deploySupplyChain(
-        [businessId, manufacturerName],
-        {
-          value: '10000000000000000', // 0.01 ETH
-          gasLimit: gasEstimate * BigInt(2) // Add buffer
-        }
-      );
-
-      // Wait for transaction confirmation
-      const receipt = await BlockchainProviderService.waitForTransaction(tx.hash);
-      
-      if (!receipt) {
-        throw new SupplyChainError('Transaction receipt not found', 500);
+      if (!result.success) {
+        throw new SupplyChainError(result.error || 'Failed to deploy SupplyChain contract', 500);
       }
 
-      // Extract contract address from logs
-      const contractAddress = service.extractContractAddressFromLogs([...receipt.logs]);
-      
-      if (!contractAddress) {
-        throw new SupplyChainError('Contract address not found in transaction logs', 500);
-      }
-
-      // Store business-contract mapping
-      await service.storeBusinessContractMapping(businessId, contractAddress, 'supplychain');
-
-      return {
-        contractAddress,
-        txHash: tx.hash,
-        blockNumber: receipt.blockNumber,
-        gasUsed: receipt.gasUsed.toString(),
-        deploymentCost: '10000000000000000', // 0.01 ETH
-        businessId,
-        manufacturerName
-      };
-
+      return result.deployment;
     } catch (error: any) {
       logger.error('Deploy SupplyChain contract error:', error);
-      
-      if (error instanceof SupplyChainError) {
-        throw error;
-      }
-
-      // Handle blockchain errors
-      if (error.code === 'INSUFFICIENT_FUNDS') {
-        throw new SupplyChainError('Insufficient funds for contract deployment', 400);
-      }
-      if (error.code === 'NETWORK_ERROR') {
-        throw new SupplyChainError('Blockchain network error during deployment', 503);
-      }
-
-      throw new SupplyChainError(`Failed to deploy SupplyChain contract: ${error.message}`, 500);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to deploy SupplyChain contract');
     }
   }
 
-  // ===== CONTRACT INTERACTION =====
-
-  /**
-   * Create an endpoint in a SupplyChain contract
-   */
   static async createEndpoint(
     contractAddress: string,
     endpointData: EndpointData,
     businessId: string
-  ): Promise<{ endpointId: number; txHash: string }> {
+  ): Promise<IEndpointResult> {
+    const service = SupplyChainService.getInstance();
+
     try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
+      const result = await service.registry.contractWriteService.createEndpoint(contractAddress, endpointData, businessId);
 
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      
-      const tx = await (contract as unknown as { write: { createEndpoint: (args: [string, string, string]) => Promise<{ hash: string }> } }).write.createEndpoint([
-        endpointData.name,
-        endpointData.eventType,
-        endpointData.location
-      ]);
+      if (!result.success) {
+        throw new SupplyChainError(result.error || 'Failed to create supply chain endpoint', 500);
+      }
 
-      const receipt = await BlockchainProviderService.waitForTransaction(tx.hash);
-      
-      // Extract endpoint ID from logs
-      const endpointId = SupplyChainService.getInstance().extractEndpointIdFromLogs([...receipt.logs]);
-
-      return {
-        endpointId: endpointId || 0,
-        txHash: tx.hash
-      };
-
+      return result;
     } catch (error: any) {
-      logger.error('Create endpoint error:', error);
-      throw new SupplyChainError(`Failed to create endpoint: ${error.message}`, 500);
+      logger.error('Create SupplyChain endpoint error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to create supply chain endpoint');
     }
   }
 
-  /**
-   * Register a product in a SupplyChain contract
-   */
   static async registerProduct(
     contractAddress: string,
     productData: ProductData,
     businessId: string
-  ): Promise<{ productId: number; txHash: string }> {
+  ): Promise<IProductResult> {
+    const service = SupplyChainService.getInstance();
+
     try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
+      const result = await service.registry.contractWriteService.registerProduct(contractAddress, productData, businessId);
 
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      
-      const tx = await (contract as unknown as { write: { registerProduct: (args: [string, string, string]) => Promise<{ hash: string }> } }).write.registerProduct([
-        productData.productId,
-        productData.name,
-        productData.description
-      ]);
+      if (!result.success) {
+        throw new SupplyChainError(result.error || 'Failed to register supply chain product', 500);
+      }
 
-      const receipt = await BlockchainProviderService.waitForTransaction(tx.hash);
-      
-      // Extract product ID from logs
-      const productId = SupplyChainService.getInstance().extractProductIdFromLogs([...receipt.logs]);
-
-      return {
-        productId: productId || 0,
-        txHash: tx.hash
-      };
-
+      return result;
     } catch (error: any) {
-      logger.error('Register product error:', error);
-      throw new SupplyChainError(`Failed to register product: ${error.message}`, 500);
+      logger.error('Register SupplyChain product error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to register supply chain product');
     }
   }
 
-  /**
-   * Log a supply chain event
-   */
   static async logEvent(
     contractAddress: string,
     eventData: EventData,
     businessId: string
-  ): Promise<{ eventId: number; txHash: string }> {
+  ): Promise<IEventResult> {
+    const service = SupplyChainService.getInstance();
+
     try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
+      const result = await service.registry.contractWriteService.logEvent(contractAddress, eventData, businessId);
 
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      
-      const tx = await (contract as unknown as { write: { logEvent: (args: [bigint, string, string, string, string]) => Promise<{ hash: string }> } }).write.logEvent([
-        BigInt(eventData.endpointId),
-        eventData.productId,
-        eventData.eventType,
-        eventData.location,
-        eventData.details
-      ]);
-
-      const receipt = await BlockchainProviderService.waitForTransaction(tx.hash);
-      
-      // Extract event ID from logs
-      const eventId = SupplyChainService.getInstance().extractEventIdFromLogs([...receipt.logs]);
-
-      return {
-        eventId: eventId || 0,
-        txHash: tx.hash
-      };
-
-    } catch (error: any) {
-      logger.error('Log event error:', error);
-      throw new SupplyChainError(`Failed to log event: ${error.message}`, 500);
-    }
-  }
-
-  // ===== QUERY FUNCTIONS =====
-
-  /**
-   * Get contract statistics
-   */
-  static async getContractStats(contractAddress: string, businessId: string): Promise<ContractStats> {
-    try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
-
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const stats = await (contract as unknown as { read: { getContractStats: () => Promise<[bigint, bigint, bigint, string, string]> } }).read.getContractStats();
-
-      return {
-        totalEvents: Number(stats[0]),
-        totalProducts: Number(stats[1]),
-        totalEndpoints: Number(stats[2]),
-        businessId: stats[3],
-        manufacturerName: stats[4]
-      };
-
-    } catch (error: any) {
-      logger.error('Get contract stats error:', error);
-      throw new SupplyChainError(`Failed to get contract stats: ${error.message}`, 500);
-    }
-  }
-
-  /**
-   * Get all endpoints for a contract
-   */
-  static async getEndpoints(contractAddress: string, businessId: string): Promise<any[]> {
-    try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
-
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const endpointIds = await (contract as unknown as { read: { getManufacturerEndpoints: () => Promise<bigint[]> } }).read.getManufacturerEndpoints();
-
-      const endpoints = [];
-      for (const id of endpointIds) {
-        const endpoint = await (contract as unknown as { read: { getEndpoint: (args: [bigint]) => Promise<{ name: string; eventType: string; isActive: boolean; location?: string; eventCount?: bigint; createdAt?: bigint }> } }).read.getEndpoint([id]);
-        endpoints.push({
-          id: Number(id),
-          name: endpoint.name,
-          eventType: endpoint.eventType,
-          location: endpoint.location,
-          isActive: endpoint.isActive,
-          eventCount: Number(endpoint.eventCount),
-          createdAt: Number(endpoint.createdAt)
-        });
+      if (!result.success) {
+        throw new SupplyChainError(result.error || 'Failed to log supply chain event', 500);
       }
 
-      return endpoints;
-
+      return result;
     } catch (error: any) {
-      logger.error('Get endpoints error:', error);
-      throw new SupplyChainError(`Failed to get endpoints: ${error.message}`, 500);
+      logger.error('Log SupplyChain event error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to log supply chain event');
     }
   }
 
-  /**
-   * Get all products for a contract
-   */
-  static async getProducts(contractAddress: string, businessId: string): Promise<any[]> {
+  static async getContractStats(
+    contractAddress: string,
+    businessId: string
+  ): Promise<ContractStats> {
+    const service = SupplyChainService.getInstance();
+
     try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
+      const result = await service.registry.contractReadService.getContractStats(contractAddress, businessId);
 
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const productIds = await (contract as unknown as { read: { getManufacturerProducts: () => Promise<bigint[]> } }).read.getManufacturerProducts();
-
-      const products = [];
-      for (const id of productIds) {
-        const product = await (contract as unknown as { read: { getProduct: (args: [bigint]) => Promise<{ productId: string; name: string; isActive: boolean; description?: string; totalEvents?: bigint; createdAt?: bigint }> } }).read.getProduct([id]);
-        products.push({
-          id: Number(id),
-          productId: product.productId,
-          name: product.name,
-          description: product.description,
-          totalEvents: Number(product.totalEvents),
-          createdAt: Number(product.createdAt),
-          isActive: product.isActive
-        });
+      if (!result.success || !result.data) {
+        throw new SupplyChainError(result.error || 'Failed to retrieve supply chain contract stats', 500);
       }
 
-      return products;
-
+      return result.data;
     } catch (error: any) {
-      logger.error('Get products error:', error);
-      throw new SupplyChainError(`Failed to get products: ${error.message}`, 500);
+      logger.error('Get SupplyChain contract stats error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to get supply chain contract stats');
     }
   }
 
-  /**
-   * Get events for a specific product
-   */
+  static async getEndpoints(
+    contractAddress: string,
+    businessId: string
+  ): Promise<ISupplyChainEndpoint[]> {
+    const service = SupplyChainService.getInstance();
+
+    try {
+      const result = await service.registry.contractReadService.getEndpoints(contractAddress, businessId);
+
+      if (!result.success || !result.data) {
+        throw new SupplyChainError(result.error || 'Failed to retrieve supply chain endpoints', 500);
+      }
+
+      return result.data;
+    } catch (error: any) {
+      logger.error('Get SupplyChain endpoints error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to get supply chain endpoints');
+    }
+  }
+
+  static async getProducts(
+    contractAddress: string,
+    businessId: string
+  ): Promise<ISupplyChainProduct[]> {
+    const service = SupplyChainService.getInstance();
+
+    try {
+      const result = await service.registry.contractReadService.getProducts(contractAddress, businessId);
+
+      if (!result.success || !result.data) {
+        throw new SupplyChainError(result.error || 'Failed to retrieve supply chain products', 500);
+      }
+
+      return result.data;
+    } catch (error: any) {
+      logger.error('Get SupplyChain products error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to get supply chain products');
+    }
+  }
+
   static async getProductEvents(
-    contractAddress: string, 
-    productId: string, 
-    businessId: string
-  ): Promise<any[]> {
-    try {
-      await SupplyChainService.getInstance().validateBusinessContractAssociation(contractAddress, businessId);
-
-      const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
-      const eventIds = await (contract as unknown as { read: { getProductEvents: (args: [string]) => Promise<bigint[]> } }).read.getProductEvents([productId]);
-
-      const events = [];
-      for (const id of eventIds) {
-        const event = await (contract as unknown as { read: { getEvent: (args: [bigint]) => Promise<{ endpointId: bigint; productId: string; eventData: string; timestamp: bigint; eventType?: string; location?: string; details?: string; loggedBy?: string; isValid?: boolean }> } }).read.getEvent([id]);
-        events.push({
-          id: Number(id),
-          eventType: event.eventType,
-          productId: event.productId,
-          location: event.location,
-          details: event.details,
-          timestamp: Number(event.timestamp),
-          loggedBy: event.loggedBy,
-          isValid: event.isValid
-        });
-      }
-
-      return events;
-
-    } catch (error: any) {
-      logger.error('Get product events error:', error);
-      throw new SupplyChainError(`Failed to get product events: ${error.message}`, 500);
-    }
-  }
-
-  // ===== UTILITY FUNCTIONS =====
-
-  /**
-   * Store business-contract mapping
-   */
-  private async storeBusinessContractMapping(
-    businessId: string,
     contractAddress: string,
-    contractType: 'supplychain'
-  ): Promise<void> {
-    try {
-      const { BrandSettings } = require('../../models/brandSettings.model');
-      
-      await BrandSettings.findOneAndUpdate(
-        { business: businessId },
-        { 
-          $set: { 
-            [`web3Settings.supplyChainContract`]: contractAddress,
-            [`supplyChainSettings.contractDeployedAt`]: new Date(),
-            [`supplyChainSettings.networkId`]: process.env.CHAIN_ID || '8453'
-          }
-        },
-        { upsert: true }
-      );
-    } catch (error) {
-      logger.error('Failed to store business contract mapping:', error);
-      // Don't throw - contract deployment should succeed even if mapping fails
-    }
-  }
-
-  /**
-   * Validate business-contract association
-   */
-  private async validateBusinessContractAssociation(
-    contractAddress: string,
+    productId: string,
     businessId: string
-  ): Promise<void> {
+  ): Promise<ISupplyChainEvent[]> {
+    const service = SupplyChainService.getInstance();
+
     try {
-      const { BrandSettings } = require('../../models/brandSettings.model');
-      
-      const brandSettings = await BrandSettings.findOne({ business: businessId });
-      
-      if (!brandSettings?.web3Settings?.supplyChainContract) {
-        throw new SupplyChainError('No supply chain contract deployed for this business', 404);
+      const result = await service.registry.contractReadService.getProductEvents(contractAddress, productId, businessId);
+
+      if (!result.success || !result.data) {
+        throw new SupplyChainError(result.error || 'Failed to retrieve supply chain product events', 500);
       }
 
-      if (brandSettings.web3Settings.supplyChainContract !== contractAddress) {
-        throw new SupplyChainError('Contract address does not match business association', 403);
-      }
+      return result.data;
     } catch (error: any) {
-      if (error instanceof SupplyChainError) {
-        throw error;
-      }
-      throw new SupplyChainError(`Failed to validate contract association: ${error.message}`, 500);
+      logger.error('Get SupplyChain product events error:', error);
+      throw SupplyChainService.toSupplyChainError(error, 'Failed to get supply chain product events');
     }
   }
 
-  /**
-   * Extract contract address from transaction logs
-   */
-  private extractContractAddressFromLogs(logs: any[]): string | null {
-    // Implementation depends on your event structure
-    // This is a simplified version
-    for (const log of logs) {
-      if (log.topics && log.topics.length > 0) {
-        // Extract address from log data
-        return log.address;
-      }
+  private static toSupplyChainError(error: any, fallback: string, defaultStatus = 500): SupplyChainError {
+    if (error instanceof SupplyChainError) {
+      return error;
     }
-    return null;
-  }
 
-  /**
-   * Extract endpoint ID from transaction logs
-   */
-  private extractEndpointIdFromLogs(logs: any[]): number | null {
-    // Implementation depends on your event structure
-    return null;
-  }
+    const status = typeof error?.statusCode === 'number' ? error.statusCode : defaultStatus;
+    const message = error?.message ? `${fallback}: ${error.message}` : fallback;
 
-  /**
-   * Extract product ID from transaction logs
-   */
-  private extractProductIdFromLogs(logs: any[]): number | null {
-    // Implementation depends on your event structure
-    return null;
-  }
-
-  /**
-   * Extract event ID from transaction logs
-   */
-  private extractEventIdFromLogs(logs: any[]): number | null {
-    // Implementation depends on your event structure
-    return null;
+    return new SupplyChainError(message, status);
   }
 }

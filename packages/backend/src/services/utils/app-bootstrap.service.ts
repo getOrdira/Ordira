@@ -108,6 +108,70 @@ export class AppBootstrapService {
     container.registerInstance(SERVICE_TOKENS.ACTIVE_SESSION_MODEL, ActiveSessionModel);
     container.registerInstance(SERVICE_TOKENS.BLACKLISTED_TOKEN_MODEL, BlacklistedTokenModel);
 
+    const {
+      SupplyChainServicesRegistry,
+      DeploymentService,
+      AssociationService,
+      ContractReadService,
+      ContractWriteService,
+      SupplyChainQrCodeService,
+      SupplyChainDashboardService,
+      SupplyChainAnalyticsService,
+      ProductLifecycleService,
+      SupplyChainValidationService,
+      SupplyChainMappers,
+      LogParsingService
+    } = await import('../supplyChain');
+
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_REGISTRY,
+      SupplyChainServicesRegistry.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_DEPLOYMENT_SERVICE,
+      DeploymentService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_ASSOCIATION_SERVICE,
+      AssociationService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_READ_SERVICE,
+      ContractReadService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_WRITE_SERVICE,
+      ContractWriteService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_QR_CODE_SERVICE,
+      SupplyChainQrCodeService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_DASHBOARD_SERVICE,
+      SupplyChainDashboardService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_ANALYTICS_SERVICE,
+      SupplyChainAnalyticsService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_PRODUCT_LIFECYCLE_SERVICE,
+      ProductLifecycleService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_VALIDATION_SERVICE,
+      SupplyChainValidationService.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_MAPPERS,
+      SupplyChainMappers.getInstance()
+    );
+    container.registerInstance(
+      SERVICE_TOKENS.SUPPLY_CHAIN_LOG_SERVICE,
+      LogParsingService.getInstance()
+    );
+
     logger.info('✅ Services registered in DI container');
   }
 

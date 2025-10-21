@@ -8,5 +8,11 @@ export enum NotificationCategory {
   Invite = 'invite',
   Order = 'order',
   Vote = 'vote',
+  Auth = 'auth',
+  Wallet = 'wallet',
+  Messaging = 'messaging',
+  Usage = 'usage',
+  Settings = 'settings',
+  Bulk = 'bulk',
 }
 

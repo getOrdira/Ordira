@@ -4,6 +4,10 @@ import { billingTemplates } from './billing.templates';
 import { connectionTemplates } from './connections.templates';
 import { certificateTemplates } from './certificates.templates';
 import { accountTemplates } from './account.templates';
+import { authTemplates } from './auth.templates';
+import { walletTemplates } from './wallet.templates';
+import { messagingTemplates } from './messaging.templates';
+import { usageTemplates } from './usage.templates';
 import { NotificationCategory } from '../types/notificationCategory';
 
 interface TemplateDefinition {
@@ -37,7 +41,7 @@ class TemplateRegistry {
       metadata: { category: NotificationCategory.Certificate },
     }));
 
-        Object.entries(billingTemplates).forEach(([key, renderer]) => {
+    Object.entries(billingTemplates).forEach(([key, renderer]) => {
       this.register(key, renderer);
     });
     Object.entries(connectionTemplates).forEach(([key, renderer]) => {
@@ -47,6 +51,18 @@ class TemplateRegistry {
       this.register(key, renderer);
     });
     Object.entries(accountTemplates).forEach(([key, renderer]) => {
+      this.register(key, renderer);
+    });
+    Object.entries(authTemplates).forEach(([key, renderer]) => {
+      this.register(key, renderer);
+    });
+    Object.entries(walletTemplates).forEach(([key, renderer]) => {
+      this.register(key, renderer);
+    });
+    Object.entries(messagingTemplates).forEach(([key, renderer]) => {
+      this.register(key, renderer);
+    });
+    Object.entries(usageTemplates).forEach(([key, renderer]) => {
       this.register(key, renderer);
     });
   }

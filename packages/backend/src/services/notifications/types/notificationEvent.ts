@@ -10,7 +10,7 @@ export interface NotificationEventMetadata {
   message?: string;
   actionUrl?: string;
   templateKey?: string;
-  channels?: { email?: boolean; webhook?: boolean; inApp?: boolean };
+  channels?: { email?: boolean; webhook?: boolean; inApp?: boolean; slack?: boolean };
 }
 
 export interface NotificationEvent {

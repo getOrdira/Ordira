@@ -607,11 +607,9 @@ InvitationSchema.post('save', function(doc) {
   if (this.isModified('status')) {
     process.nextTick(async () => {
       try {
-        const { NotificationsService } = await import('../services/external/notifications.service');
+        const { notificationsService } = await import('../services/notifications/notifications.service');
         const { Business } = await import('./business.model');
         const { Manufacturer } = await import('./manufacturer.model');
-        
-        const notificationsService = new NotificationsService();
         
         switch (doc.status) {
           case 'accepted':

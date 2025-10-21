@@ -3,7 +3,7 @@ import axios from 'axios';
 import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
 import { BrandSettings } from '../../models/brandSettings.model';
-import { CertificateService } from '../business/certificate.service';
+import { certificateService } from '../certificates/certificate.service';
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY!;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET!;
@@ -65,7 +65,7 @@ class ShopifyError extends Error {
  * Shopify integration service for OAuth, webhook management, and product sync
  */
 export class ShopifyService {
-  private certificateService = new CertificateService();
+  private certificateService = certificateService;
 
   /**
    * Extract and validate shop name from domain

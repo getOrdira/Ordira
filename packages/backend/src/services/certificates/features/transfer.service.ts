@@ -11,7 +11,7 @@
 import { Certificate, ICertificate } from '../../../models/certificate.model';
 import { BrandSettings } from '../../../models/brandSettings.model';
 import { NftService } from '../../blockchain/nft.service';
-import { NotificationsService } from '../../external/notifications.service';
+import { notificationsService } from '../../notifications/notifications.service';
 import { logger } from '../../../utils/logger';
 
 export interface TransferResult {
@@ -30,7 +30,7 @@ export interface TransferRetryResult {
 
 export class TransferService {
   private nftService = new NftService();
-  private notificationsService = new NotificationsService();
+  private notificationsService = notificationsService;
 
   /**
    * Handle automatic transfer to brand wallet
@@ -63,17 +63,16 @@ export class TransferService {
       });
 
       // Notify brand of successful transfer
-      await this.notificationsService.notifyBrandOfCertificateMinted(
+      await this.notificationsService.sendCertificateTransferNotification(
         certificate.business.toString(),
+        'business',
+        mintResult.tokenId,
         certificate._id.toString(),
-        {
-          tokenId: mintResult.tokenId,
-          txHash: transferResult.txHash,
-          recipient: brandSettings.certificateWallet,
-          transferScheduled: false,
-          brandWallet: brandSettings.certificateWallet,
-          autoTransferEnabled: true
-        }
+        brandSettings.certificateWallet,
+        transferResult.txHash,
+        transferResult.transferredAt,
+        transferResult.gasUsed,
+        0 // transferTime placeholder
       );
 
     } catch (transferError: any) {
@@ -89,16 +88,11 @@ export class TransferService {
       });
 
       // Notify of transfer failure
-      await this.notificationsService.sendTransferFailureNotification(
+      await this.notificationsService.sendCertificateTransferFailureNotification(
         certificate.business.toString(),
-        {
-          certificateId: certificate._id.toString(),
-          tokenId: mintResult.tokenId,
-          error: transferError.message,
-          attemptNumber: 1,
-          maxAttempts: 3,
-          nextRetryAt: new Date(Date.now() + 300000)
-        }
+        'business',
+        mintResult.tokenId,
+        transferError.message
       );
     }
   }

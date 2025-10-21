@@ -9,7 +9,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../utils/utils.service';
-import { NotificationsService } from '../../external/notifications.service';
+import { notificationsService } from '../../notifications/notifications.service';
 import { Business } from '../../../models/business.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 
@@ -27,7 +27,7 @@ import {
 } from '../types/authTypes.service';
 
 export class BusinessAuthService extends AuthBaseService {
-  private notificationsService = new NotificationsService();
+  private notificationsService = notificationsService;
 
   // ===== BUSINESS REGISTRATION =====
 
@@ -72,7 +72,7 @@ export class BusinessAuthService extends AuthBaseService {
 
       // Send verification email (async, don't block registration)
       try {
-        await this.notificationsService.sendEmailCode(normalizedEmail, emailCode);
+        await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
       } catch (notificationError: any) {
         logger.warn('Failed to send business verification email', {
           email: UtilsService.maskEmail(normalizedEmail),
@@ -354,7 +354,7 @@ export class BusinessAuthService extends AuthBaseService {
 
       // Send verification email
       try {
-        await this.notificationsService.sendEmailCode(normalizedEmail, emailCode);
+        await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
       } catch (notificationError: any) {
         logger.warn('Failed to resend business verification email', {
           email: UtilsService.maskEmail(normalizedEmail),

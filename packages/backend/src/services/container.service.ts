@@ -90,7 +90,7 @@ import type {
   EcommerceProvider,
   ProviderFeatureAdapters
 } from './integrations/ecommerce';
-import { NotificationsService } from './external/notifications.service';
+import { notificationsService } from './notifications/notifications.service';
 import { NftService } from './blockchain/nft.service';
 import { DomainMappingService } from './external/domainMapping.service';
 import { NotificationsServices as notificationsModule } from './notifications';
@@ -111,6 +111,20 @@ import {
 import { SupplyChainService } from './blockchain/supplyChain.service';
 import { QrCodeService } from './external/qrCode.service';
 import {
+  SupplyChainServicesRegistry,
+  DeploymentService,
+  AssociationService,
+  ContractReadService,
+  ContractWriteService,
+  SupplyChainQrCodeService,
+  SupplyChainDashboardService,
+  SupplyChainAnalyticsService,
+  ProductLifecycleService,
+  SupplyChainValidationService,
+  SupplyChainMappers,
+  LogParsingService
+} from './supplyChain';
+import {
   securityServices,
   securityEventDataService as infrastructureSecurityEventDataService,
   sessionDataService as infrastructureSecuritySessionDataService,
@@ -124,6 +138,21 @@ import {
   securityValidationService as infrastructureSecurityValidationService,
   securityScanValidationService as infrastructureSecurityScanValidationService
 } from './infrastructure/security';
+import {
+  streamingServices,
+  streamingService
+} from './infrastructure/streaming';
+import {
+  readReplicaService,
+  executeAnalyticsQuery,
+  executeReportingQuery,
+  executeReadOnlyQuery
+} from './infrastructure/database';
+import {
+  slidingWindowRateLimiter,
+  slidingWindowConfigs,
+  slidingWindowMiddleware
+} from './infrastructure/resilience';
 import { SecurityAuditService } from './security/securityAudit.service';
 import { UsageTrackingService } from './business/usageTracking.service';
 import {
@@ -358,6 +387,22 @@ export class ServiceContainer {
     this.services.set('securityScanningService', infrastructureSecurityScanningService);
     this.services.set('securityValidationService', infrastructureSecurityValidationService);
     this.services.set('securityScanValidationService', infrastructureSecurityScanValidationService);
+
+    // Infrastructure Streaming Services
+    this.services.set('streamingService', streamingService);
+    this.services.set('streamingServices', streamingServices);
+
+    // Infrastructure Resilience Services
+    this.services.set('slidingWindowRateLimiter', slidingWindowRateLimiter);
+    this.services.set('slidingWindowConfigs', slidingWindowConfigs);
+    this.services.set('slidingWindowMiddleware', slidingWindowMiddleware);
+
+    // Infrastructure Database Services
+    this.services.set('readReplicaService', readReplicaService);
+    this.services.set('executeAnalyticsQuery', executeAnalyticsQuery);
+    this.services.set('executeReportingQuery', executeReportingQuery);
+    this.services.set('executeReadOnlyQuery', executeReadOnlyQuery);
+
     this.services.set('mediaService', new MediaDataService());
     this.services.set('brandAccountService', new BrandAccountService());
     this.services.set('pendingVoteService', new PendingVoteService());
@@ -422,12 +467,32 @@ export class ServiceContainer {
     this.services.set('qrCodeService', new QrCodeService());
     this.services.set('securityAuditService', SecurityAuditService.getInstance());
 
+    // New Modular Supply Chain Services
+    this.services.set('supplyChainServicesRegistry', SupplyChainServicesRegistry.getInstance());
+    
+    // Supply Chain Core Services
+    this.services.set('supplyChainDeploymentService', DeploymentService.getInstance());
+    this.services.set('supplyChainAssociationService', AssociationService.getInstance());
+    this.services.set('supplyChainContractReadService', ContractReadService.getInstance());
+    this.services.set('supplyChainContractWriteService', ContractWriteService.getInstance());
+    
+    // Supply Chain Feature Services
+    this.services.set('supplyChainQrCodeService', SupplyChainQrCodeService.getInstance());
+    this.services.set('supplyChainDashboardService', SupplyChainDashboardService.getInstance());
+    this.services.set('supplyChainAnalyticsService', SupplyChainAnalyticsService.getInstance());
+    this.services.set('supplyChainProductLifecycleService', ProductLifecycleService.getInstance());
+    
+    // Supply Chain Utility Services
+    this.services.set('supplyChainValidationService', SupplyChainValidationService.getInstance());
+    this.services.set('supplyChainMappers', SupplyChainMappers.getInstance());
+    this.services.set('supplyChainLogParsingService', LogParsingService.getInstance());
+
     // Blockchain Services
     this.services.set('nftService', new NftService());
 
     // External Services
     this.services.set('billingService', new BillingService());
-    this.services.set('notificationsService', new NotificationsService());
+    this.services.set('notificationsService', notificationsService);
     this.services.set('stripeService', new StripeGatewayService());
     this.services.set('tokenDiscountService', new TokenDiscountService());
   }
@@ -532,7 +597,7 @@ export const getMediaService = () => getContainer().get<MediaDataService>('media
 export const getBrandAccountService = () => getContainer().get<BrandAccountService>('brandAccountService');
 export const getPendingVoteService = () => getContainer().get<PendingVoteService>('pendingVoteService');
 export const getBillingService = () => getContainer().get<BillingService>('billingService');
-export const getNotificationsService = () => getContainer().get<NotificationsService>('notificationsService');
+export const getNotificationsService = () => getContainer().get<typeof notificationsService>('notificationsService');
 export const getNotificationsServices = () => getContainer().get<typeof notificationsModule>('notificationsServices');
 export const getStripeService = () => getContainer().get<StripeGatewayService>('stripeService');
 export const getTokenDiscountService = () => getContainer().get<TokenDiscountService>('tokenDiscountService');
@@ -562,6 +627,48 @@ export const getUsageValidationService = () => getContainer().get<typeof usageVa
 export const getSupplyChainService = () => getContainer().get<SupplyChainService>('supplyChainService');
 export const getQrCodeService = () => getContainer().get<QrCodeService>('qrCodeService');
 export const getSecurityAuditService = () => getContainer().get<SecurityAuditService>('securityAuditService');
+
+// New Modular Supply Chain Services
+export const getSupplyChainServicesRegistry = () => getContainer().get<SupplyChainServicesRegistry>('supplyChainServicesRegistry');
+
+// Supply Chain Core Services
+export const getSupplyChainDeploymentService = () => getContainer().get<DeploymentService>('supplyChainDeploymentService');
+export const getSupplyChainAssociationService = () => getContainer().get<AssociationService>('supplyChainAssociationService');
+export const getSupplyChainContractReadService = () => getContainer().get<ContractReadService>('supplyChainContractReadService');
+export const getSupplyChainContractWriteService = () => getContainer().get<ContractWriteService>('supplyChainContractWriteService');
+
+// Supply Chain Feature Services
+export const getSupplyChainQrCodeService = () => getContainer().get<SupplyChainQrCodeService>('supplyChainQrCodeService');
+export const getSupplyChainDashboardService = () => getContainer().get<SupplyChainDashboardService>('supplyChainDashboardService');
+export const getSupplyChainAnalyticsService = () => getContainer().get<SupplyChainAnalyticsService>('supplyChainAnalyticsService');
+export const getSupplyChainProductLifecycleService = () => getContainer().get<ProductLifecycleService>('supplyChainProductLifecycleService');
+
+// Supply Chain Utility Services
+export const getSupplyChainValidationService = () => getContainer().get<SupplyChainValidationService>('supplyChainValidationService');
+export const getSupplyChainMappers = () => getContainer().get<SupplyChainMappers>('supplyChainMappers');
+export const getSupplyChainLogParsingService = () => getContainer().get<LogParsingService>('supplyChainLogParsingService');
+
+// Convenience function to get all supply chain services
+export const getSupplyChainServices = () => ({
+  registry: getSupplyChainServicesRegistry(),
+  core: {
+    deployment: getSupplyChainDeploymentService(),
+    association: getSupplyChainAssociationService(),
+    contractRead: getSupplyChainContractReadService(),
+    contractWrite: getSupplyChainContractWriteService()
+  },
+  features: {
+    qrCode: getSupplyChainQrCodeService(),
+    dashboard: getSupplyChainDashboardService(),
+    analytics: getSupplyChainAnalyticsService(),
+    productLifecycle: getSupplyChainProductLifecycleService()
+  },
+  utilities: {
+    validation: getSupplyChainValidationService(),
+    mappers: getSupplyChainMappers(),
+    logParsing: getSupplyChainLogParsingService()
+  }
+});
 
 // New Modular Brands Services
 export const getBrandProfileCoreService = () => getContainer().get<typeof brandProfileCoreService>('brandProfileCoreService');
@@ -638,6 +745,21 @@ export const getSecurityAnalyticsService = () => getContainer().get<typeof infra
 export const getSecurityScanningService = () => getContainer().get<typeof infrastructureSecurityScanningService>('securityScanningService');
 export const getSecurityValidationService = () => getContainer().get<typeof infrastructureSecurityValidationService>('securityValidationService');
 export const getSecurityScanValidationService = () => getContainer().get<typeof infrastructureSecurityScanValidationService>('securityScanValidationService');
+
+// Infrastructure Streaming Services Getters
+export const getStreamingService = () => getContainer().get<typeof streamingService>('streamingService');
+export const getStreamingServices = () => getContainer().get<typeof streamingServices>('streamingServices');
+
+// Infrastructure Resilience Services Getters
+export const getSlidingWindowRateLimiter = () => getContainer().get<typeof slidingWindowRateLimiter>('slidingWindowRateLimiter');
+export const getSlidingWindowConfigs = () => getContainer().get<typeof slidingWindowConfigs>('slidingWindowConfigs');
+export const getSlidingWindowMiddleware = () => getContainer().get<typeof slidingWindowMiddleware>('slidingWindowMiddleware');
+
+// Infrastructure Database Services Getters
+export const getReadReplicaService = () => getContainer().get<typeof readReplicaService>('readReplicaService');
+export const getExecuteAnalyticsQuery = () => getContainer().get<typeof executeAnalyticsQuery>('executeAnalyticsQuery');
+export const getExecuteReportingQuery = () => getContainer().get<typeof executeReportingQuery>('executeReportingQuery');
+export const getExecuteReadOnlyQuery = () => getContainer().get<typeof executeReadOnlyQuery>('executeReadOnlyQuery');
 
 /**
  * Get all analytics services
@@ -750,8 +872,26 @@ export const getServices = () => ({
   usageForecast: getUsageForecastService(),
   usageValidation: getUsageValidationService(),
 
+  // Infrastructure Streaming
+  streaming: getStreamingService(),
+  streamingModule: getStreamingServices(),
+
+  // Infrastructure Resilience
+  slidingWindowRateLimiter: getSlidingWindowRateLimiter(),
+  slidingWindowConfigs: getSlidingWindowConfigs(),
+  slidingWindowMiddleware: getSlidingWindowMiddleware(),
+
+  // Infrastructure Database
+  readReplica: getReadReplicaService(),
+  executeAnalyticsQuery: getExecuteAnalyticsQuery(),
+  executeReportingQuery: getExecuteReportingQuery(),
+  executeReadOnlyQuery: getExecuteReadOnlyQuery(),
+
   // Ecommerce Integration Modules
   ecommerce: getEcommerceServices(),
+
+  // New Modular Supply Chain Services
+  supplyChainModules: getSupplyChainServices(),
 
   // Legacy Services (to be migrated)
   apiKey: getApiKeyService(),

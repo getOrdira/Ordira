@@ -3,6 +3,7 @@ import { jobQueueAdapter } from './core/jobQueueAdapter.service';
 import { backgroundTaskProcessorService } from './features/backgroundTaskProcessor.service';
 import { retryPolicyService } from './features/retryPolicy.service';
 import { queueDashboardService } from './features/queueDashboard.service';
+import { slidingWindowRateLimiter } from './features/slidingWindowRateLimiter.service';
 
 export {
   CircuitBreaker,
@@ -14,6 +15,16 @@ export { JobQueueAdapter, jobQueueAdapter } from './core/jobQueueAdapter.service
 export { BackgroundTaskProcessorService, backgroundTaskProcessorService } from './features/backgroundTaskProcessor.service';
 export { RetryPolicyService, retryPolicyService } from './features/retryPolicy.service';
 export { QueueDashboardService, queueDashboardService } from './features/queueDashboard.service';
+export {
+  SlidingWindowRateLimiter,
+  slidingWindowRateLimiter,
+  type SlidingWindowConfig,
+  type RateLimitInfo,
+  type RateLimitResult,
+  slidingWindowConfigs,
+  createSlidingWindowLimiter,
+  slidingWindowMiddleware
+} from './features/slidingWindowRateLimiter.service';
 export * from './utils/types';
 
 export const resilienceServices = {
@@ -21,7 +32,8 @@ export const resilienceServices = {
   jobQueueAdapter,
   backgroundTaskProcessorService,
   retryPolicyService,
-  queueDashboardService
+  queueDashboardService,
+  slidingWindowRateLimiter
 };
 
 export type ResilienceServices = typeof resilienceServices;

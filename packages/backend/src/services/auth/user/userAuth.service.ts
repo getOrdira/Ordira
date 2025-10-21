@@ -10,7 +10,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../utils/utils.service';
-import { NotificationsService } from '../../external/notifications.service';
+import { notificationsService } from '../../notifications/notifications.service';
 import { User } from '../../../models/user.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { getCustomerAccessService } from '../../container.service';
@@ -29,7 +29,7 @@ import {
 } from '../types/authTypes.service';
 
 export class UserAuthService extends AuthBaseService {
-  private notificationsService = new NotificationsService();
+  private notificationsService = notificationsService;
   private customerAccessService = getCustomerAccessService();
 
   // ===== USER REGISTRATION =====
@@ -84,7 +84,7 @@ export class UserAuthService extends AuthBaseService {
 
       // Send verification email (async, don't block registration)
       try {
-        await this.notificationsService.sendEmailCode(normalizedEmail, emailCode);
+        await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
       } catch (notificationError: any) {
         logger.warn('Failed to send user verification email', {
           email: UtilsService.maskEmail(normalizedEmail),
@@ -372,7 +372,7 @@ export class UserAuthService extends AuthBaseService {
 
       // Send verification email
       try {
-        await this.notificationsService.sendEmailCode(normalizedEmail, emailCode);
+        await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
       } catch (notificationError: any) {
         logger.warn('Failed to resend user verification email', {
           email: UtilsService.maskEmail(normalizedEmail),

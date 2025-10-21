@@ -2,7 +2,7 @@
 import Stripe from 'stripe';
 import { logger } from '../../../utils/logger'; 
 import { Business } from '../../../models/business.model';
-import { NotificationsService } from '../../external/notifications.service'; 
+import { notificationsService } from '../../notifications/notifications.service'; 
 import { StripeGatewayService, stripeGatewayService } from '../core/stripeGateway.service';
 import { TokenDiscountService, tokenDiscountService } from './tokenDiscount.service';
 import { PlanKey, PLAN_DEFINITIONS } from '../../../constants/plans';
@@ -13,7 +13,7 @@ import { billingValidationService, BillingValidationService } from '../validatio
 
 export class BillingManagementService {
   private stripe: Stripe;
-  private notificationsService: NotificationsService;
+  private notificationsService = notificationsService;
   private stripeGateway: StripeGatewayService;
   private tokenDiscountService: TokenDiscountService;
   private dataService: BillingDataService;
@@ -22,7 +22,7 @@ export class BillingManagementService {
 
   constructor(
     stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2022-11-15' }),
-    notificationsService = new NotificationsService(),
+    notificationsServiceParam = notificationsService,
     stripeGateway: StripeGatewayService = stripeGatewayService,
     tokenService: TokenDiscountService = tokenDiscountService,
     dataService = billingDataService,
@@ -30,7 +30,7 @@ export class BillingManagementService {
     validationService = billingValidationService
   ) {
     this.stripe = stripe;
-    this.notificationsService = notificationsService;
+    this.notificationsService = notificationsServiceParam;
     this.stripeGateway = stripeGateway;
     this.tokenDiscountService = tokenService;
     this.dataService = dataService;
@@ -1231,7 +1231,7 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
 
   private async sendPlanChangeNotification(email: string, fromPlan: string, toPlan: string): Promise<void> {
     try {
-      await this.notificationsService.sendPlanChangeNotification(email, fromPlan, toPlan);
+      await this.notificationsService.sendSubscriptionPlanChangedNotification(email, fromPlan, toPlan);
     } catch (error) {
       logger.error('Failed to send plan change notification:', error);
     }
@@ -1255,7 +1255,14 @@ private calculatePotentialSavings(plan: string, tokenDiscount: any): any {
 
   private async sendPaymentFailedNotification(email: string, invoiceId: string): Promise<void> {
     try {
-      await this.notificationsService.sendPaymentFailedNotification(email, invoiceId);
+      await this.notificationsService.sendPaymentFailedNotification(
+        email, // recipientId
+        'business', // recipientType
+        invoiceId, // invoiceId
+        0, // amount (placeholder)
+        'USD', // currency (placeholder)
+        'Payment failed' // errorMessage
+      );
     } catch (error) {
       logger.error('Failed to send payment failed notification:', error);
     }

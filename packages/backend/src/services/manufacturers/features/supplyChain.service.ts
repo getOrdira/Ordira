@@ -2,8 +2,17 @@
 
 import { Manufacturer } from '../../../models/manufacturer.model';
 import { logger } from '../../../utils/logger';
-import { SupplyChainService as BlockchainSupplyChainService } from '../../blockchain/supplyChain.service';
 import { QrCodeService } from '../../external/qrCode.service';
+import {
+  SupplyChainServicesRegistry,
+  DeploymentService,
+  ContractReadService,
+  ContractWriteService,
+  ISupplyChainEndpoint as ModularSupplyChainEndpoint,
+  ISupplyChainProduct as ModularSupplyChainProduct,
+  ISupplyChainEvent as ModularSupplyChainEvent,
+  SupplyChainEventType
+} from '../../supplyChain';
 
 export interface SupplyChainContractInfo {
   contractAddress: string;
@@ -102,10 +111,18 @@ class SupplyChainError extends Error {
  * Supply chain management service - handles blockchain supply chain features
  */
 export class SupplyChainService {
+  private readonly registry: SupplyChainServicesRegistry;
+  private readonly deploymentService: DeploymentService;
+  private readonly contractReadService: ContractReadService;
+  private readonly contractWriteService: ContractWriteService;
   private qrCodeService: QrCodeService;
 
   constructor() {
     this.qrCodeService = new QrCodeService();
+    this.registry = SupplyChainServicesRegistry.getInstance();
+    this.deploymentService = this.registry.deploymentService;
+    this.contractReadService = this.registry.contractReadService;
+    this.contractWriteService = this.registry.contractWriteService;
   }
 
   /**
@@ -113,8 +130,18 @@ export class SupplyChainService {
    */
   async deploySupplyChainContract(manufacturerId: string, manufacturerName: string): Promise<SupplyChainContractInfo> {
     try {
-      // Deploy contract using SupplyChainService
-      const deployment = await BlockchainSupplyChainService.deploySupplyChainContract(manufacturerId, manufacturerName);
+      // Deploy contract using modular deployment service
+      const deploymentResult = await this.deploymentService.deployContract(manufacturerId, manufacturerName);
+
+      if (!deploymentResult.success) {
+        throw new SupplyChainError(
+          deploymentResult.error || 'Failed to deploy supply chain contract',
+          500,
+          'DEPLOYMENT_ERROR'
+        );
+      }
+
+      const deployment = deploymentResult.deployment;
 
       // Update manufacturer profile with contract info
       await Manufacturer.findByIdAndUpdate(manufacturerId, {
@@ -157,7 +184,17 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const stats = await BlockchainSupplyChainService.getContractStats(contractAddress, manufacturerId);
+      const statsResult = await this.contractReadService.getContractStats(contractAddress, manufacturerId);
+
+      if (!statsResult.success || !statsResult.data) {
+        throw new SupplyChainError(
+          statsResult.error || 'Failed to retrieve supply chain stats',
+          500,
+          'CONTRACT_INFO_ERROR'
+        );
+      }
+
+      const stats = statsResult.data;
 
       return {
         contractAddress,
@@ -192,7 +229,19 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const result = await BlockchainSupplyChainService.createEndpoint(contractAddress, endpointData, manufacturerId);
+      const endpointPayload = {
+        ...endpointData,
+        eventType: endpointData.eventType as SupplyChainEventType
+      };
+      const result = await this.contractWriteService.createEndpoint(contractAddress, endpointPayload, manufacturerId);
+
+      if (!result.success) {
+        throw new SupplyChainError(
+          result.error || 'Failed to create supply chain endpoint',
+          500,
+          'ENDPOINT_CREATE_ERROR'
+        );
+      }
 
       logger.info(`Supply chain endpoint created for manufacturer ${manufacturerId}`, {
         endpointId: result.endpointId,
@@ -230,17 +279,17 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const endpoints = await BlockchainSupplyChainService.getEndpoints(contractAddress, manufacturerId);
+      const endpointsResult = await this.contractReadService.getEndpoints(contractAddress, manufacturerId);
 
-      return endpoints.map(endpoint => ({
-        id: endpoint.id,
-        name: endpoint.name,
-        eventType: endpoint.eventType,
-        location: endpoint.location,
-        isActive: endpoint.isActive,
-        eventCount: endpoint.eventCount,
-        createdAt: new Date(endpoint.createdAt * 1000)
-      }));
+      if (!endpointsResult.success || !endpointsResult.data) {
+        throw new SupplyChainError(
+          endpointsResult.error || 'Failed to fetch supply chain endpoints',
+          500,
+          'ENDPOINTS_ERROR'
+        );
+      }
+
+      return endpointsResult.data.map(endpoint => this.mapEndpoint(endpoint));
 
     } catch (error: any) {
       throw new SupplyChainError(`Failed to get supply chain endpoints: ${error.message}`, 500, 'ENDPOINTS_ERROR');
@@ -265,7 +314,15 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const result = await BlockchainSupplyChainService.registerProduct(contractAddress, productData, manufacturerId);
+      const result = await this.contractWriteService.registerProduct(contractAddress, { ...productData }, manufacturerId);
+
+      if (!result.success) {
+        throw new SupplyChainError(
+          result.error || 'Failed to register supply chain product',
+          500,
+          'PRODUCT_REGISTRATION_ERROR'
+        );
+      }
 
       logger.info(`Supply chain product registered for manufacturer ${manufacturerId}`, {
         productId: result.productId,
@@ -302,17 +359,17 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const products = await BlockchainSupplyChainService.getProducts(contractAddress, manufacturerId);
+      const productsResult = await this.contractReadService.getProducts(contractAddress, manufacturerId);
 
-      return products.map(product => ({
-        id: product.id,
-        productId: product.productId,
-        name: product.name,
-        description: product.description,
-        totalEvents: product.totalEvents,
-        createdAt: new Date(product.createdAt * 1000),
-        isActive: product.isActive
-      }));
+      if (!productsResult.success || !productsResult.data) {
+        throw new SupplyChainError(
+          productsResult.error || 'Failed to fetch supply chain products',
+          500,
+          'PRODUCTS_ERROR'
+        );
+      }
+
+      return productsResult.data.map(product => this.mapProduct(product));
 
     } catch (error: any) {
       throw new SupplyChainError(`Failed to get supply chain products: ${error.message}`, 500, 'PRODUCTS_ERROR');
@@ -339,7 +396,15 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const result = await BlockchainSupplyChainService.logEvent(contractAddress, eventData, manufacturerId);
+      const result = await this.contractWriteService.logEvent(contractAddress, eventData, manufacturerId);
+
+      if (!result.success) {
+        throw new SupplyChainError(
+          result.error || 'Failed to log supply chain event',
+          500,
+          'EVENT_LOG_ERROR'
+        );
+      }
 
       logger.info(`Supply chain event logged for manufacturer ${manufacturerId}`, {
         eventId: result.eventId,
@@ -379,18 +444,17 @@ export class SupplyChainService {
       }
 
       const contractAddress = manufacturer.supplyChainSettings.contractAddress;
-      const events = await BlockchainSupplyChainService.getProductEvents(contractAddress, productId, manufacturerId);
+      const eventsResult = await this.contractReadService.getProductEvents(contractAddress, productId, manufacturerId);
 
-      return events.map(event => ({
-        id: event.id,
-        eventType: event.eventType,
-        productId: event.productId,
-        location: event.location,
-        details: event.details,
-        timestamp: new Date(event.timestamp * 1000),
-        loggedBy: event.loggedBy,
-        isValid: event.isValid
-      }));
+      if (!eventsResult.success || !eventsResult.data) {
+        throw new SupplyChainError(
+          eventsResult.error || 'Failed to fetch supply chain product events',
+          500,
+          'PRODUCT_EVENTS_ERROR'
+        );
+      }
+
+      return eventsResult.data.map(event => this.mapEvent(event));
 
     } catch (error: any) {
       throw new SupplyChainError(`Failed to get supply chain product events: ${error.message}`, 500, 'PRODUCT_EVENTS_ERROR');
@@ -697,6 +761,55 @@ export class SupplyChainService {
     } catch (error: any) {
       throw new SupplyChainError(`Failed to get supply chain statistics: ${error.message}`, 500, 'STATISTICS_ERROR');
     }
+  }
+
+  private mapEndpoint(endpoint: ModularSupplyChainEndpoint): SupplyChainEndpoint {
+    return {
+      id: endpoint.id,
+      name: endpoint.name,
+      eventType: endpoint.eventType as SupplyChainEndpoint['eventType'],
+      location: endpoint.location,
+      isActive: endpoint.isActive,
+      eventCount: endpoint.eventCount,
+      createdAt: this.toDate(endpoint.createdAt)
+    };
+  }
+
+  private mapProduct(product: ModularSupplyChainProduct): SupplyChainProduct {
+    return {
+      id: product.id,
+      productId: product.productId,
+      name: product.name,
+      description: product.description || '',
+      totalEvents: product.totalEvents,
+      createdAt: this.toDate(product.createdAt),
+      isActive: product.isActive
+    };
+  }
+
+  private mapEvent(event: ModularSupplyChainEvent): SupplyChainEvent {
+    return {
+      id: event.id,
+      eventType: event.eventType,
+      productId: event.productId,
+      location: event.location || '',
+      details: event.details || '',
+      timestamp: this.toDate(event.timestamp),
+      loggedBy: event.loggedBy || '',
+      isValid: event.isValid ?? true
+    };
+  }
+
+  private toDate(timestamp?: number): Date {
+    if (!timestamp || Number.isNaN(timestamp)) {
+      return new Date(0);
+    }
+
+    if (timestamp < 1_000_000_000_000) {
+      return new Date(timestamp * 1000);
+    }
+
+    return new Date(timestamp);
   }
 }
 

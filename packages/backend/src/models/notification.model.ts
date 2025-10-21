@@ -14,14 +14,14 @@ export interface INotification extends Document {
   
   // Enhanced fields (aligned with controller validation)
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  category: 'system' | 'billing' | 'certificate' | 'vote' | 'invite' | 'order' | 'security';
+  category: 'system' | 'billing' | 'certificate' | 'vote' | 'invite' | 'order' | 'security' | 'auth' | 'wallet' | 'messaging' | 'usage' | 'settings' | 'bulk' | 'connection' | 'account';
   title?: string;
   actionUrl?: string;
   expiresAt?: Date;
   
   // Delivery tracking (aligned with service delivery methods)
   deliveryStatus: 'pending' | 'sent' | 'delivered' | 'failed';
-  deliveryChannels?: Array<'in_app' | 'email' | 'sms' | 'push'>;
+  deliveryChannels?: Array<'in_app' | 'email' | 'sms' | 'push' | 'slack' | 'webhook'>;
   deliveryAttempts?: number;
   lastDeliveryAttempt?: Date;
   deliveryError?: string;
@@ -139,7 +139,7 @@ const NotificationSchema = new Schema<INotification>(
     },
     category: {
       type: String,
-      enum: ['system', 'billing', 'certificate', 'vote', 'invite', 'order', 'security'],
+      enum: ['system', 'billing', 'certificate', 'vote', 'invite', 'order', 'security', 'auth', 'wallet', 'messaging', 'usage', 'settings', 'bulk', 'connection', 'account'],
       required: [true, 'Category is required'],
       index: true
     },
@@ -178,7 +178,7 @@ const NotificationSchema = new Schema<INotification>(
     },
     deliveryChannels: [{
       type: String,
-      enum: ['in_app', 'email', 'sms', 'push'],
+      enum: ['in_app', 'email', 'sms', 'push', 'slack', 'webhook'],
       default: 'in_app'
     }],
     deliveryAttempts: {

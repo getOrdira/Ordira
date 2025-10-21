@@ -5,7 +5,13 @@ import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
 import { ValidatedRequest } from '../middleware/validation.middleware';
 import { asyncHandler, createAppError } from '../middleware/error.middleware';
 import { SupplyChainEvent } from '../models/supplyChainEvent.model';
-import { getAnalyticsService, getQrCodeService, getSupplyChainService } from '../services/container.service';
+import { getAnalyticsServices, getQrCodeService } from '../services/container.service';
+import { container, SERVICE_TOKENS } from '../services/utils/di-container.service';
+import {
+  DeploymentService,
+  ContractReadService,
+  ContractWriteService
+} from '../services/supplyChain';
 import { BrandSettings } from '../models/brandSettings.model';
 import { Manufacturer } from '../models/manufacturer.model';
 import { Product } from '../models/product.model';
@@ -14,9 +20,17 @@ import redis from 'ioredis';
 import { hasCreatedAt, hasSupplyChainSettings } from '../utils/typeGuards';
 
 // Initialize services via container
-const analyticsService = getAnalyticsService();
+const analyticsService = getAnalyticsServices();
 const qrCodeService = getQrCodeService();
-const supplyChainService = getSupplyChainService();
+const deploymentService = container.resolve<DeploymentService>(
+  SERVICE_TOKENS.SUPPLY_CHAIN_DEPLOYMENT_SERVICE
+);
+const contractReadService = container.resolve<ContractReadService>(
+  SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_READ_SERVICE
+);
+const contractWriteService = container.resolve<ContractWriteService>(
+  SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_WRITE_SERVICE
+);
 const redisClient = new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 interface SupplyChainRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
@@ -237,11 +251,20 @@ export const deployContract = asyncHandler(async (
   }
 
   // Deploy contract
-  const deployment = await supplyChainService.deployContract(businessId, manufacturerName);
+  const deploymentResult = await deploymentService.deployContract(businessId, manufacturerName);
+
+  if (!deploymentResult.success) {
+    res.status(500).json({
+      success: false,
+      error: deploymentResult.error || 'Failed to deploy supply chain contract',
+      code: 'DEPLOYMENT_ERROR'
+    });
+    return;
+  }
 
   res.status(201).json({
     success: true,
-    data: deployment,
+    data: deploymentResult.deployment,
     message: 'Supply chain contract deployed successfully'
   });
 });

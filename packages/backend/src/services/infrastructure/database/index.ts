@@ -1,4 +1,11 @@
 import { EnhancedDatabaseService, enhancedDatabaseService } from './core/enhancedDatabaseConnection.service';
+import {
+  ReadReplicaService,
+  readReplicaService,
+  executeAnalyticsQuery,
+  executeReportingQuery,
+  executeReadOnlyQuery
+} from './core/readReplica.service';
 import { DatabaseService as DatabaseAdministrationService, databaseService } from './features/databaseAdministration.service';
 import { DatabaseOptimizationService, databaseOptimizationService } from './features/indexOptimization.service';
 import { QueryOptimizationService, queryOptimizationService } from './features/queryOptimization.service';
@@ -8,6 +15,11 @@ import { databaseValidationService, DatabaseValidationService } from './validati
 export {
   EnhancedDatabaseService,
   enhancedDatabaseService,
+  ReadReplicaService,
+  readReplicaService,
+  executeAnalyticsQuery,
+  executeReportingQuery,
+  executeReadOnlyQuery,
   DatabaseAdministrationService,
   databaseService,
   DatabaseOptimizationService,
@@ -22,6 +34,7 @@ export {
 
 export const databaseServices = {
   enhancedDatabaseService,
+  readReplicaService,
   databaseService,
   databaseOptimizationService,
   queryOptimizationService,

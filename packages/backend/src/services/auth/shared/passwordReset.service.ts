@@ -9,7 +9,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../utils/utils.service';
-import { NotificationsService } from '../../external/notifications.service';
+import { notificationsService } from '../../notifications/notifications.service';
 import { Business } from '../../../models/business.model';
 import { User } from '../../../models/user.model';
 import { Manufacturer } from '../../../models/manufacturer.model';
@@ -26,7 +26,7 @@ import {
 } from '../types/authTypes.service';
 
 export class PasswordResetService extends AuthBaseService {
-  private notificationsService = new NotificationsService();
+  private notificationsService = notificationsService;
 
   // Password reset token expiry (15 minutes)
   private readonly PASSWORD_RESET_TOKEN_EXPIRY = 15 * 60 * 1000;
@@ -79,7 +79,7 @@ export class PasswordResetService extends AuthBaseService {
 
       // Send password reset email (async, don't block the flow)
       try {
-        await this.notificationsService.sendPasswordResetLink(normalizedEmail, resetToken);
+        await this.notificationsService.sendPasswordResetLink(normalizedEmail, resetToken, '15 minutes');
       } catch (notificationError: any) {
         logger.warn('Failed to send password reset email', {
           email: UtilsService.maskEmail(normalizedEmail),

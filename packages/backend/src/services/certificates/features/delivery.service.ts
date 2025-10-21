@@ -9,7 +9,7 @@
  */
 
 import { Certificate, ICertificate } from '../../../models/certificate.model';
-import { NotificationsService } from '../../external/notifications.service';
+import { notificationsService } from '../../notifications/notifications.service';
 import { logger } from '../../../utils/logger';
 
 export interface DeliveryData {
@@ -38,7 +38,7 @@ export interface ScheduleDeliveryResult {
 }
 
 export class DeliveryService {
-  private notificationsService = new NotificationsService();
+  private notificationsService = notificationsService;
 
   /**
    * Deliver certificate with enhanced options
