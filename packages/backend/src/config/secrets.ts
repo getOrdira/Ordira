@@ -1,70 +1,59 @@
 // src/config/secrets.ts
-import { logger, logConfigSafe } from '../utils/logger';
-import { sanitizeEnvironmentVariables } from '../utils/dataSanitizer';
+import { logConfigSafe } from '../utils/logger';
 
-export async function loadSecrets(): Promise<void> {
-  const nodeEnv = process.env.NODE_ENV;
-  const isRender = process.env.RENDER;
+/**
+ * List of required environment variables that must be present in all environments
+ */
+const REQUIRED_ENV_VARS = [
+  'MONGODB_URI',
+  'JWT_SECRET',
+  'STRIPE_SECRET_KEY',
+  'FRONTEND_URL'
+] as const;
 
+/**
+ * Validates that all required environment variables are present.
+ * This function is platform-agnostic and works for any deployment environment.
+ * 
+ * @throws {Error} If any required environment variables are missing
+ */
+export function validateRequiredSecrets(): void {
+  const nodeEnv = process.env.NODE_ENV || 'development';
+
+  // In development/test, we allow missing vars to provide better error messages
   if (nodeEnv === 'development' || nodeEnv === 'test') {
-    logConfigSafe('🔧 Development mode - using local .env file');
-    return;
+    logConfigSafe('🔧 Development/test mode - validating environment variables');
   }
 
-  if (isRender) {
-    logConfigSafe('🚀 Render platform detected - using Render environment variables', {
-      platform: 'Render',
-      secretsManagement: 'Render dashboard'
-    });
-    
-    // Validate that critical environment variables are present
-    const requiredVars = [
-      'MONGODB_URI',
-      'JWT_SECRET',
-      'STRIPE_SECRET_KEY',
-      'FRONTEND_URL'
-    ];
-
-    const missingVars = requiredVars.filter(varName => !process.env[varName]);
-    
-    if (missingVars.length > 0) {
-      logConfigSafe('❌ Missing required environment variables', {
-        missingVariables: missingVars,
-        platform: 'Render'
-      });
-      throw new Error(`Missing required environment variables in Render: ${missingVars.join(', ')}`);
-    }
-
-    logConfigSafe('✅ All required environment variables are present', {
-      requiredVariablesCount: requiredVars.length,
-      platform: 'Render'
-    });
-    return;
-  }
-
-  // For other platforms, ensure critical variables are set
-  logConfigSafe('🌐 Using system environment variables', {
-    platform: 'System'
-  });
-  const requiredVars = [
-    'MONGODB_URI',
-    'JWT_SECRET',
-    'STRIPE_SECRET_KEY',
-    'FRONTEND_URL'
-  ];
-
-  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  // Check for missing required variables
+  const missingVars = REQUIRED_ENV_VARS.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
     logConfigSafe('❌ Missing required environment variables', {
       missingVariables: missingVars,
-      platform: 'System'
+      environment: nodeEnv,
+      requiredCount: REQUIRED_ENV_VARS.length,
+      missingCount: missingVars.length
     });
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    
+    throw new Error(
+      `Missing required environment variables: ${missingVars.join(', ')}. ` +
+      `Please ensure all required secrets are configured for the ${nodeEnv} environment.`
+    );
   }
 
   logConfigSafe('✅ All required environment variables are present', {
-    requiredVariablesCount: requiredVars.length,
-    platform: 'System'
+    requiredVariablesCount: REQUIRED_ENV_VARS.length,
+    environment: nodeEnv
   });
+}
+
+/**
+ * Async wrapper for loadSecrets to maintain backward compatibility.
+ * This function is deprecated in favor of validateRequiredSecrets().
+ * 
+ * @deprecated Use validateRequiredSecrets() instead
+ */
+export async function loadSecrets(): Promise<void> {
+  validateRequiredSecrets();
 }

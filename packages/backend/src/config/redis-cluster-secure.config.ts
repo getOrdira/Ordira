@@ -17,14 +17,21 @@ const getSecurePassword = (): string => {
 };
 
 const getTLSConfig = () => {
-  const useTLS = process.env.REDIS_TLS === 'true' || process.env.NODE_ENV === 'production';
+  if (process.env.REDIS_TLS !== 'true') {
+    throw new Error('REDIS_TLS must be set to "true"');
+  }
+
+  if (!process.env.REDIS_CA_CERT) {
+    throw new Error('REDIS_CA_CERT environment variable is required');
+  }
+
   return {
-    tls: useTLS ? {
+    tls: {
       rejectUnauthorized: true,
       ca: process.env.REDIS_CA_CERT,
       cert: process.env.REDIS_CLIENT_CERT,
       key: process.env.REDIS_CLIENT_KEY
-    } : undefined
+    }
   };
 };
 
@@ -62,8 +69,9 @@ export const secureRedisClusterConfigs: RedisClusterEnvironmentConfig = {
         lazyConnect: true,
         maxRetriesPerRequest: 3,
         retryDelayOnFailover: 100,
-        password: process.env.REDIS_PASSWORD || 'dev-password-change-me',
+        password: process.env.REDIS_PASSWORD,
         commandTimeout: 5000,
+        ...getTLSConfig()
       },
       enableOfflineQueue: true,
       maxRetriesPerRequest: 3,
@@ -458,13 +466,15 @@ export function validateRedisSecurityConfig() {
     throw new Error(`Missing required Redis security environment variables: ${missingVars.join(', ')}`);
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    const productionVars = ['REDIS_TLS', 'REDIS_CA_CERT'];
-    const missingProdVars = productionVars.filter(varName => !process.env[varName]);
+  const tlsVars = ['REDIS_TLS', 'REDIS_CA_CERT'];
+  const missingTlsVars = tlsVars.filter(varName => !process.env[varName]);
 
-    if (missingProdVars.length > 0) {
-      throw new Error(`Missing required production Redis security variables: ${missingProdVars.join(', ')}`);
-    }
+  if (missingTlsVars.length > 0) {
+    throw new Error(`Missing required Redis TLS variables: ${missingTlsVars.join(', ')}`);
+  }
+
+  if (process.env.REDIS_TLS !== 'true') {
+    throw new Error('REDIS_TLS must be set to \"true\"');
   }
 
   return true;
@@ -493,3 +503,5 @@ export const secureHealthCheckConfig = {
     authTimeout: 5000
   }
 };
+
+

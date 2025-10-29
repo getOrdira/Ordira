@@ -1,4 +1,7 @@
 import { EnhancedDatabaseService, enhancedDatabaseService } from './core/enhancedDatabaseConnection.service';
+import { ConnectionManager, connectionManager } from './core/connectionManager.service';
+import { TelemetryScheduler } from './core/telemetryScheduler.service';
+import { MaintenanceRunner, maintenanceRunner } from './core/maintenanceRunner.service';
 import {
   ReadReplicaService,
   readReplicaService,
@@ -11,10 +14,21 @@ import { DatabaseOptimizationService, databaseOptimizationService } from './feat
 import { QueryOptimizationService, queryOptimizationService } from './features/queryOptimization.service';
 import { AggregationOptimizationService, aggregationOptimizationService } from './features/aggregationOptimization.service';
 import { databaseValidationService, DatabaseValidationService } from './validation/databaseValidation.service';
+import { DatabaseHealthService } from './features/databaseHealth.service';
+import { DatabasePlatformConfigService, databasePlatformConfigService } from './utils/databasePlatformConfig.service';
+import { DatabaseOpsPlaybook, databaseOpsPlaybook } from './ops/databaseOpsPlaybook.service';
+import { SchemaDriftDetectorService, schemaDriftDetectorService } from './utils/schemaDriftDetector.service';
+import { AtlasBestPracticesService, atlasBestPracticesService } from './features/atlasBestPractices.service';
+import { FilterGuardService, filterGuardService } from './utils/filterGuard.service';
 
 export {
   EnhancedDatabaseService,
   enhancedDatabaseService,
+  ConnectionManager,
+  connectionManager,
+  TelemetryScheduler,
+  MaintenanceRunner,
+  maintenanceRunner,
   ReadReplicaService,
   readReplicaService,
   executeAnalyticsQuery,
@@ -29,17 +43,36 @@ export {
   AggregationOptimizationService,
   aggregationOptimizationService,
   DatabaseValidationService,
-  databaseValidationService
+  databaseValidationService,
+  DatabaseHealthService,
+  DatabasePlatformConfigService,
+  databasePlatformConfigService,
+  DatabaseOpsPlaybook,
+  databaseOpsPlaybook,
+  SchemaDriftDetectorService,
+  schemaDriftDetectorService,
+  AtlasBestPracticesService,
+  atlasBestPracticesService,
+  FilterGuardService,
+  filterGuardService
 };
 
 export const databaseServices = {
   enhancedDatabaseService,
+  connectionManager,
+  maintenanceRunner,
   readReplicaService,
   databaseService,
   databaseOptimizationService,
   queryOptimizationService,
   aggregationOptimizationService,
-  databaseValidationService
+  databaseValidationService,
+  databasePlatformConfigService,
+  databaseOpsPlaybook,
+  schemaDriftDetectorService,
+  atlasBestPracticesService,
+  filterGuardService
 };
 
 export type DatabaseServices = typeof databaseServices;
+

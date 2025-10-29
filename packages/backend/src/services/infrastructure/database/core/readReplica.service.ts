@@ -1,4 +1,5 @@
 import mongoose, { type Connection, type ConnectOptions } from 'mongoose';
+import { configService } from '../../../utils/config.service';
 import { logger } from '../../../../utils/logger';
 import { monitoringService } from '../../observability';
 
@@ -41,15 +42,75 @@ export class ReadReplicaService {
   private replicaConfigs = new Map<string, ReadReplicaConfig>();
   private replicaStats = new Map<string, ReplicaStats>();
   private currentReplicaIndex = 0;
+  private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
+  private healthCheckInterval: NodeJS.Timeout | null = null;
+  private statsCollectionInterval: NodeJS.Timeout | null = null;
+  private readonly hasReplicaConfiguration: boolean;
 
   constructor() {
-    void this.initializeReplicas();
-    this.startHealthChecks();
-    this.startStatsCollection();
+    this.hasReplicaConfiguration = this.detectReplicaConfiguration();
+
+    if (this.hasReplicaConfiguration) {
+      void this.ensureInitialized();
+    }
+  }
+
+  private detectReplicaConfiguration(): boolean {
+    const databaseConfig = configService.getDatabase();
+
+    return Boolean(
+      process.env.MONGODB_ANALYTICS_URI ||
+      process.env.MONGODB_REPORTING_URI ||
+      process.env.MONGODB_READONLY_URI ||
+      (databaseConfig?.mongodb?.analyticsUris && databaseConfig.mongodb.analyticsUris.length > 0)
+    );
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized || !this.hasReplicaConfiguration) {
+      return;
+    }
+
+    if (!this.initializationPromise) {
+      this.initializationPromise = (async () => {
+        await this.initializeReplicas();
+
+        if (this.replicas.size === 0) {
+          logger.info('Read replica service initialized without configured replicas; background tasks not started');
+          this.initialized = true;
+          return;
+        }
+
+        this.startHealthChecks();
+        this.startStatsCollection();
+        this.initialized = true;
+      })().catch((error) => {
+        logger.error('Failed to initialize read replicas', { error });
+        throw error;
+      }).finally(() => {
+        this.initializationPromise = null;
+      });
+    }
+
+    await this.initializationPromise;
   }
 
   private async initializeReplicas(): Promise<void> {
     const replicaConfigs = this.getReplicaConfigs();
+
+    if (replicaConfigs.length === 0) {
+      logger.info('Read replica initialization skipped (no replica URIs configured)');
+      return;
+    }
+
+    for (const connection of this.replicas.values()) {
+      await connection.close().catch(() => undefined);
+    }
+
+    this.replicas.clear();
+    this.replicaConfigs.clear();
+    this.replicaStats.clear();
 
     logger.info('Initializing read replica connections', {
       replicaCount: replicaConfigs.length
@@ -111,17 +172,27 @@ export class ReadReplicaService {
       });
     }
 
-    if (configs.length === 0 && process.env.MONGODB_URI) {
-      logger.warn('No read replicas configured, using primary connection as fallback');
+    const databaseConfig = configService.getDatabase();
+    const analyticsUris = databaseConfig?.mongodb?.analyticsUris ?? [];
+    const seenUris = new Set(configs.map((config) => config.uri));
+
+    analyticsUris.forEach((uri, index) => {
+      if (seenUris.has(uri)) {
+        return;
+      }
+
       configs.push({
-        name: 'primary-fallback',
-        uri: process.env.MONGODB_URI,
-        weight: 1,
-        maxPoolSize: 15,
-        readPreference: 'primary',
+        name: `analytics-${index + 1}`,
+        uri,
+        weight: 5,
+        maxPoolSize: 20,
+        readPreference: 'secondaryPreferred',
+        tags: { purpose: 'analytics' },
         enabled: true
       });
-    }
+
+      seenUris.add(uri);
+    });
 
     return configs;
   }
@@ -151,7 +222,11 @@ export class ReadReplicaService {
   }
 
   private startHealthChecks(): void {
-    setInterval(async () => {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+    }
+
+    this.healthCheckInterval = setInterval(async () => {
       for (const [name, connection] of this.replicas.entries()) {
         try {
           await connection.db.command({ ping: 1 });
@@ -189,7 +264,11 @@ export class ReadReplicaService {
   }
 
   private startStatsCollection(): void {
-    setInterval(() => {
+    if (this.statsCollectionInterval) {
+      clearInterval(this.statsCollectionInterval);
+    }
+
+    this.statsCollectionInterval = setInterval(() => {
       for (const [name, stats] of this.replicaStats.entries()) {
         monitoringService.recordMetric({
           name: 'read_replica_status',
@@ -218,13 +297,21 @@ export class ReadReplicaService {
     queryFn: (connection: Connection) => Promise<T>,
     options: QueryOptions = {}
   ): Promise<T> {
+    const shouldUseReplica = options.useReplica ?? true;
+
+    if (!shouldUseReplica) {
+      return queryFn(mongoose.connection);
+    }
+
+    await this.ensureInitialized();
+
     const context: ExecutionContext<T> = {
       queryFn,
       options,
       replicas: this.buildReplicaList(options)
     };
 
-    if (!context.options.useReplica || context.replicas.length === 0) {
+    if (context.replicas.length === 0) {
       return queryFn(mongoose.connection);
     }
 
@@ -378,6 +465,16 @@ export class ReadReplicaService {
   async closeAllReplicas(): Promise<void> {
     logger.info('Closing all read replica connections');
 
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
+
+    if (this.statsCollectionInterval) {
+      clearInterval(this.statsCollectionInterval);
+      this.statsCollectionInterval = null;
+    }
+
     const closePromises = Array.from(this.replicas.entries()).map(async ([name, connection]) => {
       try {
         await connection.close();
@@ -392,6 +489,7 @@ export class ReadReplicaService {
     this.replicas.clear();
     this.replicaStats.clear();
     this.replicaConfigs.clear();
+    this.initialized = false;
   }
 }
 

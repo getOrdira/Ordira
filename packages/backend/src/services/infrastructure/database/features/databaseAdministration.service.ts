@@ -52,9 +52,9 @@ export class DatabaseService {
     try {
       const start = Date.now();
       
-      const admin = this.connection.connection.db.admin();
-      const serverStatus = await admin.serverStatus();
-      const dbStats = await this.connection.connection.db.stats();
+      const db = this.connection.connection.db;
+      await db.command({ ping: 1 });
+      const dbStats = await db.stats();
       
       const queryTime = Date.now() - start;
       
@@ -66,7 +66,9 @@ export class DatabaseService {
         name: this.connection.connection.name,
         collections: dbStats.collections,
         indexes: dbStats.indexes,
-        memoryUsage: `${Math.round(serverStatus.mem.resident / 1024 / 1024)}MB`,
+        memoryUsage: dbStats.storageSize
+          ? `${Math.round(dbStats.storageSize / 1024 / 1024)}MB`
+          : 'unknown',
         queryTime
       };
     } catch (error) {

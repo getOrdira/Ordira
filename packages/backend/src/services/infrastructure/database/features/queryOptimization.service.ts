@@ -3,6 +3,7 @@
  */
 
 import { logger } from '../../../../utils/logger';
+import { ensureSafeFilter } from '../utils/filterGuard.service';
 
 export class QueryOptimizationService {
 
@@ -78,6 +79,8 @@ export class QueryOptimizationService {
     sortCriteria.profileScore = -1;
 
     const startTime = Date.now();
+
+    ensureSafeFilter(searchCriteria, 'optimizedManufacturerSearch');
 
     // Execute optimized query
     const results = await Manufacturer.find(searchCriteria)
@@ -157,6 +160,8 @@ export class QueryOptimizationService {
       if (priceMin !== undefined) searchCriteria.price.$gte = priceMin;
       if (priceMax !== undefined) searchCriteria.price.$lte = priceMax;
     }
+
+    ensureSafeFilter(searchCriteria, 'optimizedProductSearch');
 
     const startTime = Date.now();
 
@@ -288,7 +293,7 @@ export class QueryOptimizationService {
   }, VotingRecord: any): Promise<any> {
     const { businessId, productId, dateRange, groupBy = 'day' } = params;
 
-    const pipeline = [];
+    const pipeline: any[] = [];
 
     // Optimized match stage
     const matchStage: any = { isVerified: true };
@@ -307,6 +312,8 @@ export class QueryOptimizationService {
         $lte: dateRange.end
       };
     }
+
+    ensureSafeFilter(matchStage, 'optimizedVotingAnalytics');
 
     pipeline.push({ $match: matchStage });
 
@@ -419,7 +426,10 @@ export class QueryOptimizationService {
   async batchUserLookup(userIds: string[], User: any): Promise<any[]> {
     const startTime = Date.now();
 
-    const users = await User.find({ _id: { $in: userIds } })
+    const userFilter = { _id: { $in: userIds } };
+    ensureSafeFilter(userFilter, 'batchUserLookup');
+
+    const users = await User.find(userFilter)
       .select('email firstName lastName profilePictureUrl isActive')
       .lean();
 
@@ -460,6 +470,8 @@ export class QueryOptimizationService {
 
     const startTime = Date.now();
 
+    ensureSafeFilter(searchCriteria, 'optimizedMediaLookup');
+
     const results = await Media.find(searchCriteria)
       .select('fileName originalName fileSize mimeType filePath createdAt')
       .sort({ createdAt: -1 })
@@ -486,3 +498,5 @@ export class QueryOptimizationService {
 }
 
 export const queryOptimizationService = new QueryOptimizationService();
+
+

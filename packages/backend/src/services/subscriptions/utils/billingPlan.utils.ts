@@ -7,10 +7,10 @@ type PlanPricingDefinition = {
 };
 
 const PLAN_PRICING: Record<string, PlanPricingDefinition> = {
-  foundation: { stripePriceId: process.env.STRIPE_FOUNDATION_PRICE_ID, amount: 0 },
-  growth: { stripePriceId: process.env.STRIPE_GROWTH_PRICE_ID, amount: 2900 },
-  premium: { stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID, amount: 9900 },
-  enterprise: { stripePriceId: process.env.STRIPE_ENTERPRISE_PRICE_ID, amount: 29900 }
+  foundation: { stripePriceId: process.env.STRIPE_FOUNDATION_PRICE_ID, amount: 30 },
+  growth: { stripePriceId: process.env.STRIPE_GROWTH_PRICE_ID, amount: 59.99 },
+  premium: { stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID, amount: 119.99 },
+  enterprise: { stripePriceId: process.env.STRIPE_ENTERPRISE_PRICE_ID, amount: 499.99 }
 };
 
 const PLAN_LIMITS: Record<string, { apiCalls: number; certificates: number; votes: number }> = {

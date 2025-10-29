@@ -45,6 +45,16 @@ export class ConfigService {
       // Database configuration
       MONGODB_URI: Joi.string().uri().required(),
       REDIS_URL: Joi.string().uri().optional(),
+      REDIS_CLUSTER_NODES: Joi.string().optional(),
+      REDIS_EVICTION_POLICY: Joi.string().optional(),
+      MONGODB_ANALYTICS_URI: Joi.string().optional(),
+      MONGODB_BACKUP_ENABLED: Joi.string().valid('true', 'false').optional(),
+      MONGODB_TLS_CA_FILE: Joi.string().optional(),
+      MONGODB_TLS_CERT_FILE: Joi.string().optional(),
+      MONGODB_TLS_KEY_FILE: Joi.string().optional(),
+      MONGODB_ENCRYPTION_KEY_PATH: Joi.string().optional(),
+      MONGODB_WORKLOAD_NAME: Joi.string().optional(),
+      MONGODB_ANALYTICS_WORKLOAD: Joi.string().optional(),
       
       // Authentication & Security
       JWT_SECRET: Joi.string().min(32).required(),
@@ -126,19 +136,35 @@ export class ConfigService {
     this.config.isRender = !!this.config.RENDER;
 
     // Database configuration
+    const analyticsUris = (this.config.MONGODB_ANALYTICS_URI || '')
+      .split(',')
+      .map((uri: string) => uri.trim())
+      .filter(Boolean);
+
     this.config.database = {
       mongodb: {
         uri: this.config.MONGODB_URI,
-        options: {
-          maxPoolSize: 10,
-          serverSelectionTimeoutMS: 5000,
-          socketTimeoutMS: 45000,
-        }
+        analyticsUris,
+        backupsEnabled: this.config.MONGODB_BACKUP_ENABLED === 'true',
+        workload: {
+          primary: this.config.MONGODB_WORKLOAD_NAME,
+          analytics: this.config.MONGODB_ANALYTICS_WORKLOAD
+        },
+        tls: this.config.MONGODB_TLS_CA_FILE ? {
+          caFile: this.config.MONGODB_TLS_CA_FILE,
+          certFile: this.config.MONGODB_TLS_CERT_FILE,
+          keyFile: this.config.MONGODB_TLS_KEY_FILE
+        } : null,
+        queryableEncryption: this.config.MONGODB_ENCRYPTION_KEY_PATH ? {
+          keyPath: this.config.MONGODB_ENCRYPTION_KEY_PATH
+        } : null
       },
       redis: this.config.REDIS_URL ? {
         url: this.config.REDIS_URL,
         retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
+        clusterNodes: this.config.REDIS_CLUSTER_NODES || null,
+        evictionPolicy: this.config.REDIS_EVICTION_POLICY || 'allkeys-lru'
       } : null
     };
 

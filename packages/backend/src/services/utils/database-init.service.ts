@@ -27,11 +27,14 @@ export class DatabaseInitService {
       // Initialize database services
       await this.initializeDatabaseServices();
 
-      // Create advanced indexes
-      await this.createAdvancedIndexes();
+      // Analyze index health
+      await this.reportIndexHealth();
 
-      // Warm up cache
-      await this.warmupCache();
+      if (process.env.ENABLE_CACHE_WARMUP === 'true') {
+        await this.warmupCache();
+      } else {
+        logger.info('Skipping cache warmup (ENABLE_CACHE_WARMUP not enabled)');
+      }
 
       // Start domain cache polling
       this.startDomainCachePolling();
@@ -51,11 +54,6 @@ export class DatabaseInitService {
     logger.info('🔧 Initializing database services...');
 
     try {
-      // Initialize database service
-      const { databaseService } = await import('../external/database.service');
-      await databaseService.createOptimizedIndexes();
-      logger.info('✅ Database indexes optimized');
-
       // Test cache connection
       const { cacheService } = await import('../external/cache.service');
       const cacheHealth = await cacheService.healthCheck();
@@ -66,6 +64,23 @@ export class DatabaseInitService {
       }
 
       // Record database metrics
+      const databaseConfig = configService.getDatabase();
+      if (databaseConfig?.mongodb?.analyticsUris?.length) {
+        logger.info(`[db] Analytics read replicas configured: ${databaseConfig.mongodb.analyticsUris.join(', ')}`);
+      }
+
+      if (!databaseConfig?.mongodb?.tls) {
+        logger.warn('[db] TLS client certificates not configured. Atlas clusters require TLS in production.');
+      }
+
+      if (databaseConfig?.mongodb?.backupsEnabled === false) {
+        logger.warn('[db] MongoDB continuous backups are disabled.');
+      }
+
+      if (databaseConfig?.mongodb?.queryableEncryption) {
+        logger.info('[db] Queryable encryption support enabled via local key material.');
+      }
+
       monitoringService.recordMetric({
         name: 'database_connection_status',
         value: 1,
@@ -79,33 +94,39 @@ export class DatabaseInitService {
   }
 
   /**
-   * Create advanced database indexes
+   * Analyze index coverage without mutating collections
    */
-  private async createAdvancedIndexes(): Promise<void> {
-    logger.info('📊 Creating advanced database indexes...');
+  private async reportIndexHealth(): Promise<void> {
+    logger.info('[db] Analyzing database index health...');
 
     try {
-      // Use the database optimization service
-      await databaseOptimizationService.createAdvancedIndexes();
+      await this.ensureModelRegistrations();
 
-      logger.info('✅ Advanced database indexes created successfully');
+      const report = await databaseOptimizationService.generateIndexReport();
+      databaseOptimizationService.logIndexReport(report);
 
-      // Record index creation metrics
+      const missingTotal = report.items.reduce((sum, item) => sum + item.missingIndexes.length, 0);
+
       monitoringService.recordMetric({
-        name: 'database_indexes_created',
-        value: 1,
-        tags: { status: 'success', type: 'advanced' }
+        name: 'database_indexes_missing',
+        value: missingTotal,
+        tags: { status: missingTotal === 0 ? 'healthy' : 'attention' }
       });
 
+      if (missingTotal === 0) {
+        logger.info('Index audit complete: all expected indexes are present.');
+      } else {
+        logger.warn(`Index audit detected ${missingTotal} missing indexes across collections.`);
+      }
     } catch (error) {
-      logger.error('❌ Advanced database index creation failed:', error);
-      
+      logger.error('Failed to generate database index report:', error);
+
       monitoringService.recordMetric({
-        name: 'database_indexes_created',
-        value: 0,
-        tags: { status: 'failed', error: error.message, type: 'advanced' }
+        name: 'database_indexes_missing',
+        value: -1,
+        tags: { status: 'unknown' }
       });
-      
+
       throw error;
     }
   }
@@ -135,6 +156,40 @@ export class DatabaseInitService {
         value: 0,
         tags: { status: 'failed', error: error.message }
       });
+    }
+  }
+
+  private async ensureModelRegistrations(): Promise<void> {
+    const registrations: Array<{
+      token: string;
+      resolver: () => Promise<Record<string, unknown>>;
+      exportKey: string;
+    }> = [
+      { token: SERVICE_TOKENS.USER_MODEL, resolver: () => import('../../models/user.model'), exportKey: 'User' },
+      { token: SERVICE_TOKENS.BUSINESS_MODEL, resolver: () => import('../../models/business.model'), exportKey: 'Business' },
+      { token: SERVICE_TOKENS.MANUFACTURER_MODEL, resolver: () => import('../../models/manufacturer.model'), exportKey: 'Manufacturer' },
+      { token: SERVICE_TOKENS.PRODUCT_MODEL, resolver: () => import('../../models/product.model'), exportKey: 'Product' },
+      { token: SERVICE_TOKENS.VOTING_RECORD_MODEL, resolver: () => import('../../models/votingRecord.model'), exportKey: 'VotingRecord' },
+      { token: SERVICE_TOKENS.BRAND_SETTINGS_MODEL, resolver: () => import('../../models/brandSettings.model'), exportKey: 'BrandSettings' },
+      { token: SERVICE_TOKENS.CERTIFICATE_MODEL, resolver: () => import('../../models/certificate.model'), exportKey: 'Certificate' },
+      { token: SERVICE_TOKENS.MEDIA_MODEL, resolver: () => import('../../models/media.model'), exportKey: 'Media' }
+    ];
+
+    for (const { token, resolver, exportKey } of registrations) {
+      if (container.has(token)) {
+        continue;
+      }
+
+      const moduleRef = await resolver();
+      const model = moduleRef[exportKey];
+
+      if (!model) {
+        logger.warn(`Missing model export '${exportKey}' while registering ${token}`);
+        continue;
+      }
+
+      container.registerInstance(token, model);
+      logger.debug(`Registered ${exportKey} for token ${token}`);
     }
   }
 
@@ -205,3 +260,9 @@ export class DatabaseInitService {
     };
   }
 }
+
+
+
+
+
+

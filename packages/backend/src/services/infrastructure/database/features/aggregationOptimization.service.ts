@@ -63,10 +63,53 @@ export class AggregationOptimizationService {
     avgExecutionTime: 0,
     populateReplaced: 0
   };
+  private cacheSecret: string | null = null;
 
   constructor() {
+    this.validateAndLoadCacheSecret();
     this.startCacheCleanup();
     this.startStatsCollection();
+  }
+
+  /**
+   * Validate and load cache secret from environment variables.
+   * Ensures CACHE_SECRET is present and meets minimum security requirements.
+   * 
+   * @throws {Error} If CACHE_SECRET is missing or too short
+   */
+  private validateAndLoadCacheSecret(): void {
+    const cacheSecret = process.env.CACHE_SECRET;
+    const nodeEnv = process.env.NODE_ENV || 'development';
+
+    if (!cacheSecret) {
+      const errorMsg = `CACHE_SECRET environment variable is required for secure cache key generation`;
+      logger.error(errorMsg, {
+        environment: nodeEnv,
+        error: 'Missing required environment variable'
+      });
+      throw new Error(`${errorMsg}. Please set CACHE_SECRET in your environment configuration.`);
+    }
+
+    // Minimum 32 characters for cryptographically secure keys (matches JWT_SECRET requirement)
+    const MIN_SECRET_LENGTH = 32;
+    if (cacheSecret.length < MIN_SECRET_LENGTH) {
+      const errorMsg = `CACHE_SECRET must be at least ${MIN_SECRET_LENGTH} characters long for security`;
+      logger.error(errorMsg, {
+        environment: nodeEnv,
+        providedLength: cacheSecret.length,
+        requiredLength: MIN_SECRET_LENGTH,
+        error: 'Insufficient secret length'
+      });
+      throw new Error(`${errorMsg}. Current length: ${cacheSecret.length}, required: ${MIN_SECRET_LENGTH}`);
+    }
+
+    // Store the validated secret
+    this.cacheSecret = cacheSecret;
+
+    logger.debug('Cache secret validated and loaded', {
+      secretLength: cacheSecret.length,
+      environment: nodeEnv
+    });
   }
 
   /**
@@ -783,12 +826,26 @@ export class AggregationOptimizationService {
   }
 
   /**
-   * Generate secure cache key
+   * Generate secure cache key using HMAC-SHA256.
+   * Uses validated cache secret to ensure deterministic, secure cache keys.
+   * 
+   * @param collection - Collection name
+   * @param pipeline - Aggregation pipeline stages
+   * @param options - Aggregation options
+   * @returns Secure cache key (32 hex characters)
+   * @throws {Error} If cache secret is not configured
    */
   private generateCacheKey(collection: string, pipeline: PipelineStage[], options: AggregationOptions): string {
+    if (!this.cacheSecret) {
+      throw new Error(
+        'Cache secret not configured. CACHE_SECRET environment variable must be set ' +
+        'and validated during service initialization.'
+      );
+    }
+
     const key = JSON.stringify({ collection, pipeline, options });
-    // Use HMAC for secure, deterministic cache keys
-    const hmac = crypto.createHmac('sha256', process.env.CACHE_SECRET || 'default-secret');
+    // Use HMAC-SHA256 with validated secret for secure, deterministic cache keys
+    const hmac = crypto.createHmac('sha256', this.cacheSecret);
     hmac.update(key);
     return hmac.digest('hex').substring(0, 32);
   }

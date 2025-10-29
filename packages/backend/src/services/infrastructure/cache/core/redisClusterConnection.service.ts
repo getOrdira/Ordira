@@ -10,6 +10,7 @@ import { logger } from '../../../../utils/logger';
 import { monitoringService } from '../../../external/monitoring.service';
 import { secureRedisClusterConfigs, validateRedisSecurityConfig } from '../../../../config/redis-cluster-secure.config';
 import crypto from 'crypto';
+import { configService } from '../../../utils/config.service';
 
 export interface RedisClusterConfig {
   nodes: Array<{ host: string; port: number }>;
@@ -105,7 +106,7 @@ export class RedisClusterService {
   }
 
   private shouldRequireSecureConfig(): boolean {
-    return process.env.NODE_ENV === 'production' || process.env.REDIS_REQUIRE_SECURITY === 'true';
+    return true;
   }
 
   /**
@@ -114,19 +115,7 @@ export class RedisClusterService {
   private getSecurePassword(): string | undefined {
     const password = process.env.REDIS_PASSWORD;
     if (!password) {
-      if (this.requireSecureConfig) {
-        throw new Error('REDIS_PASSWORD environment variable is required for security');
-      }
-
-      if (process.env.NODE_ENV === 'development') {
-        const fallback = secureRedisClusterConfigs.development?.options?.redisOptions?.password;
-        if (fallback) {
-          logger.warn('REDIS_PASSWORD not set; using development fallback password. Do not use in production.');
-          return fallback;
-        }
-      }
-
-      return undefined;
+      throw new Error('REDIS_PASSWORD environment variable is required');
     }
 
     // Basic password strength validation
@@ -144,10 +133,12 @@ export class RedisClusterService {
    * Get secure TLS configuration
    */
   private getSecureTLSConfig() {
-    const useTLS = process.env.REDIS_TLS === 'true' || process.env.NODE_ENV === 'production';
+    if (process.env.REDIS_TLS !== 'true') {
+      throw new Error('REDIS_TLS must be set to "true"');
+    }
 
-    if (!useTLS) {
-      return {};
+    if (!process.env.REDIS_CA_CERT) {
+      throw new Error('REDIS_CA_CERT environment variable is required');
     }
 
     return {
@@ -192,15 +183,19 @@ export class RedisClusterService {
 
   /**
    * Initialize Redis connection (cluster or single node)
+   * Uses formalized cache strategy: cluster only when multiple nodes specified
    */
   private async initializeRedis(): Promise<void> {
     try {
       // Check if cluster configuration is provided
       const clusterConfig = this.getClusterConfig();
+      const shouldUseCluster = this.shouldUseClusterMode(clusterConfig);
 
-      if (clusterConfig.nodes.length > 1) {
+      if (shouldUseCluster) {
+        logger.info('🔧 Initializing Redis cluster mode (multiple nodes detected)');
         await this.initializeCluster(clusterConfig);
       } else {
+        logger.info('🔧 Initializing Redis single node mode (single node or cluster disabled)');
         await this.initializeSingleNode();
       }
 
@@ -209,6 +204,34 @@ export class RedisClusterService {
     } catch (error) {
       logger.error('Failed to initialize Redis:', error);
     }
+  }
+
+  /**
+   * Determine if cluster mode should be used based on formalized cache strategy
+   */
+  private shouldUseClusterMode(clusterConfig: RedisClusterConfig): boolean {
+    // Force cluster mode if explicitly enabled
+    if (process.env.REDIS_FORCE_CLUSTER === 'true') {
+      logger.info('Redis cluster mode forced via REDIS_FORCE_CLUSTER environment variable');
+      return true;
+    }
+
+    // Disable cluster mode if explicitly disabled
+    if (process.env.REDIS_DISABLE_CLUSTER === 'true') {
+      logger.info('Redis cluster mode disabled via REDIS_DISABLE_CLUSTER environment variable');
+      return false;
+    }
+
+    // Use cluster mode only when multiple nodes are specified
+    const hasMultipleNodes = clusterConfig.nodes.length > 1;
+    
+    if (hasMultipleNodes) {
+      logger.info(`Redis cluster mode enabled: ${clusterConfig.nodes.length} nodes detected`);
+      return true;
+    }
+
+    logger.info('Redis single node mode: only one node configured');
+    return false;
   }
 
   /**
@@ -221,7 +244,8 @@ export class RedisClusterService {
     const secureConfig = secureRedisClusterConfigs[environment];
 
     // Parse cluster nodes from environment or use secure defaults
-    const clusterNodes = process.env.REDIS_CLUSTER_NODES || '';
+    const dbConfig = configService.getDatabase();
+    const clusterNodes = process.env.REDIS_CLUSTER_NODES || dbConfig?.redis?.clusterNodes || '';
     const password = this.getSecurePassword();
     const tlsConfig = this.getSecureTLSConfig();
 
@@ -310,6 +334,8 @@ export class RedisClusterService {
       });
     });
 
+    await this.applyEvictionPolicy();
+
     // Record cluster metrics
     monitoringService.recordMetric({
       name: 'redis_cluster_initialized',
@@ -367,6 +393,7 @@ export class RedisClusterService {
 
     try {
       await this.singleRedis.ping();
+      await this.applyEvictionPolicy();
       logger.info('✅ Single Redis node ready');
     } catch (error) {
       logger.error('❌ Single Redis node initialization failed:', error);
@@ -467,6 +494,121 @@ export class RedisClusterService {
     this.performanceInterval = setInterval(() => {
       this.logPerformanceStats();
     }, 300000);
+  }
+
+  private async applyEvictionPolicy(): Promise<void> {
+    const redisConfig = configService.getDatabase()?.redis;
+    const policy = process.env.REDIS_EVICTION_POLICY || redisConfig?.evictionPolicy || 'allkeys-lru';
+
+    // Validate eviction policy
+    const validPolicies = [
+      'noeviction', 'allkeys-lru', 'volatile-lru', 'allkeys-random', 
+      'volatile-random', 'volatile-ttl', 'allkeys-lfu', 'volatile-lfu'
+    ];
+
+    if (!validPolicies.includes(policy)) {
+      logger.warn(`Invalid Redis eviction policy: ${policy}. Using default: allkeys-lru`);
+      policy = 'allkeys-lru';
+    }
+
+    try {
+      if (this.isClusterMode && this.cluster) {
+        // Apply eviction policy to all cluster nodes
+        const nodes = this.cluster.nodes('all');
+        const results = await Promise.allSettled(
+          nodes.map((node) => node.config('SET', 'maxmemory-policy', policy))
+        );
+
+        const successful = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+
+        logger.info(`Applied eviction policy "${policy}" to Redis cluster`, {
+          totalNodes: nodes.length,
+          successful,
+          failed,
+          policy
+        });
+
+        // Record metrics
+        monitoringService.recordMetric({
+          name: 'redis_eviction_policy_applied',
+          value: successful,
+          tags: { policy, mode: 'cluster' }
+        });
+
+      } else if (this.singleRedis) {
+        await this.singleRedis.config('SET', 'maxmemory-policy', policy);
+        
+        logger.info(`Applied eviction policy "${policy}" to Redis single node`, {
+          policy
+        });
+
+        // Record metrics
+        monitoringService.recordMetric({
+          name: 'redis_eviction_policy_applied',
+          value: 1,
+          tags: { policy, mode: 'single' }
+        });
+      }
+
+      // Set additional memory management policies
+      await this.applyMemoryManagementPolicies();
+
+    } catch (error) {
+      logger.warn('Failed to enforce Redis eviction policy', {
+        policy,
+        error: error instanceof Error ? error.message : error
+      });
+
+      monitoringService.recordMetric({
+        name: 'redis_eviction_policy_error',
+        value: 1,
+        tags: { policy, error: error instanceof Error ? error.message : 'unknown' }
+      });
+    }
+  }
+
+  /**
+   * Apply additional memory management policies
+   */
+  private async applyMemoryManagementPolicies(): Promise<void> {
+    const policies = [
+      { key: 'maxmemory-samples', value: '5' }, // LRU/LFU sample size
+      { key: 'lazyfree-lazy-eviction', value: 'yes' }, // Async eviction
+      { key: 'lazyfree-lazy-expire', value: 'yes' }, // Async expiration
+      { key: 'lazyfree-lazy-server-del', value: 'yes' }, // Async deletion
+    ];
+
+    try {
+      if (this.isClusterMode && this.cluster) {
+        const nodes = this.cluster.nodes('all');
+        
+        for (const policy of policies) {
+          await Promise.allSettled(
+            nodes.map((node) => node.config('SET', policy.key, policy.value))
+          );
+        }
+
+        logger.info('Applied memory management policies to Redis cluster', {
+          policies: policies.length,
+          nodes: nodes.length
+        });
+
+      } else if (this.singleRedis) {
+        for (const policy of policies) {
+          await this.singleRedis.config('SET', policy.key, policy.value);
+        }
+
+        logger.info('Applied memory management policies to Redis single node', {
+          policies: policies.length
+        });
+      }
+
+    } catch (error) {
+      logger.warn('Failed to apply memory management policies', {
+        error: error instanceof Error ? error.message : error
+      });
+    }
   }
 
   private clearHealthMonitoring(): void {

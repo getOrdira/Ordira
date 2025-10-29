@@ -92,7 +92,16 @@ import type {
 } from './integrations/ecommerce';
 import { notificationsService } from './notifications/notifications.service';
 import { NftService } from './blockchain/nft.service';
-import { DomainMappingService } from './external/domainMapping.service';
+import {
+  domainRegistryService,
+  domainValidationService,
+  domainVerificationService,
+  domainDnsService,
+  domainCertificateLifecycleService,
+  domainHealthService,
+  domainAnalyticsService,
+  domainCacheService
+} from './domains';
 import { NotificationsServices as notificationsModule } from './notifications';
 import { PendingVoteService } from './business/pendingVote.service';
 import { InvitationsService, invitationsService } from './connections';
@@ -461,8 +470,15 @@ export class ServiceContainer {
     this.services.set('usageForecastService', usageForecastService);
     this.services.set('usageValidationService', usageValidationService);
 
-    // External/Platform Services
-    this.services.set('domainMappingService', new DomainMappingService());
+    // Domain Services (Modular)
+    this.services.set('domainRegistryService', domainRegistryService);
+    this.services.set('domainValidationService', domainValidationService);
+    this.services.set('domainVerificationService', domainVerificationService);
+    this.services.set('domainDnsService', domainDnsService);
+    this.services.set('domainCertificateLifecycleService', domainCertificateLifecycleService);
+    this.services.set('domainHealthService', domainHealthService);
+    this.services.set('domainAnalyticsService', domainAnalyticsService);
+    this.services.set('domainCacheService', domainCacheService);
     this.services.set('supplyChainService', SupplyChainService.getInstance());
     this.services.set('qrCodeService', new QrCodeService());
     this.services.set('securityAuditService', SecurityAuditService.getInstance());
@@ -602,8 +618,25 @@ export const getNotificationsServices = () => getContainer().get<typeof notifica
 export const getStripeService = () => getContainer().get<StripeGatewayService>('stripeService');
 export const getTokenDiscountService = () => getContainer().get<TokenDiscountService>('tokenDiscountService');
 export const getNftService = () => getContainer().get<NftService>('nftService');
-export const getDomainMappingService = () => getContainer().get<DomainMappingService>('domainMappingService');
-export const getInvitationService = () => getContainer().get<InvitationsService>('invitationService');
+// Domain Services (Modular)
+export const getDomainRegistryService = () => getContainer().get('domainRegistryService');
+export const getDomainValidationService = () => getContainer().get('domainValidationService');
+export const getDomainVerificationService = () => getContainer().get('domainVerificationService');
+export const getDomainDnsService = () => getContainer().get('domainDnsService');
+export const getDomainCertificateLifecycleService = () => getContainer().get('domainCertificateLifecycleService');
+export const getDomainHealthService = () => getContainer().get('domainHealthService');
+export const getDomainAnalyticsService = () => getContainer().get('domainAnalyticsService');
+export const getDomainCacheService = () => getContainer().get('domainCacheService');
+export const getDomainServices = () => ({
+  registry: getDomainRegistryService(),
+  validation: getDomainValidationService(),
+  verification: getDomainVerificationService(),
+  dns: getDomainDnsService(),
+  certificateLifecycle: getDomainCertificateLifecycleService(),
+  health: getDomainHealthService(),
+  analytics: getDomainAnalyticsService(),
+  cache: getDomainCacheService()
+});
 
 // New modular subscriptions services
 export const getSubscriptionServices = () => getContainer().get<typeof subscriptionServices>('subscriptionServices');
@@ -680,7 +713,6 @@ export const getWalletService = () => getContainer().get<WalletService>('walletS
 export const getIntegrationsService = () => getContainer().get<IntegrationsService>('integrationsService');
 export const getDiscoveryService = () => getContainer().get<DiscoveryService>('discoveryService');
 export const getPlanValidationService = () => getContainer().get<PlanValidationService>('planValidationService');
-export const getDomainValidationService = () => getContainer().get<DomainValidationService>('domainValidationService');
 export const getBrandValidationService = () => getContainer().get<BrandValidationService>('brandValidationService');
 export const getBrandHelpersService = () => getContainer().get<BrandHelpersService>('brandHelpersService');
 export const getCompletenessCalculatorService = () => getContainer().get<CompletenessCalculatorService>('completenessCalculatorService');
@@ -903,7 +935,7 @@ export const getServices = () => ({
   stripe: getStripeService(),
   tokenDiscount: getTokenDiscountService(),
   nft: getNftService(),
-  domainMapping: getDomainMappingService(),
+  domains: getDomainServices(),
   supplyChain: getSupplyChainService(),
   usageTracking: getUsageTrackingService()
 });
@@ -949,6 +981,7 @@ export const getBrandsServices = () => ({
   brandValidation: getBrandValidationService(),
   helpers: getBrandHelpersService(),
   completeness: getCompletenessCalculatorService(),
+  recommendations: getRecommendationEngineService(),
   customerAccess: getCustomerAccessService(),
 });
 

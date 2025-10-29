@@ -39,82 +39,112 @@ export class EnhancedCacheService {
   private readonly DEFAULT_TTL = 300; // 5 minutes
   private readonly LONG_TTL = 3600; // 1 hour
   private readonly SHORT_TTL = 60; // 1 minute
-  private readonly encryptionKey: Buffer | null;
+  private encryptionKeys: Array<{ id: string; key: Buffer }> = [];
+  private readonly activeKeyId: string | null;
 
   constructor() {
-    this.encryptionKey = this.loadEncryptionKey();
-    if (!this.encryptionKey) {
-      logger.warn('CACHE_ENCRYPTION_KEY not set or invalid. Sensitive cache encryption disabled.');
+    const { keys, activeKeyId } = this.loadEncryptionKeys();
+    this.encryptionKeys = keys;
+    this.activeKeyId = activeKeyId;
+
+    if (this.encryptionKeys.length === 0) {
+      logger.warn('CACHE_ENCRYPTION_KEY(S) not set or invalid. Sensitive cache encryption disabled.');
     }
   }
 
   /**
    * Load encryption key if provided and validate format
    */
-  private loadEncryptionKey(): Buffer | null {
-    const rawKey = process.env.CACHE_ENCRYPTION_KEY;
+  private loadEncryptionKeys(): { keys: Array<{ id: string; key: Buffer }>; activeKeyId: string | null } {
+    const keys: Array<{ id: string; key: Buffer }> = [];
+    const configuredKeys = process.env.CACHE_ENCRYPTION_KEYS || process.env.CACHE_ENCRYPTION_KEY;
 
-    if (!rawKey) {
-      return null;
+    if (!configuredKeys) {
+      return { keys, activeKeyId: null };
     }
 
-    try {
-      if (/^[0-9a-fA-F]+$/.test(rawKey) && rawKey.length === 64) {
-        return Buffer.from(rawKey, 'hex');
-      }
+    const segments = configuredKeys.split(',').map((value) => value.trim()).filter(Boolean);
 
-      const bufferKey = Buffer.from(rawKey, 'base64');
-      if (bufferKey.length === 32) {
-        return bufferKey;
-      }
+    segments.forEach((rawKey, index) => {
+      try {
+        let buffer: Buffer | null = null;
 
-      if (rawKey.length === 32) {
-        return Buffer.from(rawKey, 'utf8');
-      }
+        if (/^[0-9a-fA-F]+$/.test(rawKey) && rawKey.length === 64) {
+          buffer = Buffer.from(rawKey, 'hex');
+        } else if (rawKey.length === 32) {
+          buffer = Buffer.from(rawKey, 'utf8');
+        } else {
+          const decoded = Buffer.from(rawKey, 'base64');
+          if (decoded.length === 32) {
+            buffer = decoded;
+          }
+        }
 
-      logger.error('CACHE_ENCRYPTION_KEY must be 32 bytes (64 hex chars or base64 encoded).');
-      return null;
-    } catch (error) {
-      logger.error('Failed to load CACHE_ENCRYPTION_KEY. Encryption disabled.', error);
-      return null;
-    }
+        if (!buffer || buffer.length !== 32) {
+          logger.error(`Invalid cache encryption key provided at index ${index}. Expected 32 bytes.`);
+          return;
+        }
+
+        keys.push({ id: `k${index + 1}`, key: buffer });
+      } catch (error) {
+        logger.error(`Failed to load cache encryption key at index ${index}`, error as Error);
+      }
+    });
+
+    return {
+      keys,
+      activeKeyId: keys.length > 0 ? keys[0].id : null
+    };
   }
 
   /**
    * Encrypt sensitive data
    */
   private encryptData(data: string): string {
-    if (!this.encryptionKey) {
+    if (this.encryptionKeys.length === 0 || !this.activeKeyId) {
       throw new Error('Encryption key is not configured');
     }
 
-    const iv = crypto.randomBytes(12); // Recommended IV size for GCM
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const activeKey = this.encryptionKeys.find((entry) => entry.id === this.activeKeyId) ?? this.encryptionKeys[0];
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', activeKey.key, iv);
     const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
     const authTag = cipher.getAuthTag();
 
-    return [iv.toString('base64'), authTag.toString('base64'), encrypted.toString('base64')].join(':');
+    return [activeKey.id, iv.toString('base64'), authTag.toString('base64'), encrypted.toString('base64')].join(':');
   }
 
   /**
    * Decrypt sensitive data
    */
   private decryptData(encryptedData: string): string {
-    if (!this.encryptionKey) {
+    if (this.encryptionKeys.length === 0) {
       throw new Error('Encryption key is not configured');
     }
 
     const parts = encryptedData.split(':');
-    if (parts.length !== 3) {
+    if (parts.length !== 4 && parts.length !== 3) {
       throw new Error('Invalid encrypted data format');
     }
 
-    const [ivB64, tagB64, payloadB64] = parts;
+    let keyId: string | null = null;
+    let ivB64: string;
+    let tagB64: string;
+    let payloadB64: string;
+
+    if (parts.length === 4) {
+      [keyId, ivB64, tagB64, payloadB64] = parts;
+    } else {
+      [ivB64, tagB64, payloadB64] = parts;
+    }
+
+    const keyEntry = this.encryptionKeys.find((entry) => entry.id === keyId) ?? this.encryptionKeys[0];
+
     const iv = Buffer.from(ivB64, 'base64');
     const tag = Buffer.from(tagB64, 'base64');
     const payload = Buffer.from(payloadB64, 'base64');
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', keyEntry.key, iv);
     decipher.setAuthTag(tag);
 
     const decrypted = Buffer.concat([decipher.update(payload), decipher.final()]);
@@ -124,18 +154,27 @@ export class EnhancedCacheService {
   /**
    * Check if data contains sensitive information
    */
-  private containsSensitiveData(data: any): boolean {
+  private containsSensitiveData(data: any, sensitiveFields: string[] = []): boolean {
     if (typeof data !== 'object' || data === null) {
       return false;
     }
 
-    const checkObject = (obj: any): boolean => {
+    const fieldsToCheck = sensitiveFields.length > 0 ? sensitiveFields : SENSITIVE_FIELDS;
+
+    const checkObject = (obj: any, path: string[] = []): boolean => {
       for (const key in obj) {
-        if (SENSITIVE_FIELDS.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
+        const currentPath = [...path, key];
+        const fieldPath = currentPath.join('.');
+        
+        if (fieldsToCheck.some(field => 
+          field.toLowerCase() === key.toLowerCase() || 
+          fieldPath.toLowerCase().includes(field.toLowerCase())
+        )) {
           return true;
         }
+        
         if (typeof obj[key] === 'object' && obj[key] !== null) {
-          if (checkObject(obj[key])) {
+          if (checkObject(obj[key], currentPath)) {
             return true;
           }
         }
@@ -144,6 +183,70 @@ export class EnhancedCacheService {
     };
 
     return checkObject(data);
+  }
+
+  /**
+   * Encrypt sensitive data in cache value with rotating keys
+   */
+  private async encryptSensitiveData<T>(value: T, sensitiveFields: string[]): Promise<T> {
+    if (!this.activeKeyId || this.encryptionKeys.length === 0) {
+      logger.warn('Encryption requested but no encryption keys available');
+      return value;
+    }
+
+    try {
+      const activeKey = this.encryptionKeys.find(k => k.id === this.activeKeyId);
+      if (!activeKey) {
+        logger.error('Active encryption key not found');
+        return value;
+      }
+
+      // For now, encrypt the entire value if it contains sensitive data
+      // In a more sophisticated implementation, you'd encrypt only specific fields
+      const serialized = JSON.stringify(value);
+      const encrypted = this.encryptData(serialized);
+      
+      return {
+        __encrypted: true,
+        __keyId: this.activeKeyId,
+        __data: encrypted
+      } as T;
+
+    } catch (error) {
+      logger.error('Failed to encrypt sensitive cache data:', error);
+      return value;
+    }
+  }
+
+  /**
+   * Decrypt sensitive data in cache value with rotating keys
+   */
+  private async decryptSensitiveData<T>(value: T, sensitiveFields: string[]): Promise<T> {
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    const encryptedValue = value as any;
+    if (!encryptedValue.__encrypted || !encryptedValue.__keyId || !encryptedValue.__data) {
+      return value;
+    }
+
+    try {
+      const keyId = encryptedValue.__keyId;
+      const encryptionKey = this.encryptionKeys.find(k => k.id === keyId);
+      
+      if (!encryptionKey) {
+        logger.error(`Encryption key ${keyId} not found for decryption`);
+        return value;
+      }
+
+      const decrypted = this.decryptData(encryptedValue.__data);
+      return JSON.parse(decrypted);
+
+    } catch (error) {
+      logger.error('Failed to decrypt sensitive cache data:', error);
+      return value;
+    }
   }
 
   /**
@@ -159,7 +262,7 @@ export class EnhancedCacheService {
     // Remove or encrypt sensitive fields
     for (const field of SENSITIVE_FIELDS) {
       if (sanitized[field]) {
-        if (encrypt && this.encryptionKey && field !== 'password') {
+        if (encrypt && this.encryptionKeys.length > 0 && field !== 'password') {
           // Encrypt sensitive data (except passwords which should never be cached)
           sanitized[field] = this.encryptData(JSON.stringify(sanitized[field]));
           sanitized[`${field}_encrypted`] = true;
@@ -189,7 +292,7 @@ export class EnhancedCacheService {
 
     const restored = { ...cachedData };
 
-    if (!this.encryptionKey) {
+    if (this.encryptionKeys.length === 0) {
       for (const field of SENSITIVE_FIELDS) {
         if (restored[`${field}_encrypted`]) {
           delete restored[field];
@@ -223,7 +326,7 @@ export class EnhancedCacheService {
     const key = this.buildKey('user', userId, options.keyPrefix);
 
     // Sanitize and encrypt sensitive data
-    const encryptionAvailable = Boolean(this.encryptionKey);
+    const encryptionAvailable = this.encryptionKeys.length > 0;
     const shouldEncrypt = encryptionAvailable && options.encrypt !== false && this.containsSensitiveData(userData);
     const sanitizedData = this.sanitizeUserData(userData, shouldEncrypt);
 
@@ -260,7 +363,7 @@ export class EnhancedCacheService {
 
     this.recordCacheOperation(key, 'hit');
 
-    if (!this.encryptionKey) {
+    if (this.encryptionKeys.length === 0) {
       return result;
     }
 
@@ -736,3 +839,6 @@ export class EnhancedCacheService {
 }
 
 export const enhancedCacheService = new EnhancedCacheService();
+
+
+
