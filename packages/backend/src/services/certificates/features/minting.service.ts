@@ -8,9 +8,9 @@
  * - Batch certificate creation
  */
 
-import { Certificate, ICertificate } from '../../../models/certificate.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
-import { Business } from '../../../models/business.model';
+import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { Business } from '../../../models/deprecated/business.model';
 import { NftService } from '../../blockchain/nft.service';
 import { getPlatformAnalyticsDataService } from '../../container.service';
 import { eventHandlerService, NotificationCategory, NotificationEventType, NotificationPriority } from '../../notifications';

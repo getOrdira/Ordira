@@ -1,4 +1,4 @@
-import { createAppError } from '../../../../middleware/error.middleware';
+import { createAppError } from '../../../../middleware/deprecated/error.middleware';
 import type { Alert, AlertCondition, AlertRule, AlertSeverity } from '../utils/types';
 import { metricValidationService } from './metricValidation.service';
 

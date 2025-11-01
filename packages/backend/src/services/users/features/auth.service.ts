@@ -3,7 +3,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
-import { User } from '../../../models/user.model';
+import { User } from '../../../models/deprecated/user.model';
 import { UtilsService } from '../../utils/utils.service';
 import { userDataService } from '../core/userData.service';
 import { userCacheService } from '../utils/cache.service';

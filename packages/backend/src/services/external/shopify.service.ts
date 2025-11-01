@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
-import { BrandSettings } from '../../models/brandSettings.model';
+import { BrandSettings } from '../../models/deprecated/brandSettings.model';
 import { certificateService } from '../certificates/certificate.service';
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY!;

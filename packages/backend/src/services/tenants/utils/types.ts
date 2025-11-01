@@ -1,6 +1,6 @@
 // src/services/tenants/utils/types.ts
 
-import { IBrandSettings } from '../../../models/brandSettings.model';
+import { IBrandSettings } from '../../../models/deprecated/brandSettings.model';
 
 export interface TenantResolutionResult {
   settings: IBrandSettings | null;

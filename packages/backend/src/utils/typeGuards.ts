@@ -1,6 +1,6 @@
 // src/utils/typeGuards.ts
 import { Request } from 'express';
-import { UnifiedAuthRequest } from '../middleware/unifiedAuth.middleware';
+import { UnifiedAuthRequest } from '../middleware/deprecated/unifiedAuth.middleware';
 
 /**
  * Comprehensive type guards for safe type checking and casting

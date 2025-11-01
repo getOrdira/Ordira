@@ -199,10 +199,10 @@ export class SupplyChainProductLifecycleController extends SupplyChainBaseContro
       const businessId = this.requireBusinessId(req);
       const contractAddress = this.requireContractAddress(req);
 
-      const result = await this.productLifecycleService.getProductLifecycleAnalytics({
+      const result = await this.productLifecycleService.getProductLifecycleAnalytics(
         businessId,
-        contractAddress,
-      });
+        contractAddress
+      );
 
       this.logAction(req, 'SUPPLY_CHAIN_PRODUCT_LIFECYCLE_ANALYTICS_SUCCESS', {
         businessId,

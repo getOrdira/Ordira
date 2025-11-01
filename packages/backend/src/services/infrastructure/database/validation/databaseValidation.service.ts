@@ -1,4 +1,4 @@
-import { createAppError } from '../../../../middleware/error.middleware';
+import { createAppError } from '../../../../middleware/deprecated/error.middleware';
 
 export class DatabaseValidationService {
   ensureUri(uri: string | undefined): string {

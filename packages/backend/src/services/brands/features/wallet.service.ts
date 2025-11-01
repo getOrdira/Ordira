@@ -1,5 +1,5 @@
 // src/services/brands/features/wallet.service.ts
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import { ethers } from 'ethers';
 

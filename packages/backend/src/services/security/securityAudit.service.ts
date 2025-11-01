@@ -1,9 +1,9 @@
 // src/services/security/securityAudit.service.ts
 import { Request, Response } from 'express';
-import { UnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
-import { Manufacturer } from '../../models/manufacturer.model';
-import { Business } from '../../models/business.model';
-import { User } from '../../models/user.model';
+import { UnifiedAuthRequest } from '../../middleware/deprecated/unifiedAuth.middleware';
+import { Manufacturer } from '../../models/deprecated/manufacturer.model';
+import { Business } from '../../models/deprecated/business.model';
+import { User } from '../../models/deprecated/user.model';
 
 /**
  * Security audit result interface

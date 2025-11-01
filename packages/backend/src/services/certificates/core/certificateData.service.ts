@@ -7,7 +7,7 @@
  * - Query certificate data
  */
 
-import { Certificate, ICertificate } from '../../../models/certificate.model';
+import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
 import { logger } from '../../../utils/logger';
 
 export interface CertificateListOptions {

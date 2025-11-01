@@ -8,7 +8,6 @@
 import express, { Application, RequestHandler, Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger'; 
 import helmet from 'helmet';
-import cors from 'cors';
 import compression from 'compression';
 import mongoSanitize from 'express-mongo-sanitize';
 import * as Sentry from '@sentry/node';
@@ -20,6 +19,32 @@ import { container, SERVICE_TOKENS } from './di-container.service';
 import { monitoringService } from '../external/monitoring.service';
 import { securityScanService } from '../external/security-scan.service';
 import { circuitBreakerManager } from '../external/circuit-breaker.service';
+
+import {
+  // Core middleware
+  loggingMiddleware,
+  productionLoggingMiddleware,
+  developmentLoggingMiddleware,
+  errorHandler,
+  
+  // Security middleware
+  productionCorsMiddleware,
+  developmentCorsMiddleware,
+  webhookMiddleware,
+  
+  // Performance middleware
+  metricsMiddleware,
+  performanceMiddleware,
+  
+  // Other middleware
+  authenticate,
+  resolveTenant,
+  requireTenantSetup,
+  requireTenantPlan,
+  tenantCorsMiddleware,
+  dynamicRateLimiter,
+  strictRateLimiter
+} from '../../middleware';
 
 export class AppBootstrapService {
   private app: Application;
@@ -88,15 +113,15 @@ export class AppBootstrapService {
     container.registerInstance(SERVICE_TOKENS.UTILS_SERVICE, new UtilsService());
 
     // Register models
-    const { User } = await import('../../models/user.model');
-    const { Business } = await import('../../models/business.model');
-    const { Manufacturer } = await import('../../models/manufacturer.model');
-    const { BrandSettings } = await import('../../models/brandSettings.model');
-    const { VotingRecord } = await import('../../models/votingRecord.model');
-    const { Certificate } = await import('../../models/certificate.model');
-    const { SecurityEventModel } = await import('../../models/securityEvent.model');
-    const { ActiveSessionModel } = await import('../../models/activeSession.model');
-    const { BlacklistedTokenModel } = await import('../../models/blacklistedToken.model');
+    const { User } = await import('../../models/deprecated/user.model');
+    const { Business } = await import('../../models/deprecated/business.model');
+    const { Manufacturer } = await import('../../models/deprecated/manufacturer.model');
+    const { BrandSettings } = await import('../../models/deprecated/brandSettings.model');
+    const { VotingRecord } = await import('../../models/deprecated/votingRecord.model');
+    const { Certificate } = await import('../../models/deprecated/certificate.model');
+    const { SecurityEventModel } = await import('../../models/deprecated/securityEvent.model');
+    const { ActiveSessionModel } = await import('../../models/deprecated/activeSession.model');
+    const { BlacklistedTokenModel } = await import('../../models/deprecated/blacklistedToken.model');
 
     container.registerInstance(SERVICE_TOKENS.USER_MODEL, User);
     container.registerInstance(SERVICE_TOKENS.BUSINESS_MODEL, Business);
@@ -293,82 +318,17 @@ export class AppBootstrapService {
       }
     }));
 
-    // Performance monitoring with additional metrics
-    this.app.use((req, res, next) => {
-      const start = Date.now();
-      const startMem = process.memoryUsage().heapUsed;
-
-      // Add request ID for tracking
-      const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      res.setHeader('X-Request-ID', requestId);
-
-      res.on('finish', () => {
-        const duration = Date.now() - start;
-        const endMem = process.memoryUsage().heapUsed;
-        const memoryDelta = endMem - startMem;
-
-        // Record HTTP metrics
-        monitoringService.recordHttpMetrics(
-          req.method,
-          req.path,
-          res.statusCode,
-          duration
-        );
-
-        // Record additional performance metrics
-        monitoringService.recordMetric({
-          name: 'http_request_memory_delta',
-          value: memoryDelta,
-          tags: {
-            method: req.method,
-            status_code: res.statusCode.toString(),
-            path: req.path
-          }
-        });
-
-        // Log slow requests
-        if (duration > 1000) {
-          logger.warn(`Slow request detected: ${req.method} ${req.path} - ${duration}ms`, {
-            requestId,
-            duration,
-            method: req.method,
-            path: req.path,
-            statusCode: res.statusCode,
-            userAgent: req.get('User-Agent'),
-            ip: req.ip
-          });
-        }
-
-        // Log memory-intensive requests
-        if (memoryDelta > 50 * 1024 * 1024) { // > 50MB
-          logger.warn(`Memory-intensive request: ${req.method} ${req.path} - ${Math.round(memoryDelta / 1024 / 1024)}MB`, {
-            requestId,
-            memoryDelta: Math.round(memoryDelta / 1024 / 1024),
-            method: req.method,
-            path: req.path
-          });
-        }
-      });
-
-      next();
-    });
-
-    // Response time header
-    this.app.use((req, res, next) => {
-      const start = Date.now();
-      res.on('finish', () => {
-        const duration = Date.now() - start;
-        res.setHeader('X-Response-Time', `${duration}ms`);
-
-        // Add performance hints
-        if (duration > 2000) {
-          res.setHeader('X-Performance-Warning', 'Very slow response');
-        } else if (duration > 1000) {
-          res.setHeader('X-Performance-Warning', 'Slow response');
-        }
-      });
-      next();
-    });
+    // Use modular logging middleware for request/response tracking
+    const environment = process.env.NODE_ENV || 'development';
+    
+    if (environment === 'production') {
+      this.app.use(productionLoggingMiddleware);
+    } else {
+      this.app.use(developmentLoggingMiddleware);
+    }
+    
+    // Add Prometheus metrics tracking
+    this.app.use(metricsMiddleware);
   }
 
   /**
@@ -406,56 +366,16 @@ export class AppBootstrapService {
    * Setup CORS middleware
    */
   private setupCorsMiddleware(): void {
-    this.app.use(cors({
-      origin: (origin, callback) => {
-        // Allow requests without origin (mobile apps, Postman, etc.)
-        if (!origin) return callback(null, true);
-        
-        // Validate origin format first
-        if (!this.isValidOriginFormat(origin)) {
-          logger.warn('⚠️ CORS blocked invalid origin format: ${origin}');
-          return callback(new Error(`Invalid origin format: ${origin}`));
-        }
-        
-        // Allow configured frontend URL
-        if (origin === process.env.FRONTEND_URL) return callback(null, true);
-        
-        // Strict localhost validation for development only
-        if (process.env.NODE_ENV === 'development' && this.isValidLocalhostOrigin(origin)) {
-          return callback(null, true);
-        }
-        
-        // Production: Require HTTPS for all custom domains
-        if (process.env.NODE_ENV === 'production' && !origin.startsWith('https://')) {
-          logger.warn('⚠️ CORS blocked non-HTTPS origin in production: ${origin}');
-          return callback(new Error(`HTTPS required in production: ${origin}`));
-        }
-        
-        // Check against cached custom domains
-        const { isAllowedCustomDomain } = require('../../cache/domainCache');
-        if (isAllowedCustomDomain(origin)) {
-          if (this.isValidCustomDomain(origin)) {
-            return callback(null, true);
-          } else {
-            logger.warn('⚠️ CORS blocked invalid custom domain: ${origin}');
-            return callback(new Error(`Invalid custom domain: ${origin}`));
-          }
-        }
-        
-        // Block unauthorized origins
-        logger.warn('⚠️ CORS blocked unauthorized origin: ${origin}');
-        return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
-      },
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-      allowedHeaders: [
-        'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 
-        'Authorization', 'Cache-Control', 'Pragma', 'X-Tenant-ID',
-        'X-Device-Fingerprint', 'X-API-Key'
-      ],
-      credentials: true,
-      maxAge: 86400, // 24 hours
-      optionsSuccessStatus: 200 // For legacy browser support
-    }));
+    // Use modular CORS middleware with environment-specific configuration
+    const environment = process.env.NODE_ENV || 'development';
+    
+    if (environment === 'production') {
+      this.app.use(productionCorsMiddleware);
+    } else {
+      this.app.use(developmentCorsMiddleware);
+    }
+    
+    logger.info('✅ CORS middleware configured');
   }
 
   /**
@@ -595,11 +515,6 @@ export class AppBootstrapService {
     const analyticsRoutes = require('../../routes/analytics.routes');
     const certificateRoutes = require('../../routes/certificate.routes');
 
-    // Setup route middleware
-    const { resolveTenant, requireTenantSetup, requireTenantPlan, tenantCorsMiddleware } = require('../../middleware/tenant.middleware');
-    const { authenticate } = require('../../middleware/unifiedAuth.middleware');
-    const { dynamicRateLimiter, strictRateLimiter } = require('../../middleware/rateLimiter.middleware');
-
     // Public routes
     this.app.use('/api/auth', authRoutes);
     this.app.use('/api/users', userRoutes);
@@ -661,8 +576,7 @@ export class AppBootstrapService {
       }));
     }
 
-    // Global error handler
-    const { errorHandler } = require('../../middleware/error.middleware');
+    // Global error handler (imported from modular middleware)
     this.app.use(errorHandler);
   }
 
@@ -684,71 +598,6 @@ export class AppBootstrapService {
     }, 60000); // Every minute
 
     logger.info('✅ Monitoring services started');
-  }
-
-  /**
-   * Validate origin format
-   */
-  private isValidOriginFormat(origin: string): boolean {
-    try {
-      const url = new URL(origin);
-      return ['http:', 'https:'].includes(url.protocol) && 
-             url.hostname.length > 0 && 
-             url.hostname.length <= 253;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Validate localhost origin
-   */
-  private isValidLocalhostOrigin(origin: string): boolean {
-    try {
-      const url = new URL(origin);
-      const allowedHosts = ['localhost', '127.0.0.1', '::1'];
-      const allowedPorts = ['3000', '3001', '4000', '5000', '8000', '8080'];
-      
-      return allowedHosts.includes(url.hostname) && 
-             (url.port === '' || allowedPorts.includes(url.port));
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Validate custom domain
-   */
-  private isValidCustomDomain(origin: string): boolean {
-    try {
-      const url = new URL(origin);
-      const hostname = url.hostname.toLowerCase();
-      
-      const blockedPatterns = [
-        /^[0-9]/, /\.\./, /[^a-z0-9.-]/, /^-/, /-$/, /^\./, /\.$/
-      ];
-      
-      for (const pattern of blockedPatterns) {
-        if (pattern.test(hostname)) {
-          return false;
-        }
-      }
-      
-      if (!hostname.includes('.')) {
-        return false;
-      }
-      
-      const labels = hostname.split('.');
-      for (const label of labels) {
-        if (label.length === 0 || label.length > 63) {
-          return false;
-        }
-      }
-      
-      return true;
-    } catch {
-      return false;
-    }
   }
 
 }

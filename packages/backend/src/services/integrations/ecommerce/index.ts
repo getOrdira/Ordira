@@ -34,7 +34,9 @@ import type {
   ProviderConnectionAdapter,
   ProductSyncOptions,
   ProductSyncResult,
+  OrderProcessingOptions,
   OrderProcessingResult,
+  ExpectedWebhookDefinition,
   WebhookReconciliationResult,
   IntegrationAnalyticsReport
 } from './core/types';
@@ -188,7 +190,9 @@ export type {
   ProviderConnectionAdapter,
   ProductSyncOptions,
   ProductSyncResult,
+  OrderProcessingOptions,
   OrderProcessingResult,
+  ExpectedWebhookDefinition,
   WebhookReconciliationResult,
   IntegrationAnalyticsReport,
   ConnectionHealthReport

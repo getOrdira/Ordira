@@ -3,19 +3,20 @@
 
 import { Response } from 'express';
 import { VotesBaseController, VotesBaseRequest } from './votesBase.controller';
+import type {
+  BusinessVotesOptions,
+  PendingVotesFilters
+} from '../../../services/votes/utils/types';
+
+type VotesQuerySelection = Pick<BusinessVotesOptions, 'limit' | 'offset' | 'sortBy' | 'sortOrder' | 'useCache'>;
 
 interface VotesListRequest extends VotesBaseRequest {
   validatedParams?: {
     businessId?: string;
   };
-  validatedQuery?: {
+  validatedQuery?: Partial<VotesQuerySelection> & {
     businessId?: string;
-    limit?: number;
-    offset?: number;
     page?: number;
-    sortBy?: 'timestamp' | 'proposalId';
-    sortOrder?: 'asc' | 'desc';
-    useCache?: boolean;
   };
 }
 
@@ -23,14 +24,9 @@ interface PendingVotesRequest extends VotesBaseRequest {
   validatedParams?: {
     businessId?: string;
   };
-  validatedQuery?: {
+  validatedQuery?: Partial<PendingVotesFilters> & {
     businessId?: string;
-    proposalId?: string;
-    userId?: string;
-    limit?: number;
-    offset?: number;
     page?: number;
-    useCache?: boolean;
   };
 }
 
@@ -70,33 +66,32 @@ export class VotesDataController extends VotesBaseController {
       const businessId = this.requireBusinessId(req);
       const pagination = this.getPaginationParams(req, { defaultLimit: 100, maxLimit: 500 });
 
-      const sortBy =
-        (req.validatedQuery?.sortBy as 'timestamp' | 'proposalId' | undefined) ??
-        this.parseString((req.query as any)?.sortBy) ??
-        'timestamp';
-
-      const sortOrder =
-        (req.validatedQuery?.sortOrder as 'asc' | 'desc' | undefined) ??
-        this.parseString((req.query as any)?.sortOrder) ??
-        'desc';
-
-      const useCache =
-        req.validatedQuery?.useCache ??
-        this.parseOptionalBoolean((req.query as any)?.useCache) ??
-        true;
-
-      const votes = await this.votingDataService.getBusinessVotes(businessId, {
+      const rawOptions: BusinessVotesOptions = {
         limit: pagination.limit,
         offset: pagination.offset,
-        sortBy,
-        sortOrder,
-        useCache,
-      });
+        sortBy:
+          (req.validatedQuery?.sortBy as BusinessVotesOptions['sortBy']) ??
+          (this.parseString((req.query as any)?.sortBy) as BusinessVotesOptions['sortBy']) ??
+          'timestamp',
+        sortOrder:
+          (req.validatedQuery?.sortOrder as BusinessVotesOptions['sortOrder']) ??
+          (this.parseString((req.query as any)?.sortOrder) as BusinessVotesOptions['sortOrder']) ??
+          'desc',
+        useCache:
+          req.validatedQuery?.useCache ??
+          this.parseOptionalBoolean((req.query as any)?.useCache) ??
+          true,
+      };
+
+      const options = this.votingValidationService.normalizeBusinessVotesOptions(rawOptions);
+
+      const votes = await this.votingDataService.getBusinessVotes(businessId, options);
 
       const total = await this.votingDataService.countVotingRecords(businessId);
+      const page = this.computePageFromOffset(options.offset, options.limit);
       const paginationMeta = this.createPaginationMeta(
-        pagination.page,
-        pagination.limit,
+        page,
+        options.limit,
         total,
       );
 
@@ -104,6 +99,9 @@ export class VotesDataController extends VotesBaseController {
         businessId,
         returned: votes.length,
         total,
+        sortBy: options.sortBy,
+        sortOrder: options.sortOrder,
+        useCache: options.useCache,
       });
 
       return {
@@ -124,13 +122,15 @@ export class VotesDataController extends VotesBaseController {
       const businessId = this.requireBusinessId(req);
       const pagination = this.getPaginationParams(req, { defaultLimit: 100, maxLimit: 500 });
 
-      const filters = {
+      const rawFilters: PendingVotesFilters = {
         proposalId:
           req.validatedQuery?.proposalId ??
-          this.parseString((req.query as any)?.proposalId),
+          this.parseString((req.query as any)?.proposalId) ??
+          undefined,
         userId:
           req.validatedQuery?.userId ??
-          this.parseString((req.query as any)?.userId),
+          this.parseString((req.query as any)?.userId) ??
+          undefined,
         limit: pagination.limit,
         offset: pagination.offset,
         useCache:
@@ -139,11 +139,14 @@ export class VotesDataController extends VotesBaseController {
           true,
       };
 
+      const filters = this.votingValidationService.normalizePendingVotesFilters(rawFilters);
+
       const pendingVotes = await this.votingDataService.getPendingVotes(businessId, filters);
       const total = await this.votingDataService.countPendingVotes(businessId);
+      const page = this.computePageFromOffset(filters.offset, filters.limit);
       const paginationMeta = this.createPaginationMeta(
-        pagination.page,
-        pagination.limit,
+        page,
+        filters.limit,
         total,
       );
 
@@ -151,6 +154,9 @@ export class VotesDataController extends VotesBaseController {
         businessId,
         returned: pendingVotes.length,
         total,
+        proposalId: filters.proposalId,
+        userId: filters.userId,
+        useCache: filters.useCache,
       });
 
       return {
@@ -273,4 +279,3 @@ export class VotesDataController extends VotesBaseController {
 }
 
 export const votesDataController = new VotesDataController();
-

@@ -1,5 +1,5 @@
 import { logger } from '../../../../utils/logger';
-import { SecurityEventModel, type SecurityEventDocument } from '../../../../models/securityEvent.model';
+import { SecurityEventModel, type SecurityEventDocument } from '../../../../models/deprecated/securityEvent.model';
 import {
   SecurityEvent,
   SecurityEventCreateInput,

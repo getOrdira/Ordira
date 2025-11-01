@@ -1,6 +1,6 @@
 // src/services/tenants/features/resolution.service.ts
 
-import type { IBrandSettings } from '../../../models/brandSettings.model';
+import type { IBrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { tenantDataService, TenantDataService } from '../core/tenantData.service';
 import { tenantCacheService, TenantCacheService } from '../utils/cache.service';
 import { tenantDomainValidationService, TenantDomainValidationService } from '../validation/domainValidation.service';

@@ -8,7 +8,7 @@
  * - Queue management
  */
 
-import { Certificate } from '../../../models/certificate.model';
+import { Certificate } from '../../../models/deprecated/certificate.model';
 import { logger } from '../../../utils/logger';
 
 export interface BatchCreateInput {

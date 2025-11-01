@@ -8,8 +8,8 @@
  * - Plan limits and quotas
  */
 
-import { Certificate } from '../../../models/certificate.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { Certificate } from '../../../models/deprecated/certificate.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { logger } from '../../../utils/logger';
 
 export interface CertificateStats {

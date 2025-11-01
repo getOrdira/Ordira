@@ -4,17 +4,19 @@
 import { BaseController, BaseRequest } from '../../core/base.controller';
 import {
   getDomainServices,
-  getDomainRegistryService,
-  getDomainValidationService,
-  getDomainVerificationService,
-  getDomainDnsService,
-  getDomainCertificateLifecycleService,
-  getDomainHealthService,
-  getDomainAnalyticsService,
-  getDomainCacheService,
 } from '../../../services/container.service';
-import { domainStorageService } from '../../../services/domains/core/domainStorage.service';
-import { certificateProvisionerService } from '../../../services/domains/core/certificateProvisioner.service';
+import { 
+  domainRegistryService,
+  domainStorageService,
+  domainDnsService,
+  domainVerificationService,
+  domainCertificateLifecycleService,
+  domainHealthService,
+  domainAnalyticsService,
+  domainCacheService,
+  certificateProvisionerService,
+  domainValidationService
+} from '../../../services/domains';
 
 type DomainServices = ReturnType<typeof getDomainServices>;
 
@@ -39,14 +41,14 @@ interface PaginationResult {
  */
 export abstract class DomainsBaseController extends BaseController {
   protected domainServices: DomainServices = getDomainServices();
-  protected domainRegistryService = getDomainRegistryService();
-  protected domainValidationService = getDomainValidationService();
-  protected domainVerificationService = getDomainVerificationService();
-  protected domainDnsService = getDomainDnsService();
-  protected domainCertificateLifecycleService = getDomainCertificateLifecycleService();
-  protected domainHealthService = getDomainHealthService();
-  protected domainAnalyticsService = getDomainAnalyticsService();
-  protected domainCacheService = getDomainCacheService();
+  protected domainRegistryService = domainRegistryService;
+  protected domainValidationService = domainValidationService;
+  protected domainVerificationService = domainVerificationService;
+  protected domainDnsService = domainDnsService;
+  protected domainCertificateLifecycleService = domainCertificateLifecycleService;
+  protected domainHealthService = domainHealthService;
+  protected domainAnalyticsService = domainAnalyticsService;
+  protected domainCacheService = domainCacheService;
   protected domainStorageService = domainStorageService;
   protected certificateProvisionerService = certificateProvisionerService;
 

@@ -3,29 +3,24 @@
 
 import { Response } from 'express';
 import { VotesBaseController, VotesBaseRequest } from './votesBase.controller';
-import type { DeployProposalResult, ProposalStatistics } from '../../../services/votes/features/votingProposalManagement.service';
+import type {
+  CreateProposalInput,
+  DeployProposalResult,
+  ProposalStatistics,
+  UpdateProposalInput
+} from '../../../services/votes/features/votingProposalManagement.service';
 import type { ProposalStatus } from '../../../services/votes/utils/types';
 
 interface CreateProposalRequest extends VotesBaseRequest {
   validatedParams?: {
     businessId?: string;
   };
-  validatedBody?: {
-    title?: string;
-    description?: string;
-    category?: string;
-    imageUrl?: string;
+  validatedBody?: Partial<CreateProposalInput> & {
     mediaIds?: string[] | string;
     productIds?: string[] | string;
-    allowMultipleSelections?: boolean;
-    maxSelections?: number;
-    requireReason?: boolean;
-    duration?: number;
-    startTime?: string;
-    endTime?: string;
-    priority?: 'low' | 'medium' | 'high';
     tags?: string[] | string;
-    deployToBlockchain?: boolean;
+    startTime?: string | Date;
+    endTime?: string | Date;
   };
 }
 
@@ -34,15 +29,9 @@ interface UpdateProposalRequest extends VotesBaseRequest {
     businessId?: string;
     proposalId?: string;
   };
-  validatedBody?: {
-    title?: string;
-    description?: string;
-    category?: string;
-    imageUrl?: string;
-    duration?: number;
-    endTime?: string;
-    priority?: 'low' | 'medium' | 'high';
+  validatedBody?: Partial<UpdateProposalInput> & {
     tags?: string[] | string;
+    endTime?: string | Date;
   };
 }
 
@@ -78,27 +67,46 @@ export class VotesProposalManagementController extends VotesBaseController {
       this.recordPerformance(req, 'VOTING_PROPOSAL_CREATE');
 
       const businessId = this.requireBusinessId(req);
-      const body = this.sanitizeInput(req.validatedBody ?? (req.body as any) ?? {});
+      const body = this.sanitizeInput(
+        (req.validatedBody ??
+          (req.body as CreateProposalRequest['validatedBody']) ??
+          {}) as CreateProposalRequest['validatedBody']
+      ) as CreateProposalRequest['validatedBody'];
+
+      const rawStartTime = (body as any)?.startTimeRaw ?? (body as any)?.start_time ?? body?.startTime;
+      const rawEndTime = (body as any)?.end_time ?? body?.endTime;
 
       const input = {
-        title: this.parseString(body.title),
-        description: this.parseString(body.description),
-        category: this.parseString(body.category),
-        imageUrl: this.parseString(body.imageUrl),
-        mediaIds: this.parseStringArray(body.mediaIds),
-        productIds: this.parseStringArray(body.productIds) ?? [],
-        allowMultipleSelections: body.allowMultipleSelections === undefined ? undefined : this.parseBoolean(body.allowMultipleSelections),
-        maxSelections: this.parseOptionalNumber(body.maxSelections, { min: 1 }),
-        requireReason: body.requireReason === undefined ? undefined : this.parseBoolean(body.requireReason),
-        duration: this.parseOptionalNumber(body.duration, { min: 60 }),
-        startTime: this.parseDate(body.startTime ?? body.startTimeRaw ?? body.start_time),
-        endTime: this.parseDate(body.endTime ?? body.end_time),
-        priority: body.priority as 'low' | 'medium' | 'high' | undefined,
-        tags: this.parseStringArray(body.tags),
-        deployToBlockchain: body.deployToBlockchain === undefined ? undefined : this.parseBoolean(body.deployToBlockchain),
-      };
+        title: this.parseString(body?.title),
+        description: this.parseString(body?.description),
+        category: this.parseString(body?.category),
+        imageUrl: this.parseString(body?.imageUrl),
+        mediaIds: this.parseStringArray(body?.mediaIds),
+        productIds: this.parseStringArray(body?.productIds) ?? [],
+        allowMultipleSelections:
+          body?.allowMultipleSelections === undefined
+            ? undefined
+            : this.parseBoolean(body?.allowMultipleSelections),
+        maxSelections: this.parseOptionalNumber(body?.maxSelections, { min: 1 }),
+        requireReason:
+          body?.requireReason === undefined
+            ? undefined
+            : this.parseBoolean(body?.requireReason),
+        duration: this.parseOptionalNumber(body?.duration, { min: 60 }),
+        startTime: this.parseDate(rawStartTime),
+        endTime: this.parseDate(rawEndTime),
+        priority: (body?.priority as CreateProposalInput['priority']) ?? undefined,
+        tags: this.parseStringArray(body?.tags),
+        deployToBlockchain:
+          body?.deployToBlockchain === undefined
+            ? undefined
+            : this.parseBoolean(body?.deployToBlockchain),
+      } as Partial<CreateProposalInput>;
 
-      const proposal = await this.votingProposalManagementService.createProposal(businessId, input);
+      const proposal = await this.votingProposalManagementService.createProposal(
+        businessId,
+        input as CreateProposalInput,
+      );
       const serialized = this.toPlainObject(proposal);
 
       this.logAction(req, 'VOTING_PROPOSAL_CREATE_SUCCESS', {
@@ -122,17 +130,23 @@ export class VotesProposalManagementController extends VotesBaseController {
 
       const businessId = this.requireBusinessId(req);
       const proposalId = this.requireProposalId(req);
-      const body = this.sanitizeInput(req.validatedBody ?? (req.body as any) ?? {});
+      const body = this.sanitizeInput(
+        (req.validatedBody ??
+          (req.body as UpdateProposalRequest['validatedBody']) ??
+          {}) as UpdateProposalRequest['validatedBody']
+      ) as UpdateProposalRequest['validatedBody'];
 
-      const updates = {
-        title: body.title ? this.parseString(body.title) : undefined,
-        description: body.description ? this.parseString(body.description) : undefined,
-        category: body.category ? this.parseString(body.category) : undefined,
-        imageUrl: body.imageUrl ? this.parseString(body.imageUrl) : undefined,
-        duration: this.parseOptionalNumber(body.duration, { min: 60 }),
-        endTime: this.parseDate(body.endTime ?? body.end_time),
-        priority: body.priority as 'low' | 'medium' | 'high' | undefined,
-        tags: body.tags !== undefined ? this.parseStringArray(body.tags) ?? [] : undefined,
+      const rawEndTime = (body as any)?.end_time ?? body?.endTime;
+
+      const updates: Partial<UpdateProposalInput> = {
+        title: body?.title ? this.parseString(body.title) ?? undefined : undefined,
+        description: body?.description ? this.parseString(body.description) ?? undefined : undefined,
+        category: body?.category ? this.parseString(body.category) ?? undefined : undefined,
+        imageUrl: body?.imageUrl ? this.parseString(body.imageUrl) ?? undefined : undefined,
+        duration: this.parseOptionalNumber(body?.duration, { min: 60 }),
+        endTime: this.parseDate(rawEndTime),
+        priority: (body?.priority as UpdateProposalInput['priority']) ?? undefined,
+        tags: body?.tags !== undefined ? this.parseStringArray(body.tags) ?? [] : undefined,
       };
 
       const proposal = await this.votingProposalManagementService.updateProposal(

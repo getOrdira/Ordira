@@ -29,6 +29,7 @@ interface DomainActionRequest extends DomainsBaseRequest {
     domainId?: string;
     hostname?: string;
     domain?: string;
+    requestedBy?: string;
   };
 }
 

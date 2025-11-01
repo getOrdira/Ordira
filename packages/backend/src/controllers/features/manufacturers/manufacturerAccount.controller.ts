@@ -35,13 +35,13 @@ interface UpdateManufacturerAccountRequest extends BaseRequest {
       expiryDate?: Date;
     }>;
     establishedYear?: number;
-    employeeCount?: string;
+    employeeCount?: number;
     headquarters?: {
       country?: string;
       city?: string;
       address?: string;
     };
-    preferredContactMethod?: string;
+    preferredContactMethod?: 'email' | 'phone' | 'message';
     timezone?: string;
   };
 }

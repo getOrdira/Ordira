@@ -1,5 +1,5 @@
 import path from 'path';
-import { Media, IMedia } from '../../../models/media.model';
+import { Media, IMedia } from '../../../models/deprecated/media.model';
 import { storageProviderService } from '../core/storageProvider.service';
 import { fileValidationService } from '../validation/fileValidation.service';
 import { mediaCacheService } from '../utils/cache';

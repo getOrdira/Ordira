@@ -1,4 +1,4 @@
-import { Business } from '../../../models/business.model';
+import { Business } from '../../../models/deprecated/business.model';
 import { logger } from '../../../utils/logger';
 import { triggersService } from './triggers.service';
 import { NotificationEventType } from '../types';

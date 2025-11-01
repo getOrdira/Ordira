@@ -10,7 +10,7 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../utils/utils.service';
 import { notificationsService } from '../../notifications/notifications.service';
-import { Manufacturer } from '../../../models/manufacturer.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 
 // Import base service and types

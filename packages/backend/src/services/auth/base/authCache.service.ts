@@ -10,9 +10,9 @@ import crypto from 'crypto';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../utils/utils.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { Business } from '../../../models/business.model';
-import { User } from '../../../models/user.model';
-import { Manufacturer } from '../../../models/manufacturer.model';
+import { Business } from '../../../models/deprecated/business.model';
+import { User } from '../../../models/deprecated/user.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
 
 // Import base service and types
 import { AuthBaseService } from './authBase.service';

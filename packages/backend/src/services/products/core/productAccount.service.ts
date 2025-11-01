@@ -1,5 +1,5 @@
-import { Product } from '../../../models/product.model';
-import { Media } from '../../../models/media.model';
+import { Product } from '../../../models/deprecated/product.model';
+import { Media } from '../../../models/deprecated/media.model';
 import { logger } from '../../../utils/logger';
 import { productCacheService } from '../utils/cache';
 import { ProductAnalyticsResult, ProductStatsOptions, ProductError } from '../utils';

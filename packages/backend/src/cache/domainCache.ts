@@ -1,7 +1,7 @@
 // src/cache/domainCache.ts
-import { BrandSettings } from '../models/brandSettings.model';
+import { BrandSettings } from '../models/deprecated/brandSettings.model';
 import { logger } from '../utils/logger';
-import { Manufacturer } from '../models/manufacturer.model';
+import { Manufacturer } from '../models/deprecated/manufacturer.model';
 
 let allowedDomains = new Set<string>();
 

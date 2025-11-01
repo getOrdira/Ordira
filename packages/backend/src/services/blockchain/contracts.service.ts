@@ -7,7 +7,7 @@ import erc20Abi from '../../abi/erc20Minimal.json';
 import { 
   getErrorMessage, 
   createAppError
-} from '../../middleware/error.middleware';
+} from '../../middleware/deprecated/error.middleware';
 import { UtilsService } from '../utils/utils.service';
 
 /**

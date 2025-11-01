@@ -652,7 +652,7 @@ export class VotingService {
   ): Promise<void> {
     try {
       // Dynamic import to avoid circular dependencies
-      const { BrandSettings } = await import('../../models/brandSettings.model');
+      const { BrandSettings } = await import('../../models/deprecated/brandSettings.model');
       
       const updateField = contractType === 'voting' 
         ? 'web3Settings.votingContract' 
@@ -683,7 +683,7 @@ export class VotingService {
   ): Promise<void> {
     try {
       // Dynamic import to avoid circular dependencies
-      const { BrandSettings } = await import('../../models/brandSettings.model');
+      const { BrandSettings } = await import('../../models/deprecated/brandSettings.model');
       
       // Check if business ID is associated with this contract
       const brandSettings = await BrandSettings.findOne({

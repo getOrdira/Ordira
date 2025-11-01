@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'crypto';
 import { Types } from 'mongoose';
-import type { IInvitation } from '../../../models/invitation.model';
+import type { IInvitation } from '../../../models/deprecated/invitation.model';
 import type { InvitationSummary } from '../features/invitations.service';
 
 export type InvitationStatus = IInvitation['status'];

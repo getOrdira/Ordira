@@ -3,17 +3,15 @@
 
 import { Response } from 'express';
 import { VotesBaseController, VotesBaseRequest } from './votesBase.controller';
+import type { BusinessProposalsOptions } from '../../../services/votes/utils/types';
 
 interface BusinessProposalsRequest extends VotesBaseRequest {
   validatedParams?: {
     businessId?: string;
   };
-  validatedQuery?: {
+  validatedQuery?: Partial<BusinessProposalsOptions> & {
     businessId?: string;
     search?: string;
-    status?: 'active' | 'completed' | 'failed';
-    limit?: number;
-    useCache?: boolean;
   };
 }
 
@@ -29,21 +27,27 @@ export class VotesProposalsController extends VotesBaseController {
       this.recordPerformance(req, 'VOTING_PROPOSALS_GET');
 
       const businessId = this.requireBusinessId(req);
-      const options = {
+      const rawOptions: BusinessProposalsOptions = {
         searchQuery:
+          req.validatedQuery?.searchQuery ??
           req.validatedQuery?.search ??
-          this.parseString((req.query as any)?.search),
+          this.parseString((req.query as any)?.search) ??
+          undefined,
         status:
           req.validatedQuery?.status ??
-          (this.parseString((req.query as any)?.status) as 'active' | 'completed' | 'failed' | undefined),
+          (this.parseString((req.query as any)?.status) as BusinessProposalsOptions['status']) ??
+          undefined,
         limit:
           req.validatedQuery?.limit ??
-          this.parseOptionalNumber((req.query as any)?.limit, { min: 1, max: 500 }),
+          this.parseOptionalNumber((req.query as any)?.limit, { min: 1, max: 500 }) ??
+          undefined,
         useCache:
           req.validatedQuery?.useCache ??
           this.parseOptionalBoolean((req.query as any)?.useCache) ??
           true,
       };
+
+      const options = this.votingValidationService.normalizeBusinessProposalsOptions(rawOptions);
 
       const proposals = await this.votingProposalsService.getBusinessProposals(businessId, options);
 
@@ -62,4 +66,3 @@ export class VotesProposalsController extends VotesBaseController {
 }
 
 export const votesProposalsController = new VotesProposalsController();
-

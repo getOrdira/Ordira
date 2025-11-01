@@ -3,6 +3,7 @@
 
 import { Response } from 'express';
 import { VotesBaseController, VotesBaseRequest } from './votesBase.controller';
+import type { VotingAnalyticsOptions } from '../../../services/votes/utils/types';
 
 interface VotingAnalyticsRequest extends VotesBaseRequest {
   validatedParams?: {
@@ -32,13 +33,15 @@ export class VotesAnalyticsController extends VotesBaseController {
 
       const businessId = this.requireBusinessId(req);
 
-      const options = {
+      const rawOptions: VotingAnalyticsOptions = {
         startDate:
           this.parseDate(req.validatedQuery?.startDate) ??
-          this.parseDate((req.query as any)?.startDate),
+          this.parseDate((req.query as any)?.startDate) ??
+          undefined,
         endDate:
           this.parseDate(req.validatedQuery?.endDate) ??
-          this.parseDate((req.query as any)?.endDate),
+          this.parseDate((req.query as any)?.endDate) ??
+          undefined,
         includeRecommendations:
           req.validatedQuery?.includeRecommendations ??
           this.parseOptionalBoolean((req.query as any)?.includeRecommendations) ??
@@ -53,8 +56,11 @@ export class VotesAnalyticsController extends VotesBaseController {
           true,
         proposalId:
           req.validatedQuery?.proposalId ??
-          this.parseString((req.query as any)?.proposalId),
+          this.parseString((req.query as any)?.proposalId) ??
+          undefined,
       };
+
+      const options = this.votingValidationService.normalizeAnalyticsOptions(rawOptions);
 
       const analytics = await this.votingAnalyticsService.getVotingAnalytics(businessId, options);
 
@@ -74,4 +80,3 @@ export class VotesAnalyticsController extends VotesBaseController {
 }
 
 export const votesAnalyticsController = new VotesAnalyticsController();
-

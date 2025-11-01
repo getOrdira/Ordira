@@ -1,6 +1,6 @@
 // src/services/tenants/validation/domainValidation.service.ts
 
-import type { IBrandSettings } from '../../../models/brandSettings.model';
+import type { IBrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { configService } from '../../utils/config.service';
 import type { TenantValidationResult } from '../utils/types';
 

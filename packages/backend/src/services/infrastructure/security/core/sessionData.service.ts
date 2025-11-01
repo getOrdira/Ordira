@@ -1,5 +1,5 @@
 import { logger } from '../../../../utils/logger';
-import { ActiveSessionModel, type ActiveSessionDocument } from '../../../../models/activeSession.model';
+import { ActiveSessionModel, type ActiveSessionDocument } from '../../../../models/deprecated/activeSession.model';
 import type { SessionInfo, SessionCreateInput } from '../utils/securityTypes';
 import type { FilterQuery, Model } from 'mongoose';
 

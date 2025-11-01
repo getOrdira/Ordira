@@ -12,8 +12,8 @@
  * - Certificate workflow helpers
  */
 
-import { Business } from '../../../models/business.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { Business } from '../../../models/deprecated/business.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { logger } from '../../../utils/logger';
 
 /**

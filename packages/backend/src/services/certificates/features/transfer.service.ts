@@ -8,8 +8,8 @@
  * - Transfer health monitoring
  */
 
-import { Certificate, ICertificate } from '../../../models/certificate.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { NftService } from '../../blockchain/nft.service';
 import { notificationsService } from '../../notifications/notifications.service';
 import { logger } from '../../../utils/logger';

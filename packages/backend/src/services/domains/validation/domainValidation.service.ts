@@ -1,4 +1,4 @@
-import { createAppError } from '../../../middleware/error.middleware';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
 import type { RegisterDomainOptions } from '../core/domainRegistry.service';
 import type { VerificationInitiationOptions, VerificationMethod } from '../features/domainVerification.service';
 import type { DomainAnalyticsOptions, DomainAnalyticsTimeframe } from '../features/domainAnalytics.service';

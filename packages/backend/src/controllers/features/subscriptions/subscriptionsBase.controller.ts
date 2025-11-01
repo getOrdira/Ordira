@@ -12,11 +12,9 @@ import {
   getSubscriptionPlanValidationService,
   getSubscriptionBillingService,
 } from '../../../services/container.service';
-import type {
-  SubscriptionServices,
-  SubscriptionSummary,
-} from '../../../services/subscriptions';
+import type { SubscriptionSummary } from '../../../services/subscriptions';
 import type { BrandPlanKey } from '../../../services/subscriptions/utils/types';
+import { subscriptionServices } from '../../../services/subscriptions';
 
 type NumberParseOptions = {
   min?: number;
@@ -27,7 +25,7 @@ type NumberParseOptions = {
  * Base controller with utilities used across subscription controllers.
  */
 export abstract class SubscriptionsBaseController extends BaseController {
-  protected subscriptionServices: SubscriptionServices = getSubscriptionServices();
+  protected subscriptionServices: typeof subscriptionServices = getSubscriptionServices();
   protected subscriptionDataService = getSubscriptionDataService();
   protected subscriptionLifecycleService = getSubscriptionLifecycleService();
   protected subscriptionUsageLimitsService = getSubscriptionUsageLimitsService();

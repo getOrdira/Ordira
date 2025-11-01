@@ -1,7 +1,7 @@
-﻿import { VotingRecord } from '../../../models/votingRecord.model';
-import { Product } from '../../../models/product.model';
-import { Business } from '../../../models/business.model';
-import { Manufacturer } from '../../../models/manufacturer.model';
+﻿import { VotingRecord } from '../../../models/deprecated/votingRecord.model';
+import { Product } from '../../../models/deprecated/product.model';
+import { Business } from '../../../models/deprecated/business.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
 import { queryOptimizationService } from '../../external/query-optimization.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import {

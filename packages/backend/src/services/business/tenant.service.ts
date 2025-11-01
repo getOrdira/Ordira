@@ -1,6 +1,6 @@
 // src/services/business/tenant.service.ts
 
-import type { IBrandSettings } from '../../models/brandSettings.model';
+import type { IBrandSettings } from '../../models/deprecated/brandSettings.model';
 import {
   tenantResolutionService,
   tenantManagementService,

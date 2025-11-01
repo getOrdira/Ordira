@@ -1,7 +1,7 @@
 // src/services/users/features/profile.service.ts
 
 import { logger } from '../../../utils/logger';
-import { User } from '../../../models/user.model';
+import { User } from '../../../models/deprecated/user.model';
 import { userDataService } from '../core/userData.service';
 import { userCacheService } from '../utils/cache.service';
 import { userProfileFormatterService } from '../utils/profileFormatter.service';

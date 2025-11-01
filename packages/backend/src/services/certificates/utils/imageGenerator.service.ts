@@ -8,7 +8,7 @@
  * - Support multiple certificate levels and templates
  */
 
-import { Business } from '../../../models/business.model';
+import { Business } from '../../../models/deprecated/business.model';
 import { S3Service } from '../../external/s3.service';
 import { logger } from '../../../utils/logger';
 

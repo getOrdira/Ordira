@@ -8,7 +8,7 @@
  * - Next steps generation
  */
 
-import { Certificate, ICertificate } from '../../../models/certificate.model';
+import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
 import { notificationsService } from '../../notifications/notifications.service';
 import { logger } from '../../../utils/logger';
 

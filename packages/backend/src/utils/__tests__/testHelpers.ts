@@ -2,10 +2,10 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-import { UnifiedAuthRequest } from '../../middleware/unifiedAuth.middleware';
-import { Business } from '../../models/business.model';
-import { Manufacturer } from '../../models/manufacturer.model';
-import { User } from '../../models/user.model';
+import { UnifiedAuthRequest } from '../../middleware/deprecated/unifiedAuth.middleware';
+import { Business } from '../../models/deprecated/business.model';
+import { Manufacturer } from '../../models/deprecated/manufacturer.model';
+import { User } from '../../models/deprecated/user.model';
 
 /**
  * Test utilities for creating mock requests, responses, and test data

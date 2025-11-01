@@ -1,4 +1,4 @@
-import { INotification } from '../../../models/notification.model';
+import { INotification } from '../../../models/deprecated/notification.model';
 import { NotificationSummary } from '../types';
 
 export class NotificationMapper {

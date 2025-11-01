@@ -1,7 +1,7 @@
 // src/services/connections/features/permissions.service.ts
 
-import { Business } from '../../../models/business.model';
-import { Manufacturer } from '../../../models/manufacturer.model';
+import { Business } from '../../../models/deprecated/business.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
 import { connectionDataService } from '../core/connectionData.service';
 import { logger } from '../../../utils/logger';
 

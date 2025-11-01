@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 
-import { createAppError } from '../../../middleware/error.middleware';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
 import { logger } from '../../../utils/logger';
 import type { DomainMappingRecord } from '../core/domainStorage.service';
 import { domainRegistryService } from '../core/domainRegistry.service';

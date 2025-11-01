@@ -1,10 +1,10 @@
 // src/services/business/pendingVote.service.ts
 
-import { PendingVote, IPendingVote } from '../../models/pendingVote.model';
+import { PendingVote, IPendingVote } from '../../models/deprecated/pendingVote.model';
 import { logger } from '../../utils/logger';
-import { BrandSettings } from '../../models/brandSettings.model';
+import { BrandSettings } from '../../models/deprecated/brandSettings.model';
 import { VotingService } from '../blockchain/voting.service';
-import { createAppError } from '../../middleware/error.middleware';
+import { createAppError } from '../../middleware/deprecated/error.middleware';
 import { Types } from 'mongoose';
 
 // ===== INTERFACES =====

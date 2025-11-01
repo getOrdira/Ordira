@@ -152,8 +152,7 @@ export class SubscriptionsBillingController extends SubscriptionsBaseController 
 
         const result = await this.subscriptionBillingService.updatePaymentMethod(
           businessId,
-          req.validatedBody.paymentMethodId,
-          req.validatedBody.setAsDefault,
+          req.validatedBody.paymentMethodId
         );
 
         this.logAction(req, 'UPDATE_PAYMENT_METHOD_SUCCESS', {
@@ -256,8 +255,6 @@ export class SubscriptionsBillingController extends SubscriptionsBaseController 
    */
   async calculatePricingSummary(req: PricingSummaryQuery, res: Response): Promise<void> {
     await this.handleAsync(async () => {
-      this.ensureAuthenticated(req);
-
       const plan = req.validatedQuery?.plan;
       if (!plan) {
         throw { statusCode: 400, message: 'Plan identifier is required' };

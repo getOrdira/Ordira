@@ -1,6 +1,6 @@
 // src/services/manufacturers/features/supplyChain.service.ts
 
-import { Manufacturer } from '../../../models/manufacturer.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
 import { logger } from '../../../utils/logger';
 import { QrCodeService } from '../../external/qrCode.service';
 import {
@@ -523,7 +523,7 @@ export class SupplyChainService {
   ): Promise<QrCodeGenerationResult> {
     try {
       // Import Product model dynamically to avoid circular dependencies
-      const { Product } = await import('../../../models/product.model');
+      const { Product } = await import('../../../models/deprecated/product.model');
 
       // Find the product
       const product = await Product.findOne({
@@ -561,7 +561,7 @@ export class SupplyChainService {
     productIds: string[]
   ): Promise<BatchQrCodeResult[]> {
     try {
-      const { Product } = await import('../../../models/product.model');
+      const { Product } = await import('../../../models/deprecated/product.model');
 
       const products = await Product.find({
         _id: { $in: productIds },
@@ -606,7 +606,7 @@ export class SupplyChainService {
     productId: string
   ): Promise<ProductQrCodeInfo> {
     try {
-      const { Product } = await import('../../../models/product.model');
+      const { Product } = await import('../../../models/deprecated/product.model');
 
       const product = await Product.findOne({
         _id: productId,

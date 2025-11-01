@@ -1,9 +1,9 @@
 // src/services/manufacturers/core/manufacturerAccount.service.ts
 
-import { Manufacturer, IManufacturer } from '../../../models/manufacturer.model';
+import { Manufacturer, IManufacturer } from '../../../models/deprecated/manufacturer.model';
 import { logger } from '../../../utils/logger';
-import { Media } from '../../../models/media.model';
-import { Notification } from '../../../models/notification.model';
+import { Media } from '../../../models/deprecated/media.model';
+import { Notification } from '../../../models/deprecated/notification.model';
 
 export interface AccountActivity {
   id: string;

@@ -1,8 +1,8 @@
 // src/services/brands/utils/brandHelpers.service.ts
 
 import { logger } from '../../../utils/logger';
-import { Business } from '../../../models/business.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { Business } from '../../../models/deprecated/business.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { ethers } from 'ethers';
 
 /**

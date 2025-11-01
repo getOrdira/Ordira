@@ -1,6 +1,6 @@
 import { BillingService } from '../../external/billing.service';
 import { outboundNotificationService } from '../../notifications';
-import { Subscription } from '../../../models/subscription.model';
+import { Subscription } from '../../../models/deprecated/subscription.model';
 import {
   CreateSubscriptionInput,
   UpdateSubscriptionInput,

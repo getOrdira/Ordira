@@ -1,4 +1,4 @@
-import { ISubscription } from '../../../models/subscription.model';
+import { ISubscription } from '../../../models/deprecated/subscription.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../../../constants/plans';
 import {
   MANUFACTURER_PLAN_DEFINITIONS,

@@ -1,5 +1,5 @@
 import { FilterQuery, Types } from 'mongoose';
-import { INotification } from '../../../models/notification.model';
+import { INotification } from '../../../models/deprecated/notification.model';
 import { NotificationFilters } from '../types/notificationFilters';
 
 export const buildUserQuery = (businessId?: string, manufacturerId?: string): FilterQuery<INotification> => {

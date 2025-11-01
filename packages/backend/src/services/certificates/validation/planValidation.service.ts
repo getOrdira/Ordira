@@ -9,8 +9,8 @@
  * - Usage limit checking
  */
 
-import { Certificate } from '../../../models/certificate.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { Certificate } from '../../../models/deprecated/certificate.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 
 export interface PlanLimits {
   certificates: number;

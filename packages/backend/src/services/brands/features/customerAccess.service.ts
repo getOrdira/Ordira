@@ -10,9 +10,9 @@
  * - Bulk customer operations
  */
 
-import { AllowedCustomer, IAllowedCustomer } from '../../../models/allowedCustomer.model';
-import { User } from '../../../models/user.model';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { AllowedCustomer, IAllowedCustomer } from '../../../models/deprecated/allowedCustomer.model';
+import { User } from '../../../models/deprecated/user.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { getNotificationsServices } from '../../notifications';
 import { ShopifyService } from '../../external/shopify.service';
 import { UtilsService } from '../../utils/utils.service';

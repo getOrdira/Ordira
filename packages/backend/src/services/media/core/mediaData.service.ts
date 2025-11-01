@@ -1,4 +1,4 @@
-import { Media } from '../../../models/media.model';
+import { Media } from '../../../models/deprecated/media.model';
 import { queryOptimizationService } from '../../external/query-optimization.service';
 import { MediaLeanDocument, MediaListOptions, MediaListResult, MediaSearchResult } from '../utils/types';
 import { MediaError } from '../utils/errors';

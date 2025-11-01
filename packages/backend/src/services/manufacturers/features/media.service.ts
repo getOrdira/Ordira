@@ -1,6 +1,6 @@
 // src/services/manufacturers/features/media.service.ts
 
-import { Manufacturer } from '../../../models/manufacturer.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
 import { cacheService } from '../../external/cache.service';
 import mongoose from 'mongoose';
 import * as QRCode from 'qrcode';

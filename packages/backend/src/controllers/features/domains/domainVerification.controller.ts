@@ -15,11 +15,15 @@ interface VerificationRequest extends DomainsBaseRequest {
     domainId?: string;
     method?: string;
     requestedBy?: string;
+    verifiedBy?: string;
     autoScheduleRecheck?: boolean;
   };
   validatedQuery?: {
     businessId?: string;
     domainId?: string;
+    requestedBy?: string;
+    verifiedBy?: string;
+    method?: string;
   };
 }
 

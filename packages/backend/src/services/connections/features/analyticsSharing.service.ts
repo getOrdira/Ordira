@@ -4,7 +4,7 @@ import { AnalyticsService as BrandAnalyticsService } from '../../brands/features
 import { analyticsService as manufacturerAnalyticsService } from '../../manufacturers/features/analytics.service';
 import { permissionsService } from './permissions.service';
 import { connectionDataService } from '../core/connectionData.service';
-import { Invitation } from '../../../models/invitation.model';
+import { Invitation } from '../../../models/deprecated/invitation.model';
 import { logger } from '../../../utils/logger';
 
 export interface SharedAnalyticsOptions {

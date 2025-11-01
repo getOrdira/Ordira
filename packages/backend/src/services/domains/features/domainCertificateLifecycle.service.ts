@@ -1,4 +1,4 @@
-import { createAppError } from '../../../middleware/error.middleware';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
 import { logger } from '../../../utils/logger';
 import { jobQueueService } from '../../external/job-queue.service';
 import { domainRegistryService } from '../core/domainRegistry.service';

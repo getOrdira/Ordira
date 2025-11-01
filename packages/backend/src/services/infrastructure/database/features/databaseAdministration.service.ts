@@ -2,7 +2,7 @@
 
 import mongoose from 'mongoose';
 import { logger } from '../../../../utils/logger'; 
-import { createAppError } from '../../../../middleware/error.middleware';
+import { createAppError } from '../../../../middleware/deprecated/error.middleware';
 
 export interface DatabaseStats {
   connections: number;

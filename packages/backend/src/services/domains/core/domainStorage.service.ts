@@ -1,7 +1,7 @@
 import type { FilterQuery, LeanDocument, UpdateQuery } from 'mongoose';
 
-import { createAppError } from '../../../middleware/error.middleware';
-import { DomainMapping, IDomainMapping } from '../../../models/domainMapping.model';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { DomainMapping, IDomainMapping } from '../../../models/deprecated/domainMapping.model';
 import { logger } from '../../../utils/logger';
 
 export type DomainMappingRecord = LeanDocument<IDomainMapping>;

@@ -35,15 +35,23 @@ export class SupplyChainDeploymentController extends SupplyChainBaseController {
       const businessId = this.requireBusinessId(req);
       const payload = this.sanitizeInput(req.validatedBody ?? (req.body as any) ?? {});
 
-      const deployment = await this.deploymentService.deployContract({
+      const manufacturerName = this.parseString(payload.manufacturerName);
+      if (!manufacturerName) {
+        throw { statusCode: 400, message: 'Manufacturer name is required' };
+      }
+
+      const deployment = await this.deploymentService.deployContract(
         businessId,
-        networkId: this.parseString(payload.networkId),
-        metadata: payload.metadata,
-      });
+        manufacturerName,
+        {
+          gasLimit: payload.gasLimit ? BigInt(payload.gasLimit) : undefined,
+          value: payload.value,
+        }
+      );
 
       this.logAction(req, 'SUPPLY_CHAIN_DEPLOY_CONTRACT_SUCCESS', {
         businessId,
-        contractAddress: deployment.contractAddress,
+        contractAddress: deployment.deployment.contractAddress,
       });
 
       return {
@@ -65,7 +73,7 @@ export class SupplyChainDeploymentController extends SupplyChainBaseController {
 
       this.logAction(req, 'SUPPLY_CHAIN_DEPLOYMENT_STATUS_SUCCESS', {
         businessId,
-        deployed: status.isDeployed,
+        deployed: status.deployed,
       });
 
       return {
@@ -87,7 +95,7 @@ export class SupplyChainDeploymentController extends SupplyChainBaseController {
 
       this.logAction(req, 'SUPPLY_CHAIN_DEPLOYMENT_PREREQS_SUCCESS', {
         businessId,
-        ready: prerequisites.isReady,
+        ready: prerequisites.valid,
       });
 
       return {

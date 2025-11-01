@@ -2,7 +2,7 @@
 import crypto from 'crypto';
 import { logger } from '../../utils/logger';
 import bcrypt from 'bcrypt';
-import { ApiKey } from '../../models/apiKey.model';
+import { ApiKey } from '../../models/deprecated/apiKey.model';
 
 
 type CreateApiKeyOptions = {

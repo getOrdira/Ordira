@@ -1,7 +1,7 @@
 // src/services/manufacturers/features/verification.service.ts
 
-import { Manufacturer } from '../../../models/manufacturer.model';
-import { Media } from '../../../models/media.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Media } from '../../../models/deprecated/media.model';
 import { logger } from '../../../utils/logger';
 import { MediaService } from '../../business/media.service';
 import { v4 as uuidv4 } from 'uuid';

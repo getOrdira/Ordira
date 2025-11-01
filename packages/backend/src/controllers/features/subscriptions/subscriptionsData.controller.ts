@@ -23,7 +23,7 @@ export class SubscriptionsDataController extends SubscriptionsBaseController {
   /**
    * Retrieve subscription summary for the authenticated business.
    */
-  async getSubscriptionSummary(req: SubscriptionSummaryQuery, res: Response): Promise<void> {
+  async getSubscription(req: SubscriptionSummaryQuery, res: Response): Promise<void> {
     await this.handleAsync(async () => {
       this.validateBusinessUser(req, res, async () => {
         const businessId = this.resolveBusinessId(req);
@@ -33,7 +33,7 @@ export class SubscriptionsDataController extends SubscriptionsBaseController {
 
         this.recordPerformance(req, 'GET_SUBSCRIPTION_SUMMARY');
 
-        const summary = await this.subscriptionDataService.getSummaryForBusiness(businessId);
+        const summary = await this.getSubscriptionSummary(businessId);
 
         this.logAction(req, 'GET_SUBSCRIPTION_SUMMARY_SUCCESS', {
           businessId,

@@ -73,6 +73,7 @@ export class ValidationHelpers {
    * Validate pagination parameters
    */
   static validatePagination(
+    req: Request,
     page: any,
     limit: any,
     res: Response,
@@ -105,6 +106,7 @@ export class ValidationHelpers {
    * Validate date range
    */
   static validateDateRange(
+    req: Request,
     startDate: any,
     endDate: any,
     res: Response,

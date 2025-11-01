@@ -101,13 +101,11 @@ export class SupplyChainDashboardController extends SupplyChainBaseController {
       const query = req.validatedQuery ?? (req.query as any) ?? {};
 
       const limit = this.parseOptionalNumber(query.limit, { min: 1, max: 100 });
-      const includeInactive = this.parseOptionalBoolean(query.includeInactive);
 
       const result = await this.dashboardService.getProductSummaries(
         businessId,
         contractAddress,
-        limit ?? 20,
-        includeInactive ?? false,
+        limit ?? 20
       );
 
       this.logAction(req, 'SUPPLY_CHAIN_DASHBOARD_PRODUCT_SUMMARIES_SUCCESS', {
@@ -135,14 +133,9 @@ export class SupplyChainDashboardController extends SupplyChainBaseController {
       const contractAddress = this.requireContractAddress(req);
       const query = req.validatedQuery ?? (req.query as any) ?? {};
 
-      const limit = this.parseOptionalNumber(query.limit, { min: 1, max: 100 });
-      const includeInactive = this.parseOptionalBoolean(query.includeInactive);
-
       const result = await this.dashboardService.getEndpointSummaries(
         businessId,
-        contractAddress,
-        limit ?? 20,
-        includeInactive ?? false,
+        contractAddress
       );
 
       this.logAction(req, 'SUPPLY_CHAIN_DASHBOARD_ENDPOINT_SUMMARIES_SUCCESS', {
@@ -170,10 +163,12 @@ export class SupplyChainDashboardController extends SupplyChainBaseController {
       const contractAddress = this.requireContractAddress(req);
       const query = req.validatedQuery ?? (req.query as any) ?? {};
 
-      const groupBy =
-        this.parseString(query.groupBy) as IAnalyticsRequest['groupBy'] ??
-        this.parseTimeframe(query.timeframe ?? req.validatedBody?.timeframe) ??
-        'month';
+      const groupByCandidate = this.parseString(query.groupBy) ??
+        this.parseTimeframe(query.timeframe ?? req.validatedBody?.timeframe);
+      const groupBy: IAnalyticsRequest['groupBy'] = 
+        (groupByCandidate && ['day', 'week', 'month'].includes(groupByCandidate)) 
+          ? groupByCandidate as IAnalyticsRequest['groupBy']
+          : 'month';
 
       const result = await this.dashboardService.getAnalytics({
         businessId,

@@ -10,9 +10,9 @@
  */
 
 import { isValidObjectId } from 'mongoose';
-import { Certificate, ICertificate } from '../../../models/certificate.model';
-import { Business } from '../../../models/business.model';
-import { Product } from '../../../models/product.model';
+import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
+import { Business } from '../../../models/deprecated/business.model';
+import { Product } from '../../../models/deprecated/product.model';
 import { logger } from '../../../utils/logger';
 
 /**

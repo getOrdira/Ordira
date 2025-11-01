@@ -1,6 +1,7 @@
 // src/controllers/middleware/index.ts
-// Controller middleware exports
+// Middleware administration controller exports
 
-export * from './controller.middleware';
-export * from './performance.middleware';
-export * from './logging.middleware';
+export * from './middlewareBase.controller';
+export * from './rateLimiter.controller';
+export * from './performance.controller';
+export * from './securityValidation.controller';

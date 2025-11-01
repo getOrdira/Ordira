@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger';
-import { createAppError } from '../../middleware/error.middleware';
+import { createAppError } from '../../middleware/deprecated/error.middleware';
 import {
   usageLimitsService,
   usageUpdatesService,

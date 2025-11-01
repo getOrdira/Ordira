@@ -1,7 +1,7 @@
 // src/services/users/features/analytics.service.ts
 
 import { logger } from '../../../utils/logger';
-import { User } from '../../../models/user.model';
+import { User } from '../../../models/deprecated/user.model';
 import { userCacheService } from '../utils/cache.service';
 import type { UserAnalytics } from '../utils/types';
 

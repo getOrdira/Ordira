@@ -1,6 +1,6 @@
 // src/services/tenants/core/tenantData.service.ts
 
-import { BrandSettings, IBrandSettings } from '../../../models/brandSettings.model';
+import { BrandSettings, IBrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import type { TenantAnalyticsOverview, TenantListFilters, TenantListResult } from '../utils/types';
 

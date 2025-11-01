@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-import { BrandSettings } from '../../../../models/brandSettings.model';
+import { BrandSettings } from '../../../../models/deprecated/brandSettings.model';
 import { logger } from '../../../../utils/logger';
 import { EcommerceIntegrationError } from './errors';
 import type {

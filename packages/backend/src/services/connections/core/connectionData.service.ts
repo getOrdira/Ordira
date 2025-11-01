@@ -1,8 +1,8 @@
 // src/services/connections/core/connectionData.service.ts
 
-import { BrandSettings } from '../../../models/brandSettings.model';
-import { Manufacturer } from '../../../models/manufacturer.model';
-import { Invitation } from '../../../models/invitation.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Invitation } from '../../../models/deprecated/invitation.model';
 import { logger } from '../../../utils/logger';
 
 /**

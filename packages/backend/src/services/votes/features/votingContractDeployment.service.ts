@@ -1,5 +1,5 @@
-import { createAppError } from '../../../middleware/error.middleware';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import { VotingService as BlockchainVotingService } from '../../blockchain/voting.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';

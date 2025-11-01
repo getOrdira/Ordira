@@ -3,10 +3,10 @@
 
 import { Response } from 'express';
 import { SupplyChainBaseController, SupplyChainBaseRequest } from './supplyChainBase.controller';
-import type {
-  IQrCodeOptions,
+import {
   QrCodeType,
-  IQrCodeData,
+  type IQrCodeOptions,
+  type IQrCodeData,
 } from '../../../services/supplyChain/utils/types';
 import type {
   IQrCodeGenerationRequest,
@@ -133,7 +133,7 @@ export class SupplyChainQrCodeController extends SupplyChainBaseController {
 
       const body = req.validatedBody ?? (req.body as any) ?? {};
       const request: IQrCodeGenerationRequest = {
-        type: this.parseQrCodeType(body.type) ?? 'supply_chain_tracking',
+        type: this.parseQrCodeType(body.type) ?? QrCodeType.SUPPLY_CHAIN_TRACKING,
         data: body.data ?? {},
         options: this.parseQrCodeOptions(body.options),
       };
@@ -169,7 +169,7 @@ export class SupplyChainQrCodeController extends SupplyChainBaseController {
       const body = req.validatedBody ?? (req.body as any) ?? {};
       const requestsRaw = Array.isArray(body.requests) ? body.requests : body;
       const requests: IQrCodeGenerationRequest[] = (requestsRaw as any[] ?? []).map((entry) => ({
-        type: this.parseQrCodeType(entry.type) ?? 'supply_chain_tracking',
+        type: this.parseQrCodeType(entry.type) ?? QrCodeType.SUPPLY_CHAIN_TRACKING,
         data: entry.data ?? {},
         options: this.parseQrCodeOptions(entry.options),
       }));
@@ -268,7 +268,7 @@ export class SupplyChainQrCodeController extends SupplyChainBaseController {
 
       const body = req.validatedBody ?? (req.body as any) ?? {};
       const request: IQrCodeGenerationRequest = {
-        type: this.parseQrCodeType(body.type) ?? 'supply_chain_tracking',
+        type: this.parseQrCodeType(body.type) ?? QrCodeType.SUPPLY_CHAIN_TRACKING,
         data: body.data ?? {},
         options: this.parseQrCodeOptions(body.options),
       };

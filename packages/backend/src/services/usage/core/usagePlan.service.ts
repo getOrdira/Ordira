@@ -1,6 +1,6 @@
-import { Business } from '../../../models/business.model';
+import { Business } from '../../../models/deprecated/business.model';
 import { PLAN_DEFINITIONS, type PlanKey } from '../../../constants/plans';
-import { createAppError } from '../../../middleware/error.middleware';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
 import { logger } from '../../../utils/logger';
 import { usageCacheService } from '../utils/usageCache.service';
 

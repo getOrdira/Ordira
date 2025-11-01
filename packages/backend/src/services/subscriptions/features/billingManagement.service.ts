@@ -1,12 +1,12 @@
 // src/services/subscriptions/features/billingManagement.service.ts
 import Stripe from 'stripe';
 import { logger } from '../../../utils/logger'; 
-import { Business } from '../../../models/business.model';
+import { Business } from '../../../models/deprecated/business.model';
 import { notificationsService } from '../../notifications/notifications.service'; 
 import { StripeGatewayService, stripeGatewayService } from '../core/stripeGateway.service';
 import { TokenDiscountService, tokenDiscountService } from './tokenDiscount.service';
 import { PlanKey, PLAN_DEFINITIONS } from '../../../constants/plans';
-import { BrandSettings } from '../../../models/brandSettings.model';
+import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
 import { billingDataService, BillingDataService } from '../core/billingData.service';
 import { billingPlanUtils, BillingPlanUtils } from '../utils/billingPlan.utils';
 import { billingValidationService, BillingValidationService } from '../validation/billingValidation.service';

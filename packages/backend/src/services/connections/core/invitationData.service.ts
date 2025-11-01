@@ -1,6 +1,6 @@
 // src/services/connections/core/invitationData.service.ts
 
-import { Invitation, IInvitation } from '../../../models/invitation.model';
+import { Invitation, IInvitation } from '../../../models/deprecated/invitation.model';
 import { Types } from 'mongoose';
 import { logger } from '../../../utils/logger';
 

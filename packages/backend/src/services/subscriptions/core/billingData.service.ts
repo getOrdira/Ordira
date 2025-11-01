@@ -1,4 +1,4 @@
-import { Billing } from '../../../models/billing.model';
+import { Billing } from '../../../models/deprecated/billing.model';
 
 /**
  * Core data access layer for subscription billing records.

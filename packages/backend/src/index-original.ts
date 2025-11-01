@@ -20,14 +20,14 @@ import * as Sentry from '@sentry/node';
 import * as Tracing from '@sentry/tracing';
 
 // 3️⃣ Enhanced middleware imports
-import { resolveTenant, requireTenantSetup, requireTenantPlan, tenantCorsMiddleware } from './middleware/tenant.middleware';
+import { resolveTenant, requireTenantSetup, requireTenantPlan, tenantCorsMiddleware } from './middleware/deprecated/tenant.middleware';
 import { authenticate } from './middleware/auth.middleware';
 import { authenticateManufacturer, requireBrandAccess, requireVerifiedManufacturer } from './middleware/manufacturerAuth.middleware';
-import { dynamicRateLimiter, strictRateLimiter, apiRateLimiter, warmupPlanCache, clearPlanCache } from './middleware/rateLimiter.middleware';
-import { metricsMiddleware, metricsHandler, trackManufacturerAction, trackBrandConnection } from './middleware/metrics.middleware';
-import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from './middleware/upload.middleware';
-import { errorHandler } from './middleware/error.middleware';
-import { validateBody, validateQuery, validateParams } from './middleware/validation.middleware';
+import { dynamicRateLimiter, strictRateLimiter, apiRateLimiter, warmupPlanCache, clearPlanCache } from './middleware/deprecated/rateLimiter.middleware';
+import { metricsMiddleware, metricsHandler, trackManufacturerAction, trackBrandConnection } from './middleware/deprecated/metrics.middleware';
+import { uploadMiddleware, cleanupOnError, validateUploadOrigin } from './middleware/deprecated/upload.middleware';
+import { errorHandler } from './middleware/deprecated/error.middleware';
+import { validateBody, validateQuery, validateParams } from './middleware/deprecated/validation.middleware';
 
 // 🚀 Performance optimization middleware
 import { 
@@ -41,7 +41,7 @@ import {
   circuitBreakerMiddleware,
   deduplicationMiddleware,
   healthCheckMiddleware
-} from './middleware/performance.middleware';
+} from './middleware/deprecated/performance.middleware';
 
 // 🔧 Performance services
 import { cacheService } from './services/external/cache.service';
@@ -49,26 +49,26 @@ import { databaseService } from './services/external/database.service';
 import { performanceService } from './services/external/performance.service';
 
 // 4️⃣ Route imports with enhanced organization
-import authRoutes from './routes/auth.routes';
-import userRoutes from './routes/user.routes';
-import manufacturerRoutes from './routes/manufacturer.routes';
-import mediaRoutes from './routes/media.routes';
-import productRoutes from './routes/products.routes';
-import brandSettingsRoutes from './routes/brandSettings.routes';
-import votesRoutes from './routes/votes.routes';
-import nftsRoutes from './routes/nfts.routes';
-import analyticsRoutes from './routes/analytics.routes';
-import certificateRoutes from './routes/certificate.routes';
-import integrationsRouter from './routes/integrations.routes';
-import brandProfilesRoutes from './routes/brandProfile.routes';
-import manufacturerProfilesRoutes from './routes/manufacturerProfile.routes';
-import brandAccountRoutes from './routes/brandAccount.routes';
-import manufacturerAccountRoutes from './routes/manufacturerAccount.routes';
-import apiKeyRoutes from './routes/apiKey.routes';
-import notificationRoutes from './routes/notification.routes';
-import domainMappingRoutes from './routes/domainMapping.routes';
-import billingRoutes from './routes/billing.routes';
-import supplyChainRoutes from './routes/supplyChain.routes';
+import authRoutes from './routes/deprecated/auth.routes';
+import userRoutes from './routes/deprecated/user.routes';
+import manufacturerRoutes from './routes/deprecated/manufacturer.routes';
+import mediaRoutes from './routes/deprecated/media.routes';
+import productRoutes from './routes/deprecated/products.routes';
+import brandSettingsRoutes from './routes/deprecated/brandSettings.routes';
+import votesRoutes from './routes/deprecated/votes.routes';
+import nftsRoutes from './routes/deprecated/nfts.routes';
+import analyticsRoutes from './routes/deprecated/analytics.routes';
+import certificateRoutes from './routes/deprecated/certificate.routes';
+import integrationsRouter from './routes/deprecated/integrations.routes';
+import brandProfilesRoutes from './routes/deprecated/brandProfile.routes';
+import manufacturerProfilesRoutes from './routes/deprecated/manufacturerProfile.routes';
+import brandAccountRoutes from './routes/deprecated/brandAccount.routes';
+import manufacturerAccountRoutes from './routes/deprecated/manufacturerAccount.routes';
+import apiKeyRoutes from './routes/deprecated/apiKey.routes';
+import notificationRoutes from './routes/deprecated/notification.routes';
+import domainMappingRoutes from './routes/deprecated/domainMapping.routes';
+import billingRoutes from './routes/deprecated/billing.routes';
+import supplyChainRoutes from './routes/deprecated/supplyChain.routes';
 
 // 5️⃣ Enhanced cache and utility imports
 import { startDomainCachePolling, isAllowedCustomDomain } from './cache/domainCache';

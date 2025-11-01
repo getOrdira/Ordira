@@ -3,7 +3,7 @@ import { NotificationCategory, NotificationEventType, NotificationPriority, even
 
 import { invitationDataService } from '../core/invitationData.service';
 import { connectionDataService } from '../core/connectionData.service';
-import { IInvitation } from '../../../models/invitation.model';
+import { IInvitation } from '../../../models/deprecated/invitation.model';
 import { logger } from '../../../utils/logger';
 import { connectionHelpersService } from '../utils/connectionHelpers.service';
 

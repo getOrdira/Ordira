@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { asyncHandler } from '../../../middleware/error.middleware';
-import { ValidatedRequest } from '../../../middleware/validation.middleware';
-import { UnifiedAuthRequest } from '../../../middleware/unifiedAuth.middleware';
+import { asyncHandler } from '../../../middleware/deprecated/error.middleware';
+import { ValidatedRequest } from '../../../middleware/deprecated/validation.middleware';
+import { UnifiedAuthRequest } from '../../../middleware/deprecated/unifiedAuth.middleware';
 import { ResponseHelper } from '../../../utils/responseUtils';
 import { getCaptchaConfig } from '../../../config/captcha.config';
 import { captchaValidationService } from '../../../services/security/captcha/captchaValidation.service';

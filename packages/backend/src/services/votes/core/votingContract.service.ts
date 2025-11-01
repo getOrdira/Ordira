@@ -1,4 +1,4 @@
-import { createAppError } from '../../../middleware/error.middleware';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { VotingService as BlockchainVotingService } from '../../blockchain/voting.service';
 import {

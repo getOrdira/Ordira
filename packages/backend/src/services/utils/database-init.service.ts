@@ -165,14 +165,14 @@ export class DatabaseInitService {
       resolver: () => Promise<Record<string, unknown>>;
       exportKey: string;
     }> = [
-      { token: SERVICE_TOKENS.USER_MODEL, resolver: () => import('../../models/user.model'), exportKey: 'User' },
-      { token: SERVICE_TOKENS.BUSINESS_MODEL, resolver: () => import('../../models/business.model'), exportKey: 'Business' },
-      { token: SERVICE_TOKENS.MANUFACTURER_MODEL, resolver: () => import('../../models/manufacturer.model'), exportKey: 'Manufacturer' },
-      { token: SERVICE_TOKENS.PRODUCT_MODEL, resolver: () => import('../../models/product.model'), exportKey: 'Product' },
-      { token: SERVICE_TOKENS.VOTING_RECORD_MODEL, resolver: () => import('../../models/votingRecord.model'), exportKey: 'VotingRecord' },
-      { token: SERVICE_TOKENS.BRAND_SETTINGS_MODEL, resolver: () => import('../../models/brandSettings.model'), exportKey: 'BrandSettings' },
-      { token: SERVICE_TOKENS.CERTIFICATE_MODEL, resolver: () => import('../../models/certificate.model'), exportKey: 'Certificate' },
-      { token: SERVICE_TOKENS.MEDIA_MODEL, resolver: () => import('../../models/media.model'), exportKey: 'Media' }
+      { token: SERVICE_TOKENS.USER_MODEL, resolver: () => import('../../models/deprecated/user.model'), exportKey: 'User' },
+      { token: SERVICE_TOKENS.BUSINESS_MODEL, resolver: () => import('../../models/deprecated/business.model'), exportKey: 'Business' },
+      { token: SERVICE_TOKENS.MANUFACTURER_MODEL, resolver: () => import('../../models/deprecated/manufacturer.model'), exportKey: 'Manufacturer' },
+      { token: SERVICE_TOKENS.PRODUCT_MODEL, resolver: () => import('../../models/deprecated/product.model'), exportKey: 'Product' },
+      { token: SERVICE_TOKENS.VOTING_RECORD_MODEL, resolver: () => import('../../models/deprecated/votingRecord.model'), exportKey: 'VotingRecord' },
+      { token: SERVICE_TOKENS.BRAND_SETTINGS_MODEL, resolver: () => import('../../models/deprecated/brandSettings.model'), exportKey: 'BrandSettings' },
+      { token: SERVICE_TOKENS.CERTIFICATE_MODEL, resolver: () => import('../../models/deprecated/certificate.model'), exportKey: 'Certificate' },
+      { token: SERVICE_TOKENS.MEDIA_MODEL, resolver: () => import('../../models/deprecated/media.model'), exportKey: 'Media' }
     ];
 
     for (const { token, resolver, exportKey } of registrations) {

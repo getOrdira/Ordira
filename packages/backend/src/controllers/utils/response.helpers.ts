@@ -43,6 +43,7 @@ export interface ResponseMeta {
   processingTime?: number;
   cacheHit?: boolean;
   version?: string;
+  timestamp?: string;
 }
 
 /**

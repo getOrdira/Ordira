@@ -31,9 +31,9 @@ export class NotificationsTemplateController extends NotificationsBaseController
     await this.handleAsync(async () => {
       this.recordPerformance(req, 'RESOLVE_NOTIFICATION_TEMPLATE');
 
-      const template = this.templateService.resolve(req.validatedParams.templateKey);
+      const rendered = this.templateService.render(req.validatedParams.templateKey, { payload: {} });
 
-      if (!template) {
+      if (!rendered) {
         throw { statusCode: 404, message: `Template ${req.validatedParams.templateKey} not found` };
       }
 
@@ -41,7 +41,7 @@ export class NotificationsTemplateController extends NotificationsBaseController
         templateKey: req.validatedParams.templateKey,
       });
 
-      return { template: { metadata: template.metadata } };
+      return { template: { metadata: rendered.metadata } };
     }, res, 'Notification template resolved', this.getRequestMeta(req));
   }
 

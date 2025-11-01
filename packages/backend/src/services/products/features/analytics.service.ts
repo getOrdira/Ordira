@@ -1,4 +1,4 @@
-import { Product } from '../../../models/product.model';
+import { Product } from '../../../models/deprecated/product.model';
 import { logger } from '../../../utils/logger';
 import { productAccountService } from '../core/productAccount.service';
 import { ProductAnalyticsResult, ProductStatsOptions } from '../utils';

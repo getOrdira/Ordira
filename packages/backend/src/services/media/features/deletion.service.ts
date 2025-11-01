@@ -1,4 +1,4 @@
-import { Media } from '../../../models/media.model';
+import { Media } from '../../../models/deprecated/media.model';
 import { mediaDataService } from '../core/mediaData.service';
 import { storageProviderService } from '../core/storageProvider.service';
 import { mediaCacheService } from '../utils/cache';

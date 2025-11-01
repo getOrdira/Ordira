@@ -4,7 +4,7 @@ import acme, { forge } from 'acme-client';
 import type { Order, Authorization } from 'acme-client/types';
 import type { Challenge } from 'acme-client/types/rfc8555';
 
-import { createAppError } from '../../../middleware/error.middleware';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
 import { logger } from '../../../utils/logger';
 
 export interface CertificateProvisionerOptions {

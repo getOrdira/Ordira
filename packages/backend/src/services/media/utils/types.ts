@@ -1,4 +1,4 @@
-import { IMedia } from '../../../models/media.model';
+import { IMedia } from '../../../models/deprecated/media.model';
 
 export interface MediaUploadOptions {
   allowedTypes?: string[];

@@ -1,6 +1,6 @@
 // src/services/manufacturers/features/analytics.service.ts
 
-import { Manufacturer, IManufacturer } from '../../../models/manufacturer.model';
+import { Manufacturer, IManufacturer } from '../../../models/deprecated/manufacturer.model';
 import { logger } from '../../../utils/logger';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 

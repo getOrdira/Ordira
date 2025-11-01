@@ -2,9 +2,9 @@
 import axios from 'axios';
 import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
-import { BrandSettings } from '../../models/brandSettings.model';
+import { BrandSettings } from '../../models/deprecated/brandSettings.model';
 import { CertificateService } from '../business/certificate.service';
-import { createAppError } from '../../middleware/error.middleware';
+import { createAppError } from '../../middleware/deprecated/error.middleware';
 
 const APP_URL = process.env.APP_URL!;
 

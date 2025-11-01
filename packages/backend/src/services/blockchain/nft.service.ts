@@ -2,12 +2,12 @@
 import { BlockchainProviderService } from './provider.service';
 import { logger } from '../../utils/logger';
 import { NftMintResult, ContractDeployment, NftContractInfo, TransferResult } from '../types/blockchain.types';
-import { BrandSettings, IBrandSettings } from '../../models/brandSettings.model';
-import { Certificate, ICertificate } from '../../models/certificate.model';
+import { BrandSettings, IBrandSettings } from '../../models/deprecated/brandSettings.model';
+import { Certificate, ICertificate } from '../../models/deprecated/certificate.model';
 import { Types } from 'mongoose';
 import { S3Service } from '../external/s3.service';
 import { mediaAnalyticsService } from '../media';
-import { createAppError } from '../../middleware/error.middleware';
+import { createAppError } from '../../middleware/deprecated/error.middleware';
 import nftFactoryAbi from '../../abi/nftFactoryAbi.json';
 import erc721Abi from '../../abi/erc721Abi.json';
 import sharp from 'sharp';

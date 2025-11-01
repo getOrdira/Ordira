@@ -1,5 +1,5 @@
 import { Types, Document } from 'mongoose';
-import { IProduct } from '../../../models/product.model';
+import { IProduct } from '../../../models/deprecated/product.model';
 
 /**
  * Product-related type definitions

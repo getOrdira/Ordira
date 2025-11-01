@@ -11,7 +11,7 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../utils/utils.service';
 import { notificationsService } from '../../notifications/notifications.service';
-import { User } from '../../../models/user.model';
+import { User } from '../../../models/deprecated/user.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { getCustomerAccessService } from '../../container.service';
 

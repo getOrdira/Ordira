@@ -91,7 +91,7 @@ export class ErrorHelpers {
       return;
     }
 
-    if (error.name === 'MongoError' && error.code === 11000) {
+    if (error.name === 'MongoError' && (error as any).code === 11000) {
       ResponseHelpers.error(res, {
         code: 'DUPLICATE_KEY',
         message: 'Resource already exists'

@@ -1,6 +1,6 @@
-import { createAppError } from '../../../middleware/error.middleware';
-import { Proposal } from '../../../models/proposal.model';
-import { Product } from '../../../models/product.model';
+import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { Proposal } from '../../../models/deprecated/proposal.model';
+import { Product } from '../../../models/deprecated/product.model';
 import { logger } from '../../../utils/logger';
 import { VotingService as BlockchainVotingService } from '../../blockchain/voting.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
@@ -460,7 +460,7 @@ export class VotingProposalManagementService {
     }
 
     // Get vote distribution by product from PendingVote collection
-    const { PendingVote } = await import('../../../models/pendingVote.model');
+    const { PendingVote } = await import('../../../models/deprecated/pendingVote.model');
     const votesByProduct = await PendingVote.aggregate([
       {
         $match: {
