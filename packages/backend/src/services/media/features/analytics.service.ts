@@ -1,4 +1,4 @@
-import { Media } from '../../../models/deprecated/media.model';
+﻿import { Media } from '../../../models/media/media.model';
 import { mediaCacheService } from '../utils/cache';
 import { MediaStats, CategoryStats } from '../utils/types';
 import { MediaError } from '../utils/errors';
@@ -270,4 +270,5 @@ export class MediaAnalyticsService {
 }
 
 export const mediaAnalyticsService = new MediaAnalyticsService();
+
 

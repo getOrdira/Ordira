@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Authentication Helpers Service
  *
  * Provides shared utility functions and helpers used across all authentication services.
@@ -8,11 +8,11 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { Business } from '../../../models/deprecated/business.model';
 import { User } from '../../../models/deprecated/user.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';

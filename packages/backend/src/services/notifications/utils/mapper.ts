@@ -1,4 +1,4 @@
-import { INotification } from '../../../models/deprecated/notification.model';
+﻿import { INotification } from '../../../models/infrastructure/notification.model';
 import { NotificationSummary } from '../types';
 
 export class NotificationMapper {
@@ -19,3 +19,4 @@ export class NotificationMapper {
 }
 
 export const notificationMapper = new NotificationMapper();
+

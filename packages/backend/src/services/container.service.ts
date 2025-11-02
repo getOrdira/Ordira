@@ -155,15 +155,53 @@ import {
   readReplicaService,
   executeAnalyticsQuery,
   executeReportingQuery,
-  executeReadOnlyQuery
+  executeReadOnlyQuery,
+  enhancedDatabaseService,
+  connectionManager,
+  maintenanceRunner,
+  databaseService,
+  databaseOptimizationService,
+  queryOptimizationService,
+  aggregationOptimizationService,
+  databaseValidationService,
+  databasePlatformConfigService,
+  databaseOpsPlaybook,
+  schemaDriftDetectorService,
+  atlasBestPracticesService,
+  filterGuardService,
+  paginationService,
+  databaseServices
 } from './infrastructure/database';
 import {
   slidingWindowRateLimiter,
   slidingWindowConfigs,
-  slidingWindowMiddleware
+  slidingWindowMiddleware,
+  circuitBreakerRegistry,
+  jobQueueAdapter,
+  backgroundTaskProcessorService,
+  retryPolicyService,
+  queueDashboardService,
+  resilienceServices
 } from './infrastructure/resilience';
 import { SecurityAuditService } from './security/securityAudit.service';
 import { UsageTrackingService } from './business/usageTracking.service';
+
+// Infrastructure Core Services
+import { configService } from './infrastructure/config';
+import {
+  monitoringService,
+  performanceService,
+  memoryMonitorService,
+  observabilityServices
+} from './infrastructure/observability';
+import {
+  cacheConnectionService,
+  cacheStoreService,
+  redisClusterService,
+  enhancedCacheService,
+  cacheValidationService,
+  cacheServices
+} from './infrastructure/cache';
 import {
   usageServices,
   usageLimitsService,
@@ -511,6 +549,49 @@ export class ServiceContainer {
     this.services.set('notificationsService', notificationsService);
     this.services.set('stripeService', new StripeGatewayService());
     this.services.set('tokenDiscountService', new TokenDiscountService());
+
+    // Infrastructure Core Services
+    this.services.set('configService', configService);
+    
+    // Infrastructure Observability Services
+    this.services.set('monitoringService', monitoringService);
+    this.services.set('performanceService', performanceService);
+    this.services.set('memoryMonitorService', memoryMonitorService);
+    this.services.set('circuitBreakerManager', observabilityServices.circuitBreakerManager);
+    this.services.set('observabilityServices', observabilityServices);
+    
+    // Infrastructure Cache Services
+    this.services.set('cacheConnectionService', cacheConnectionService);
+    this.services.set('cacheStoreService', cacheStoreService);
+    this.services.set('redisClusterService', redisClusterService);
+    this.services.set('enhancedCacheService', enhancedCacheService);
+    this.services.set('cacheValidationService', cacheValidationService);
+    this.services.set('cacheServices', cacheServices);
+    
+    // Infrastructure Database Services
+    this.services.set('enhancedDatabaseService', enhancedDatabaseService);
+    this.services.set('connectionManager', connectionManager);
+    this.services.set('maintenanceRunner', maintenanceRunner);
+    this.services.set('databaseService', databaseService);
+    this.services.set('databaseOptimizationService', databaseOptimizationService);
+    this.services.set('queryOptimizationService', queryOptimizationService);
+    this.services.set('aggregationOptimizationService', aggregationOptimizationService);
+    this.services.set('databaseValidationService', databaseValidationService);
+    this.services.set('databasePlatformConfigService', databasePlatformConfigService);
+    this.services.set('databaseOpsPlaybook', databaseOpsPlaybook);
+    this.services.set('schemaDriftDetectorService', schemaDriftDetectorService);
+    this.services.set('atlasBestPracticesService', atlasBestPracticesService);
+    this.services.set('filterGuardService', filterGuardService);
+    this.services.set('paginationService', paginationService);
+    this.services.set('databaseServices', databaseServices);
+    
+    // Infrastructure Resilience Services
+    this.services.set('circuitBreakerRegistry', circuitBreakerRegistry);
+    this.services.set('jobQueueAdapter', jobQueueAdapter);
+    this.services.set('backgroundTaskProcessorService', backgroundTaskProcessorService);
+    this.services.set('retryPolicyService', retryPolicyService);
+    this.services.set('queueDashboardService', queueDashboardService);
+    this.services.set('resilienceServices', resilienceServices);
   }
 
   /**
@@ -787,11 +868,51 @@ export const getSlidingWindowRateLimiter = () => getContainer().get<typeof slidi
 export const getSlidingWindowConfigs = () => getContainer().get<typeof slidingWindowConfigs>('slidingWindowConfigs');
 export const getSlidingWindowMiddleware = () => getContainer().get<typeof slidingWindowMiddleware>('slidingWindowMiddleware');
 
+// Infrastructure Config Service Getter
+export const getConfigService = () => getContainer().get<typeof configService>('configService');
+
+// Infrastructure Observability Services Getters
+export const getMonitoringService = () => getContainer().get<typeof monitoringService>('monitoringService');
+export const getPerformanceService = () => getContainer().get<typeof performanceService>('performanceService');
+export const getMemoryMonitorService = () => getContainer().get<typeof memoryMonitorService>('memoryMonitorService');
+export const getCircuitBreakerManager = () => getContainer().get<typeof observabilityServices.circuitBreakerManager>('circuitBreakerManager');
+export const getObservabilityServices = () => getContainer().get<typeof observabilityServices>('observabilityServices');
+
+// Infrastructure Cache Services Getters
+export const getCacheConnectionService = () => getContainer().get<typeof cacheConnectionService>('cacheConnectionService');
+export const getCacheStoreService = () => getContainer().get<typeof cacheStoreService>('cacheStoreService');
+export const getRedisClusterService = () => getContainer().get<typeof redisClusterService>('redisClusterService');
+export const getEnhancedCacheService = () => getContainer().get<typeof enhancedCacheService>('enhancedCacheService');
+export const getCacheValidationService = () => getContainer().get<typeof cacheValidationService>('cacheValidationService');
+export const getCacheServices = () => getContainer().get<typeof cacheServices>('cacheServices');
+
 // Infrastructure Database Services Getters
+export const getEnhancedDatabaseService = () => getContainer().get<typeof enhancedDatabaseService>('enhancedDatabaseService');
+export const getConnectionManager = () => getContainer().get<typeof connectionManager>('connectionManager');
+export const getMaintenanceRunner = () => getContainer().get<typeof maintenanceRunner>('maintenanceRunner');
+export const getDatabaseOptimizationService = () => getContainer().get<typeof databaseOptimizationService>('databaseOptimizationService');
+export const getQueryOptimizationService = () => getContainer().get<typeof queryOptimizationService>('queryOptimizationService');
+export const getAggregationOptimizationService = () => getContainer().get<typeof aggregationOptimizationService>('aggregationOptimizationService');
+export const getDatabaseValidationService = () => getContainer().get<typeof databaseValidationService>('databaseValidationService');
+export const getDatabasePlatformConfigService = () => getContainer().get<typeof databasePlatformConfigService>('databasePlatformConfigService');
+export const getDatabaseOpsPlaybook = () => getContainer().get<typeof databaseOpsPlaybook>('databaseOpsPlaybook');
+export const getSchemaDriftDetectorService = () => getContainer().get<typeof schemaDriftDetectorService>('schemaDriftDetectorService');
+export const getAtlasBestPracticesService = () => getContainer().get<typeof atlasBestPracticesService>('atlasBestPracticesService');
+export const getFilterGuardService = () => getContainer().get<typeof filterGuardService>('filterGuardService');
+export const getPaginationService = () => getContainer().get<typeof paginationService>('paginationService');
+export const getDatabaseServices = () => getContainer().get<typeof databaseServices>('databaseServices');
 export const getReadReplicaService = () => getContainer().get<typeof readReplicaService>('readReplicaService');
 export const getExecuteAnalyticsQuery = () => getContainer().get<typeof executeAnalyticsQuery>('executeAnalyticsQuery');
 export const getExecuteReportingQuery = () => getContainer().get<typeof executeReportingQuery>('executeReportingQuery');
 export const getExecuteReadOnlyQuery = () => getContainer().get<typeof executeReadOnlyQuery>('executeReadOnlyQuery');
+
+// Infrastructure Resilience Services Getters
+export const getCircuitBreakerRegistry = () => getContainer().get<typeof circuitBreakerRegistry>('circuitBreakerRegistry');
+export const getJobQueueAdapter = () => getContainer().get<typeof jobQueueAdapter>('jobQueueAdapter');
+export const getBackgroundTaskProcessorService = () => getContainer().get<typeof backgroundTaskProcessorService>('backgroundTaskProcessorService');
+export const getRetryPolicyService = () => getContainer().get<typeof retryPolicyService>('retryPolicyService');
+export const getQueueDashboardService = () => getContainer().get<typeof queueDashboardService>('queueDashboardService');
+export const getResilienceServices = () => getContainer().get<typeof resilienceServices>('resilienceServices');
 
 /**
  * Get all analytics services
@@ -908,16 +1029,54 @@ export const getServices = () => ({
   streaming: getStreamingService(),
   streamingModule: getStreamingServices(),
 
-  // Infrastructure Resilience
-  slidingWindowRateLimiter: getSlidingWindowRateLimiter(),
-  slidingWindowConfigs: getSlidingWindowConfigs(),
-  slidingWindowMiddleware: getSlidingWindowMiddleware(),
+  // Infrastructure Config
+  config: getConfigService(),
+
+  // Infrastructure Observability
+  monitoring: getMonitoringService(),
+  performance: getPerformanceService(),
+  memoryMonitor: getMemoryMonitorService(),
+  circuitBreakerManager: getCircuitBreakerManager(),
+  observability: getObservabilityServices(),
+
+  // Infrastructure Cache
+  cacheConnection: getCacheConnectionService(),
+  cacheStore: getCacheStoreService(),
+  redisCluster: getRedisClusterService(),
+  enhancedCache: getEnhancedCacheService(),
+  cacheValidation: getCacheValidationService(),
+  cacheServices: getCacheServices(),
 
   // Infrastructure Database
+  enhancedDatabase: getEnhancedDatabaseService(),
+  connectionManager: getConnectionManager(),
+  maintenanceRunner: getMaintenanceRunner(),
+  databaseOptimization: getDatabaseOptimizationService(),
+  queryOptimization: getQueryOptimizationService(),
+  aggregationOptimization: getAggregationOptimizationService(),
+  databaseValidation: getDatabaseValidationService(),
+  databasePlatformConfig: getDatabasePlatformConfigService(),
+  databaseOpsPlaybook: getDatabaseOpsPlaybook(),
+  schemaDriftDetector: getSchemaDriftDetectorService(),
+  atlasBestPractices: getAtlasBestPracticesService(),
+  filterGuard: getFilterGuardService(),
+  pagination: getPaginationService(),
+  databaseServices: getDatabaseServices(),
   readReplica: getReadReplicaService(),
   executeAnalyticsQuery: getExecuteAnalyticsQuery(),
   executeReportingQuery: getExecuteReportingQuery(),
   executeReadOnlyQuery: getExecuteReadOnlyQuery(),
+
+  // Infrastructure Resilience
+  slidingWindowRateLimiter: getSlidingWindowRateLimiter(),
+  slidingWindowConfigs: getSlidingWindowConfigs(),
+  slidingWindowMiddleware: getSlidingWindowMiddleware(),
+  circuitBreakerRegistry: getCircuitBreakerRegistry(),
+  jobQueueAdapter: getJobQueueAdapter(),
+  backgroundTaskProcessor: getBackgroundTaskProcessorService(),
+  retryPolicy: getRetryPolicyService(),
+  queueDashboard: getQueueDashboardService(),
+  resilienceServices: getResilienceServices(),
 
   // Ecommerce Integration Modules
   ecommerce: getEcommerceServices(),
@@ -937,7 +1096,11 @@ export const getServices = () => ({
   nft: getNftService(),
   domains: getDomainServices(),
   supplyChain: getSupplyChainService(),
-  usageTracking: getUsageTrackingService()
+  usageTracking: getUsageTrackingService(),
+
+  // Backward compatibility aliases for deprecated controllers
+  analytics: getAnalyticsServices(),  // Maps to the new analytics services structure
+  manufacturer: getManufacturersServices()  // Maps to manufacturer services
 });
 
 /**

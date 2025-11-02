@@ -1,11 +1,11 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 // src/middleware/limits/manufacturerPlanLimits.middleware.ts
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import { UnifiedAuthRequest } from '../auth/unifiedAuth.middleware';
-import { Manufacturer } from '../../models/deprecated/manufacturer.model';
-import { BrandSettings } from '../../models/deprecated/brandSettings.model';
+import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
+import { BrandSettings } from '../../models/brands/brandSettings.model';
 import { MANUFACTURER_PLAN_DEFINITIONS, ManufacturerPlanKey } from '../../constants/manufacturerPlans';
 import { createAppError } from '../core';
 
@@ -413,4 +413,6 @@ export async function getManufacturerPlanInfo(manufacturerId: string): Promise<{
     recommendations
   };
 }
+
+
 

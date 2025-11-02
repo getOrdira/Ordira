@@ -9,10 +9,8 @@
 import 'dotenv/config';
 
 // Import services
-import { AppBootstrapService } from './services/utils/app-bootstrap.service';
-import { logger } from './utils/logger'; 
-import { DatabaseInitService } from './services/utils/database-init.service';
-import { ServerStartupService } from './services/utils/server-startup.service';
+import { AppBootstrapService, DatabaseInitService, ServerStartupService } from './services/infrastructure/bootstrap';
+import { logger } from './services/infrastructure/logging'; 
 import { monitoringService } from './services/external/monitoring.service';
 import { securityScanService } from './services/external/security-scan.service';
 

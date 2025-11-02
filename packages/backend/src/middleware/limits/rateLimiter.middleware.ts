@@ -1,8 +1,8 @@
-import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+﻿import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import { logger } from '../../utils/logger';
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { BrandSettings } from '../../models/deprecated/brandSettings.model';
-import { Manufacturer } from '../../models/deprecated/manufacturer.model';
+import { BrandSettings } from '../../models/brands/brandSettings.model';
+import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
 import { PlanKey, PLAN_DEFINITIONS } from '../../constants/plans';
 import { ManufacturerPlanKey, MANUFACTURER_PLAN_DEFINITIONS } from '../../constants/manufacturerPlans';
 import { UnifiedAuthRequest } from '../auth/unifiedAuth.middleware';
@@ -562,4 +562,6 @@ export function warmupPlanCache() {
     next();
   };
 }
+
+
 

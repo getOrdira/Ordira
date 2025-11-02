@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Transfer Service
  *
  * Handles certificate transfer operations including:
@@ -8,8 +8,8 @@
  * - Transfer health monitoring
  */
 
-import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { NftService } from '../../blockchain/nft.service';
 import { notificationsService } from '../../notifications/notifications.service';
 import { logger } from '../../../utils/logger';
@@ -361,3 +361,5 @@ export class TransferService {
 }
 
 export const transferService = new TransferService();
+
+

@@ -1,6 +1,6 @@
-// src/services/connections/core/invitationData.service.ts
+﻿// src/services/connections/core/invitationData.service.ts
 
-import { Invitation, IInvitation } from '../../../models/deprecated/invitation.model';
+import { Invitation, IInvitation } from '../../../models/infrastructure/invitation.model';
 import { Types } from 'mongoose';
 import { logger } from '../../../utils/logger';
 
@@ -340,3 +340,4 @@ export class InvitationDataService {
 
 // Export singleton instance
 export const invitationDataService = new InvitationDataService();
+

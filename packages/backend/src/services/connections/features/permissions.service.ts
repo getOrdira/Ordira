@@ -1,7 +1,7 @@
-// src/services/connections/features/permissions.service.ts
+﻿// src/services/connections/features/permissions.service.ts
 
 import { Business } from '../../../models/deprecated/business.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { connectionDataService } from '../core/connectionData.service';
 import { logger } from '../../../utils/logger';
 
@@ -213,3 +213,4 @@ export class PermissionsService {
 }
 
 export const permissionsService = new PermissionsService();
+

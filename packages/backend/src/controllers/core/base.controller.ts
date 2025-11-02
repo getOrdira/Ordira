@@ -2,7 +2,7 @@
 // Base controller with common patterns for all controllers
 
 import { Request, Response, NextFunction } from 'express';
-import { logger, LogLevel } from '../../utils/logger';
+import { logger, LogLevel } from '../../services/infrastructure/logging/index';
 import { getServices } from '../../services/container.service';
 import { ResponseHelpers, ResponseMeta } from '../utils/response.helpers';
 import { ErrorHelpers, AppError } from '../utils/error.helpers';
@@ -302,6 +302,22 @@ export abstract class BaseController {
 
       next();
     });
+  }
+
+  /**
+   * Ensure request is authenticated and optionally matches the allowed roles.
+   */
+  protected ensureAuthenticated(
+    req: BaseRequest,
+    allowedTypes?: Array<'business' | 'manufacturer' | 'customer'>,
+  ): void {
+    if (!req.userId || !req.userType) {
+      throw { statusCode: 401, message: 'Authentication required' };
+    }
+
+    if (allowedTypes && !allowedTypes.includes(req.userType)) {
+      throw { statusCode: 403, message: 'User type not permitted for this operation' };
+    }
   }
 
   /**

@@ -5,8 +5,8 @@ import type { UserProfile } from './types';
 interface RawUserRecord {
   _id?: string;
   id?: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   fullName?: string;
   email: string;
   phoneNumber?: string;
@@ -27,13 +27,13 @@ export class UserProfileFormatterService {
    */
   format(user: RawUserRecord): UserProfile {
     const rawId = user._id ?? user.id;
-    const normalizedId = typeof rawId === 'string' ? rawId : rawId?.toString() ?? '';
+    const normalizedId = typeof rawId === 'string' ? rawId : (rawId as unknown as { toString: () => string })?.toString() ?? '';
 
     return {
       id: normalizedId,
       firstName: user.firstName,
       lastName: user.lastName,
-      fullName: user.fullName ?? `${user.firstName} ${user.lastName}`.trim(),
+      fullName: user.fullName ?? ((`${(user.firstName ?? '')} ${(user.lastName ?? '')}`.trim()) || 'Unknown User'),
       email: user.email,
       phoneNumber: user.phoneNumber,
       profilePictureUrl: user.profilePictureUrl,

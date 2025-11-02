@@ -1,9 +1,9 @@
-// src/services/manufacturers/features/verification.service.ts
+﻿// src/services/manufacturers/features/verification.service.ts
 
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
-import { Media } from '../../../models/deprecated/media.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
+import { Media } from '../../../models/media/media.model';
 import { logger } from '../../../utils/logger';
-import { MediaService } from '../../business/media.service';
+import { MediaService } from '../../media';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface VerificationStatus {
@@ -719,3 +719,4 @@ export class VerificationService {
 }
 
 export const verificationService = new VerificationService();
+

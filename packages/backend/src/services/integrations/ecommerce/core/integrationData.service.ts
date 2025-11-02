@@ -1,5 +1,5 @@
-import { Types } from 'mongoose';
-import { BrandSettings } from '../../../../models/deprecated/brandSettings.model';
+﻿import { Types } from 'mongoose';
+import { BrandSettings } from '../../../../models/brands/brandSettings.model';
 import { logger } from '../../../../utils/logger';
 import { EcommerceIntegrationError } from './errors';
 import type {
@@ -368,3 +368,4 @@ export class IntegrationDataService {
 }
 
 export const integrationDataService = new IntegrationDataService();
+

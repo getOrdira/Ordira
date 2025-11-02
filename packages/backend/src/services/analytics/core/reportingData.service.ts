@@ -1,6 +1,6 @@
 ﻿import { logger } from '../../../utils/logger';
-import { VotingRecord } from '../../../models/deprecated/votingRecord.model';
-import { Product } from '../../../models/deprecated/product.model';
+import { VotingRecord } from '../../../models/voting/votingRecord.model';
+import { Product } from '../../../models/products/product.model';
 import { executeAnalyticsQuery, executeReportingQuery } from '../../external/read-replica.service';
 import {
   ANALYTICS_CACHE_SEGMENT,
@@ -509,3 +509,5 @@ export class ReportingDataService {
 }
 
 export const reportingDataService = new ReportingDataService();
+
+

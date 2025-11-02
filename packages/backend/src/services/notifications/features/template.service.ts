@@ -1,8 +1,13 @@
 import { templateRegistry } from '../templates/templateRegistry';
 import { TemplateContext } from '../types/templateContext';
+import { TemplateOutput } from '../templates/templateTypes';
+
+interface TemplateDefinition {
+  render: (context: TemplateContext) => TemplateOutput;
+}
 
 export class TemplateService {
-  resolve(type: string) {
+  resolve(type: string): TemplateDefinition | undefined {
     return templateRegistry.get(type);
   }
 

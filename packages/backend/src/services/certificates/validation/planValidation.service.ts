@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Plan Validation Service
  *
  * Handles plan-related validation for certificate operations including:
@@ -9,8 +9,8 @@
  * - Usage limit checking
  */
 
-import { Certificate } from '../../../models/deprecated/certificate.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { Certificate } from '../../../models/certificates/certificate.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 
 export interface PlanLimits {
   certificates: number;
@@ -352,3 +352,5 @@ export class PlanValidationService {
 }
 
 export const planValidationService = new PlanValidationService();
+
+

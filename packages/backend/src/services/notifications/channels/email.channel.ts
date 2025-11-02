@@ -3,7 +3,7 @@ import path from 'path';
 import { NotificationEvent } from '../types/notificationEvent';
 import { templateService } from '../features/template.service';
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,

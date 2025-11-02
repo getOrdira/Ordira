@@ -1,4 +1,4 @@
-import { ISubscription } from '../../../models/deprecated/subscription.model';
+﻿import { ISubscription } from '../../../models/subscription/subscription.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../../../constants/plans';
 import {
   MANUFACTURER_PLAN_DEFINITIONS,
@@ -145,3 +145,4 @@ export interface SubscriptionInsights {
 }
 
 export type SubscriptionDocument = ISubscription;
+

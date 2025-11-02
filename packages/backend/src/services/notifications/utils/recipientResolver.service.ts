@@ -1,5 +1,5 @@
-import { Business } from '../../../models/deprecated/business.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+﻿import { Business } from '../../../models/deprecated/business.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { NotificationRecipient } from '../types';
 
 export interface ResolvedRecipient {
@@ -55,3 +55,4 @@ export class RecipientResolverService {
 }
 
 export const recipientResolverService = new RecipientResolverService();
+

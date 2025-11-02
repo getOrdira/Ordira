@@ -1,13 +1,13 @@
-/**
+﻿/**
  * Manufacturer Helpers Service
  *
  * Contains validation and utility functions for manufacturer operations
  */
 
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { RegisterManufacturerData, UpdateManufacturerData } from '../core/manufacturerData.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 
 export class ManufacturerHelpersService {
   /**
@@ -184,3 +184,4 @@ export class ManufacturerHelpersService {
 }
 
 export const manufacturerHelpersService = new ManufacturerHelpersService();
+

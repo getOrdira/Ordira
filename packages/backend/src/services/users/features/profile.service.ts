@@ -44,7 +44,7 @@ export class UserProfileService {
       duration
     });
 
-    return userProfileFormatterService.format(user);
+    return userProfileFormatterService.format(user as any);
   }
 
   async deleteUser(userId: string): Promise<void> {

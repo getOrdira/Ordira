@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Delivery Service
  *
  * Handles certificate delivery operations including:
@@ -8,7 +8,7 @@
  * - Next steps generation
  */
 
-import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
+import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
 import { notificationsService } from '../../notifications/notifications.service';
 import { logger } from '../../../utils/logger';
 
@@ -345,3 +345,4 @@ export class DeliveryService {
 }
 
 export const deliveryService = new DeliveryService();
+

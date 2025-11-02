@@ -1,9 +1,9 @@
-// src/services/external/shopify.service.ts
+﻿// src/services/external/shopify.service.ts
 import axios from 'axios';
 import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
-import { BrandSettings } from '../../models/deprecated/brandSettings.model';
-import { certificateService } from '../certificates/certificate.service';
+import { BrandSettings } from '../../models/brands/brandSettings.model';
+import { MintingService } from '../certificates';
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY!;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET!;
@@ -65,7 +65,7 @@ class ShopifyError extends Error {
  * Shopify integration service for OAuth, webhook management, and product sync
  */
 export class ShopifyService {
-  private certificateService = certificateService;
+  private certificateService = new MintingService();
 
   /**
    * Extract and validate shop name from domain
@@ -162,7 +162,7 @@ export class ShopifyService {
         </head>
         <body>
           <div class="container">
-            <div class="success-icon">✅</div>
+            <div class="success-icon">âœ…</div>
             <h1>Shopify Connected Successfully!</h1>
             <p>Your store <strong>${shopName}</strong> has been successfully connected to our platform.</p>
             <p>You can now sync products and manage your integration from your dashboard.</p>

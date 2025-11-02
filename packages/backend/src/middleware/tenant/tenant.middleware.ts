@@ -1,6 +1,6 @@
-import { NextFunction, Request, Response } from 'express';
+﻿import { NextFunction, Request, Response } from 'express';
 import { logger } from '../../utils/logger';
-import { IBrandSettings } from '../../models/deprecated/brandSettings.model';
+import { IBrandSettings } from '../../models/brands/brandSettings.model';
 import { tenantService } from '../../services/business/tenant.service';
 
 /**
@@ -178,11 +178,12 @@ export function tenantCorsMiddleware(req: TenantRequest, res: Response, next: Ne
       res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, X-Tenant-ID');
       res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
     } else {
-      logger.warn('⚠️ Invalid tenant hostname detected: ${hostname}');
+      logger.warn('âš ï¸ Invalid tenant hostname detected: ${hostname}');
       // Don't set CORS headers for invalid hostnames
     }
   }
   
   next();
 }
+
 

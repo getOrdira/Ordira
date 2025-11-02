@@ -5,7 +5,7 @@ import { NotificationPriority } from '../types/notificationPriority';
 
 export const authTemplates = {
   'auth.email_verification_code': ({ payload }: TemplateContext): TemplateOutput => {
-    const context = payload as EmailVerificationTemplateContext;
+    const context = payload as unknown as EmailVerificationTemplateContext;
     
     return {
       email: {
@@ -36,7 +36,7 @@ export const authTemplates = {
   },
 
   'auth.password_reset_link': ({ payload }: TemplateContext): TemplateOutput => {
-    const context = payload as PasswordResetTemplateContext;
+    const context = payload as unknown as PasswordResetTemplateContext;
     
     return {
       email: {
@@ -74,7 +74,7 @@ export const authTemplates = {
   },
 
   'auth.welcome_email': ({ payload }: TemplateContext): TemplateOutput => {
-    const context = payload as WelcomeTemplateContext;
+    const context = payload as unknown as WelcomeTemplateContext;
     
     const platformName = context.userType === 'brand' ? 'brand dashboard' : 
                          context.userType === 'manufacturer' ? 'manufacturer portal' : 

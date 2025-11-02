@@ -1,8 +1,8 @@
-// src/services/connections/utils/connectionHelpers.service.ts
+﻿// src/services/connections/utils/connectionHelpers.service.ts
 
 import { randomBytes } from 'crypto';
 import { Types } from 'mongoose';
-import type { IInvitation } from '../../../models/deprecated/invitation.model';
+import type { IInvitation } from '../../../models/infrastructure/invitation.model';
 import type { InvitationSummary } from '../features/invitations.service';
 
 export type InvitationStatus = IInvitation['status'];
@@ -204,3 +204,4 @@ export class ConnectionHelpersService {
 }
 
 export const connectionHelpersService = new ConnectionHelpersService();
+

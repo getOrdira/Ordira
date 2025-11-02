@@ -1,4 +1,4 @@
-import { IMedia } from '../../../models/deprecated/media.model';
+﻿import { IMedia } from '../../../models/media/media.model';
 
 export interface MediaUploadOptions {
   allowedTypes?: string[];
@@ -118,4 +118,5 @@ export interface MediaSearchResult {
 }
 
 export type MediaDocument = IMedia;
+
 

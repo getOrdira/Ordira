@@ -1,5 +1,5 @@
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+﻿import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import { VotingService as BlockchainVotingService } from '../../blockchain/voting.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
@@ -90,8 +90,7 @@ export class VotingContractDeploymentService {
         votingAddress: deployment.address,
         txHash: deployment.txHash,
         blockNumber: deployment.blockNumber,
-        gasUsed: deployment.gasUsed?.toString(),
-        deploymentCost: deployment.deploymentCost
+        gasUsed: deployment.gasUsed?.toString()
       };
     } catch (error: any) {
       logger.error('Failed to deploy voting contract', {
@@ -196,4 +195,5 @@ export class VotingContractDeploymentService {
 }
 
 export const votingContractDeploymentService = new VotingContractDeploymentService();
+
 

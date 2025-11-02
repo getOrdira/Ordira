@@ -1,8 +1,8 @@
-// src/services/connections/core/connectionData.service.ts
+﻿// src/services/connections/core/connectionData.service.ts
 
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
-import { Invitation } from '../../../models/deprecated/invitation.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
+import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
 
 /**
@@ -215,3 +215,6 @@ export class ConnectionDataService {
 
 // Export singleton instance
 export const connectionDataService = new ConnectionDataService();
+
+
+

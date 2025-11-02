@@ -1,6 +1,6 @@
 // src/services/users/validation/userValidation.service.ts
 
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 
 export interface RegistrationValidationResult {
   valid: boolean;

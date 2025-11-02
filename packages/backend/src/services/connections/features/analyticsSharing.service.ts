@@ -1,10 +1,10 @@
-// src/services/connections/features/analyticsSharing.service.ts
+﻿// src/services/connections/features/analyticsSharing.service.ts
 
 import { AnalyticsService as BrandAnalyticsService } from '../../brands/features/analytics.service';
 import { analyticsService as manufacturerAnalyticsService } from '../../manufacturers/features/analytics.service';
 import { permissionsService } from './permissions.service';
 import { connectionDataService } from '../core/connectionData.service';
-import { Invitation } from '../../../models/deprecated/invitation.model';
+import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
 
 export interface SharedAnalyticsOptions {
@@ -173,3 +173,4 @@ export class AnalyticsSharingService {
 }
 
 export const analyticsSharingService = new AnalyticsSharingService();
+

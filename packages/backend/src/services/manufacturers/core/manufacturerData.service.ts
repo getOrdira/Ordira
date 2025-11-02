@@ -1,7 +1,7 @@
-// src/services/manufacturers/core/manufacturerData.service.ts
+﻿// src/services/manufacturers/core/manufacturerData.service.ts
 
 import { logger } from '../../../utils/logger';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { queryOptimizationService } from '../../external/query-optimization.service';
 

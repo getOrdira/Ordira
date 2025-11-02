@@ -5,7 +5,7 @@
  * including registration, profile updates, and business information
  */
 
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 
 export interface ValidationResult {
   isValid: boolean;

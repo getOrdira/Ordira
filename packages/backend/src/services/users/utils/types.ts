@@ -46,8 +46,8 @@ export interface UserSearchParams {
 
 export interface UserProfile {
   id: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   fullName: string;
   email: string;
   phoneNumber?: string;

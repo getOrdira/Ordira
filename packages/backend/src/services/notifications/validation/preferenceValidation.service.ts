@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { ChannelPreferences } from '../core/preferenceData.service';
+import { ChannelPreferences } from '../types';
 
 const channelSchema = Joi.object<ChannelPreferences>({
   email: Joi.boolean().optional(),

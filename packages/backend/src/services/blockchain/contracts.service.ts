@@ -8,7 +8,7 @@ import {
   getErrorMessage, 
   createAppError
 } from '../../middleware/deprecated/error.middleware';
-import { UtilsService } from '../utils/utils.service';
+import { UtilsService } from '../infrastructure/shared';
 
 /**
  * Enhanced blockchain utilities and contract interactions

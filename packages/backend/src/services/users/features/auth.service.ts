@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { User } from '../../../models/deprecated/user.model';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { userDataService } from '../core/userData.service';
 import { userCacheService } from '../utils/cache.service';
 import { userValidationService } from '../validation/userValidation.service';
@@ -26,8 +26,7 @@ export class UserAuthService {
       email: userData.email,
       firstName: userData.firstName,
       lastName: userData.lastName,
-      password: userData.password,
-      phoneNumber: userData.phoneNumber
+      password: userData.password
     });
 
     if (!validation.valid) {
@@ -47,7 +46,7 @@ export class UserAuthService {
       fullName: `${userData.firstName} ${userData.lastName}`.trim(),
       isActive: true,
       isEmailVerified: false,
-      emailVerificationToken: UtilsService.generateToken(),
+      emailVerificationToken: UtilsService.generateSecureToken(),
       createdAt: new Date(),
       updatedAt: new Date()
     };

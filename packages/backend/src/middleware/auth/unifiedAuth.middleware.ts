@@ -1,9 +1,9 @@
-// src/middleware/auth/unifiedAuth.middleware.ts
+﻿// src/middleware/auth/unifiedAuth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
 import { createAppError } from '../core';
-import { Manufacturer } from '../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
 import { Business } from '../../models/deprecated/business.model';
 import { User } from '../../models/deprecated/user.model';
 
@@ -693,4 +693,5 @@ export async function refreshToken(
  * Export token configuration for external use
  */
 export { TOKEN_CONFIG };
+
 

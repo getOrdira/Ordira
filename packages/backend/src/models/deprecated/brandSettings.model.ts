@@ -1,6 +1,6 @@
 // src/models/brands/brandSettings.model.ts
 import { Schema, model, Document, Types } from 'mongoose';
-import { logger } from '../../../utils/logger';
+import { logger } from '../../services/infrastructure/logging/index'; 
 
 export interface IBrandSettings extends Document {
   business: Types.ObjectId;

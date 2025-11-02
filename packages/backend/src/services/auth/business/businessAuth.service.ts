@@ -8,7 +8,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { notificationsService } from '../../notifications/notifications.service';
 import { Business } from '../../../models/deprecated/business.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';

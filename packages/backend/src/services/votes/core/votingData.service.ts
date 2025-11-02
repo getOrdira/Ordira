@@ -1,7 +1,7 @@
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
-import { PendingVote } from '../../../models/deprecated/pendingVote.model';
-import { VotingRecord } from '../../../models/deprecated/votingRecord.model';
+﻿import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
+import { PendingVote } from '../../../models/voting/pendingVote.model';
+import { VotingRecord } from '../../../models/voting/votingRecord.model';
 import { logger } from '../../../utils/logger';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import {
@@ -206,4 +206,7 @@ export class VotingDataService {
 }
 
 export const votingDataService = new VotingDataService();
+
+
+
 

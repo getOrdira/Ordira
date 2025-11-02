@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Authentication Analytics Service
  *
  * Provides comprehensive analytics and reporting for authentication systems.
@@ -9,7 +9,7 @@ import { logger } from '../../../utils/logger';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { Business } from '../../../models/deprecated/business.model';
 import { User } from '../../../models/deprecated/user.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';

@@ -1,4 +1,4 @@
-import { Media } from '../../../models/deprecated/media.model';
+﻿import { Media } from '../../../models/media/media.model';
 import { mediaCacheService } from '../utils/cache';
 import { MediaListOptions, MediaSearchResult } from '../utils/types';
 import { MediaError } from '../utils/errors';
@@ -166,4 +166,5 @@ export class MediaSearchService {
 }
 
 export const mediaSearchService = new MediaSearchService();
+
 

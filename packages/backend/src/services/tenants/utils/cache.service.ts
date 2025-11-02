@@ -1,6 +1,6 @@
-// src/services/tenants/utils/cache.service.ts
+﻿// src/services/tenants/utils/cache.service.ts
 
-import type { IBrandSettings } from '../../../models/deprecated/brandSettings.model';
+import type { IBrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import type { TenantCacheEntry } from './types';
 
@@ -96,3 +96,4 @@ export class TenantCacheService {
 }
 
 export const tenantCacheService = new TenantCacheService();
+

@@ -1,6 +1,6 @@
-import { Product } from '../../../models/deprecated/product.model';
-import { Media } from '../../../models/deprecated/media.model';
-import { logger } from '../../../utils/logger';
+﻿import { Product } from '../../../models/products/product.model';
+import { Media } from '../../../models/media/media.model';
+import { logger } from '../../infrastructure/logging';
 import { productCacheService } from '../utils/cache';
 import { ProductAnalyticsResult, ProductStatsOptions, ProductError } from '../utils';
 import { validateOwner } from '../utils/helpers';
@@ -355,4 +355,6 @@ export class ProductAccountService {
 
 // Export singleton instance
 export const productAccountService = new ProductAccountService();
+
+
 

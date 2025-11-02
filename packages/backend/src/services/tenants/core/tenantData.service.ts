@@ -1,6 +1,6 @@
-// src/services/tenants/core/tenantData.service.ts
+﻿// src/services/tenants/core/tenantData.service.ts
 
-import { BrandSettings, IBrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { BrandSettings, IBrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import type { TenantAnalyticsOverview, TenantListFilters, TenantListResult } from '../utils/types';
 
@@ -221,3 +221,4 @@ export class TenantDataService {
 }
 
 export const tenantDataService = new TenantDataService();
+

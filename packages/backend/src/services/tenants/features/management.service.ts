@@ -1,6 +1,6 @@
-// src/services/tenants/features/management.service.ts
+﻿// src/services/tenants/features/management.service.ts
 
-import type { IBrandSettings } from '../../../models/deprecated/brandSettings.model';
+import type { IBrandSettings } from '../../../models/brands/brandSettings.model';
 import { tenantDataService, TenantDataService } from '../core/tenantData.service';
 import { tenantCacheService, TenantCacheService } from '../utils/cache.service';
 import { tenantDomainValidationService, TenantDomainValidationService } from '../validation/domainValidation.service';
@@ -104,3 +104,4 @@ export class TenantManagementService {
 }
 
 export const tenantManagementService = new TenantManagementService();
+

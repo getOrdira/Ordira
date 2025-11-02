@@ -1,5 +1,5 @@
-// src/services/brands/validation/domain-validation.service.ts
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+﻿// src/services/brands/validation/domain-validation.service.ts
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import * as dns from 'dns';
 import { promisify } from 'util';

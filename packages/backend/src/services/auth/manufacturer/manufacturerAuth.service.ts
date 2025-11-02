@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Manufacturer Authentication Service
  *
  * Handles all authentication operations specific to manufacturer users including
@@ -8,9 +8,9 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { notificationsService } from '../../notifications/notifications.service';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 
 // Import base service and types

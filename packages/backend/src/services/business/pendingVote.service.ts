@@ -1,8 +1,8 @@
-// src/services/business/pendingVote.service.ts
+﻿// src/services/business/pendingVote.service.ts
 
-import { PendingVote, IPendingVote } from '../../models/deprecated/pendingVote.model';
+import { PendingVote, IPendingVote } from '../../models/voting/pendingVote.model';
 import { logger } from '../../utils/logger';
-import { BrandSettings } from '../../models/deprecated/brandSettings.model';
+import { BrandSettings } from '../../models/brands/brandSettings.model';
 import { VotingService } from '../blockchain/voting.service';
 import { createAppError } from '../../middleware/deprecated/error.middleware';
 import { Types } from 'mongoose';
@@ -917,3 +917,4 @@ async validatePendingVotes(
     return 'Wait for more votes to accumulate';
   }
 }
+

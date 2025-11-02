@@ -1,10 +1,10 @@
-// src/utils/__tests__/testHelpers.ts
+﻿// src/utils/__tests__/testHelpers.ts
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { UnifiedAuthRequest } from '../../middleware/deprecated/unifiedAuth.middleware';
 import { Business } from '../../models/deprecated/business.model';
-import { Manufacturer } from '../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
 import { User } from '../../models/deprecated/user.model';
 
 /**
@@ -348,3 +348,4 @@ export function createIntegrationTestContext() {
     }
   };
 }
+

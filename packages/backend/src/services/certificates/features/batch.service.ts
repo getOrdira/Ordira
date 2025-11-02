@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Batch Service
  *
  * Handles batch certificate operations including:
@@ -8,7 +8,7 @@
  * - Queue management
  */
 
-import { Certificate } from '../../../models/deprecated/certificate.model';
+import { Certificate } from '../../../models/certificates/certificate.model';
 import { logger } from '../../../utils/logger';
 
 export interface BatchCreateInput {
@@ -342,3 +342,4 @@ export class BatchService {
 }
 
 export const batchService = new BatchService();
+

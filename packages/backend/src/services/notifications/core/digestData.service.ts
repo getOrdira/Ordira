@@ -1,4 +1,4 @@
-import { Notification, INotification } from '../../../models/deprecated/notification.model';
+﻿import { Notification, INotification } from '../../../models/infrastructure/notification.model';
 
 export class DigestDataService {
   async findPendingDigests(referenceDate: Date): Promise<INotification[]> {
@@ -13,3 +13,4 @@ export class DigestDataService {
 }
 
 export const digestDataService = new DigestDataService();
+

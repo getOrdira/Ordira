@@ -1,5 +1,5 @@
-import { FilterQuery } from 'mongoose';
-import { Notification, INotification } from '../../../models/deprecated/notification.model';
+﻿import { FilterQuery } from 'mongoose';
+import { Notification, INotification } from '../../../models/infrastructure/notification.model';
 import { logger } from '../../../utils/logger';
 import { NotificationFilters, NotificationRecipient } from '../types';
 import { buildNotificationQuery, buildUserQuery } from '../utils/queryBuilder';
@@ -168,3 +168,4 @@ export class NotificationDataService {
 }
 
 export const notificationDataService = new NotificationDataService();
+

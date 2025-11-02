@@ -20,6 +20,7 @@ import { DatabaseOpsPlaybook, databaseOpsPlaybook } from './ops/databaseOpsPlayb
 import { SchemaDriftDetectorService, schemaDriftDetectorService } from './utils/schemaDriftDetector.service';
 import { AtlasBestPracticesService, atlasBestPracticesService } from './features/atlasBestPractices.service';
 import { FilterGuardService, filterGuardService } from './utils/filterGuard.service';
+import { PaginationService, paginationService } from './features/pagination.service';
 
 export {
   EnhancedDatabaseService,
@@ -54,7 +55,9 @@ export {
   AtlasBestPracticesService,
   atlasBestPracticesService,
   FilterGuardService,
-  filterGuardService
+  filterGuardService,
+  PaginationService,
+  paginationService
 };
 
 export const databaseServices = {
@@ -71,7 +74,8 @@ export const databaseServices = {
   databaseOpsPlaybook,
   schemaDriftDetectorService,
   atlasBestPracticesService,
-  filterGuardService
+  filterGuardService,
+  paginationService
 };
 
 export type DatabaseServices = typeof databaseServices;

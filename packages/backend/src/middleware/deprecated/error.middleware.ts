@@ -3,8 +3,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { MulterError } from '../../types/multer';
-import { hasErrorMessage, isOperationalError, hasStatusCode } from '../../utils/typeGuards';
+import { MulterError } from '../../services/infrastructure/types/declarations';
+import { hasErrorMessage, isOperationalErrorType, hasErrorStatusCode } from '../../utils/typeGuards';
 import { logger, LogContext } from '../../utils/logger';
 
 // ===== TYPE DEFINITIONS =====
@@ -134,7 +134,7 @@ export function errorHandler(
       field: error.field,
       message: error.message
     });
-  } else if (isOperationalError(error)) {
+  } else if (isOperationalErrorType(error)) {
     logger.warn('Operational Error', {
       ...context,
       errorCode: error.code,
@@ -146,7 +146,7 @@ export function errorHandler(
   }
 
   // Prepare error response
-  const statusCode = hasStatusCode(error) ? error.statusCode : 500;
+  const statusCode = hasErrorStatusCode(error) ? error.statusCode : 500;
   const errorCode = getErrorCode(error);
   const errorMessage = getErrorMessage(error);
 

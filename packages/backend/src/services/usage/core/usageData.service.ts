@@ -1,4 +1,4 @@
-import { Billing } from '../../../models/deprecated/billing.model';
+﻿import { Billing } from '../../../models/subscription/billing.model';
 import { logger } from '../../../utils/logger';
 import type { UsageCounters, UsageUpdate } from '../utils/types';
 

@@ -1,7 +1,7 @@
-// src/cache/domainCache.ts
-import { BrandSettings } from '../models/deprecated/brandSettings.model';
+﻿// src/cache/domainCache.ts
+import { BrandSettings } from '../models/brands/brandSettings.model';
 import { logger } from '../utils/logger';
-import { Manufacturer } from '../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../models/manufacturer/manufacturer.model';
 
 let allowedDomains = new Set<string>();
 
@@ -41,4 +41,6 @@ async function reloadCache() {
 export function isAllowedCustomDomain(origin: string): boolean {
   return allowedDomains.has(origin);
 }
+
+
 

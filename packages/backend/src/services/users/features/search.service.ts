@@ -60,7 +60,7 @@ export class UserSearchService {
       });
 
       return {
-        users: users.map(user => userProfileFormatterService.format(user)),
+        users: users.map(user => userProfileFormatterService.format(user as any)),
         total,
         hasMore: offset + users.length < total
       };

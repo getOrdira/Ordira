@@ -1,7 +1,7 @@
-import type { FilterQuery, LeanDocument, UpdateQuery } from 'mongoose';
+﻿import type { FilterQuery, LeanDocument, UpdateQuery } from 'mongoose';
 
 import { createAppError } from '../../../middleware/deprecated/error.middleware';
-import { DomainMapping, IDomainMapping } from '../../../models/deprecated/domainMapping.model';
+import { DomainMapping, IDomainMapping } from '../../../models/infrastructure/domainMapping.model';
 import { logger } from '../../../utils/logger';
 
 export type DomainMappingRecord = LeanDocument<IDomainMapping>;
@@ -465,3 +465,4 @@ export class DomainStorageService {
 }
 
 export const domainStorageService = new DomainStorageService();
+

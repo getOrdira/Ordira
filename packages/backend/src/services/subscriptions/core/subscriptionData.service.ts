@@ -1,4 +1,4 @@
-import { Subscription, ISubscription } from '../../../models/deprecated/subscription.model';
+﻿import { Subscription, ISubscription } from '../../../models/subscription/subscription.model';
 import { Business } from '../../../models/deprecated/business.model';
 import {
   SubscriptionSummary,
@@ -178,3 +178,4 @@ export class SubscriptionDataService {
 }
 
 export const subscriptionDataService = new SubscriptionDataService();
+

@@ -1,5 +1,5 @@
 import { logger } from '../../../../utils/logger';
-import { UtilsService } from '../../../utils/utils.service';
+import { UtilsService } from '../../shared';
 import { sessionDataService, SessionDataService } from '../core/sessionData.service';
 import { securityValidationService, SecurityValidationService } from '../validation/securityValidation.service';
 import { securityEventLoggerService, SecurityEventLoggerService } from './securityEventLogger.service';

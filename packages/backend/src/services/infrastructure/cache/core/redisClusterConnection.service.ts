@@ -498,7 +498,7 @@ export class RedisClusterService {
 
   private async applyEvictionPolicy(): Promise<void> {
     const redisConfig = configService.getDatabase()?.redis;
-    const policy = process.env.REDIS_EVICTION_POLICY || redisConfig?.evictionPolicy || 'allkeys-lru';
+    let policy = process.env.REDIS_EVICTION_POLICY || redisConfig?.evictionPolicy || 'allkeys-lru';
 
     // Validate eviction policy
     const validPolicies = [
@@ -626,8 +626,22 @@ export class RedisClusterService {
   /**
    * Get Redis client (cluster or single)
    */
-  private getClient(): Cluster | RedisType | null {
+  public getClient(): Cluster | RedisType | null {
     return this.cluster || this.singleRedis;
+  }
+
+  /**
+   * Release Redis client (no-op for compatibility)
+   */
+  public releaseClient(client: Cluster | RedisType | null): void {
+    // No-op: client is managed internally
+  }
+
+  /**
+   * Delete key from cluster
+   */
+  public async deleteFromCluster(key: string): Promise<boolean> {
+    return this.delete(key);
   }
 
   /**

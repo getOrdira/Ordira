@@ -1,6 +1,6 @@
-// src/services/tenants/utils/types.ts
+﻿// src/services/tenants/utils/types.ts
 
-import { IBrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { IBrandSettings } from '../../../models/brands/brandSettings.model';
 
 export interface TenantResolutionResult {
   settings: IBrandSettings | null;
@@ -42,3 +42,4 @@ export interface TenantAnalyticsOverview {
   tenantsWithCustomDomain: number;
   averageTenantAge: number;
 }
+

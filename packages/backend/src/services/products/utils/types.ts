@@ -1,5 +1,5 @@
-import { Types, Document } from 'mongoose';
-import { IProduct } from '../../../models/deprecated/product.model';
+﻿import { Types, Document } from 'mongoose';
+import { IProduct } from '../../../models/products/product.model';
 
 /**
  * Product-related type definitions
@@ -135,4 +135,5 @@ export interface ProductOwner {
   businessId?: string;
   manufacturerId?: string;
 }
+
 

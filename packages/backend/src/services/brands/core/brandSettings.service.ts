@@ -1,5 +1,5 @@
-// src/services/brands/core/brandSettings.service.ts
-import { BrandSettings, IBrandSettings } from '../../../models/deprecated/brandSettings.model';
+﻿// src/services/brands/core/brandSettings.service.ts
+import { BrandSettings, IBrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import { ethers } from 'ethers';
 import * as certificateManager from '../../external/certificateManager';
@@ -1880,3 +1880,4 @@ export class BrandSettingsCoreService {
 }
 
 export const brandSettingsCoreService = new BrandSettingsCoreService();
+

@@ -1,11 +1,11 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 // src/middleware/limits/planLimits.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import { UnifiedAuthRequest } from '../auth/unifiedAuth.middleware';
 import { TenantRequest } from '../deprecated/tenant.middleware';
-import { BrandSettings } from '../../models/deprecated/brandSettings.model';
-import { Billing } from '../../models/deprecated/billing.model';
+import { BrandSettings } from '../../models/brands/brandSettings.model';
+import { Billing } from '../../models/subscription/billing.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../../constants/plans';
 import { createAppError } from '../core';
 
@@ -214,4 +214,6 @@ export function isOverageAllowed(plan: PlanKey, operation: string): boolean {
   const planLimits = PLAN_DEFINITIONS[plan];
   return planLimits.features.allowOverage;
 }
+
+
 

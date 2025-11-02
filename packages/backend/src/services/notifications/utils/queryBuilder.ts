@@ -1,5 +1,5 @@
-import { FilterQuery, Types } from 'mongoose';
-import { INotification } from '../../../models/deprecated/notification.model';
+﻿import { FilterQuery, Types } from 'mongoose';
+import { INotification } from '../../../models/infrastructure/notification.model';
 import { NotificationFilters } from '../types/notificationFilters';
 
 export const buildUserQuery = (businessId?: string, manufacturerId?: string): FilterQuery<INotification> => {
@@ -58,3 +58,4 @@ export const buildNotificationQuery = (filters: NotificationFilters): FilterQuer
 
   return query;
 };
+

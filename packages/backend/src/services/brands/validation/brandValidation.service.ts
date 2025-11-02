@@ -1,5 +1,5 @@
-// src/services/brands/validation/brand-validation.service.ts
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+﻿// src/services/brands/validation/brand-validation.service.ts
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import { ethers } from 'ethers';
 

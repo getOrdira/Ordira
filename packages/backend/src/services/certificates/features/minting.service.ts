@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Minting Service
  *
  * Handles NFT minting operations including:
@@ -8,8 +8,8 @@
  * - Batch certificate creation
  */
 
-import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { Business } from '../../../models/deprecated/business.model';
 import { NftService } from '../../blockchain/nft.service';
 import { getPlatformAnalyticsDataService } from '../../container.service';
@@ -549,6 +549,8 @@ export class MintingService {
 
 }
 export const mintingService = new MintingService();
+
+
 
 
 

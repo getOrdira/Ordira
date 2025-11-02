@@ -1,5 +1,5 @@
-import path from 'path';
-import { Media, IMedia } from '../../../models/deprecated/media.model';
+﻿import path from 'path';
+import { Media, IMedia } from '../../../models/media/media.model';
 import { storageProviderService } from '../core/storageProvider.service';
 import { fileValidationService } from '../validation/fileValidation.service';
 import { mediaCacheService } from '../utils/cache';
@@ -198,4 +198,5 @@ export class MediaUploadService {
 }
 
 export const mediaUploadService = new MediaUploadService();
+
 

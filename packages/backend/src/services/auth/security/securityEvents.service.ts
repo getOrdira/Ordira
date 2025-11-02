@@ -6,7 +6,7 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 
 // Import base service and types

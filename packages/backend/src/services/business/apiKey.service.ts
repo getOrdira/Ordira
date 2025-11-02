@@ -1,8 +1,8 @@
-// src/services/business/apiKey.service.ts
+﻿// src/services/business/apiKey.service.ts
 import crypto from 'crypto';
 import { logger } from '../../utils/logger';
 import bcrypt from 'bcrypt';
-import { ApiKey } from '../../models/deprecated/apiKey.model';
+import { ApiKey } from '../../models/security/apiKey.model';
 
 
 type CreateApiKeyOptions = {
@@ -768,3 +768,4 @@ private convertToCSV(keys: any[]): string {
   return csvRows.join('\n');
 }
 }
+

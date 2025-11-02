@@ -1,7 +1,7 @@
-﻿import { VotingRecord } from '../../../models/deprecated/votingRecord.model';
-import { Product } from '../../../models/deprecated/product.model';
+﻿import { VotingRecord } from '../../../models/voting/votingRecord.model';
+import { Product } from '../../../models/products/product.model';
 import { Business } from '../../../models/deprecated/business.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { queryOptimizationService } from '../../external/query-optimization.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import {
@@ -700,3 +700,6 @@ export class PlatformAnalyticsDataService {
 }
 
 export const platformAnalyticsDataService = new PlatformAnalyticsDataService();
+
+
+

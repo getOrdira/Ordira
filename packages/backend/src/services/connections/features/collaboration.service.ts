@@ -1,7 +1,7 @@
-// src/services/connections/features/collaboration.service.ts
+﻿// src/services/connections/features/collaboration.service.ts
 
-import { Product } from '../../../models/deprecated/product.model';
-import { Invitation } from '../../../models/deprecated/invitation.model';
+import { Product } from '../../../models/products/product.model';
+import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { analyticsSharingService } from './analyticsSharing.service';
 import { connectionDataService } from '../core/connectionData.service';
 import { matchingEngineService } from '../utils/matchingEngine.service';
@@ -187,3 +187,5 @@ export class CollaborationService {
 }
 
 export const collaborationService = new CollaborationService();
+
+

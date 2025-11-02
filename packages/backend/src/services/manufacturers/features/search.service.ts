@@ -1,6 +1,6 @@
-// src/services/manufacturers/features/search.service.ts
+﻿// src/services/manufacturers/features/search.service.ts
 
-import { Manufacturer, IManufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer, IManufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedDatabaseService } from '../../external/enhanced-database.service';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { aggregationOptimizationService } from '../../external/aggregation-optimization.service';

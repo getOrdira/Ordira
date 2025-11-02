@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { UtilsService } from '../../../utils/utils.service';
+import { UtilsService } from '../../shared';
 import {
   SECURITY_AUDIT_MAX_RISK_SCORE,
   SECURITY_EVENT_DEFAULT_FAILURE_RETENTION_DAYS,

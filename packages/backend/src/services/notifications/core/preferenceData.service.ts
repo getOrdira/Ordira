@@ -1,5 +1,5 @@
-import { Business } from '../../../models/deprecated/business.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+﻿import { Business } from '../../../models/deprecated/business.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { NotificationPreferences, DEFAULT_CHANNEL_PREFERENCES, DEFAULT_CATEGORY_PREFERENCES } from '../types';
 
 export class PreferenceDataService {
@@ -40,3 +40,4 @@ export class PreferenceDataService {
 }
 
 export const preferenceDataService = new PreferenceDataService();
+

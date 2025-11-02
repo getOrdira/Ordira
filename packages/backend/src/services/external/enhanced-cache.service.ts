@@ -2,3 +2,4 @@
 // Re-export the modular enhanced cache service.
 
 export { EnhancedCacheService, enhancedCacheService } from '../infrastructure/cache/features/enhancedCache.service';
+export type { CacheOptions } from '../infrastructure/cache/features/enhancedCache.service';

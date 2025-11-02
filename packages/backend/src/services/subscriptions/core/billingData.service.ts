@@ -1,4 +1,4 @@
-import { Billing } from '../../../models/deprecated/billing.model';
+﻿import { Billing } from '../../../models/subscription/billing.model';
 
 /**
  * Core data access layer for subscription billing records.
@@ -23,3 +23,4 @@ export class BillingDataService {
 }
 
 export const billingDataService = new BillingDataService();
+

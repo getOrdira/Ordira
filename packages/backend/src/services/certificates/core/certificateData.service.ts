@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Data Service
  *
  * Core CRUD operations for certificates including:
@@ -7,7 +7,7 @@
  * - Query certificate data
  */
 
-import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
+import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
 import { logger } from '../../../utils/logger';
 
 export interface CertificateListOptions {
@@ -405,3 +405,4 @@ export class CertificateDataService {
 }
 
 export const certificateDataService = new CertificateDataService();
+

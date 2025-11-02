@@ -1,6 +1,6 @@
-import { Product } from '../../../models/deprecated/product.model';
-import { logger } from '../../../utils/logger';
-import { paginationService } from '../../utils/pagination.service';
+﻿import { Product } from '../../../models/products/product.model';
+import { logger } from '../../infrastructure/logging';
+import { paginationService } from '../../infrastructure/database';
 import { productCacheService } from '../utils/cache';
 import { 
   CreateProductData, 
@@ -279,7 +279,7 @@ export class ProductDataService {
     return Product.find(query)
       .select('title description category price status voteCount certificateCount viewCount createdAt')
       .sort({ createdAt: -1 })
-      .lean() as Promise<ProductLeanDocument[]>;
+      .lean<ProductLeanDocument[]>();
   }
 
   /**
@@ -319,4 +319,5 @@ export class ProductDataService {
 
 // Export singleton instance
 export const productDataService = new ProductDataService();
+
 

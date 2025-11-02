@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Helpers Service
  *
  * Utility functions for certificate operations including:
@@ -13,7 +13,7 @@
  */
 
 import { Business } from '../../../models/deprecated/business.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 
 /**
@@ -354,3 +354,4 @@ export class CertificateHelpersService {
 }
 
 export const certificateHelpersService = new CertificateHelpersService();
+

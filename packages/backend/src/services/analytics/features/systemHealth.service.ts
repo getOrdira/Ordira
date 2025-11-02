@@ -1,5 +1,5 @@
 ﻿import { Business } from '../../../models/deprecated/business.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import {
   ANALYTICS_CACHE_SEGMENT,
   ANALYTICS_CACHE_TTL,
@@ -62,3 +62,4 @@ export class SystemHealthService {
 }
 
 export const systemHealthService = new SystemHealthService();
+

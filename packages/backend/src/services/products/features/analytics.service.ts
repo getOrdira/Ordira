@@ -1,4 +1,4 @@
-import { Product } from '../../../models/deprecated/product.model';
+﻿import { Product } from '../../../models/products/product.model';
 import { logger } from '../../../utils/logger';
 import { productAccountService } from '../core/productAccount.service';
 import { ProductAnalyticsResult, ProductStatsOptions } from '../utils';
@@ -260,4 +260,5 @@ export class ProductAnalyticsService {
 
 // Export singleton instance
 export const productAnalyticsService = new ProductAnalyticsService();
+
 

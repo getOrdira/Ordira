@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Base Authentication Service
  *
  * Core authentication utilities and helper methods shared across all user types.
@@ -10,10 +10,10 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { Business } from '../../../models/deprecated/business.model';
 import { User } from '../../../models/deprecated/user.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 
 // Import types
@@ -614,5 +614,6 @@ export class AuthBaseService {
 
 // Export singleton instance
 export const authBaseService = new AuthBaseService();
+
 
 

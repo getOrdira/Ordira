@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Password Reset Service
  *
  * Handles password reset functionality for all user types (businesses, users, manufacturers).
@@ -8,11 +8,11 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { logger } from '../../../utils/logger';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { notificationsService } from '../../notifications/notifications.service';
 import { Business } from '../../../models/deprecated/business.model';
 import { User } from '../../../models/deprecated/user.model';
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 
 // Import base service and types

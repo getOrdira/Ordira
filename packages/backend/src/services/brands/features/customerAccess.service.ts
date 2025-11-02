@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Customer Access Service (Brands Module)
  *
  * Manages customer access control and email gating for brand voting platforms.
@@ -10,12 +10,12 @@
  * - Bulk customer operations
  */
 
-import { AllowedCustomer, IAllowedCustomer } from '../../../models/deprecated/allowedCustomer.model';
+import { AllowedCustomer, IAllowedCustomer } from '../../../models/brands/allowedCustomer.model';
 import { User } from '../../../models/deprecated/user.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { getNotificationsServices } from '../../notifications';
 import { ShopifyService } from '../../external/shopify.service';
-import { UtilsService } from '../../utils/utils.service';
+import { UtilsService } from '../../infrastructure/shared';
 import { logger } from '../../../utils/logger'; 
 
 export interface CustomerImportData {
@@ -811,3 +811,5 @@ async restoreCustomerAccess(businessId: string, customerId: string): Promise<Cus
 }
 
 export const customerAccessService = new CustomerAccessService();
+
+

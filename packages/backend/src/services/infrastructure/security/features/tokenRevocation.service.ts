@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { UtilsService } from '../../../utils/utils.service';
+import { UtilsService } from '../../shared';
 import { tokenBlacklistDataService, TokenBlacklistDataService } from '../core/tokenBlacklistData.service';
 import { securityValidationService, SecurityValidationService } from '../validation/securityValidation.service';
 import { securityEventLoggerService, SecurityEventLoggerService } from './securityEventLogger.service';

@@ -1,5 +1,5 @@
-import { logger } from '../../../../utils/logger';
-import { SecurityEventModel, type SecurityEventDocument } from '../../../../models/deprecated/securityEvent.model';
+﻿import { logger } from '../../../../utils/logger';
+import { SecurityEventModel, type SecurityEventDocument } from '../../../../models/security/securityEvent.model';
 import {
   SecurityEvent,
   SecurityEventCreateInput,
@@ -104,6 +104,7 @@ export class SecurityEventDataService {
 }
 
 export const securityEventDataService = new SecurityEventDataService();
+
 
 
 

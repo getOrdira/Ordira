@@ -1,9 +1,9 @@
-// src/services/manufacturers/core/manufacturerProfile.service.ts
+﻿// src/services/manufacturers/core/manufacturerProfile.service.ts
 
-import { Manufacturer } from '../../../models/deprecated/manufacturer.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { logger } from '../../../utils/logger';
 import { Business } from '../../../models/deprecated/business.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 
 export interface ManufacturerProfile {
   id: string;
@@ -589,3 +589,4 @@ export class ManufacturerProfileService {
 }
 
 export const manufacturerProfileCoreService = new ManufacturerProfileService();
+

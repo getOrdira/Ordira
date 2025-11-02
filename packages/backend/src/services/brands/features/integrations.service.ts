@@ -1,5 +1,5 @@
-// src/services/brands/features/integrations.service.ts
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+﻿// src/services/brands/features/integrations.service.ts
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 
 export interface IntegrationStatus {

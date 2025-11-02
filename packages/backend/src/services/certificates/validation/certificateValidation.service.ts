@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Validation Service
  *
  * Handles certificate-specific validation including:
@@ -10,9 +10,9 @@
  */
 
 import { isValidObjectId } from 'mongoose';
-import { Certificate, ICertificate } from '../../../models/deprecated/certificate.model';
+import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
 import { Business } from '../../../models/deprecated/business.model';
-import { Product } from '../../../models/deprecated/product.model';
+import { Product } from '../../../models/products/product.model';
 import { logger } from '../../../utils/logger';
 
 /**
@@ -282,3 +282,5 @@ export class CertificateValidationService {
 }
 
 export const certificateValidationService = new CertificateValidationService();
+
+

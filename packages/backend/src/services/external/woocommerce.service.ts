@@ -1,9 +1,9 @@
-// services/external/woocommerce.service.ts
+﻿// services/external/woocommerce.service.ts
 import axios from 'axios';
 import { logger, logSafeInfo, logSafeError } from '../../utils/logger';
 import crypto from 'crypto';
-import { BrandSettings } from '../../models/deprecated/brandSettings.model';
-import { CertificateService } from '../business/certificate.service';
+import { BrandSettings } from '../../models/brands/brandSettings.model';
+import { MintingService } from '../certificates';
 import { createAppError } from '../../middleware/deprecated/error.middleware';
 
 const APP_URL = process.env.APP_URL!;
@@ -198,7 +198,7 @@ export interface WooStoreInfo {
  * Handles setup, webhooks, sync, analytics, and all integrations
  */
 export class WooCommerceService {
-  private certificateService = new CertificateService();
+  private certificateService = new MintingService();
 
   // ===== CONNECTION AND SETUP =====
 

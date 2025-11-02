@@ -1,4 +1,4 @@
-import { Media } from '../../../models/deprecated/media.model';
+﻿import { Media } from '../../../models/media/media.model';
 import { queryOptimizationService } from '../../external/query-optimization.service';
 import { MediaLeanDocument, MediaListOptions, MediaListResult, MediaSearchResult } from '../utils/types';
 import { MediaError } from '../utils/errors';
@@ -326,4 +326,5 @@ export class MediaDataService {
 }
 
 export const mediaDataService = new MediaDataService();
+
 

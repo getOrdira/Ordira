@@ -1,10 +1,10 @@
-// src/services/connections/utils/matchingEngine.service.ts
+﻿// src/services/connections/utils/matchingEngine.service.ts
 
 import { Types } from 'mongoose';
 import { Business, IBusiness } from '../../../models/deprecated/business.model';
-import { Manufacturer, IManufacturer } from '../../../models/deprecated/manufacturer.model';
-import { Product } from '../../../models/deprecated/product.model';
-import { Invitation } from '../../../models/deprecated/invitation.model';
+import { Manufacturer, IManufacturer } from '../../../models/manufacturer/manufacturer.model';
+import { Product } from '../../../models/products/product.model';
+import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
 import { connectionDataService } from '../core/connectionData.service';
 
@@ -369,3 +369,6 @@ export class MatchingEngineService {
 }
 
 export const matchingEngineService = new MatchingEngineService();
+
+
+

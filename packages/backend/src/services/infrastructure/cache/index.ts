@@ -9,6 +9,7 @@ export { CacheConnectionService, cacheConnectionService } from './core/cacheConn
 export { CacheStoreService, cacheStoreService } from './core/cacheStore.service';
 export { RedisClusterService, redisClusterService } from './core/redisClusterConnection.service';
 export { EnhancedCacheService, enhancedCacheService } from './features/enhancedCache.service';
+export type { CacheOptions } from './features/enhancedCache.service';
 export { Cacheable, CacheInvalidate } from './features/cacheDecorators.service';
 export { cacheValidationService, CacheValidationService } from './validation/cacheValidation.service';
 export * from './utils/types';

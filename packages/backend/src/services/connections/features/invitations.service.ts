@@ -1,9 +1,9 @@
-// src/services/connections/features/invitations.service.ts
+﻿// src/services/connections/features/invitations.service.ts
 import { NotificationCategory, NotificationEventType, NotificationPriority, eventHandlerService } from '../../notifications';
 
 import { invitationDataService } from '../core/invitationData.service';
 import { connectionDataService } from '../core/connectionData.service';
-import { IInvitation } from '../../../models/deprecated/invitation.model';
+import { IInvitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
 import { connectionHelpersService } from '../utils/connectionHelpers.service';
 
@@ -422,6 +422,7 @@ export class InvitationsService {
 
 // Export singleton instance
 export const invitationsService = new InvitationsService();
+
 
 
 

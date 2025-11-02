@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Certificate Account Service
  *
  * Handles certificate statistics, usage tracking, and ownership status including:
@@ -8,8 +8,8 @@
  * - Plan limits and quotas
  */
 
-import { Certificate } from '../../../models/deprecated/certificate.model';
-import { BrandSettings } from '../../../models/deprecated/brandSettings.model';
+import { Certificate } from '../../../models/certificates/certificate.model';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 
 export interface CertificateStats {
@@ -436,3 +436,5 @@ export class CertificateAccountService {
 }
 
 export const certificateAccountService = new CertificateAccountService();
+
+

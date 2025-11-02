@@ -121,13 +121,18 @@ export class SlidingWindowRateLimiter {
     }
 
     try {
-      await client.zRemRangeByScore(redisKey, 0, windowStart);
+      await client.zremrangebyscore(redisKey, 0, windowStart);
 
-      const entries = await client.zRangeWithScores(redisKey, 0, -1);
-      return entries.map((entry) => ({
-        timestamp: entry.score,
-        id: entry.value
-      }));
+      const result = await client.zrange(redisKey, 0, -1, 'WITHSCORES');
+      // result is array like [value1, score1, value2, score2, ...]
+      const entries: Array<{ timestamp: number; id: string }> = [];
+      for (let i = 0; i < result.length; i += 2) {
+        entries.push({
+          timestamp: Number(result[i + 1]),
+          id: result[i]
+        });
+      }
+      return entries;
     } finally {
       redisClusterService.releaseClient(client);
     }
@@ -144,7 +149,7 @@ export class SlidingWindowRateLimiter {
     }
 
     try {
-      await client.zAdd(redisKey, [{ score: timestamp, value: `${timestamp}:${Math.random()}` }]);
+      await client.zadd(redisKey, timestamp, `${timestamp}:${Math.random()}`);
       await client.expire(redisKey, Math.ceil(windowSizeMs / 1000));
     } finally {
       redisClusterService.releaseClient(client);

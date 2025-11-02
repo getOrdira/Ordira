@@ -1,9 +1,9 @@
-// services/blockchain/nft.service.ts
+﻿// services/blockchain/nft.service.ts
 import { BlockchainProviderService } from './provider.service';
 import { logger } from '../../utils/logger';
 import { NftMintResult, ContractDeployment, NftContractInfo, TransferResult } from '../types/blockchain.types';
-import { BrandSettings, IBrandSettings } from '../../models/deprecated/brandSettings.model';
-import { Certificate, ICertificate } from '../../models/deprecated/certificate.model';
+import { BrandSettings, IBrandSettings } from '../../models/brands/brandSettings.model';
+import { Certificate, ICertificate } from '../../models/certificates/certificate.model';
 import { Types } from 'mongoose';
 import { S3Service } from '../external/s3.service';
 import { mediaAnalyticsService } from '../media';
@@ -1889,3 +1889,5 @@ async verifyNftAuthenticity(tokenId: string, contractAddress: string): Promise<V
     }
   }
 }
+
+

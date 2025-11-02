@@ -1,5 +1,5 @@
-import { logger } from '../../../../utils/logger';
-import { BlacklistedTokenModel, type BlacklistedTokenDocument } from '../../../../models/deprecated/blacklistedToken.model';
+﻿import { logger } from '../../../../utils/logger';
+import { BlacklistedTokenModel, type BlacklistedTokenDocument } from '../../../../models/security/blacklistedToken.model';
 import { TOKEN_BLACKLIST_FALLBACK_EXPIRY_MS } from '../utils/securityConfig';
 import type { TokenBlacklistEntry } from '../utils/securityTypes';
 import type { FilterQuery, Model } from 'mongoose';
@@ -54,5 +54,6 @@ export class TokenBlacklistDataService {
 }
 
 export const tokenBlacklistDataService = new TokenBlacklistDataService();
+
 
 
