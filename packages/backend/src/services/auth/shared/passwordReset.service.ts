@@ -11,7 +11,7 @@ import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../infrastructure/shared';
 import { notificationsService } from '../../notifications/notifications.service';
 import { Business } from '../../../models/deprecated/business.model';
-import { User } from '../../../models/deprecated/user.model';
+import { User } from '../../../models/user';
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 

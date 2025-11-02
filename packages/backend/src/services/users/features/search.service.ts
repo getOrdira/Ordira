@@ -1,7 +1,7 @@
 // src/services/users/features/search.service.ts
 
 import { logger } from '../../../utils/logger';
-import { User } from '../../../models/deprecated/user.model';
+import { User } from '../../../models/user';
 import { userProfileFormatterService } from '../utils/profileFormatter.service';
 import type { UserProfile, UserSearchParams } from '../utils/types';
 

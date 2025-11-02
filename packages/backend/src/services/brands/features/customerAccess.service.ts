@@ -11,7 +11,7 @@
  */
 
 import { AllowedCustomer, IAllowedCustomer } from '../../../models/brands/allowedCustomer.model';
-import { User } from '../../../models/deprecated/user.model';
+import { User } from '../../../models/user';
 import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { getNotificationsServices } from '../../notifications';
 import { ShopifyService } from '../../external/shopify.service';

@@ -12,7 +12,7 @@ import mongoose from 'mongoose';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../infrastructure/shared';
 import { Business } from '../../../models/deprecated/business.model';
-import { User } from '../../../models/deprecated/user.model';
+import { User } from '../../../models/user';
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 

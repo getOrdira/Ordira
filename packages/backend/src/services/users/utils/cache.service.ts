@@ -1,6 +1,6 @@
 // src/services/users/utils/cache.service.ts
 
-import { User } from '../../../models/deprecated/user.model';
+import { User } from '../../../models/user';
 import { enhancedCacheService } from '../../external/enhanced-cache.service';
 import { logger } from '../../../utils/logger';
 

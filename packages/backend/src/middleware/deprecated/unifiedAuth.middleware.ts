@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { createAppError } from './error.middleware';
 import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
 import { Business } from '../../models/deprecated/business.model';
-import { User } from '../../models/deprecated/user.model';
+import { User } from '../../models/user';
 
 /**
  * Unified request interface for all authentication types

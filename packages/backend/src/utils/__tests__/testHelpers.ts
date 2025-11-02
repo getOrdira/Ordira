@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { UnifiedAuthRequest } from '../../middleware/deprecated/unifiedAuth.middleware';
 import { Business } from '../../models/deprecated/business.model';
 import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
-import { User } from '../../models/deprecated/user.model';
+import { User } from '../../models/user';
 
 /**
  * Test utilities for creating mock requests, responses, and test data

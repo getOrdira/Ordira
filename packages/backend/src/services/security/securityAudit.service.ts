@@ -2,8 +2,8 @@
 import { Request, Response } from 'express';
 import { UnifiedAuthRequest } from '../../middleware/deprecated/unifiedAuth.middleware';
 import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
-import { Business } from '../../models/deprecated/business.model';
-import { User } from '../../models/deprecated/user.model';
+import { Business } from '../../models/core/business.model';
+import { User } from '../../models/user';
 
 /**
  * Security audit result interface
