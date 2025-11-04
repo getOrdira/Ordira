@@ -2,11 +2,16 @@
 // Environment setup for Jest tests
 
 // Set test environment variables
-process.env.NODE_ENV = 'test';
+// Note: NODE_ENV must be one of: development, staging, production (config validation)
+// Use 'development' for tests but set TEST_TYPE to indicate it's a test
+process.env.NODE_ENV = 'development';
 process.env.TEST_TYPE = 'unit'; // Default to unit tests
 process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
 process.env.MONGODB_URI = 'mongodb://localhost:27017/ordira-test';
 process.env.REDIS_URL = 'redis://localhost:6379';
+process.env.REDIS_TLS = 'true'; // Required for redis-secure.config.ts
+process.env.REDIS_CA_CERT = 'test-ca-cert'; // Required for redis-secure.config.ts
+process.env.REDIS_PASSWORD = 'test-redis-password'; // Required for redis-secure.config.ts
 
 // AWS S3 test configuration
 process.env.AWS_ACCESS_KEY_ID = 'test-access-key';

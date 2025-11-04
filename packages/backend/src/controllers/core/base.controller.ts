@@ -410,7 +410,7 @@ export abstract class BaseController {
    */
   protected getRequestMeta(req: BaseRequest): ResponseMeta {
     return {
-      requestId: req.headers['x-request-id'] as string,
+      requestId: req.headers?.['x-request-id'] as string,
       processingTime: req.performanceMetrics?.duration,
       cacheHit: req.performanceMetrics?.cacheHit,
       version: '1.0.0'

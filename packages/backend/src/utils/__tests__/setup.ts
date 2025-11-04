@@ -4,6 +4,42 @@ import { config } from 'dotenv';
 // Load test environment variables
 config({ path: '.env.test' });
 
+// Mock node-fetch to avoid ESM import issues
+jest.mock('node-fetch', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+
+// Mock container service to prevent initialization of all services during tests
+jest.mock('../../services/container.service', () => {
+  const mockContainer = {
+    get: jest.fn(() => ({
+      // Mock service methods as needed
+    })),
+  };
+  
+  const mockServices = {
+    auth: {
+      loginUser: jest.fn(),
+      registerUser: jest.fn(),
+      verifyUser: jest.fn(),
+      resendUserVerification: jest.fn(),
+    },
+    user: {},
+    userModules: {},
+    tenantModules: {},
+    // Add other services as needed
+  };
+  
+  return {
+    getContainer: jest.fn(() => mockContainer),
+    getServices: jest.fn(() => mockServices),
+    getCustomerAccessService: jest.fn(() => ({
+      // Mock customer access service methods
+    })),
+  };
+});
+
 // Global test setup
 beforeAll(async () => {
   // Set test environment
