@@ -17,8 +17,28 @@
  * - brandCompleteness.api.ts
  * - brandRecommendation.api.ts
  */
-export * from './brandProfile.api';
+export { brandProfileApi } from './brandProfile.api';
+export { brandAccountApi } from './brandAccount.api';
+export { brandSettingsApi } from './brandSettings.api';
+export { brandCustomerAccessApi } from './brandCustomerAccess.api';
+export { brandDiscoveryApi } from './brandDiscovery.api';
+export { brandIntegrationsApi } from './brandIntegrations.api';
+export { brandVerificationApi } from './brandVerification.api';
+export { brandWalletApi } from './brandWallet.api';
+export { brandCompletenessApi } from './brandCompleteness.api';
+export { brandRecommendationApi } from './brandRecommendation.api';
 
-// Convenience export
-export { brandProfileApi as brandsApi } from './brandProfile.api';
+// Aggregated convenience export
+export const brandsApi = {
+  profile: brandProfileApi,
+  account: brandAccountApi,
+  settings: brandSettingsApi,
+  customerAccess: brandCustomerAccessApi,
+  discovery: brandDiscoveryApi,
+  integrations: brandIntegrationsApi,
+  verification: brandVerificationApi,
+  wallet: brandWalletApi,
+  completeness: brandCompletenessApi,
+  recommendation: brandRecommendationApi,
+} as const;
 

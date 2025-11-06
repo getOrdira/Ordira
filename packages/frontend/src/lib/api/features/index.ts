@@ -1,24 +1,25 @@
 // src/lib/api/features/index.ts
 // Features API barrel export
 
-/**
- * Features API
- * 
- * Barrel export for all feature-specific API modules
- * 
- * Note: This is a placeholder. Additional feature API modules will be added:
- * - products/
- * - certificates/
- * - notifications/
- * - manufacturers/
- * - supplyChain/
- * - votes/
- * - users/
- * - media/
- * - analytics/
- * - subscriptions/
- * - connections/
- * - domains/
- */
+import { analyticsApi } from './analytics';
+import { brandsApi } from './brands';
+import { blockchainApi } from './blockchain';
+import { certificatesApi } from './certificates';
+
 export * from './brands';
+export * from './analytics';
+export * from './blockchain';
+export * from './certificates';
+
+export { brandsApi } from './brands';
+export { analyticsApi } from './analytics';
+export { blockchainApi } from './blockchain';
+export { certificatesApi } from './certificates';
+
+export const featuresApi = {
+  brands: brandsApi,
+  analytics: analyticsApi,
+  blockchain: blockchainApi,
+  certificates: certificatesApi,
+};
 
