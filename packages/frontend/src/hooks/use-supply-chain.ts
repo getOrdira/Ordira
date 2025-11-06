@@ -17,8 +17,8 @@ import {
   ContractDeploymentRequest,
   CreateEndpointRequest,
   RegisterProductRequest
-} from '@/lib/types/supply-chain';
-import { supplyChainApi } from '../lib/api/supply-chain';
+} from '@/lib/typessss/supply-chain';
+import { supplyChainApi } from '../lib/apis/supply-chain';
 import { ApiError } from '@/lib/errors';
 
 // ===== CONTRACT MANAGEMENT HOOKS =====

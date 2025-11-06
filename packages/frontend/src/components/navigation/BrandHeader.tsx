@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { BrandUser } from '@/lib/types/user';
+import { BrandUser } from '@/lib/typessss/user';
 import { BaseHeader } from './baseHeader';
 
 interface BrandHeaderProps {

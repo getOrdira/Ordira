@@ -20,10 +20,10 @@ import {
   removeAvatar,
   type UserProfile,
   type User 
-} from '@/lib/api/user';
+} from '@/lib/apis/user';
 
 // For brand users
-import { getBrandProfile, type BrandProfile } from '@/lib/api/brandProfile';
+import { getBrandProfile, type BrandProfile } from '@/lib/apis/brandProfile';
 
 export interface AvatarMenuUser {
   id: string;

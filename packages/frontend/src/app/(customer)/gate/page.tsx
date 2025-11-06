@@ -1,6 +1,6 @@
 // src/app/(customer)/gate/page.tsx
 import { redirect } from "next/navigation";
-import { getApiBase, api } from "@/lib/api/client";
+import { getApiBase, api } from "@/lib/apis/client";
 import { setCustomerSession } from "@/lib/auth/session";
 import { cookies, headers } from "next/headers";
 import { useFormState, useFormStatus } from "react-dom";

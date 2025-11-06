@@ -1,0 +1,37 @@
+# Development Dockerfile for Frontend
+# This is optimized for development with Next.js hot-reload
+
+FROM node:20-alpine
+
+# Install development tools
+RUN apk add --no-cache \
+    git \
+    python3 \
+    make \
+    g++ \
+    libc6-compat
+
+# Set working directory
+WORKDIR /app
+
+# Copy root package files (for workspace setup)
+COPY package*.json ./
+COPY lerna.json ./
+
+# Copy frontend package files
+COPY packages/frontend/package*.json ./packages/frontend/
+
+# Install ALL dependencies (including dev dependencies) at root
+# This installs workspace dependencies for all packages
+RUN npm ci
+
+# Note: Source code is mounted as volume in docker-compose.dev.yml
+# This allows live editing without rebuilding the container
+
+# Expose Next.js development port
+EXPOSE 3000
+
+# Start Next.js development server
+# This watches for file changes and hot-reloads
+CMD ["npm", "run", "dev"]
+

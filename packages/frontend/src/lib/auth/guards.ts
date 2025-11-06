@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useCallback } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { UserRole } from '@/lib/types/user';
+import { UserRole } from '@/lib/typessss/user';
 import { getToken, isTokenExpired } from './session';
 
 /**

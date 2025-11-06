@@ -1,5 +1,5 @@
 // lib/auth/auth-utils.ts - NEW FILE
-import { AnyUser } from '@/lib/types/user';
+import { AnyUser } from '@/lib/types/features/auth/authTypes';
 
 /**
  * Role-based utilities - Creators and Brands have SAME functionalities

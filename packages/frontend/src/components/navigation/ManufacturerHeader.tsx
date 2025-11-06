@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { ManufacturerUser } from '@/lib/types/user';
+import { ManufacturerUser } from '@/lib/typessss/user';
 import { BaseHeader } from './baseHeader';
 
 interface ManufacturerHeaderProps {

@@ -1,7 +1,7 @@
 // src/hooks/use-customers.ts
 
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
-import { CustomerListResponse, Customer } from '@/lib/api/customers';
+import { CustomerListResponse, Customer } from '@/lib/apis/customers';
 
 interface CustomerAnalyticsResponse {
   data: {
@@ -10,7 +10,7 @@ interface CustomerAnalyticsResponse {
     recommendations: string[];
   };
 }
-import * as customersApi from '@/lib/api/customers';
+import * as customersApi from '@/lib/apis/customers';
 import { ApiError } from '@/lib/errors';
 
 interface UseCustomersOptions {

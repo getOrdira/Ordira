@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams } from 'next/navigation';
 import * as z from 'zod';
 import { useAuth } from '@/providers/auth-provider';
-import { authHelpers } from '@/lib/api/auth';
+import { authHelpers } from '@/lib/apis/auth';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';

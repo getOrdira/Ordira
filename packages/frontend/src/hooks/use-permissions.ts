@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback } from 'react';
 import { useSession } from './use-session';
-import { UserRole } from '@/lib/types/user';
+import { UserRole } from '@/lib/typessss/user';
 
 interface Permission {
   resource: string;

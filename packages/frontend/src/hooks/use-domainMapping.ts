@@ -2,8 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
-import { domainApi } from '@/lib/api/domain';
-import { DomainMapping, DomainMappingResponse, DomainHealthResponse, DomainVerificationResponse, CertificateRenewalResponse } from '@/lib/api/domain';
+import { domainApi } from '@/lib/apis/domain';
+import { DomainMapping, DomainMappingResponse, DomainHealthResponse, DomainVerificationResponse, CertificateRenewalResponse } from '@/lib/apis/domain';
 import { ApiError } from '@/lib/errors';
 
 // Types aligned with domain.ts API structure

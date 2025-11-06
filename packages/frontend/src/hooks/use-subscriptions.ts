@@ -10,8 +10,8 @@ import {
   SubscriptionPauseRequest,
   SubscriptionResumeRequest,
   SubscriptionCancellationRequest
-} from '@/lib/types/subscriptions';
-import * as billingApi from '@/lib/api/billing';
+} from '@/lib/typessss/subscriptions';
+import * as billingApi from '@/lib/apis/billing';
 import { ApiError } from '@/lib/errors';
 
 interface UseSubscriptionsOptions {

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { BellIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 // Import types from your API client to ensure consistency
-import type { Notification as BackendNotification } from '@/lib/api/notifications';
+import type { Notification as BackendNotification } from '@/lib/apis/notifications';
 
 const dropdownVariants = cva(
   "absolute bg-white border border-gray-200 rounded-2xl shadow-xl z-50 backdrop-blur-sm",

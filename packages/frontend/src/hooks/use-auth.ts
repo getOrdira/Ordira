@@ -15,9 +15,9 @@ import {
   ForgotPasswordData,
   ResetPasswordData,
   EmailVerificationData
-} from '@/lib/types/auth';
-import { AnyUser } from '@/lib/types/user';
-import { authApi } from '@/lib/api/auth';
+} from '@/lib/typessss/auth';
+import { AnyUser } from '@/lib/typessss/user';
+import { authApi } from '@/lib/apis/auth';
 
 interface AuthState {
   user: AnyUser | null;

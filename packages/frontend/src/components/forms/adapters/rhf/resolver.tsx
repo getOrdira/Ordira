@@ -6,7 +6,7 @@ import { Resolver, FieldErrors, FieldValues } from 'react-hook-form';
 import { z } from 'zod';
 
 // Import backend-aligned types
-import type { ValidationError as BackendValidationError } from '@/lib/types/common';
+import type { ValidationError as BackendValidationError } from '@/lib/typessss/common';
 
 /**
  * Enhanced resolver options that align with backend validation patterns

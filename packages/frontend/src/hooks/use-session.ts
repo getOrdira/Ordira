@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getToken, getRefreshToken, setTokens, clearTokens } from '@/lib/auth/session';
-import { AnyUser } from '@/lib/types/user';
-import * as authApi from '@/lib/api/auth';
+import { AnyUser } from '@/lib/typessss/user';
+import * as authApi from '@/lib/apis/auth';
 
 interface SessionState {
   user: AnyUser | null;

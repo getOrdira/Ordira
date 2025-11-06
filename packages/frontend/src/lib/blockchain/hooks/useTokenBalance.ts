@@ -2,7 +2,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAccount, useReadContract, useBalance, useBlockNumber } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import apiClient from '@/lib/api/client';
+import apiClient from '@/lib/apis/client';
 import { getContractAddress, getContractABI } from '../config/contracts';
 import { supportedChains, getChainConfig } from '../config/chains';
 import type { Address } from 'viem';

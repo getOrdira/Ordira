@@ -11,8 +11,8 @@ import {
   VotingStatistics,
   BatchVoteSubmissionData,
   VoteVerificationData
-} from '@/lib/types/votes';
-import * as votesApi from '@/lib/api/votes';
+} from '@/lib/typessss/votes';
+import * as votesApi from '@/lib/apis/votes';
 import { useAuth } from './use-auth';
 import { useNotifications } from './use-utilities';
 

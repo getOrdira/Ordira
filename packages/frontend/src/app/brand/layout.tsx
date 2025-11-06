@@ -6,7 +6,7 @@ import { BrandHeader } from '@/components/navigation/BrandHeader';
 import { useAuth } from '@/providers/auth-provider';
 import { redirect } from 'next/navigation';
 import { useEffect } from 'react';
-import { isBrandUser } from '@/lib/types/user';
+import { isBrandUser } from '@/lib/typessss/user';
 
 /**
  * Brand layout wrapper that provides consistent navigation and structure

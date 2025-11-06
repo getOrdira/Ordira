@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/primitives/button';
 import { LoadingSpinner } from '@/components/ui/feedback/loading-spinner';
 import { useAnalyticsOverview } from '@/hooks/use-analytics';
 import { useBrandSettings } from '@/hooks/use-brand-hooks';
-import { brandsApi } from '@/lib/api/brands';
+import { brandsApi } from '@/lib/apis/brands';
 import { useQuery } from '@tanstack/react-query';
 import { 
   TrendingUp, 

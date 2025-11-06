@@ -19,7 +19,7 @@ import {
   bulkNotificationAction,
   getNotificationSettings,
   updateNotificationSettings,
-} from '@/lib/api/notifications';
+} from '@/lib/apis/notifications';
 
 // Backend-aligned types for proper data handling
 export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent';

@@ -1,8 +1,8 @@
 // src/hooks/use-api-keys.ts
 
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
-import { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, CreateApiKeyResponse, ApiKeyUsage } from '../lib/types/api-keys';
-import * as apiKeysApi from '@/lib/api/api-keys';
+import { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, CreateApiKeyResponse, ApiKeyUsage } from '../lib/typessss/api-keys';
+import * as apiKeysApi from '@/lib/apis/api-keys';
 import { ApiError } from '@/lib/errors';
 
 interface UseApiKeysOptions {

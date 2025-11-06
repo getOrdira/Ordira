@@ -7,15 +7,15 @@ import {
   DomainMapping,
   ApiKey,
   Collection
-} from '@/lib/types/brand';
-import { AllowedCustomer } from '@/lib/types/customer';
-import { CustomerFilters } from '@/lib/api/customers';
+} from '@/lib/typessss/brand';
+import { AllowedCustomer } from '@/lib/typessss/customer';
+import { CustomerFilters } from '@/lib/apis/customers';
 import { useAuth } from './use-auth';
 import { useNotifications } from './use-utilities';
-import * as brandApi from '@/lib/api/brand-settings';
-import * as customerApi from '@/lib/api/customers';
-import * as domainApi from '@/lib/api/domain';
-import * as apiKeysApi from '@/lib/api/api-keys';
+import * as brandApi from '@/lib/apis/brand-settings';
+import * as customerApi from '@/lib/apis/customers';
+import * as domainApi from '@/lib/apis/domain';
+import * as apiKeysApi from '@/lib/apis/api-keys';
 
 /**
  * Hook for managing brand settings

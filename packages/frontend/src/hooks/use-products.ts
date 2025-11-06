@@ -1,8 +1,8 @@
 // src/hooks/use-products.ts
 
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
-import { Product, CreateProductRequest, UpdateProductRequest } from '@/lib/types/products';
-import * as productsApi from '@/lib/api/products';
+import { Product, CreateProductRequest, UpdateProductRequest } from '@/lib/typessss/products';
+import * as productsApi from '@/lib/apis/products';
 import { ApiError } from '@/lib/errors';
 
 interface UseProductsOptions {

@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { ManufacturerUser } from '@/lib/types/user';
+import { ManufacturerUser } from '@/lib/typessss/user';
 import { VerificationBadge } from '@/components/ui/data-display/status-badge';
 import {
   BarChart3,

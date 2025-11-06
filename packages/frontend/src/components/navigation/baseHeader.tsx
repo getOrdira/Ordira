@@ -21,7 +21,7 @@ import {
 import { VerificationBadge } from '@/components/ui/data-display/status-badge';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useAvatarMenu } from '@/hooks/use-avatar-menu';
-import { AnyUser } from '@/lib/types/user';
+import { AnyUser } from '@/lib/typessss/user';
 import { cn } from '@/lib/utils';
 
 interface BaseHeaderProps {

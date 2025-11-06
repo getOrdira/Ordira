@@ -20,8 +20,8 @@ import {
 } from '@/components/forms/adapters/rhf/field';
 
 // Import types
-import { UserPreferences } from '@/lib/types/user';
-import { emailGatingConfigSchema, updateBrandSettingsSchema } from '@/lib/types/brand';
+import { UserPreferences } from '@/lib/typessss/user';
+import { emailGatingConfigSchema, updateBrandSettingsSchema } from '@/lib/typessss/brand';
 
 /**
  * RHF Switch Component - Boolean toggle with form integration

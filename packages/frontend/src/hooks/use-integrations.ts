@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import axios from 'axios';
 import { ApiError } from '@/lib/errors';
-import apiClient from '@/lib/api/client';
+import apiClient from '@/lib/apis/client';
 
 // ===== TYPES =====
 

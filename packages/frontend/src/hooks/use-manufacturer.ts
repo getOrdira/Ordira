@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { ApiError } from '@/lib/errors';
-import apiClient from '@/lib/api/client';
+import apiClient from '@/lib/apis/client';
 
 // ===== TYPES =====
 

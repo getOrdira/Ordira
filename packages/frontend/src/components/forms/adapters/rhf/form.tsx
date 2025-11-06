@@ -19,7 +19,7 @@ import type {
   ApiResponse, 
   ValidationError as BackendValidationError,
   BulkOperationResponse 
-} from '@/lib/types/common';
+} from '@/lib/typessss/common';
 
 /**
  * Enhanced form state that mirrors backend response patterns

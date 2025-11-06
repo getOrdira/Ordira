@@ -8,8 +8,8 @@ import * as z from 'zod';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { authApi, authHelpers } from '@/lib/api/auth';
-import { RegisterUserData, RegisterBusinessData, RegisterManufacturerData } from '@/lib/types/auth';
+import { authApi, authHelpers } from '@/lib/apis/auth';
+import { RegisterUserData, RegisterBusinessData, RegisterManufacturerData } from '@/lib/typessss/auth';
 import { PasswordStrengthIndicator } from '@/components/ui/feedback/password-strength-indicator';
 
 // Registration form validation schema

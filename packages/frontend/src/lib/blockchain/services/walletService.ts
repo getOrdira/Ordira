@@ -1,5 +1,5 @@
 // src/lib/blockchain/services/walletService.ts
-import apiClient from '@/lib/api/client';
+import apiClient from '@/lib/apis/client';
 import { createPublicClient, http, verifyMessage, getAddress } from 'viem';
 import { supportedChains, getChainConfig, isChainSupported } from '../config/chains';
 import type { Address, Hash } from 'viem';
