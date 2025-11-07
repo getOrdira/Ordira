@@ -1,9 +1,11 @@
 // src/lib/api/core/health.api.ts
 // Health check API module aligned with backend routes/core/health.routes.ts
 
-import { api, publicApi } from '../client';
+import Joi from 'joi';
+
+import { publicApi } from '../client';
+import baseApi from './base.api';
 import type { ApiResponse } from '@/lib/types/core';
-import { ApiError } from '@/lib/errors';
 
 /**
  * Health check response types
@@ -39,6 +41,43 @@ export interface LivenessResponse {
   timestamp: string;
 }
 
+const serviceStatusSchema = Joi.string().valid('healthy', 'unhealthy', 'degraded');
+
+const basicHealthSchema = Joi.object<BasicHealthResponse>({
+  status: serviceStatusSchema.required(),
+  timestamp: Joi.string().isoDate().required(),
+  uptime: Joi.number().integer().min(0).optional()
+});
+
+const detailedHealthSchema = Joi.object<DetailedHealthResponse>({
+  status: serviceStatusSchema.required(),
+  timestamp: Joi.string().isoDate().required(),
+  uptime: Joi.number().integer().min(0).optional(),
+  services: Joi.object()
+    .pattern(
+      Joi.string(),
+      Joi.alternatives().try(
+        serviceStatusSchema,
+        Joi.object().unknown(true)
+      )
+    )
+    .required(),
+  version: Joi.string().optional(),
+  environment: Joi.string().optional()
+});
+
+const readinessSchema = Joi.object<ReadinessResponse>({
+  ready: Joi.boolean().required(),
+  checks: Joi.object()
+    .pattern(Joi.string(), Joi.boolean())
+    .required()
+});
+
+const livenessSchema = Joi.object<LivenessResponse>({
+  alive: Joi.boolean().required(),
+  timestamp: Joi.string().isoDate().required()
+});
+
 /**
  * Health Check API
  * 
@@ -54,10 +93,8 @@ export const healthApi = {
   basicHealth: async (): Promise<BasicHealthResponse> => {
     try {
       const response = await publicApi.get<ApiResponse<BasicHealthResponse>>('/health');
-      if (!response.success) {
-        throw new ApiError(response.message || 'Health check failed',  500);
-      }
-      return response.data!;
+      const payload = baseApi.handleResponse(response, 'Health check failed', 500);
+      return baseApi.validatePayload(basicHealthSchema, payload);
     } catch (error) {
       console.error('Basic health check error:', error);
       throw error;
@@ -71,10 +108,8 @@ export const healthApi = {
   detailedHealth: async (): Promise<DetailedHealthResponse> => {
     try {
       const response = await publicApi.get<ApiResponse<DetailedHealthResponse>>('/health/detailed');
-      if (!response.success) {
-        throw new ApiError(response.message || 'Detailed health check failed',  500);
-      }
-      return response.data!;
+      const payload = baseApi.handleResponse(response, 'Detailed health check failed', 500);
+      return baseApi.validatePayload(detailedHealthSchema, payload);
     } catch (error) {
       console.error('Detailed health check error:', error);
       throw error;
@@ -88,10 +123,8 @@ export const healthApi = {
   readiness: async (): Promise<ReadinessResponse> => {
     try {
       const response = await publicApi.get<ApiResponse<ReadinessResponse>>('/health/ready');
-      if (!response.success) {
-        throw new ApiError(response.message || 'Readiness check failed',  500);
-      }
-      return response.data!;
+      const payload = baseApi.handleResponse(response, 'Readiness check failed', 500);
+      return baseApi.validatePayload(readinessSchema, payload);
     } catch (error) {
       console.error('Readiness check error:', error);
       throw error;
@@ -105,10 +138,8 @@ export const healthApi = {
   liveness: async (): Promise<LivenessResponse> => {
     try {
       const response = await publicApi.get<ApiResponse<LivenessResponse>>('/health/live');
-      if (!response.success) {
-        throw new ApiError(response.message || 'Liveness check failed',  500);
-      }
-      return response.data!;
+      const payload = baseApi.handleResponse(response, 'Liveness check failed', 500);
+      return baseApi.validatePayload(livenessSchema, payload);
     } catch (error) {
       console.error('Liveness check error:', error);
       throw error;

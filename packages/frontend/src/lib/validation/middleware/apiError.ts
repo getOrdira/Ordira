@@ -14,7 +14,10 @@ import {
   NetworkError,
   PlanLimitError,
   createErrorFromResponse,
-  getErrorMessage as getMessageFromErrorHelper
+  getErrorMessage as getMessageFromErrorHelper,
+  getErrorStack as getStackFromErrorHelper,
+  getErrorCode as getCodeFromErrorHelper,
+  getStatusCode as getStatusCodeFromHelper
 } from '@/lib/errors';
 
 import { apiLogger, createLogContextFromAxiosError, LogContext } from './apiLogger';
@@ -47,53 +50,10 @@ export type NormalizedFrontendError =
   | NetworkError
   | Error;
 
-const UNKNOWN_ERROR_MESSAGE = 'An unknown error occurred';
-
-export const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  return UNKNOWN_ERROR_MESSAGE;
-};
-
-export const getErrorStack = (error: unknown): string | undefined => {
-  return error instanceof Error ? error.stack : undefined;
-};
-
-export const getErrorCode = (error: unknown): string | number | undefined => {
-  if (error && typeof error === 'object' && 'code' in error) {
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === 'string' || typeof code === 'number') {
-      return code;
-    }
-  }
-
-  return undefined;
-};
-
-export const getStatusCode = (error: unknown): number => {
-  if (error instanceof ApiError) {
-    return error.statusCode;
-  }
-
-  if (axios.isAxiosError(error)) {
-    return error.response?.status ?? 500;
-  }
-
-  if (error && typeof error === 'object' && 'statusCode' in error) {
-    const status = (error as { statusCode?: unknown }).statusCode;
-    if (typeof status === 'number') {
-      return status;
-    }
-  }
-
-  return 500;
-};
+export const getErrorMessage = getMessageFromErrorHelper;
+export const getErrorStack = getStackFromErrorHelper;
+export const getErrorCode = getCodeFromErrorHelper;
+export const getStatusCode = getStatusCodeFromHelper;
 
 export const createAppError = (
   message: string,
@@ -129,10 +89,10 @@ const mapUnknownError = (error: unknown): NormalizedFrontendError => {
   }
 
   if (typeof error === 'string') {
-    return new ApiError(error);
+    return new ApiError(getMessageFromErrorHelper(error));
   }
 
-  return new ApiError(UNKNOWN_ERROR_MESSAGE, 500, 'UNKNOWN_ERROR');
+  return new ApiError(getMessageFromErrorHelper(error), 500, 'UNKNOWN_ERROR');
 };
 
 export const normalizeApiError = (error: unknown): NormalizedFrontendError => {

@@ -1,9 +1,34 @@
 // src/lib/api/core/base.api.ts
 // Base API utilities aligned with backend routes/core/base.routes.ts
 
+import type { ObjectSchema } from 'joi';
+
 import { api, manufacturerApi, publicApi } from '../client';
 import type { ApiResponse, PaginatedResponse } from '@/lib/types/core';
 import { ApiError } from '@/lib/errors';
+import {
+  sanitizePagination,
+  type PaginationInput,
+  type PaginationOptions,
+  type SanitizedPagination
+} from '@/lib/validation/sanitizers/pagination';
+import {
+  sanitizeRequestBody,
+  sanitizeQueryParams as sanitizeQueryRecord,
+  toSearchParams
+} from '@/lib/validation/transformations/sanitizerPayload';
+import {
+  assertWithSchema,
+  type JoiValidationOptions
+} from '@/lib/validation/validators/joiValidate';
+
+type RequestSanitizeOptions = Parameters<typeof sanitizeRequestBody>[1];
+type QuerySanitizeOptions = Parameters<typeof sanitizeQueryRecord>[1];
+type QueryParamPrimitive = string | number | boolean;
+type QueryParamRecord = Record<string, QueryParamPrimitive | QueryParamPrimitive[]>;
+type HandleResponseOptions = {
+  requireData?: boolean;
+};
 
 /**
  * Route configuration types (mirrored from backend RouteConfig)
@@ -71,28 +96,23 @@ export const baseApi = {
    * Create pagination query parameters
    * Helper to standardize pagination across API calls
    */
-  createPaginationParams: (params: {
-    page?: number;
-    limit?: number;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }): Record<string, string | number> => {
-    const queryParams: Record<string, string | number> = {};
-    
-    if (params.page !== undefined) {
-      queryParams.page = params.page;
-    }
-    if (params.limit !== undefined) {
-      queryParams.limit = params.limit;
-    }
-    if (params.sortBy) {
-      queryParams.sortBy = params.sortBy;
-    }
-    if (params.sortOrder) {
-      queryParams.sortOrder = params.sortOrder;
-    }
-    
-    return queryParams;
+  createPaginationParams: (
+    params: PaginationInput = {},
+    options?: PaginationOptions
+  ): SanitizedPagination => {
+    return sanitizePagination(params, options);
+  },
+
+  /**
+   * Create a pagination query string from raw params
+   */
+  createPaginationQueryString: (
+    params: PaginationInput = {},
+    options?: PaginationOptions
+  ): string => {
+    const pagination = sanitizePagination(params, options);
+    const queryString = toSearchParams(pagination).toString();
+    return queryString ? `?${queryString}` : '';
   },
 
   /**
@@ -117,15 +137,16 @@ export const baseApi = {
   handleResponse: <T>(
     response: ApiResponse<T>,
     errorMessage: string = 'Request failed',
-    defaultStatusCode: number = 400
+    defaultStatusCode: number = 400,
+    options?: HandleResponseOptions
   ): T => {
     if (!response.success) {
       throw new ApiError(response.message || errorMessage, defaultStatusCode);
     }
-    if (!response.data) {
+    if ((response.data === undefined || response.data === null) && options?.requireData !== false) {
       throw new ApiError(errorMessage || 'No data returned', defaultStatusCode);
     }
-    return response.data;
+    return response.data as T;
   },
 
   /**
@@ -144,6 +165,32 @@ export const baseApi = {
       throw new ApiError(errorMessage || 'No data returned', defaultStatusCode);
     }
     return response.data;
+  },
+
+  /**
+   * Validate payloads against Joi schemas
+   */
+  validatePayload: <T>(
+    schema: ObjectSchema<T>,
+    payload: unknown,
+    options?: JoiValidationOptions
+  ): T => {
+    return assertWithSchema(schema, payload, options);
+  },
+
+  /**
+   * Validate and sanitize payloads before sending them to the backend
+   */
+  validateAndSanitize: <T>(
+    schema: ObjectSchema<T>,
+    payload: unknown,
+    options?: {
+      joi?: JoiValidationOptions;
+      sanitize?: RequestSanitizeOptions;
+    }
+  ): T => {
+    const validated = assertWithSchema(schema, payload, options?.joi);
+    return sanitizeRequestBody(validated, options?.sanitize);
   },
 
   /**
@@ -187,35 +234,31 @@ export const baseApi = {
 
   /**
    * Sanitize request data
-   * Remove sensitive fields before sending to API
+   * Normalizes payloads using shared sanitizer rules
    */
-  sanitizeRequestData: <T>(data: T): T => {
-    const sensitiveFields = ['password', 'token', 'refreshToken', 'apiKey', 'secret'];
-    const sanitized = { ...data } as any;
-    
-    for (const field of sensitiveFields) {
-      if (field in sanitized) {
-        delete sanitized[field];
-      }
-    }
-    
-    return sanitized as T;
+  sanitizeRequestData: <T>(data: T, options?: RequestSanitizeOptions): T => {
+    return sanitizeRequestBody(data, options);
+  },
+
+  /**
+   * Sanitize query params prior to serialization
+   */
+  sanitizeQueryParams: (
+    params?: Record<string, unknown>,
+    options?: QuerySanitizeOptions
+  ): QueryParamRecord => {
+    return sanitizeQueryRecord(params, options) as QueryParamRecord;
   },
 
   /**
    * Create query string from params
    * Helper to build query strings consistently
    */
-  buildQueryString: (params: Record<string, string | number | boolean | undefined>): string => {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, String(value));
-      }
-    });
-    
-    const queryString = queryParams.toString();
+  buildQueryString: (
+    params?: Record<string, unknown>,
+    options?: QuerySanitizeOptions
+  ): string => {
+    const queryString = toSearchParams(params, options).toString();
     return queryString ? `?${queryString}` : '';
   },
 

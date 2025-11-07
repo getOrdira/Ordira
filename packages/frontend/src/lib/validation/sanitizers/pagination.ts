@@ -29,6 +29,7 @@ export interface PaginationOptions {
 }
 
 export interface SanitizedPagination {
+  [key: string]: number | string | undefined;
   page: number;
   limit: number;
   offset: number;
