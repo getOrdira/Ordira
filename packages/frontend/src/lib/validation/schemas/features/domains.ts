@@ -143,7 +143,7 @@ const subdomainRequestSchema: Joi.ObjectSchema<{ subdomain: string; excludeBusin
 const generateSubdomainSuggestions = (input: string, count = 3): string[] => {
   const base = sanitizeSubdomainInput(input) || 'brand';
   const suggestions = new Set<string>();
-  const ideaSeeds = ['app', 'shop', 'store', 'go'];
+  const ideaSeeds = ['app', 'shop', 'store', 'go', 'vote', 'certificates'];
   ideaSeeds.forEach(seed => {
     if (suggestions.size >= count) {
       return;

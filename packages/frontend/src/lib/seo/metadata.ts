@@ -37,7 +37,7 @@ const DEFAULT_METADATA = {
     'certificates'
   ],
   image: '/og-image.png',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://ordira.xyz',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://app.ordira.xyz',
   siteName: 'Ordira',
   locale: 'en_US',
   twitterHandle: '@ordiraxyz',

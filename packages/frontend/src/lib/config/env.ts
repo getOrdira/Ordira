@@ -2,6 +2,18 @@
 
 import { z } from 'zod';
 
+const booleanFlag = (defaultValue: boolean) =>
+  z.preprocess((val) => {
+    if (typeof val === 'boolean') {
+      return val;
+    }
+    if (typeof val === 'string') {
+      if (val.toLowerCase() === 'true') return true;
+      if (val.toLowerCase() === 'false') return false;
+    }
+    return defaultValue;
+  }, z.boolean());
+
 const envSchema = z.object({
   // Core API configuration
   NEXT_PUBLIC_API_URL: z.string().url().min(1, 'API URL is required'),
@@ -29,9 +41,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_INTERCOM_APP_ID: z.string().optional(),
   
   // Feature Flags
-  NEXT_PUBLIC_ENABLE_WEB3: z.string().transform(val => val === 'true').default('false'),
-  NEXT_PUBLIC_ENABLE_ANALYTICS: z.string().transform(val => val === 'true').default('true'),
-  NEXT_PUBLIC_ENABLE_NOTIFICATIONS: z.string().transform(val => val === 'true').default('true'),
+  NEXT_PUBLIC_ENABLE_WEB3: booleanFlag(false),
+  NEXT_PUBLIC_ENABLE_ANALYTICS: booleanFlag(true),
+  NEXT_PUBLIC_ENABLE_NOTIFICATIONS: booleanFlag(true),
   
   // Build-time variables
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -47,8 +59,8 @@ const parsedEnv = envSchema.safeParse(process.env);
 
 if (!parsedEnv.success) {
   console.error('❌ Invalid environment variables:');
-  parsedEnv.error.errors.forEach((error) => {
-    console.error(`  ${error.path.join('.')}: ${error.message}`);
+  parsedEnv.error.issues.forEach((issue) => {
+    console.error(`  ${issue.path.join('.')}: ${issue.message}`);
   });
   throw new Error('Environment variable validation failed. Check your .env file.');
 }

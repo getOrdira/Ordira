@@ -5,6 +5,7 @@ import { api } from '../../client';
 import baseApi from '../../core/base.api';
 import type { ApiResponse } from '@/lib/types/core';
 import type { SystemHealthMetrics } from '@/lib/types/features/analytics';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 export interface SystemHealthResponse {
   metrics: SystemHealthMetrics;
@@ -34,8 +35,11 @@ export const analyticsSystemHealthApi = {
         500,
       );
     } catch (error) {
-      console.error('System health metrics fetch error:', error);
-      throw error;
+      throw handleApiError(error, {
+        feature: 'analytics',
+        method: 'GET',
+        endpoint: '/analytics/health',
+      });
     }
   },
 };

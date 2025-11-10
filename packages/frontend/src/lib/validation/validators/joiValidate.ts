@@ -3,7 +3,7 @@
 
 import type Joi from 'joi';
 
-import { ValidationError } from '@/lib/errors';
+import { ValidationError } from '@/lib/errors/errors';
 
 import { formatJoiError } from '../utils';
 

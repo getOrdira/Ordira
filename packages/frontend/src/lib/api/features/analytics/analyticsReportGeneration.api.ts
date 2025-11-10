@@ -9,6 +9,8 @@ import type {
   AnalyticsReportRequest,
   AnalyticsReportType,
 } from '@/lib/types/features/analytics';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 export type AnalyticsReportFormat = 'payload' | 'json' | 'csv';
 
@@ -38,24 +40,18 @@ interface AnalyticsReportGenerationBaseResponse {
   generatedAt: string;
 }
 
-const toIsoString = (value?: string | Date): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return value;
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
-const sanitizeQuery = (query: Record<string, unknown>): Record<string, unknown> => {
-  return Object.entries(query).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+const createAnalyticsLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'analytics',
+  method,
+  endpoint,
+  ...context,
+});
 
 /**
  * Analytics Report Generation API
@@ -74,12 +70,14 @@ export const analyticsReportGenerationApi = {
   ): Promise<GenerateAnalyticsReportResponse<Format>> {
     try {
       if (!options?.reportType) {
-        throw new Error('reportType is required to generate a report');
+        throw new ApiError('reportType is required to generate a report', 400, 'VALIDATION_ERROR', {
+          businessId,
+        });
       }
 
-      const query = sanitizeQuery({
-        startDate: toIsoString(options.startDate),
-        endDate: toIsoString(options.endDate),
+      const query = baseApi.sanitizeQueryParams({
+        startDate: options.startDate,
+        endDate: options.endDate,
         includeRawData: options.includeRawData,
         useReplica: options.useReplica,
         format: options.format,
@@ -97,22 +95,34 @@ export const analyticsReportGenerationApi = {
         format: options.format,
       };
 
+      const requestBody = baseApi.sanitizeRequestData(body);
+
       const response = await api.post<ApiResponse<AnalyticsReportGenerationBaseResponse>>(
         `/analytics/reports/business/${encodeURIComponent(businessId)}`,
-        body,
+        requestBody,
         { params: query },
       );
 
-      const payload = baseApi.handleResponse(
+      const apiPayload = baseApi.handleResponse(
         response,
         'Failed to generate analytics report',
         500,
       );
 
-      return payload as unknown as GenerateAnalyticsReportResponse<Format>;
+      return apiPayload as unknown as GenerateAnalyticsReportResponse<Format>;
     } catch (error) {
-      console.error('Analytics report generation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext(
+          'POST',
+          `/analytics/reports/business/${encodeURIComponent(businessId)}`,
+          {
+            businessId,
+            reportType: options?.reportType,
+            format: options?.format,
+          },
+        ),
+      );
     }
   },
 };

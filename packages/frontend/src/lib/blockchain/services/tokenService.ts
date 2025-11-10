@@ -1,5 +1,5 @@
 // src/lib/blockchain/services/tokenService.ts
-import apiClient from '@/lib/apis/client';
+import apiClient from '@/lib/api/client';
 import { readContract } from 'viem/actions';
 import { createPublicClient, http, formatUnits, parseUnits } from 'viem';
 import { getContractAddress, getContractABI } from '../config/contracts';

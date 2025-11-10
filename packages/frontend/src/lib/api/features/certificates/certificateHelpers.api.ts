@@ -7,8 +7,6 @@ import type { ApiResponse } from '@/lib/types/core';
 import type { TransferUsage } from '@backend/services/certificates/core';
 import {
   ensureNonEmptyObject,
-  logDebug,
-  logError,
   sanitizeBoolean,
   sanitizeContactMethod,
   sanitizeObjectId,
@@ -19,8 +17,23 @@ import {
   sanitizeRecipientByContactMethod,
   sanitizeString,
 } from './utils';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/certificates/helpers';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createHelpersLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'certificates',
+  module: 'helpers',
+  method,
+  endpoint,
+  ...context,
+});
 
 const sanitizeMonthlyStats = (monthlyStats: Array<{ month: string; transfers: number }>): Array<{ month: string; transfers: number }> => {
   if (!Array.isArray(monthlyStats) || monthlyStats.length === 0) {
@@ -47,7 +60,6 @@ export const certificateHelpersApi = {
     const sanitizedRecipient = sanitizeRecipientByContactMethod(recipient, sanitizedMethod);
 
     try {
-      logDebug('helpers', 'Validating recipient', { contactMethod: sanitizedMethod });
       const response = await api.post<ApiResponse<{ validation: { valid: boolean; error?: string } }>>(
         `${BASE_PATH}/validate-recipient`,
         {
@@ -58,8 +70,12 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate recipient', 500);
     } catch (error) {
-      logError('helpers', 'Validate recipient request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/validate-recipient`, {
+          contactMethod: sanitizedMethod,
+        }),
+      );
     }
   },
 
@@ -71,7 +87,6 @@ export const certificateHelpersApi = {
     const id = sanitizeObjectId(productId, 'productId');
 
     try {
-      logDebug('helpers', 'Validating product ownership', { productId: id });
       const response = await api.post<ApiResponse<{ isValid: boolean }>>(
         `${BASE_PATH}/validate-product-ownership`,
         { productId: id },
@@ -79,8 +94,12 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate product ownership', 500);
     } catch (error) {
-      logError('helpers', 'Validate product ownership request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/validate-product-ownership`, {
+          productId: id,
+        }),
+      );
     }
   },
 
@@ -92,15 +111,18 @@ export const certificateHelpersApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('helpers', 'Fetching ownership status', { certificateId: id });
       const response = await api.get<ApiResponse<{ ownershipStatus: string }>>(
         `${BASE_PATH}/${id}/ownership-status`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch ownership status', 404);
     } catch (error) {
-      logError('helpers', 'Ownership status request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('GET', `${BASE_PATH}/:certificateId/ownership-status`, {
+          certificateId: id,
+        }),
+      );
     }
   },
 
@@ -112,15 +134,18 @@ export const certificateHelpersApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('helpers', 'Fetching transfer health', { certificateId: id });
       const response = await api.get<ApiResponse<{ transferHealth: { status: string; score: number; issues: string[] } }>>(
         `${BASE_PATH}/${id}/transfer-health`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch transfer health', 404);
     } catch (error) {
-      logError('helpers', 'Transfer health request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('GET', `${BASE_PATH}/:certificateId/transfer-health`, {
+          certificateId: id,
+        }),
+      );
     }
   },
 
@@ -136,7 +161,6 @@ export const certificateHelpersApi = {
     };
 
     try {
-      logDebug('helpers', 'Fetching certificate next steps', body);
       const response = await api.post<ApiResponse<{ nextSteps: string[] }>>(
         `${BASE_PATH}/next-steps`,
         body,
@@ -144,8 +168,10 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate next steps', 500);
     } catch (error) {
-      logError('helpers', 'Certificate next steps request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/next-steps`, body),
+      );
     }
   },
 
@@ -159,7 +185,6 @@ export const certificateHelpersApi = {
     });
 
     try {
-      logDebug('helpers', 'Fetching transfer usage (helpers)', params);
       const response = await api.get<ApiResponse<{ transferUsage: TransferUsage }>>(
         `${BASE_PATH}/transfer-usage`,
         { params },
@@ -167,8 +192,10 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch transfer usage', 500);
     } catch (error) {
-      logError('helpers', 'Transfer usage request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('GET', `${BASE_PATH}/transfer-usage`, params),
+      );
     }
   },
 
@@ -180,7 +207,6 @@ export const certificateHelpersApi = {
     const params = sanitizeQuery({ plan: sanitizePlan(plan, 'plan') });
 
     try {
-      logDebug('helpers', 'Fetching transfer limits', params);
       const response = await api.get<ApiResponse<{ limits: { transfersPerMonth: number; gasCreditsWei: string } }>>(
         `${BASE_PATH}/transfer-limits`,
         { params },
@@ -188,8 +214,10 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch transfer limits', 500);
     } catch (error) {
-      logError('helpers', 'Transfer limits request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('GET', `${BASE_PATH}/transfer-limits`, params),
+      );
     }
   },
 
@@ -201,7 +229,6 @@ export const certificateHelpersApi = {
     const params = sanitizeQuery({ plan: sanitizePlan(plan, 'plan') });
 
     try {
-      logDebug('helpers', 'Fetching plan limits', params);
       const response = await api.get<ApiResponse<{ limits: { certificates: number; allowOverage: boolean; billPerCertificate: boolean; overageCost: number; hasWeb3: boolean } }>>(
         `${BASE_PATH}/plan-limits`,
         { params },
@@ -209,8 +236,10 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch plan limits', 500);
     } catch (error) {
-      logError('helpers', 'Plan limits request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('GET', `${BASE_PATH}/plan-limits`, params),
+      );
     }
   },
 
@@ -222,7 +251,6 @@ export const certificateHelpersApi = {
     const sanitizedCount = sanitizePositiveInteger(recipientCount, { fieldName: 'recipientCount', min: 1, max: 5000 });
 
     try {
-      logDebug('helpers', 'Calculating estimated gas cost', { recipientCount: sanitizedCount });
       const response = await api.post<ApiResponse<{ estimatedCostWei: string }>>(
         `${BASE_PATH}/calculate-gas-cost`,
         { recipientCount: sanitizedCount },
@@ -230,8 +258,12 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to calculate gas cost', 500);
     } catch (error) {
-      logError('helpers', 'Gas cost calculation request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/calculate-gas-cost`, {
+          recipientCount: sanitizedCount,
+        }),
+      );
     }
   },
 
@@ -243,7 +275,6 @@ export const certificateHelpersApi = {
     const sanitizedStats = sanitizeMonthlyStats(monthlyStats);
 
     try {
-      logDebug('helpers', 'Calculating monthly growth', { count: sanitizedStats.length });
       const response = await api.post<ApiResponse<{ growthPercentage: number }>>(
         `${BASE_PATH}/calculate-monthly-growth`,
         { monthlyStats: sanitizedStats },
@@ -251,8 +282,12 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to calculate monthly growth', 500);
     } catch (error) {
-      logError('helpers', 'Monthly growth calculation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/calculate-monthly-growth`, {
+          count: sanitizedStats.length,
+        }),
+      );
     }
   },
 
@@ -264,7 +299,6 @@ export const certificateHelpersApi = {
     const body = ensureNonEmptyObject(payload, 'payload');
 
     try {
-      logDebug('helpers', 'Generating Web3 insights');
       const response = await api.post<ApiResponse<{ insights: string[] }>>(
         `${BASE_PATH}/generate-web3-insights`,
         body,
@@ -272,8 +306,10 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to generate Web3 insights', 500);
     } catch (error) {
-      logError('helpers', 'Generate Web3 insights request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/generate-web3-insights`),
+      );
     }
   },
 
@@ -289,7 +325,6 @@ export const certificateHelpersApi = {
     }, 'payload');
 
     try {
-      logDebug('helpers', 'Generating Web3 recommendations', { plan: body.plan });
       const response = await api.post<ApiResponse<{ recommendations: string[] }>>(
         `${BASE_PATH}/generate-web3-recommendations`,
         body,
@@ -297,8 +332,12 @@ export const certificateHelpersApi = {
 
       return baseApi.handleResponse(response, 'Failed to generate Web3 recommendations', 500);
     } catch (error) {
-      logError('helpers', 'Generate Web3 recommendations request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createHelpersLogContext('POST', `${BASE_PATH}/generate-web3-recommendations`, {
+          plan: body.plan,
+        }),
+      );
     }
   },
 };

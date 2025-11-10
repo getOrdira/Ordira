@@ -17,19 +17,30 @@ import type {
   UpdateBrandSettingsInput,
   WalletValidationResult
 } from '@/lib/types/features/brands';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand-settings';
 
-const clean = (input?: Record<string, unknown>) => {
-  if (!input) {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const VOID_RESPONSE_OPTIONS = { requireData: false } as const;
+
+const toQueryParams = <T extends object>(params?: T) => {
+  if (!params) {
     return undefined;
   }
-  return Object.entries(input).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...(params as Record<string, unknown>) });
 };
 
 export interface IntegrationTestInput {
@@ -80,8 +91,10 @@ export const brandSettingsApi = {
       );
       return settings;
     } catch (error) {
-      console.error('Brand settings fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', BASE_PATH),
+      );
     }
   },
 
@@ -104,8 +117,10 @@ export const brandSettingsApi = {
       );
       return settings;
     } catch (error) {
-      console.error('Brand settings update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PUT', BASE_PATH),
+      );
     }
   },
 
@@ -126,8 +141,12 @@ export const brandSettingsApi = {
       );
       return testResult;
     } catch (error) {
-      console.error('Brand integration test error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/integration/test`, {
+          integrationType: input.integrationType,
+        }),
+      );
     }
   },
 
@@ -148,8 +167,13 @@ export const brandSettingsApi = {
       );
       return validationResult;
     } catch (error) {
-      console.error('Brand domain validation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/domain/validate`, {
+          domain: input.domain,
+          subdomain: input.subdomain,
+        }),
+      );
     }
   },
 
@@ -170,8 +194,12 @@ export const brandSettingsApi = {
       );
       return validationResult;
     } catch (error) {
-      console.error('Brand wallet validation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/wallet/validate`, {
+          hasSignature: Boolean(input.signature),
+        }),
+      );
     }
   },
 
@@ -183,7 +211,7 @@ export const brandSettingsApi = {
     try {
       const response = await api.get<ApiResponse<{ exportData: BrandSettingsExportData }>>(
         `${BASE_PATH}/export`,
-        { params },
+        { params: toQueryParams(params) },
       );
       const { exportData } = baseApi.handleResponse(
         response,
@@ -192,8 +220,10 @@ export const brandSettingsApi = {
       );
       return exportData;
     } catch (error) {
-      console.error('Brand settings export error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/export`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -203,13 +233,16 @@ export const brandSettingsApi = {
    */
   async importSettings(payload: ImportSettingsPayload): Promise<void> {
     try {
-      await api.post<ApiResponse<unknown>>(
+      const response = await api.post<ApiResponse<unknown>>(
         `${BASE_PATH}/import`,
         baseApi.sanitizeRequestData(payload),
       );
+      baseApi.handleResponse(response, 'Failed to import brand settings', 400, VOID_RESPONSE_OPTIONS);
     } catch (error) {
-      console.error('Brand settings import error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/import`, { format: payload.format }),
+      );
     }
   },
 
@@ -229,8 +262,10 @@ export const brandSettingsApi = {
       );
       return status;
     } catch (error) {
-      console.error('Brand settings integration status fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/integrations/status`),
+      );
     }
   },
 
@@ -251,8 +286,12 @@ export const brandSettingsApi = {
       );
       return syncResult;
     } catch (error) {
-      console.error('Brand integration sync error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/integrations/sync`, {
+          integrationType: payload.integrationType,
+        }),
+      );
     }
   },
 
@@ -272,8 +311,10 @@ export const brandSettingsApi = {
       );
       return instructions;
     } catch (error) {
-      console.error('Brand domain setup instructions fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/domain/setup-instructions`),
+      );
     }
   },
 
@@ -293,8 +334,10 @@ export const brandSettingsApi = {
       );
       return health;
     } catch (error) {
-      console.error('Brand settings health fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/health`),
+      );
     }
   },
 };

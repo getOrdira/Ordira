@@ -72,7 +72,7 @@ export interface UserSecuritySettings {
 /**
  * User type discriminator - frontend-specific
  */
-export type AnyUser = BrandUser | ManufacturerUser | CustomerUser;
+export type AnyUser = BrandUser | CreatorUser | ManufacturerUser | CustomerUser;
 
 /**
  * Brand user type - frontend-specific
@@ -84,6 +84,16 @@ export interface BrandUser {
   businessId: string;
   businessName: string;
   isEmailVerified: boolean;
+  plan?: string;
+}
+
+export interface CreatorUser {
+  id: string;
+  role: 'creator';
+  email: string;
+  isEmailVerified: boolean;
+  businessId?: string;
+  businessName?: string;
   plan?: string;
 }
 
@@ -116,6 +126,10 @@ export interface CustomerUser {
  */
 export function isBrandUser(user: AnyUser): user is BrandUser {
   return user.role === 'brand';
+}
+
+export function isCreatorUser(user: AnyUser): user is CreatorUser {
+  return user.role === 'creator';
 }
 
 /**

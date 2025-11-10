@@ -4,7 +4,7 @@ import {
   sanitizeSensitiveString,
   sanitizeSensitiveObject,
   sanitizeErrorForLogging
-} from './security/sensitiveData';
+} from '../security/sensitiveData';
 
 interface ApiErrorMetadata {
   requestId?: string;

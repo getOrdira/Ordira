@@ -12,20 +12,23 @@ import type {
   WalletValidationResult,
   WalletVerificationStatus
 } from '@/lib/types/features/brands';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/wallet';
 
-const sanitize = (input?: Record<string, unknown>) => {
-  if (!input) {
-    return undefined;
-  }
-  return Object.entries(input).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
 
 export interface WalletValidationPayload {
   address: string;
@@ -91,8 +94,12 @@ export const brandWalletApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand wallet validation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/validate`, {
+          address: payload.address,
+        }),
+      );
     }
   },
 
@@ -113,8 +120,12 @@ export const brandWalletApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand wallet ownership verification error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/verify`, {
+          walletAddress: payload.walletAddress,
+        }),
+      );
     }
   },
 
@@ -134,8 +145,10 @@ export const brandWalletApi = {
       );
       return status;
     } catch (error) {
-      console.error('Brand wallet status fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/status`),
+      );
     }
   },
 
@@ -156,8 +169,13 @@ export const brandWalletApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand wallet token discount update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PUT', `${BASE_PATH}/token-discounts`, {
+          walletAddress: payload.walletAddress,
+          discountCount: payload.discounts?.length ?? 0,
+        }),
+      );
     }
   },
 
@@ -180,8 +198,12 @@ export const brandWalletApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand certificate wallet update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PUT', `${BASE_PATH}/certificate`, {
+          walletAddress: payload.walletAddress,
+        }),
+      );
     }
   },
 
@@ -204,8 +226,13 @@ export const brandWalletApi = {
       );
       return results;
     } catch (error) {
-      console.error('Brand wallet batch token discount update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/token-discounts/batch`, {
+          businessCount: payload.businessIds?.length ?? 0,
+          discountCount: payload.discounts?.length ?? 0,
+        }),
+      );
     }
   },
 
@@ -226,8 +253,13 @@ export const brandWalletApi = {
       );
       return message;
     } catch (error) {
-      console.error('Brand wallet change handling error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/change`, {
+          newWallet: payload.newWallet,
+          oldWallet: payload.oldWallet,
+        }),
+      );
     }
   },
 
@@ -250,8 +282,10 @@ export const brandWalletApi = {
       );
       return message;
     } catch (error) {
-      console.error('Brand wallet verification message generation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/verification-message`),
+      );
     }
   },
 
@@ -271,8 +305,10 @@ export const brandWalletApi = {
       );
       return stats;
     } catch (error) {
-      console.error('Brand wallet statistics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/statistics`),
+      );
     }
   },
 };

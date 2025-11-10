@@ -9,6 +9,7 @@ import type {
   AnalyticsDashboardDisplay,
   DashboardAnalyticsSnapshot,
 } from '@/lib/types/features/analytics';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 /**
  * Query parameters for dashboard analytics requests.
@@ -39,30 +40,18 @@ export interface DashboardAnalyticsDisplayResponse {
   generatedAt: string;
 }
 
-/**
- * Normalize date input to ISO string expected by the backend.
- */
-const toIsoString = (value?: string | Date): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return value;
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
-/**
- * Remove undefined/null values from a query object to avoid leaking empty params.
- */
-const sanitizeQuery = (query: Record<string, unknown>): Record<string, unknown> => {
-  return Object.entries(query).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+const createAnalyticsLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'analytics',
+  method,
+  endpoint,
+  ...context,
+});
 
 /**
  * Format dashboard snapshot with UI specific helpers.
@@ -140,12 +129,12 @@ export const analyticsDashboardApi = {
     params?: DashboardAnalyticsParams,
   ): Promise<DashboardAnalyticsResponse> {
     try {
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         businessId: params?.businessId,
         manufacturerId: params?.manufacturerId,
         groupBy: params?.groupBy,
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         includeSystemHealth: params?.includeSystemHealth,
         useReadReplica: params?.useReadReplica,
       });
@@ -161,8 +150,14 @@ export const analyticsDashboardApi = {
         500,
       );
     } catch (error) {
-      console.error('Dashboard analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext('GET', '/analytics/dashboard', {
+          businessId: params?.businessId,
+          manufacturerId: params?.manufacturerId,
+          groupBy: params?.groupBy,
+        }),
+      );
     }
   },
 

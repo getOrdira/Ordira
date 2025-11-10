@@ -6,6 +6,7 @@ import Joi from 'joi';
 import { publicApi } from '../client';
 import baseApi from './base.api';
 import type { ApiResponse } from '@/lib/types/core';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 /**
  * Health check response types
@@ -78,6 +79,11 @@ const livenessSchema = Joi.object<LivenessResponse>({
   timestamp: Joi.string().isoDate().required()
 });
 
+const createHealthContext = (endpoint: string) => ({
+  method: 'GET' as const,
+  endpoint
+});
+
 /**
  * Health Check API
  * 
@@ -95,9 +101,8 @@ export const healthApi = {
       const response = await publicApi.get<ApiResponse<BasicHealthResponse>>('/health');
       const payload = baseApi.handleResponse(response, 'Health check failed', 500);
       return baseApi.validatePayload(basicHealthSchema, payload);
-    } catch (error) {
-      console.error('Basic health check error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createHealthContext('/health'));
     }
   },
 
@@ -110,9 +115,8 @@ export const healthApi = {
       const response = await publicApi.get<ApiResponse<DetailedHealthResponse>>('/health/detailed');
       const payload = baseApi.handleResponse(response, 'Detailed health check failed', 500);
       return baseApi.validatePayload(detailedHealthSchema, payload);
-    } catch (error) {
-      console.error('Detailed health check error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createHealthContext('/health/detailed'));
     }
   },
 
@@ -125,9 +129,8 @@ export const healthApi = {
       const response = await publicApi.get<ApiResponse<ReadinessResponse>>('/health/ready');
       const payload = baseApi.handleResponse(response, 'Readiness check failed', 500);
       return baseApi.validatePayload(readinessSchema, payload);
-    } catch (error) {
-      console.error('Readiness check error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createHealthContext('/health/ready'));
     }
   },
 
@@ -140,9 +143,8 @@ export const healthApi = {
       const response = await publicApi.get<ApiResponse<LivenessResponse>>('/health/live');
       const payload = baseApi.handleResponse(response, 'Liveness check failed', 500);
       return baseApi.validatePayload(livenessSchema, payload);
-    } catch (error) {
-      console.error('Liveness check error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createHealthContext('/health/live'));
     }
   },
 };

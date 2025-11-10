@@ -5,6 +5,7 @@ import { api } from '../../client';
 import baseApi from '../../core/base.api';
 import type { ApiResponse } from '@/lib/types/core';
 import type { AnalyticsGrouping } from '@/lib/types/features/analytics';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 /**
  * Query parameters for dashboard insights requests.
@@ -27,24 +28,18 @@ export interface DashboardInsightsResponse {
   generatedAt: string;
 }
 
-const toIsoString = (value?: string | Date): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return value;
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
-const sanitizeQuery = (query: Record<string, unknown>): Record<string, unknown> => {
-  return Object.entries(query).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+const createAnalyticsLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'analytics',
+  method,
+  endpoint,
+  ...context,
+});
 
 /**
  * Analytics Insights API
@@ -61,12 +56,12 @@ export const analyticsInsightsApi = {
     params?: DashboardInsightsParams,
   ): Promise<DashboardInsightsResponse> {
     try {
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         businessId: params?.businessId,
         manufacturerId: params?.manufacturerId,
         groupBy: params?.groupBy,
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         limit: params?.limit,
       });
 
@@ -81,8 +76,14 @@ export const analyticsInsightsApi = {
         500,
       );
     } catch (error) {
-      console.error('Dashboard insights fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext('GET', '/analytics/insights', {
+          businessId: params?.businessId,
+          manufacturerId: params?.manufacturerId,
+          groupBy: params?.groupBy,
+        }),
+      );
     }
   },
 };

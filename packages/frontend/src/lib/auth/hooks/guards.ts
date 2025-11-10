@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useCallback } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { UserRole } from '@/lib/typessss/user';
-import { getToken, isTokenExpired } from './session';
+import { UserRole } from '@/lib/types/features/users';
+import { getToken, isTokenExpired } from '../session/session';
 
 /**
  * Hook to guard routes requiring authentication.
@@ -56,7 +56,7 @@ export const useRoleGuard = (
           'customer': 1
         };
 
-        const userLevel = roleHierarchy[user.role] || 0;
+        const userLevel = roleHierarchy[user.role as UserRole] || 0;
         const requiredLevel = Math.min(...allowedRoles.map(role => roleHierarchy[role] || 0));
         hasAccess = userLevel >= requiredLevel;
       }
@@ -227,8 +227,8 @@ export const hasRoleLevel = (minimumRole: UserRole): boolean => {
     'customer': 1
   };
 
-  const userLevel = roleHierarchy[user.role] || 0;
-  const requiredLevel = roleHierarchy[minimumRole] || 0;
+  const userLevel = roleHierarchy[user.role as UserRole] || 0;
+  const requiredLevel = roleHierarchy[minimumRole as UserRole] || 0;
 
   return userLevel >= requiredLevel;
 };

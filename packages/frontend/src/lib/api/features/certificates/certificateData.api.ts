@@ -11,8 +11,6 @@ import type {
 import type { CertificateDisplay } from '@/lib/types/features/certificates';
 import {
   ensureNonEmptyObject,
-  logDebug,
-  logError,
   sanitizeBoolean,
   sanitizeCertificateIds,
   sanitizeCertificateStatus,
@@ -33,6 +31,7 @@ import {
   sanitizeString,
   sanitizeTransferStatus,
 } from './utils';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 export interface CertificateListParams extends Omit<CertificateListOptions, 'dateFrom' | 'dateTo'> {
   dateFrom?: string | Date;
@@ -60,6 +59,20 @@ export interface CertificateStatusPayload {
 }
 
 const BASE_PATH = '/certificates';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createDataLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'certificates',
+  module: 'data',
+  method,
+  endpoint,
+  ...context,
+});
 
 const buildListQuery = (params?: CertificateListParams): Record<string, unknown> | undefined => {
   if (!params) {
@@ -109,7 +122,6 @@ export const certificateDataApi = {
   async listCertificates(params?: CertificateListParams): Promise<CertificateListResult> {
     try {
       const query = buildListQuery(params);
-      logDebug('data', 'Requesting certificate list', query);
 
       const response = await api.get<ApiResponse<CertificateListResult>>(BASE_PATH, {
         params: query,
@@ -117,8 +129,10 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch certificates', 500);
     } catch (error) {
-      logError('data', 'Certificate list request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', BASE_PATH, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -130,15 +144,16 @@ export const certificateDataApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('data', 'Fetching certificate', { certificateId: id });
       const response = await api.get<ApiResponse<{ certificate: CertificateDisplay }>>(
         `${BASE_PATH}/${id}`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate', 404);
     } catch (error) {
-      logError('data', 'Get certificate request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/:certificateId`, { certificateId: id }),
+      );
     }
   },
 
@@ -154,7 +169,6 @@ export const certificateDataApi = {
     const sanitizedUpdates = ensureNonEmptyObject({ ...updates }, 'updates');
 
     try {
-      logDebug('data', 'Updating certificate', { certificateId: id, fields: Object.keys(sanitizedUpdates) });
       const response = await api.put<ApiResponse<{ certificate: CertificateDisplay }>>(
         `${BASE_PATH}/${id}`,
         sanitizedUpdates,
@@ -162,8 +176,13 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to update certificate', 500);
     } catch (error) {
-      logError('data', 'Update certificate request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('PUT', `${BASE_PATH}/:certificateId`, {
+          certificateId: id,
+          fields: Object.keys(sanitizedUpdates),
+        }),
+      );
     }
   },
 
@@ -175,12 +194,13 @@ export const certificateDataApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('data', 'Deleting certificate', { certificateId: id });
       const response = await api.delete<ApiResponse<{ message: string }>>(`${BASE_PATH}/${id}`);
       return baseApi.handleResponse(response, 'Failed to delete certificate', 500);
     } catch (error) {
-      logError('data', 'Delete certificate request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('DELETE', `${BASE_PATH}/:certificateId`, { certificateId: id }),
+      );
     }
   },
 
@@ -196,7 +216,6 @@ export const certificateDataApi = {
     const sanitizedUpdates = ensureNonEmptyObject(updates, 'updates');
 
     try {
-      logDebug('data', 'Bulk updating certificates', { count: ids.length });
       const response = await api.put<ApiResponse<{ modifiedCount: number }>>(
         `${BASE_PATH}/bulk-update`,
         {
@@ -207,8 +226,10 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to bulk update certificates', 500);
     } catch (error) {
-      logError('data', 'Bulk update certificates request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('PUT', `${BASE_PATH}/bulk-update`, { certificateCount: ids.length }),
+      );
     }
   },
 
@@ -225,7 +246,6 @@ export const certificateDataApi = {
     const additionalData = payload.additionalData ? ensureNonEmptyObject(payload.additionalData, 'additionalData') : undefined;
 
     try {
-      logDebug('data', 'Updating certificate status', { certificateId: id, status });
       const response = await api.put<ApiResponse<{ certificate: CertificateDisplay }>>(
         `${BASE_PATH}/${id}/status`,
         sanitizeQuery({ status, additionalData }),
@@ -233,8 +253,13 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to update certificate status', 500);
     } catch (error) {
-      logError('data', 'Update certificate status request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('PUT', `${BASE_PATH}/:certificateId/status`, {
+          certificateId: id,
+          status,
+        }),
+      );
     }
   },
 
@@ -244,15 +269,16 @@ export const certificateDataApi = {
    */
   async getCertificateCountByStatus(): Promise<{ counts: Record<string, number> }> {
     try {
-      logDebug('data', 'Fetching certificate count by status');
       const response = await api.get<ApiResponse<{ counts: Record<string, number> }>>(
         `${BASE_PATH}/count-by-status`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate counts', 500);
     } catch (error) {
-      logError('data', 'Certificate count request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/count-by-status`),
+      );
     }
   },
 
@@ -263,7 +289,6 @@ export const certificateDataApi = {
   async getCertificatesInDateRange(params?: { startDate?: string | Date; endDate?: string | Date; limit?: number }): Promise<{ certificates: CertificateDisplay[] }> {
     try {
       const query = buildDateRangeQuery(params);
-      logDebug('data', 'Fetching certificates in date range', query);
 
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/date-range`,
@@ -272,8 +297,10 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch date range certificates', 500);
     } catch (error) {
-      logError('data', 'Date range certificates request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/date-range`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -282,9 +309,8 @@ export const certificateDataApi = {
    * GET /certificates/failed-transfers
    */
   async getFailedTransferCertificates(limit?: number): Promise<{ certificates: CertificateDisplay[] }> {
+    const params = buildLimitedQuery(limit);
     try {
-      const params = buildLimitedQuery(limit);
-      logDebug('data', 'Fetching failed transfer certificates', params);
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/failed-transfers`,
         { params },
@@ -292,8 +318,10 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch failed transfer certificates', 500);
     } catch (error) {
-      logError('data', 'Failed transfer certificates request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/failed-transfers`, params),
+      );
     }
   },
 
@@ -302,9 +330,8 @@ export const certificateDataApi = {
    * GET /certificates/pending-transfers
    */
   async getPendingTransferCertificates(limit?: number): Promise<{ certificates: CertificateDisplay[] }> {
+    const params = buildLimitedQuery(limit);
     try {
-      const params = buildLimitedQuery(limit);
-      logDebug('data', 'Fetching pending transfer certificates', params);
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/pending-transfers`,
         { params },
@@ -312,8 +339,10 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch pending transfer certificates', 500);
     } catch (error) {
-      logError('data', 'Pending transfer certificates request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/pending-transfers`, params),
+      );
     }
   },
 
@@ -329,7 +358,6 @@ export const certificateDataApi = {
     const params = buildPaginationQuery(pagination);
 
     try {
-      logDebug('data', 'Fetching certificates by product', { productId: id, ...params });
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/product/${id}`,
         { params },
@@ -337,8 +365,13 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch product certificates', 500);
     } catch (error) {
-      logError('data', 'Certificates by product request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/product/:productId`, {
+          productId: id,
+          ...(params ?? {}),
+        }),
+      );
     }
   },
 
@@ -357,7 +390,6 @@ export const certificateDataApi = {
     });
 
     try {
-      logDebug('data', 'Fetching certificates by recipient', params);
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/recipient`,
         { params },
@@ -365,8 +397,14 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch recipient certificates', 500);
     } catch (error) {
-      logError('data', 'Certificates by recipient request failed', error);
-      throw error;
+      const context: Record<string, unknown> = { recipient };
+      if (options) {
+        Object.assign(context, options);
+      }
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/recipient`, context),
+      );
     }
   },
 
@@ -378,7 +416,6 @@ export const certificateDataApi = {
     const params = sanitizeQuery({ batchId: sanitizeString(batchId, { fieldName: 'batchId', maxLength: 64 }) });
 
     try {
-      logDebug('data', 'Fetching certificates by batch', params);
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/batch`,
         { params },
@@ -386,8 +423,10 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch batch certificates', 500);
     } catch (error) {
-      logError('data', 'Certificates by batch request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/batch`, { batchId }),
+      );
     }
   },
 
@@ -403,7 +442,6 @@ export const certificateDataApi = {
     });
 
     try {
-      logDebug('data', 'Searching certificates', params);
       const response = await api.get<ApiResponse<{ certificates: CertificateDisplay[] }>>(
         `${BASE_PATH}/search`,
         { params },
@@ -411,8 +449,13 @@ export const certificateDataApi = {
 
       return baseApi.handleResponse(response, 'Failed to search certificates', 500);
     } catch (error) {
-      logError('data', 'Certificate search request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createDataLogContext('GET', `${BASE_PATH}/search`, {
+          searchTerm: sanitizedTerm,
+          limit,
+        }),
+      );
     }
   },
 };

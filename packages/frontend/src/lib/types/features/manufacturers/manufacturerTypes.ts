@@ -9,13 +9,149 @@
 // Import types for use in extends clauses
 import type {
   ManufacturerProfile,
-  ManufacturerSearchResult
+  ManufacturerSearchResult,
+  SearchOptions as ManufacturerProfileSearchOptions,
+  SearchResult as ManufacturerProfileSearchResult,
+  ProfileContext
 } from '@backend/services/manufacturers/core/manufacturerProfile.service';
+import type { IManufacturer } from '@backend/models/manufacturer/manufacturer.model';
+import type {
+  ManufacturerSearchParams,
+  RegisterManufacturerData,
+  UpdateManufacturerData
+} from '@backend/services/manufacturers/core/manufacturerData.service';
+import type {
+  AccountActivity,
+  NotificationPreferences,
+  DataExportResult,
+  ProfilePictureUploadResult,
+  SoftDeleteResult,
+  ActivityFilters
+} from '@backend/services/manufacturers/core/manufacturerAccount.service';
+import type {
+  AdvancedSearchFilters,
+  SearchOptions as ManufacturerAdvancedSearchOptions,
+  SearchHighlight,
+  AdvancedSearchResult,
+  SearchSuggestion,
+  ComparisonCriteria as ManufacturerSearchComparisonCriteria,
+  ManufacturerComparison,
+  TrendAnalysis,
+  IndustryBenchmark
+} from '@backend/services/manufacturers/features/search.service';
+import type {
+  ManufacturerComparisonResult,
+  ComparisonCriteria as ManufacturerComparisonCriteria
+} from '@backend/services/manufacturers/utils/comparisonEngine.service';
+import type {
+  VerificationStatus,
+  VerificationRequirement,
+  VerificationDocument,
+  VerificationSubmissionData,
+  VerificationSubmissionResult,
+  DetailedVerificationStatus
+} from '@backend/services/manufacturers/features/verification.service';
+import type {
+  FileUploadOptions,
+  UploadedFile,
+  QRCodeOptions,
+  QRCodeResult,
+  MediaGallery,
+  BrandAssets,
+  MediaAnalytics,
+  ImageProcessingOptions
+} from '@backend/services/manufacturers/features/media.service';
+import type {
+  SupplyChainContractInfo,
+  SupplyChainEndpoint,
+  SupplyChainProduct,
+  SupplyChainEvent,
+  SupplyChainDashboard,
+  ProductQrCodeInfo,
+  QrCodeGenerationResult,
+  BatchQrCodeResult
+} from '@backend/services/manufacturers/features/supplyChain.service';
+import type {
+  ManufacturerAnalytics,
+  ManufacturerStatistics,
+  PerformanceMetrics,
+  ExportOptions as ManufacturerAnalyticsExportOptions,
+  ExportResult as ManufacturerAnalyticsExportResult
+} from '@backend/services/manufacturers/features/analytics.service';
+import type {
+  PlanValidationResult,
+  ManufacturerPlanLimits,
+  ManufacturerPlanFeatures
+} from '@backend/services/manufacturers/validation/planValidation.service';
+import type {
+  ValidationResult as ManufacturerValidationResult
+} from '@backend/services/manufacturers/validation/manufacturerValidation.service';
+import type {
+  FileValidationOptions,
+  FileValidationResult
+} from '@backend/services/manufacturers/validation/fileValidation.service';
 
 // Re-export all backend types
 export type {
+  IManufacturer,
   ManufacturerProfile,
-  ManufacturerSearchResult
+  ManufacturerSearchResult,
+  ManufacturerProfileSearchOptions,
+  ManufacturerProfileSearchResult,
+  ProfileContext,
+  ManufacturerSearchParams,
+  RegisterManufacturerData,
+  UpdateManufacturerData,
+  AccountActivity,
+  NotificationPreferences,
+  DataExportResult,
+  ProfilePictureUploadResult,
+  SoftDeleteResult,
+  ActivityFilters,
+  AdvancedSearchFilters,
+  ManufacturerAdvancedSearchOptions,
+  SearchHighlight,
+  AdvancedSearchResult,
+  SearchSuggestion,
+  ManufacturerSearchComparisonCriteria,
+  ManufacturerComparison,
+  TrendAnalysis,
+  IndustryBenchmark,
+  ManufacturerComparisonResult,
+  ManufacturerComparisonCriteria,
+  VerificationStatus,
+  VerificationRequirement,
+  VerificationDocument,
+  VerificationSubmissionData,
+  VerificationSubmissionResult,
+  DetailedVerificationStatus,
+  FileUploadOptions,
+  UploadedFile,
+  QRCodeOptions,
+  QRCodeResult,
+  MediaGallery,
+  BrandAssets,
+  MediaAnalytics,
+  ImageProcessingOptions,
+  SupplyChainContractInfo,
+  SupplyChainEndpoint,
+  SupplyChainProduct,
+  SupplyChainEvent,
+  SupplyChainDashboard,
+  ProductQrCodeInfo,
+  QrCodeGenerationResult,
+  BatchQrCodeResult,
+  ManufacturerAnalytics,
+  ManufacturerStatistics,
+  PerformanceMetrics,
+  ManufacturerAnalyticsExportOptions,
+  ManufacturerAnalyticsExportResult,
+  PlanValidationResult,
+  ManufacturerPlanLimits,
+  ManufacturerPlanFeatures,
+  ManufacturerValidationResult,
+  FileValidationOptions,
+  FileValidationResult
 };
 
 // ===== FRONTEND-SPECIFIC EXTENSIONS =====

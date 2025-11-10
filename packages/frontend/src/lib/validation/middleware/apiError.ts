@@ -18,7 +18,7 @@ import {
   getErrorStack as getStackFromErrorHelper,
   getErrorCode as getCodeFromErrorHelper,
   getStatusCode as getStatusCodeFromHelper
-} from '@/lib/errors';
+} from '@/lib/errors/errors';
 
 import { apiLogger, createLogContextFromAxiosError, LogContext } from './apiLogger';
 

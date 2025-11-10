@@ -6,8 +6,6 @@ import baseApi from '../../core/base.api';
 import type { ApiResponse } from '@/lib/types/core';
 import {
   ensureNonEmptyObject,
-  logDebug,
-  logError,
   sanitizeBoolean,
   sanitizeContactMethod,
   sanitizeObjectId,
@@ -17,8 +15,23 @@ import {
   sanitizeString,
   sanitizeEthereumAddress,
 } from './utils';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/certificates/validation';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createValidationLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'certificates',
+  module: 'validation',
+  method,
+  endpoint,
+  ...context,
+});
 
 export const certificateValidationApi = {
   /**
@@ -30,7 +43,6 @@ export const certificateValidationApi = {
     const sanitizedRecipient = sanitizeString(recipient, { fieldName: 'recipient', maxLength: 320 });
 
     try {
-      logDebug('validation', 'Checking duplicate certificate', { productId: id });
       const response = await api.post<ApiResponse<{ certificate: unknown | null }>>(
         `${BASE_PATH}/check-duplicate`,
         {
@@ -41,8 +53,12 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to check duplicate certificate', 500);
     } catch (error) {
-      logError('validation', 'Duplicate certificate request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('POST', `${BASE_PATH}/check-duplicate`, {
+          productId: id,
+        }),
+      );
     }
   },
 
@@ -54,7 +70,6 @@ export const certificateValidationApi = {
     const id = sanitizeObjectId(productId, 'productId');
 
     try {
-      logDebug('validation', 'Validating product ownership', { productId: id });
       const response = await api.post<ApiResponse<{ isValid: boolean }>>(
         `${BASE_PATH}/validate-product-ownership`,
         { productId: id },
@@ -62,8 +77,12 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate product ownership', 500);
     } catch (error) {
-      logError('validation', 'Product ownership validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('POST', `${BASE_PATH}/validate-product-ownership`, {
+          productId: id,
+        }),
+      );
     }
   },
 
@@ -77,7 +96,6 @@ export const certificateValidationApi = {
     const tokenId = sanitizeString(params.tokenId, { fieldName: 'tokenId', maxLength: 100 });
 
     try {
-      logDebug('validation', 'Validating transfer parameters');
       const response = await api.post<ApiResponse<{ valid: boolean; error?: string }>>(
         `${BASE_PATH}/validate-transfer-parameters`,
         { contractAddress, tokenId, brandWallet },
@@ -85,8 +103,13 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate transfer parameters', 500);
     } catch (error) {
-      logError('validation', 'Transfer parameters validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('POST', `${BASE_PATH}/validate-transfer-parameters`, {
+          contractAddress,
+          brandWallet,
+        }),
+      );
     }
   },
 
@@ -98,7 +121,6 @@ export const certificateValidationApi = {
     const sanitizedAddress = sanitizeEthereumAddress(address, 'address');
 
     try {
-      logDebug('validation', 'Validating wallet address');
       const response = await api.post<ApiResponse<{ valid: boolean; error?: string }>>(
         `${BASE_PATH}/validate-wallet-address`,
         { address: sanitizedAddress },
@@ -106,8 +128,12 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate wallet address', 500);
     } catch (error) {
-      logError('validation', 'Wallet address validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('POST', `${BASE_PATH}/validate-wallet-address`, {
+          address: sanitizedAddress,
+        }),
+      );
     }
   },
 
@@ -121,7 +147,6 @@ export const certificateValidationApi = {
     });
 
     try {
-      logDebug('validation', 'Validating relayer wallet', params);
       const response = await api.get<ApiResponse<{ valid: boolean; address?: string; error?: string }>>(
         `${BASE_PATH}/validate-relayer-wallet`,
         { params },
@@ -129,8 +154,10 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate relayer wallet', 500);
     } catch (error) {
-      logError('validation', 'Relayer wallet validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('GET', `${BASE_PATH}/validate-relayer-wallet`, params),
+      );
     }
   },
 
@@ -142,7 +169,6 @@ export const certificateValidationApi = {
     const body = ensureNonEmptyObject(metadata, 'metadata');
 
     try {
-      logDebug('validation', 'Validating certificate metadata');
       const response = await api.post<ApiResponse<{ valid: boolean; errors: string[] }>>(
         `${BASE_PATH}/validate-metadata`,
         { metadata: body },
@@ -150,8 +176,10 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate certificate metadata', 500);
     } catch (error) {
-      logError('validation', 'Metadata validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('POST', `${BASE_PATH}/validate-metadata`),
+      );
     }
   },
 
@@ -183,7 +211,6 @@ export const certificateValidationApi = {
     });
 
     try {
-      logDebug('validation', 'Validating batch inputs', { count: sanitizedInputs.length });
       const response = await api.post<ApiResponse<{ valid: boolean; errors: Array<{ index: number; error: string }> }>>(
         `${BASE_PATH}/validate-batch-inputs`,
         { inputs: sanitizedInputs },
@@ -191,8 +218,12 @@ export const certificateValidationApi = {
 
       return baseApi.handleResponse(response, 'Failed to validate batch inputs', 500);
     } catch (error) {
-      logError('validation', 'Batch inputs validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('POST', `${BASE_PATH}/validate-batch-inputs`, {
+          count: sanitizedInputs.length,
+        }),
+      );
     }
   },
 
@@ -204,15 +235,18 @@ export const certificateValidationApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('validation', 'Validating certificate ownership', { certificateId: id });
       const response = await api.get<ApiResponse<{ certificate: unknown }>>(
         `${BASE_PATH}/${id}/validate-ownership`,
       );
 
       return baseApi.handleResponse(response, 'Failed to validate certificate ownership', 404);
     } catch (error) {
-      logError('validation', 'Certificate ownership validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('GET', `${BASE_PATH}/:certificateId/validate-ownership`, {
+          certificateId: id,
+        }),
+      );
     }
   },
 
@@ -224,15 +258,18 @@ export const certificateValidationApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('validation', 'Validating certificate transferable', { certificateId: id });
       const response = await api.get<ApiResponse<{ valid: boolean; error?: string }>>(
         `${BASE_PATH}/${id}/validate-transferable`,
       );
 
       return baseApi.handleResponse(response, 'Failed to validate certificate transferable state', 404);
     } catch (error) {
-      logError('validation', 'Certificate transferable validation failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createValidationLogContext('GET', `${BASE_PATH}/:certificateId/validate-transferable`, {
+          certificateId: id,
+        }),
+      );
     }
   },
 };

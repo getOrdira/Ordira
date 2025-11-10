@@ -8,6 +8,8 @@ import type {
   AnalyticsReportPayload,
   AnalyticsReportType,
 } from '@/lib/types/features/analytics';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 export interface DashboardReplicaTimelineEntry {
   date: string;
@@ -50,24 +52,18 @@ export interface BusinessReportingResponse {
   generatedAt: string;
 }
 
-const toIsoString = (value?: string | Date): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return value;
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
-const sanitizeQuery = (query: Record<string, unknown>): Record<string, unknown> => {
-  return Object.entries(query).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+const createAnalyticsLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'analytics',
+  method,
+  endpoint,
+  ...context,
+});
 
 /**
  * Analytics Reporting API
@@ -85,9 +81,9 @@ export const analyticsReportingApi = {
     params?: { startDate?: string | Date; endDate?: string | Date },
   ): Promise<DashboardReplicaResponse> {
     try {
-      const query = sanitizeQuery({
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+      const query = baseApi.sanitizeQueryParams({
+        startDate: params?.startDate,
+        endDate: params?.endDate,
       });
 
       const response = await api.get<ApiResponse<DashboardReplicaResponse>>(
@@ -101,8 +97,16 @@ export const analyticsReportingApi = {
         500,
       );
     } catch (error) {
-      console.error('Replica dashboard analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext(
+          'GET',
+          `/analytics/reporting/business/${encodeURIComponent(businessId)}/dashboard`,
+          {
+            businessId,
+          },
+        ),
+      );
     }
   },
 
@@ -116,13 +120,15 @@ export const analyticsReportingApi = {
   ): Promise<BusinessReportingResponse> {
     try {
       if (!params?.reportType) {
-        throw new Error('reportType is required to fetch reporting data');
+        throw new ApiError('reportType is required to fetch reporting data', 400, 'VALIDATION_ERROR', {
+          businessId,
+        });
       }
 
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         reportType: params.reportType,
-        startDate: toIsoString(params.startDate),
-        endDate: toIsoString(params.endDate),
+        startDate: params.startDate,
+        endDate: params.endDate,
         includeRawData: params.includeRawData,
         useReplica: params.useReplica,
       });
@@ -138,8 +144,17 @@ export const analyticsReportingApi = {
         500,
       );
     } catch (error) {
-      console.error('Business reporting data fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext(
+          'GET',
+          `/analytics/reporting/business/${encodeURIComponent(businessId)}/report`,
+          {
+            businessId,
+            reportType: params?.reportType,
+          },
+        ),
+      );
     }
   },
 };

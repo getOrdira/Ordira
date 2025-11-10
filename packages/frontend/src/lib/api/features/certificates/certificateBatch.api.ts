@@ -10,9 +10,6 @@ import type {
   BatchProgress,
 } from '@backend/services/certificates/features/batch.service';
 import {
-  ensureNonEmptyObject,
-  logDebug,
-  logError,
   sanitizeBoolean,
   sanitizeContactMethod,
   sanitizeObjectId,
@@ -22,8 +19,23 @@ import {
   sanitizeRecipientByContactMethod,
   sanitizeString,
 } from './utils';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/certificates/batch';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBatchLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'certificates',
+  module: 'batch',
+  method,
+  endpoint,
+  ...context,
+});
 
 export interface BatchCreateJobPayload extends BatchCreateInput {
   planLevel?: string;
@@ -123,11 +135,6 @@ export const certificateBatchApi = {
     const sanitizedPayload = sanitizeCreateBatchPayload(payload);
 
     try {
-      logDebug('batch', 'Creating batch certificate job', {
-        productId: sanitizedPayload.productId,
-        recipients: sanitizedPayload.recipients.length,
-      });
-
       const response = await api.post<ApiResponse<{ result: BatchJobResult }>>(
         `${BASE_PATH}/create-job`,
         sanitizedPayload,
@@ -135,8 +142,13 @@ export const certificateBatchApi = {
 
       return baseApi.handleResponse(response, 'Failed to create batch certificate job', 500);
     } catch (error) {
-      logError('batch', 'Create batch job request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('POST', `${BASE_PATH}/create-job`, {
+          productId: sanitizedPayload.productId,
+          recipientCount: sanitizedPayload.recipients.length,
+        }),
+      );
     }
   },
 
@@ -148,15 +160,16 @@ export const certificateBatchApi = {
     const id = sanitizeString(batchId, { fieldName: 'batchId', maxLength: 128 });
 
     try {
-      logDebug('batch', 'Fetching batch progress', { batchId: id });
       const response = await api.get<ApiResponse<{ progress: BatchProgress }>>(
         `${BASE_PATH}/${id}/progress`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch batch progress', 404);
     } catch (error) {
-      logError('batch', 'Batch progress request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('GET', `${BASE_PATH}/:batchId/progress`, { batchId: id }),
+      );
     }
   },
 
@@ -168,15 +181,16 @@ export const certificateBatchApi = {
     const id = sanitizeString(batchId, { fieldName: 'batchId', maxLength: 128 });
 
     try {
-      logDebug('batch', 'Cancelling batch job', { batchId: id });
       const response = await api.delete<ApiResponse<{ result: { success: boolean; message: string } }>>(
         `${BASE_PATH}/${id}/cancel`,
       );
 
       return baseApi.handleResponse(response, 'Failed to cancel batch job', 500);
     } catch (error) {
-      logError('batch', 'Cancel batch job request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('DELETE', `${BASE_PATH}/:batchId/cancel`, { batchId: id }),
+      );
     }
   },
 
@@ -188,15 +202,16 @@ export const certificateBatchApi = {
     const id = sanitizeString(batchId, { fieldName: 'batchId', maxLength: 128 });
 
     try {
-      logDebug('batch', 'Retrying failed batch items', { batchId: id });
       const response = await api.post<ApiResponse<{ result: { retried: number; successful: number; failed: number } }>>(
         `${BASE_PATH}/${id}/retry-failed`,
       );
 
       return baseApi.handleResponse(response, 'Failed to retry failed batch items', 500);
     } catch (error) {
-      logError('batch', 'Retry failed batch items request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('POST', `${BASE_PATH}/:batchId/retry-failed`, { batchId: id }),
+      );
     }
   },
 
@@ -206,15 +221,16 @@ export const certificateBatchApi = {
    */
   async getActiveBatchJobs(): Promise<{ activeJobs: Array<{ id: string; status: string; createdAt: string; total: number; processed: number }> }> {
     try {
-      logDebug('batch', 'Fetching active batch jobs');
       const response = await api.get<ApiResponse<{ activeJobs: Array<{ id: string; status: string; createdAt: string; total: number; processed: number }> }>>(
         `${BASE_PATH}/active-jobs`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch active batch jobs', 500);
     } catch (error) {
-      logError('batch', 'Active batch jobs request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('GET', `${BASE_PATH}/active-jobs`),
+      );
     }
   },
 
@@ -224,15 +240,16 @@ export const certificateBatchApi = {
    */
   async getBatchJobStatistics(): Promise<{ statistics: { totalJobs: number; completedJobs: number; failedJobs: number; averageCompletionTime: number; successRate: number } }> {
     try {
-      logDebug('batch', 'Fetching batch job statistics');
       const response = await api.get<ApiResponse<{ statistics: { totalJobs: number; completedJobs: number; failedJobs: number; averageCompletionTime: number; successRate: number } }>>(
         `${BASE_PATH}/statistics`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch batch job statistics', 500);
     } catch (error) {
-      logError('batch', 'Batch statistics request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('GET', `${BASE_PATH}/statistics`),
+      );
     }
   },
 
@@ -244,7 +261,6 @@ export const certificateBatchApi = {
     const params = sanitizeQuery({ plan: sanitizeString(plan, { fieldName: 'plan', maxLength: 50 }) });
 
     try {
-      logDebug('batch', 'Fetching batch limits', params);
       const response = await api.get<ApiResponse<{ limits: { maxBatchSize: number; maxConcurrent: number } }>>(
         `${BASE_PATH}/limits`,
         { params },
@@ -252,8 +268,10 @@ export const certificateBatchApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch batch limits', 500);
     } catch (error) {
-      logError('batch', 'Batch limits request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('GET', `${BASE_PATH}/limits`, params),
+      );
     }
   },
 
@@ -269,7 +287,6 @@ export const certificateBatchApi = {
     const batchOptions = sanitizedOptions && Object.keys(sanitizedOptions).length > 0 ? sanitizedOptions : undefined;
 
     try {
-      logDebug('batch', 'Calculating batch duration', { recipientCount, hasWeb3, ...batchOptions });
       const response = await api.post<ApiResponse<{ durationSeconds: number }>>(
         `${BASE_PATH}/calculate-duration`,
         sanitizeQuery({
@@ -281,8 +298,14 @@ export const certificateBatchApi = {
 
       return baseApi.handleResponse(response, 'Failed to calculate batch duration', 500);
     } catch (error) {
-      logError('batch', 'Batch duration request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('POST', `${BASE_PATH}/calculate-duration`, {
+          recipientCount,
+          hasWeb3,
+          ...batchOptions,
+        }),
+      );
     }
   },
 
@@ -294,7 +317,6 @@ export const certificateBatchApi = {
     const params = sanitizeQuery({ plan: plan ? sanitizeString(plan, { fieldName: 'plan', maxLength: 50 }) : undefined });
 
     try {
-      logDebug('batch', 'Determining batch priority', params);
       const response = await api.get<ApiResponse<{ priority: 'low' | 'normal' | 'high' }>>(
         `${BASE_PATH}/priority`,
         { params },
@@ -302,8 +324,10 @@ export const certificateBatchApi = {
 
       return baseApi.handleResponse(response, 'Failed to determine batch priority', 500);
     } catch (error) {
-      logError('batch', 'Batch priority request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBatchLogContext('GET', `${BASE_PATH}/priority`, params),
+      );
     }
   },
 };

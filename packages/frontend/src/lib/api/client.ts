@@ -1,8 +1,8 @@
 // src/lib/api/client.ts
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
-import { getToken, getRefreshToken, setTokens, clearTokens } from '@/lib/auth/session';
-import { ApiError } from '@/lib/errors';
+import { getToken, getRefreshToken, setTokens, clearTokens } from '@/lib/auth/session/session';
+import { ApiError } from '@/lib/errors/errors';
 
 // Extended request config for retry logic
 interface RetryableAxiosRequestConfig extends InternalAxiosRequestConfig {

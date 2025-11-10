@@ -5,19 +5,28 @@ import { api } from '../../client';
 import baseApi from '../../core/base.api';
 import type { ApiResponse } from '@/lib/types/core';
 import type { CompletenessConfig, CompletenessResult } from '@/lib/types/features/brands';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/completeness';
 
-const cleanQuery = (params?: Record<string, unknown>) => {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const sanitizeCompletenessParams = (params?: BrandCompletenessParams) => {
   if (!params) {
     return undefined;
   }
-  return Object.entries(params).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...params } as Record<string, unknown>);
 };
 
 export interface BrandCompletenessParams {
@@ -34,7 +43,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ result: CompletenessResult }>>(
         `${BASE_PATH}/profile`,
-        { params: cleanQuery(params) },
+        { params: sanitizeCompletenessParams(params) },
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -43,8 +52,10 @@ export const brandCompletenessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand profile completeness calculation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/profile`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -56,7 +67,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ result: CompletenessResult }>>(
         `${BASE_PATH}/settings`,
-        { params: cleanQuery(params) },
+        { params: sanitizeCompletenessParams(params) },
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -65,8 +76,10 @@ export const brandCompletenessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand settings completeness calculation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/settings`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -78,7 +91,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ result: CompletenessResult }>>(
         `${BASE_PATH}/integrations`,
-        { params: cleanQuery(params) },
+        { params: sanitizeCompletenessParams(params) },
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -87,8 +100,10 @@ export const brandCompletenessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand integration completeness calculation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/integrations`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -100,7 +115,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ result: CompletenessResult }>>(
         `${BASE_PATH}/overall`,
-        { params: cleanQuery(params) },
+        { params: sanitizeCompletenessParams(params) },
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -109,8 +124,10 @@ export const brandCompletenessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand overall completeness calculation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/overall`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -122,7 +139,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ config: CompletenessConfig }>>(
         `${BASE_PATH}/config/profile`,
-        { params: { plan } },
+        { params: baseApi.sanitizeQueryParams({ plan }) },
       );
       const { config } = baseApi.handleResponse(
         response,
@@ -131,8 +148,10 @@ export const brandCompletenessApi = {
       );
       return config;
     } catch (error) {
-      console.error('Brand profile completeness config fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/config/profile`, { plan }),
+      );
     }
   },
 
@@ -144,7 +163,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ config: CompletenessConfig }>>(
         `${BASE_PATH}/config/settings`,
-        { params: { plan } },
+        { params: baseApi.sanitizeQueryParams({ plan }) },
       );
       const { config } = baseApi.handleResponse(
         response,
@@ -153,8 +172,10 @@ export const brandCompletenessApi = {
       );
       return config;
     } catch (error) {
-      console.error('Brand settings completeness config fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/config/settings`, { plan }),
+      );
     }
   },
 
@@ -166,7 +187,7 @@ export const brandCompletenessApi = {
     try {
       const response = await api.get<ApiResponse<{ config: CompletenessConfig }>>(
         `${BASE_PATH}/config/integrations`,
-        { params: { plan } },
+        { params: baseApi.sanitizeQueryParams({ plan }) },
       );
       const { config } = baseApi.handleResponse(
         response,
@@ -175,8 +196,10 @@ export const brandCompletenessApi = {
       );
       return config;
     } catch (error) {
-      console.error('Brand integration completeness config fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/config/integrations`, { plan }),
+      );
     }
   },
 
@@ -196,8 +219,10 @@ export const brandCompletenessApi = {
       );
       return score;
     } catch (error) {
-      console.error('Brand legacy profile completeness fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/legacy/profile`),
+      );
     }
   },
 
@@ -217,8 +242,10 @@ export const brandCompletenessApi = {
       );
       return score;
     } catch (error) {
-      console.error('Brand legacy setup completeness fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/legacy/setup`),
+      );
     }
   },
 };

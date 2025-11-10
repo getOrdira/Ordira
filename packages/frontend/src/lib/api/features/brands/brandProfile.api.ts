@@ -2,9 +2,25 @@
 // Brand Profile API module aligned with backend routes/features/brands/brandProfile.routes.ts
 
 import { api, publicApi } from '../../client';
+import baseApi from '../../core/base.api';
 import type { BrandProfile, BrandProfileSummary } from '@/lib/types/features/brands';
 import type { ApiResponse, PaginatedResponse } from '@/lib/types/core';
-import { ApiError } from '@/lib/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const VOID_RESPONSE_OPTIONS = { requireData: false } as const;
 
 /**
  * Brand Profile API
@@ -25,15 +41,18 @@ export const brandProfileApi = {
     try {
       const response = await publicApi.get<ApiResponse<BrandProfileSummary[]>>(
         '/api/brands/profile/trending',
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch trending brands', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch trending brands',
+        500
+      );
     } catch (error) {
-      console.error('Get trending brands error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/trending', params)
+      );
     }
   },
 
@@ -47,15 +66,18 @@ export const brandProfileApi = {
     try {
       const response = await publicApi.get<ApiResponse<BrandProfileSummary[]>>(
         '/api/brands/profile/featured',
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch featured brands', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch featured brands',
+        500
+      );
     } catch (error) {
-      console.error('Get featured brands error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/featured', params)
+      );
     }
   },
 
@@ -73,15 +95,18 @@ export const brandProfileApi = {
     try {
       const response = await publicApi.get<ApiResponse<PaginatedResponse<BrandProfileSummary>>>(
         '/api/brands/profile/search',
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Brand search failed', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Brand search failed',
+        500
+      );
     } catch (error) {
-      console.error('Search brands error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/search', { query: params.query })
+      );
     }
   },
 
@@ -103,15 +128,18 @@ export const brandProfileApi = {
     try {
       const response = await publicApi.get<ApiResponse<PaginatedResponse<BrandProfileSummary>>>(
         '/api/brands/profile',
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to list brands', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to list brands',
+        500
+      );
     } catch (error) {
-      console.error('List brands error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile', params)
+      );
     }
   },
 
@@ -124,13 +152,16 @@ export const brandProfileApi = {
       const response = await publicApi.get<ApiResponse<BrandProfile>>(
         `/api/brands/profile/domain/${encodeURIComponent(domain)}`
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch brand by domain', response.statusCode || 404);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch brand by domain',
+        404
+      );
     } catch (error) {
-      console.error('Get brand by domain error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/domain/:domain', { domain })
+      );
     }
   },
 
@@ -143,13 +174,16 @@ export const brandProfileApi = {
       const response = await publicApi.get<ApiResponse<BrandProfile>>(
         `/api/brands/profile/subdomain/${encodeURIComponent(subdomain)}`
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch brand by subdomain', response.statusCode || 404);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch brand by subdomain',
+        404
+      );
     } catch (error) {
-      console.error('Get brand by subdomain error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/subdomain/:subdomain', { subdomain })
+      );
     }
   },
 
@@ -164,15 +198,18 @@ export const brandProfileApi = {
     try {
       const response = await publicApi.get<ApiResponse<BrandProfile>>(
         `/api/brands/profile/${brandId}`,
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch brand', response.statusCode || 404);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch brand',
+        404
+      );
     } catch (error) {
-      console.error('Get brand by ID error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/:brandId', { brandId, ...params })
+      );
     }
   },
 
@@ -187,15 +224,18 @@ export const brandProfileApi = {
     try {
       const response = await api.get<ApiResponse<any>>(
         `/api/brands/profile/${brandId}/analytics`,
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch brand analytics', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch brand analytics',
+        500
+      );
     } catch (error) {
-      console.error('Get brand analytics error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/:brandId/analytics', { brandId, ...params })
+      );
     }
   },
 
@@ -211,15 +251,18 @@ export const brandProfileApi = {
     try {
       const response = await api.get<ApiResponse<PaginatedResponse<any>>>(
         `/api/brands/profile/${brandId}/connections`,
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch brand connections', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch brand connections',
+        500
+      );
     } catch (error) {
-      console.error('Get brand connections error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/:brandId/connections', { brandId, ...params })
+      );
     }
   },
 
@@ -234,15 +277,18 @@ export const brandProfileApi = {
     try {
       const response = await api.get<ApiResponse<any[]>>(
         `/api/brands/profile/${brandId}/recommendations`,
-        { params }
+        { params: baseApi.sanitizeQueryParams(params) }
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to fetch brand recommendations', response.statusCode || 500);
-      }
-      return response.data!;
+      return baseApi.handleResponse(
+        response,
+        'Failed to fetch brand recommendations',
+        500
+      );
     } catch (error) {
-      console.error('Get brand recommendations error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/:brandId/recommendations', { brandId, ...params })
+      );
     }
   },
 
@@ -255,12 +301,17 @@ export const brandProfileApi = {
       const response = await api.get<ApiResponse<void>>(
         `/api/brands/profile/${brandId}/view`
       );
-      if (!response.success) {
-        throw new ApiError(response.message || 'Failed to track brand view', response.statusCode || 500);
-      }
+      baseApi.handleResponse(
+        response,
+        'Failed to track brand view',
+        500,
+        VOID_RESPONSE_OPTIONS
+      );
     } catch (error) {
-      console.error('Track brand view error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', '/api/brands/profile/:brandId/view', { brandId })
+      );
     }
   },
 };

@@ -12,8 +12,6 @@ import type {
   TransferHealth,
 } from '@backend/services/certificates/core';
 import {
-  logDebug,
-  logError,
   sanitizeBoolean,
   sanitizeDays,
   sanitizeMonthsBack,
@@ -23,8 +21,23 @@ import {
   sanitizePlan,
   sanitizeQuery,
 } from './utils';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/certificates/account';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createAccountLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'certificates',
+  module: 'account',
+  method,
+  endpoint,
+  ...context,
+});
 
 export const certificateAccountApi = {
   /**
@@ -38,7 +51,6 @@ export const certificateAccountApi = {
     });
 
     try {
-      logDebug('account', 'Fetching certificate stats', params);
       const response = await api.get<ApiResponse<{ stats: CertificateStats }>>(
         `${BASE_PATH}/stats`,
         { params },
@@ -46,8 +58,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate stats', 500);
     } catch (error) {
-      logError('account', 'Certificate stats request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/stats`, params),
+      );
     }
   },
 
@@ -64,7 +78,6 @@ export const certificateAccountApi = {
     const params = sanitizeQuery({ timeframe });
 
     try {
-      logDebug('account', 'Fetching certificate usage', params);
       const response = await api.get<ApiResponse<{ usage: CertificateUsage }>>(
         `${BASE_PATH}/usage`,
         { params },
@@ -72,8 +85,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate usage', 500);
     } catch (error) {
-      logError('account', 'Certificate usage request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/usage`, params),
+      );
     }
   },
 
@@ -87,7 +102,6 @@ export const certificateAccountApi = {
     });
 
     try {
-      logDebug('account', 'Fetching transfer usage', params);
       const response = await api.get<ApiResponse<{ transferUsage: TransferUsage }>>(
         `${BASE_PATH}/transfer-usage`,
         { params },
@@ -95,8 +109,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch transfer usage', 500);
     } catch (error) {
-      logError('account', 'Transfer usage request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/transfer-usage`, params),
+      );
     }
   },
 
@@ -113,7 +129,6 @@ export const certificateAccountApi = {
     const params = sanitizeQuery({ groupBy });
 
     try {
-      logDebug('account', 'Fetching certificate distribution', params);
       const response = await api.get<ApiResponse<{ distribution: Record<string, number> }>>(
         `${BASE_PATH}/distribution`,
         { params },
@@ -121,8 +136,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate distribution', 500);
     } catch (error) {
-      logError('account', 'Certificate distribution request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/distribution`, params),
+      );
     }
   },
 
@@ -136,7 +153,6 @@ export const certificateAccountApi = {
     });
 
     try {
-      logDebug('account', 'Fetching monthly certificate trends', params);
       const response = await api.get<ApiResponse<{ trends: Array<{ month: string; count: number }> }>>(
         `${BASE_PATH}/monthly-trends`,
         { params },
@@ -144,8 +160,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch certificate trends', 500);
     } catch (error) {
-      logError('account', 'Certificate trends request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/monthly-trends`, params),
+      );
     }
   },
 
@@ -155,15 +173,16 @@ export const certificateAccountApi = {
    */
   async getCertificatesByProduct(): Promise<{ productCounts: Array<{ productId: string; count: number }> }> {
     try {
-      logDebug('account', 'Fetching certificates by product');
       const response = await api.get<ApiResponse<{ productCounts: Array<{ productId: string; count: number }> }>>(
         `${BASE_PATH}/by-product`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch certificates by product', 500);
     } catch (error) {
-      logError('account', 'Certificates by product request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/by-product`),
+      );
     }
   },
 
@@ -175,7 +194,6 @@ export const certificateAccountApi = {
     const params = sanitizeQuery({ planType: sanitizeOptionalString(options?.planType, { fieldName: 'planType', maxLength: 50 }) });
 
     try {
-      logDebug('account', 'Checking plan limits', params);
       const response = await api.get<ApiResponse<{ limits: { used: number; limit: number; percentage: number; nearingLimit: boolean } }>>(
         `${BASE_PATH}/plan-limits`,
         { params },
@@ -183,8 +201,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to check plan limits', 500);
     } catch (error) {
-      logError('account', 'Plan limits request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/plan-limits`, params),
+      );
     }
   },
 
@@ -194,15 +214,16 @@ export const certificateAccountApi = {
    */
   async getAverageProcessingTime(): Promise<{ averageTimeMs: number }> {
     try {
-      logDebug('account', 'Fetching average processing time');
       const response = await api.get<ApiResponse<{ averageTimeMs: number }>>(
         `${BASE_PATH}/average-processing-time`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch processing time', 500);
     } catch (error) {
-      logError('account', 'Average processing time request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/average-processing-time`),
+      );
     }
   },
 
@@ -216,7 +237,6 @@ export const certificateAccountApi = {
     });
 
     try {
-      logDebug('account', 'Fetching success rate', params);
       const response = await api.get<ApiResponse<{ successRate: number }>>(
         `${BASE_PATH}/success-rate`,
         { params },
@@ -224,8 +244,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch success rate', 500);
     } catch (error) {
-      logError('account', 'Success rate request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/success-rate`, params),
+      );
     }
   },
 
@@ -249,7 +271,6 @@ export const certificateAccountApi = {
     });
 
     try {
-      logDebug('account', 'Fetching transfer statistics', params);
       const response = await api.get<ApiResponse<{ statistics: { total: number; successful: number; failed: number; pending: number; successRate: number; averageTime: number } }>>(
         `${BASE_PATH}/transfer-statistics`,
         { params },
@@ -257,8 +278,10 @@ export const certificateAccountApi = {
 
       return baseApi.handleResponse(response, 'Failed to fetch transfer statistics', 500);
     } catch (error) {
-      logError('account', 'Transfer statistics request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/transfer-statistics`, params),
+      );
     }
   },
 
@@ -268,15 +291,16 @@ export const certificateAccountApi = {
    */
   async getGlobalTransferAnalytics(): Promise<{ analytics: any }> {
     try {
-      logDebug('account', 'Fetching global transfer analytics');
       const response = await api.get<ApiResponse<{ analytics: any }>>(
         `${BASE_PATH}/global-analytics`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch global analytics', 500);
     } catch (error) {
-      logError('account', 'Global analytics request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/global-analytics`),
+      );
     }
   },
 
@@ -288,15 +312,18 @@ export const certificateAccountApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('account', 'Fetching ownership status', { certificateId: id });
       const response = await api.get<ApiResponse<{ ownershipStatus: OwnershipStatus }>>(
         `${BASE_PATH}/${id}/ownership-status`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch ownership status', 404);
     } catch (error) {
-      logError('account', 'Ownership status request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/:certificateId/ownership-status`, {
+          certificateId: id,
+        }),
+      );
     }
   },
 
@@ -308,15 +335,18 @@ export const certificateAccountApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('account', 'Fetching transfer health', { certificateId: id });
       const response = await api.get<ApiResponse<{ transferHealth: TransferHealth }>>(
         `${BASE_PATH}/${id}/transfer-health`,
       );
 
       return baseApi.handleResponse(response, 'Failed to fetch transfer health', 404);
     } catch (error) {
-      logError('account', 'Transfer health request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAccountLogContext('GET', `${BASE_PATH}/:certificateId/transfer-health`, {
+          certificateId: id,
+        }),
+      );
     }
   },
 };

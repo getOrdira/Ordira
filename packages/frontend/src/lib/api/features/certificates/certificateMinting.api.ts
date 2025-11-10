@@ -8,8 +8,6 @@ import type { CertificateDisplay } from '@/lib/types/features/certificates';
 import type { CreateCertInput } from '@backend/services/certificates/features';
 import {
   ensureNonEmptyObject,
-  logDebug,
-  logError,
   sanitizeBoolean,
   sanitizeContactMethod,
   sanitizeObjectId,
@@ -21,8 +19,23 @@ import {
   sanitizePriority,
   sanitizeDateInput,
 } from './utils';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/certificates/minting';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createMintingLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'certificates',
+  module: 'minting',
+  method,
+  endpoint,
+  ...context,
+});
 
 type FrontendCertificateImage = File | Blob;
 
@@ -189,7 +202,6 @@ export const certificateMintingApi = {
     const body = sanitizeCreatePayload(payload);
 
     try {
-      logDebug('minting', 'Creating certificate', { productId: body.productId, contactMethod: body.contactMethod });
       const response = await api.post<ApiResponse<{ certificate: CertificateDisplay }>>(
         `${BASE_PATH}/create`,
         body,
@@ -197,8 +209,13 @@ export const certificateMintingApi = {
 
       return baseApi.handleResponse(response, 'Failed to create certificate', 500);
     } catch (error) {
-      logError('minting', 'Create certificate request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createMintingLogContext('POST', `${BASE_PATH}/create`, {
+          productId: body.productId,
+          contactMethod: body.contactMethod,
+        }),
+      );
     }
   },
 
@@ -210,7 +227,6 @@ export const certificateMintingApi = {
     const sanitizedPayload = sanitizeBatchCreatePayload(payload);
 
     try {
-      logDebug('minting', 'Batch creating certificates', { count: sanitizedPayload.certificates.length });
       const response = await api.post<ApiResponse<{ result: { successful: CertificateDisplay[]; failed: Array<{ input: unknown; error: string }> } }>>(
         `${BASE_PATH}/batch-create`,
         sanitizedPayload,
@@ -218,8 +234,12 @@ export const certificateMintingApi = {
 
       return baseApi.handleResponse(response, 'Failed to batch create certificates', 500);
     } catch (error) {
-      logError('minting', 'Batch create certificates request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createMintingLogContext('POST', `${BASE_PATH}/batch-create`, {
+          certificateCount: sanitizedPayload.certificates.length,
+        }),
+      );
     }
   },
 
@@ -238,7 +258,6 @@ export const certificateMintingApi = {
     formData.append('certificateImage', file, 'name' in file ? file.name : fileName);
 
     try {
-      logDebug('minting', 'Updating certificate image', { certificateId: id });
       const response = await api.put<ApiResponse<{ result: { success: boolean; imageUrl?: string } }>>(
         `${BASE_PATH}/${id}/image`,
         formData,
@@ -251,8 +270,10 @@ export const certificateMintingApi = {
 
       return baseApi.handleResponse(response, 'Failed to update certificate image', 500);
     } catch (error) {
-      logError('minting', 'Update certificate image request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createMintingLogContext('PUT', `${BASE_PATH}/:certificateId/image`, { certificateId: id }),
+      );
     }
   },
 
@@ -264,15 +285,16 @@ export const certificateMintingApi = {
     const id = sanitizeObjectId(certificateId, 'certificateId');
 
     try {
-      logDebug('minting', 'Deleting certificate assets', { certificateId: id });
       const response = await api.delete<ApiResponse<{ message: string }>>(
         `${BASE_PATH}/${id}/assets`,
       );
 
       return baseApi.handleResponse(response, 'Failed to delete certificate assets', 500);
     } catch (error) {
-      logError('minting', 'Delete certificate assets request failed', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createMintingLogContext('DELETE', `${BASE_PATH}/:certificateId/assets`, { certificateId: id }),
+      );
     }
   },
 };

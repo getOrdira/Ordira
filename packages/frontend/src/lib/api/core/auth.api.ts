@@ -22,9 +22,10 @@ import type {
   SecuritySettings
 } from '@/lib/types/features/auth';
 import type { ApiResponse } from '@/lib/types/core';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 import type { AnyUser } from '@/lib/types/features/users';
-import { setTokens, getRefreshToken, clearTokens } from '@/lib/auth/session';
+import { setTokens, getRefreshToken, clearTokens } from '@/lib/auth/session/session';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 import { commonSchemas } from '@/lib/validation/schemas/commonSchemas';
 import { securityFeatureSchemas } from '@/lib/validation/schemas/features/security';
 
@@ -222,6 +223,13 @@ const updateSecuritySettingsSchema = Joi.object<Partial<SecuritySettings>>({
   suspiciousActivityAlerts: Joi.boolean().optional()
 }).min(1);
 
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createLogContext = (method: HttpMethod, endpoint: string) => ({
+  method,
+  endpoint
+});
+
 const persistSession = (auth?: AuthResponse | null): void => {
   if (auth?.token && auth.refreshToken) {
     setTokens(auth.token, auth.refreshToken);
@@ -285,9 +293,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/login'));
     }
   },
 
@@ -309,9 +316,8 @@ export const authApi = {
   verify: async (data: EmailVerificationData): Promise<void> => {
     try {
       await postValidated('/auth/verify', userVerificationSchema, data, 'Verification failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Verification error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/verify'));
     }
   },
 
@@ -322,9 +328,8 @@ export const authApi = {
   forgotPassword: async (data: ForgotPasswordData): Promise<void> => {
     try {
       await postValidated('/auth/forgot-password', forgotPasswordSchema, data, 'Forgot password request failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Forgot password error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/forgot-password'));
     }
   },
 
@@ -335,9 +340,8 @@ export const authApi = {
   resetPassword: async (data: ResetPasswordData): Promise<void> => {
     try {
       await postValidated('/auth/reset-password', resetPasswordSchema, data, 'Password reset failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Reset password error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/reset-password'));
     }
   },
 
@@ -348,9 +352,8 @@ export const authApi = {
   resendVerification: async (data: EmailVerificationData): Promise<void> => {
     try {
       await postValidated('/auth/resend-verification', resendVerificationSchema, data, 'Resend verification failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Resend verification error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/resend-verification'));
     }
   },
 
@@ -363,8 +366,8 @@ export const authApi = {
       const response = await api.post<ApiResponse<void>>('/auth/logout');
       baseApi.handleResponse(response, 'Logout failed', 400, VOID_RESPONSE_OPTIONS);
       clearTokens();
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (error: unknown) {
+      handleApiError(error, createLogContext('POST', '/auth/logout'));
       clearTokens(); // Clear local tokens even if server fails
     }
   },
@@ -377,9 +380,8 @@ export const authApi = {
     try {
       const response = await api.get<ApiResponse<AnyUser>>('/auth/me');
       return baseApi.handleResponse(response, 'Failed to fetch user', 401);
-    } catch (error) {
-      console.error('Get profile error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('GET', '/auth/me'));
     }
   },
 
@@ -400,9 +402,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('User registration error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/register/user'));
     }
   },
 
@@ -421,9 +422,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('User login error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/login/user'));
     }
   },
 
@@ -434,9 +434,8 @@ export const authApi = {
   verifyUser: async (data: EmailVerificationData): Promise<void> => {
     try {
       await postValidated('/auth/verify/user', userVerificationSchema, data, 'Verification failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('User verification error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/verify/user'));
     }
   },
 
@@ -455,9 +454,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('Business registration error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/register/business'));
     }
   },
 
@@ -476,9 +474,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('Business login error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/login/business'));
     }
   },
 
@@ -489,9 +486,8 @@ export const authApi = {
   verifyBusiness: async (data: EmailVerificationData): Promise<void> => {
     try {
       await postValidated('/auth/verify/business', businessVerificationSchema, data, 'Verification failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Business verification error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/verify/business'));
     }
   },
 
@@ -510,9 +506,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('Manufacturer registration error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/manufacturer/auth/register'));
     }
   },
 
@@ -531,9 +526,8 @@ export const authApi = {
       );
       persistSession(auth);
       return auth;
-    } catch (error) {
-      console.error('Manufacturer login error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/manufacturer/auth/login'));
     }
   },
 
@@ -544,9 +538,8 @@ export const authApi = {
   verifyManufacturer: async (data: EmailVerificationData): Promise<void> => {
     try {
       await postValidated('/manufacturer/auth/verify-email', manufacturerVerificationSchema, data, 'Verification failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Manufacturer verification error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/manufacturer/auth/verify-email'));
     }
   },
 
@@ -571,10 +564,9 @@ export const authApi = {
       );
       setTokens(refreshed.token, refreshed.refreshToken);
       return refreshed;
-    } catch (error) {
-      console.error('Token refresh error:', error);
+    } catch (error: unknown) {
       clearTokens(); // Clear invalid tokens
-      throw error;
+      throw handleApiError(error, createLogContext('POST', '/auth/refresh'));
     }
   },
 
@@ -585,9 +577,8 @@ export const authApi = {
   changePassword: async (data: ChangePasswordData): Promise<void> => {
     try {
       await postValidated('/auth/change-password', changePasswordSchema, data, 'Password change failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Change password error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/change-password'));
     }
   },
 
@@ -602,9 +593,8 @@ export const authApi = {
   }> => {
     try {
       return await postValidated('/auth/setup-2fa', setupTwoFactorSchema, data, '2FA setup failed', 400);
-    } catch (error) {
-      console.error('2FA setup error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/setup-2fa'));
     }
   },
 
@@ -615,9 +605,8 @@ export const authApi = {
   verifyTwoFactor: async (data: VerifyTwoFactorData): Promise<{ verified: boolean }> => {
     try {
       return await postValidated('/auth/verify-2fa', verifyTwoFactorSchema, data, '2FA verification failed', 400);
-    } catch (error) {
-      console.error('2FA verification error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/verify-2fa'));
     }
   },
 
@@ -628,9 +617,8 @@ export const authApi = {
   disableTwoFactor: async (password: string): Promise<void> => {
     try {
       await postValidated('/auth/disable-2fa', disableTwoFactorSchema, { password }, 'Disable 2FA failed', 400, VOID_RESPONSE_OPTIONS);
-    } catch (error) {
-      console.error('Disable 2FA error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/disable-2fa'));
     }
   },
 
@@ -642,9 +630,8 @@ export const authApi = {
     try {
       const response = await api.get<ApiResponse<SecuritySettings>>('/auth/security');
       return baseApi.handleResponse(response, 'Failed to fetch security settings', 400);
-    } catch (error) {
-      console.error('Get security settings error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('GET', '/auth/security'));
     }
   },
 
@@ -655,9 +642,8 @@ export const authApi = {
   updateSecuritySettings: async (settings: Partial<SecuritySettings>): Promise<SecuritySettings> => {
     try {
       return await putValidated('/auth/security', updateSecuritySettingsSchema, settings, 'Security settings update failed', 400);
-    } catch (error) {
-      console.error('Update security settings error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('PUT', '/auth/security'));
     }
   },
 
@@ -668,9 +654,8 @@ export const authApi = {
   checkEmailAvailability: async (email: string): Promise<{ available: boolean }> => {
     try {
       return await postValidated('/auth/check-email-availability', emailAvailabilitySchema, { email }, 'Email check failed', 400);
-    } catch (error) {
-      console.error('Email availability check error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/check-email-availability'));
     }
   },
 
@@ -681,9 +666,8 @@ export const authApi = {
   validateToken: async (token: string): Promise<{ valid: boolean; user?: AnyUser }> => {
     try {
       return await postValidated('/auth/validate-token', tokenValidationSchema, { token }, 'Token validation failed', 400);
-    } catch (error) {
-      console.error('Token validation error:', error);
-      throw error;
+    } catch (error: unknown) {
+      throw handleApiError(error, createLogContext('POST', '/auth/validate-token'));
     }
   },
 

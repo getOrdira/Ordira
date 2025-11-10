@@ -5,19 +5,28 @@ import { api } from '../../client';
 import baseApi from '../../core/base.api';
 import type { ApiResponse } from '@/lib/types/core';
 import type { Recommendation } from '@/lib/types/features/brands';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/recommendation';
 
-const clean = (params?: Record<string, unknown>) => {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const sanitizeRecommendationParams = <T extends object>(params?: T) => {
   if (!params) {
     return undefined;
   }
-  return Object.entries(params).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...(params as Record<string, unknown>) });
 };
 
 export interface RecommendationParams {
@@ -44,7 +53,7 @@ export const brandRecommendationApi = {
       const response = await api.post<ApiResponse<{ recommendations: Recommendation[] }>>(
         `${BASE_PATH}/personalized/generate`,
         undefined,
-        { params: clean(params) },
+        { params: sanitizeRecommendationParams(params) },
       );
       const { recommendations } = baseApi.handleResponse(
         response,
@@ -53,8 +62,14 @@ export const brandRecommendationApi = {
       );
       return recommendations;
     } catch (error) {
-      console.error('Brand personalized recommendation generation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext(
+          'POST',
+          `${BASE_PATH}/personalized/generate`,
+          params ? { ...params } : undefined
+        ),
+      );
     }
   },
 
@@ -68,7 +83,7 @@ export const brandRecommendationApi = {
     try {
       const response = await api.get<ApiResponse<{ recommendations: Recommendation[] }>>(
         `${BASE_PATH}/personalized`,
-        { params: clean(params) },
+        { params: sanitizeRecommendationParams(params) },
       );
       const { recommendations } = baseApi.handleResponse(
         response,
@@ -77,8 +92,14 @@ export const brandRecommendationApi = {
       );
       return recommendations;
     } catch (error) {
-      console.error('Brand personalized recommendation fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext(
+          'GET',
+          `${BASE_PATH}/personalized`,
+          params ? { ...params } : undefined
+        ),
+      );
     }
   },
 
@@ -92,7 +113,7 @@ export const brandRecommendationApi = {
     try {
       const response = await api.get<ApiResponse<{ recommendations: Recommendation[] }>>(
         `${BASE_PATH}/improvements`,
-        { params: clean(params) },
+        { params: sanitizeRecommendationParams(params) },
       );
       const { recommendations } = baseApi.handleResponse(
         response,
@@ -101,8 +122,14 @@ export const brandRecommendationApi = {
       );
       return recommendations;
     } catch (error) {
-      console.error('Brand improvement recommendation fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext(
+          'GET',
+          `${BASE_PATH}/improvements`,
+          params ? { ...params } : undefined
+        ),
+      );
     }
   },
 };

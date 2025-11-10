@@ -3,7 +3,7 @@
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 import type { ApiResponse } from '@/lib/types/core';
 
 import {

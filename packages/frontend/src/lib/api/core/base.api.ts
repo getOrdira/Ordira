@@ -5,7 +5,7 @@ import type { ObjectSchema } from 'joi';
 
 import { api, manufacturerApi, publicApi } from '../client';
 import type { ApiResponse, PaginatedResponse } from '@/lib/types/core';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 import {
   sanitizePagination,
   type PaginationInput,
@@ -17,6 +17,7 @@ import {
   sanitizeQueryParams as sanitizeQueryRecord,
   toSearchParams
 } from '@/lib/validation/transformations/sanitizerPayload';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 import {
   assertWithSchema,
   type JoiValidationOptions
@@ -328,8 +329,11 @@ export const baseApi = {
         })
         .catch(error => {
           // Continue processing other requests even if one fails
-          console.error('Batch request error:', error);
-          results.push(error as T);
+          const normalizedError = handleApiError(error, {
+            method: 'BATCH',
+            endpoint: 'baseApi.batchRequests'
+          });
+          results.push(normalizedError as T);
         });
 
       executing.push(promise);

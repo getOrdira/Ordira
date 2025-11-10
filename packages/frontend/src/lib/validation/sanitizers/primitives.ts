@@ -1,7 +1,7 @@
 // src/lib/validation/sanitizers/primitives.ts
 // Core sanitization helpers aligned with backend dataSanitizer utilities.
 
-import { ValidationError } from '@/lib/errors';
+import { ValidationError } from '@/lib/errors/errors';
 
 import { isPlainObject, isString, isNumber } from '../validators/runtimeGuards';
 import { sanitizeEnvironmentForLogging } from '@/lib/security/sensitiveData';

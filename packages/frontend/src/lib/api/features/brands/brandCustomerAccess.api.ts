@@ -17,19 +17,29 @@ import type {
   CustomerSummary,
   EmailGatingSettings
 } from '@/lib/types/features/brands';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/customer-access';
 
-const clean = (input?: Record<string, unknown>) => {
-  if (!input) {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const sanitizeCustomerListParams = (params?: CustomerListParams) => {
+  if (!params) {
     return undefined;
   }
-  return Object.entries(input).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...params } as Record<string, unknown>);
 };
 
 const toFormData = (file: File): FormData => {
@@ -103,8 +113,10 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer email access check error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/email/:email`, { email }),
+      );
     }
   },
 
@@ -114,9 +126,12 @@ export const brandCustomerAccessApi = {
    */
   async grantVotingAccess(email: string): Promise<BrandCustomerGrantResult> {
     try {
+      if (!email?.trim()) {
+        throw new ApiError('Email is required to grant voting access', 400, 'VALIDATION_ERROR');
+      }
       const response = await api.post<ApiResponse<{ result: BrandCustomerGrantResult }>>(
         `${BASE_PATH}/voting/grant`,
-        { email },
+        baseApi.sanitizeRequestData({ email }),
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -125,8 +140,10 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer voting access grant error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/voting/grant`, { email }),
+      );
     }
   },
 
@@ -138,7 +155,7 @@ export const brandCustomerAccessApi = {
     try {
       const response = await api.post<ApiResponse<{ result: BrandCustomerImportResult }>>(
         `${BASE_PATH}/customers`,
-        { customers },
+        baseApi.sanitizeRequestData({ customers }),
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -147,8 +164,10 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer add error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/customers`, { count: customers.length }),
+      );
     }
   },
 
@@ -169,8 +188,10 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer CSV import error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/customers/import`, { importType: 'csv' }),
+      );
     }
   },
 
@@ -190,8 +211,10 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer Shopify sync error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/customers/sync/shopify`),
+      );
     }
   },
 
@@ -203,7 +226,7 @@ export const brandCustomerAccessApi = {
     params?: CustomerListParams,
   ): Promise<PaginatedResponse<CustomerSummary>> {
     try {
-      const query = clean(params);
+      const query = sanitizeCustomerListParams(params);
       const response = await api.get<ApiResponse<PaginatedResponse<CustomerSummary>>>(
         `${BASE_PATH}/customers`,
         { params: query },
@@ -214,8 +237,10 @@ export const brandCustomerAccessApi = {
         500,
       );
     } catch (error) {
-      console.error('Brand customer list fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/customers`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -235,8 +260,10 @@ export const brandCustomerAccessApi = {
       );
       return settings;
     } catch (error) {
-      console.error('Brand email gating settings fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/settings`),
+      );
     }
   },
 
@@ -259,8 +286,10 @@ export const brandCustomerAccessApi = {
       );
       return settings;
     } catch (error) {
-      console.error('Brand email gating settings update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PUT', `${BASE_PATH}/settings`),
+      );
     }
   },
 
@@ -280,8 +309,10 @@ export const brandCustomerAccessApi = {
       );
       return customer;
     } catch (error) {
-      console.error('Brand customer access revoke error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/customers/:customerId/revoke`, { customerId }),
+      );
     }
   },
 
@@ -301,8 +332,10 @@ export const brandCustomerAccessApi = {
       );
       return customer;
     } catch (error) {
-      console.error('Brand customer access restore error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/customers/:customerId/restore`, { customerId }),
+      );
     }
   },
 
@@ -322,8 +355,10 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer delete error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('DELETE', `${BASE_PATH}/customers/:customerId`, { customerId }),
+      );
     }
   },
 
@@ -343,8 +378,10 @@ export const brandCustomerAccessApi = {
       );
       return normalizeAnalytics(analytics);
     } catch (error) {
-      console.error('Brand customer analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/analytics`),
+      );
     }
   },
 
@@ -358,7 +395,7 @@ export const brandCustomerAccessApi = {
     try {
       const body = {
         customerIds: payload.customerIds,
-        updates: clean({
+        updates: baseApi.sanitizeRequestData({
           status: payload.status,
           metadata: payload.metadata,
         }),
@@ -375,8 +412,13 @@ export const brandCustomerAccessApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand customer bulk update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/customers/bulk-update`, {
+          customerCount: payload.customerIds?.length ?? 0,
+          status: payload.status,
+        }),
+      );
     }
   },
 };

@@ -13,19 +13,29 @@ import type {
   DetailedVerificationStatus,
   VerificationStatus
 } from '@/lib/types/features/brands';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/verification';
 
-const clean = (params?: Record<string, unknown>) => {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const sanitizeStatisticsParams = (params?: VerificationStatisticsParams) => {
   if (!params) {
     return undefined;
   }
-  return Object.entries(params).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...params } as Record<string, unknown>);
 };
 
 export interface VerificationDocumentsPayload {
@@ -65,8 +75,10 @@ export const brandVerificationApi = {
       );
       return status;
     } catch (error) {
-      console.error('Brand verification status fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/status`),
+      );
     }
   },
 
@@ -89,8 +101,12 @@ export const brandVerificationApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand verification submission error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/submit`, {
+          submittedFields: Object.keys(payload ?? {})
+        }),
+      );
     }
   },
 
@@ -110,8 +126,10 @@ export const brandVerificationApi = {
       );
       return status;
     } catch (error) {
-      console.error('Brand detailed verification status fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/status/detail`),
+      );
     }
   },
 
@@ -131,8 +149,10 @@ export const brandVerificationApi = {
       );
       return history;
     } catch (error) {
-      console.error('Brand verification history fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/history`),
+      );
     }
   },
 
@@ -142,9 +162,12 @@ export const brandVerificationApi = {
    */
   async verifyEmail(verificationCode: string): Promise<BrandVerificationEmailResult> {
     try {
+      if (!verificationCode?.trim()) {
+        throw new ApiError('Verification code is required', 400, 'VALIDATION_ERROR');
+      }
       const response = await api.post<ApiResponse<{ result: BrandVerificationEmailResult }>>(
         `${BASE_PATH}/email/verify`,
-        { verificationCode },
+        baseApi.sanitizeRequestData({ verificationCode }),
       );
       const { result } = baseApi.handleResponse(
         response,
@@ -153,8 +176,10 @@ export const brandVerificationApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand verification email verify error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/email/verify`),
+      );
     }
   },
 
@@ -174,8 +199,10 @@ export const brandVerificationApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand verification email send error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/email/send`),
+      );
     }
   },
 
@@ -196,8 +223,12 @@ export const brandVerificationApi = {
       );
       return message;
     } catch (error) {
-      console.error('Brand verification status update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PATCH', `${BASE_PATH}/business/status`, {
+          status: payload?.status,
+        }),
+      );
     }
   },
 
@@ -211,7 +242,7 @@ export const brandVerificationApi = {
     try {
       const response = await api.get<ApiResponse<{ stats: BrandVerificationStatistics }>>(
         `${BASE_PATH}/statistics`,
-        { params: clean(params) },
+        { params: sanitizeStatisticsParams(params) },
       );
       const { stats } = baseApi.handleResponse(
         response,
@@ -220,8 +251,10 @@ export const brandVerificationApi = {
       );
       return stats;
     } catch (error) {
-      console.error('Brand verification statistics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/statistics`, params ? { ...params } : undefined),
+      );
     }
   },
 };

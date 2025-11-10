@@ -11,6 +11,7 @@ import type {
   PlatformVotingAnalytics,
   ProductAnalyticsSnapshot,
 } from '@/lib/types/features/analytics';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 export interface BusinessAnalyticsParams {
   industry?: string;
@@ -66,24 +67,18 @@ export interface BusinessVotingAnalyticsResponse extends PlatformVotingAnalytics
   businessId: string;
 }
 
-const toIsoString = (value?: string | Date): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return value;
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
-const sanitizeQuery = (query: Record<string, unknown>): Record<string, unknown> => {
-  return Object.entries(query).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+const createAnalyticsLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'analytics',
+  method,
+  endpoint,
+  ...context,
+});
 
 /**
  * Analytics Platform Data API
@@ -100,12 +95,12 @@ export const analyticsPlatformDataApi = {
     params?: BusinessAnalyticsParams,
   ): Promise<BusinessAnalyticsResponse> {
     try {
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         industry: params?.industry,
         plan: params?.plan,
         verified: params?.verified,
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         useCache: params?.useCache,
       });
 
@@ -120,8 +115,14 @@ export const analyticsPlatformDataApi = {
         500,
       );
     } catch (error) {
-      console.error('Business analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext('GET', '/analytics/platform/business', {
+          industry: params?.industry,
+          plan: params?.plan,
+          verified: params?.verified,
+        }),
+      );
     }
   },
 
@@ -133,11 +134,11 @@ export const analyticsPlatformDataApi = {
     params?: ProductAnalyticsParams,
   ): Promise<ProductAnalyticsResponse> {
     try {
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         businessId: params?.businessId,
         manufacturerId: params?.manufacturerId,
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         useCache: params?.useCache,
       });
 
@@ -152,8 +153,13 @@ export const analyticsPlatformDataApi = {
         500,
       );
     } catch (error) {
-      console.error('Product analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext('GET', '/analytics/platform/products', {
+          businessId: params?.businessId,
+          manufacturerId: params?.manufacturerId,
+        }),
+      );
     }
   },
 
@@ -165,9 +171,9 @@ export const analyticsPlatformDataApi = {
     params?: ManufacturerAnalyticsParams,
   ): Promise<ManufacturerAnalyticsResponse> {
     try {
-      const query = sanitizeQuery({
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+      const query = baseApi.sanitizeQueryParams({
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         useCache: params?.useCache,
       });
 
@@ -182,8 +188,10 @@ export const analyticsPlatformDataApi = {
         500,
       );
     } catch (error) {
-      console.error('Manufacturer analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext('GET', '/analytics/platform/manufacturers'),
+      );
     }
   },
 
@@ -195,10 +203,10 @@ export const analyticsPlatformDataApi = {
     params?: VotingAnalyticsParams,
   ): Promise<PlatformVotingAnalyticsResponse> {
     try {
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         groupBy: params?.groupBy,
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         useCache: params?.useCache,
       });
 
@@ -213,8 +221,12 @@ export const analyticsPlatformDataApi = {
         500,
       );
     } catch (error) {
-      console.error('Platform voting analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext('GET', '/analytics/platform/voting', {
+          groupBy: params?.groupBy,
+        }),
+      );
     }
   },
 
@@ -227,10 +239,10 @@ export const analyticsPlatformDataApi = {
     params?: VotingAnalyticsParams,
   ): Promise<BusinessVotingAnalyticsResponse> {
     try {
-      const query = sanitizeQuery({
+      const query = baseApi.sanitizeQueryParams({
         groupBy: params?.groupBy,
-        startDate: toIsoString(params?.startDate),
-        endDate: toIsoString(params?.endDate),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
         useCache: params?.useCache,
       });
 
@@ -245,8 +257,17 @@ export const analyticsPlatformDataApi = {
         500,
       );
     } catch (error) {
-      console.error('Business voting analytics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createAnalyticsLogContext(
+          'GET',
+          `/analytics/platform/business/${encodeURIComponent(businessId)}/voting`,
+          {
+            businessId,
+            groupBy: params?.groupBy,
+          },
+        ),
+      );
     }
   },
 };

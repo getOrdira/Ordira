@@ -3,7 +3,7 @@
 import { api } from '../../client';
 import baseApi from '../../core/base.api';
 import type { ApiResponse } from '@/lib/types/core';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 import type {
   TokenBalance,
   TransactionReceipt,

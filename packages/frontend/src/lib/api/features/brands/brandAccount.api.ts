@@ -14,19 +14,28 @@ import type {
   ProfilePictureUploadResult,
   VerificationStatus
 } from '@/lib/types/features/brands';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/account';
 
-const toCleanObject = <T extends Record<string, unknown>>(input?: T | null): Record<string, unknown> | undefined => {
-  if (!input) {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const sanitizeProfileParams = (params?: BrandAccountProfileParams) => {
+  if (!params) {
     return undefined;
   }
-  return Object.entries(input).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...params } as Record<string, unknown>);
 };
 
 const toFormData = (file: File): FormData => {
@@ -98,7 +107,7 @@ export const brandAccountApi = {
     try {
       const response = await api.get<ApiResponse<{ profile: BrandAccountOverview }>>(
         BASE_PATH,
-        { params: toCleanObject(params) },
+        { params: sanitizeProfileParams(params) },
       );
       const { profile } = baseApi.handleResponse(
         response,
@@ -107,8 +116,10 @@ export const brandAccountApi = {
       );
       return profile;
     } catch (error) {
-      console.error('Brand account profile fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', BASE_PATH, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -132,8 +143,10 @@ export const brandAccountApi = {
       );
       return profile;
     } catch (error) {
-      console.error('Brand account profile update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PUT', BASE_PATH, { fields: Object.keys(payload ?? {}) }),
+      );
     }
   },
 
@@ -155,8 +168,10 @@ export const brandAccountApi = {
       );
       return uploadResult;
     } catch (error) {
-      console.error('Brand profile picture upload error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/picture`),
+      );
     }
   },
 
@@ -176,8 +191,10 @@ export const brandAccountApi = {
       );
       return message ?? 'Profile picture removed';
     } catch (error) {
-      console.error('Brand profile picture removal error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('DELETE', `${BASE_PATH}/picture`),
+      );
     }
   },
 
@@ -200,8 +217,12 @@ export const brandAccountApi = {
       );
       return verificationResult;
     } catch (error) {
-      console.error('Brand verification submission error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/verification`, {
+          submittedFields: Object.keys(payload ?? {})
+        }),
+      );
     }
   },
 
@@ -221,8 +242,10 @@ export const brandAccountApi = {
       );
       return status;
     } catch (error) {
-      console.error('Brand verification status fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/verification`),
+      );
     }
   },
 
@@ -242,8 +265,10 @@ export const brandAccountApi = {
       );
       return completeness;
     } catch (error) {
-      console.error('Brand profile completeness fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/completeness`),
+      );
     }
   },
 
@@ -263,8 +288,10 @@ export const brandAccountApi = {
       );
       return recommendations;
     } catch (error) {
-      console.error('Brand profile recommendation fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/recommendations`),
+      );
     }
   },
 
@@ -287,8 +314,10 @@ export const brandAccountApi = {
       );
       return deactivationData;
     } catch (error) {
-      console.error('Brand account deactivation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/deactivate`),
+      );
     }
   },
 
@@ -308,8 +337,10 @@ export const brandAccountApi = {
       );
       return reactivationData;
     } catch (error) {
-      console.error('Brand account reactivation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/reactivate`),
+      );
     }
   },
 };

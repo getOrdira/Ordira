@@ -12,20 +12,23 @@ import type {
   IntegrationStatus,
   ShopifyIntegrationData
 } from '@/lib/types/features/brands';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/integrations';
 
-const clean = (input?: Record<string, unknown>) => {
-  if (!input) {
-    return undefined;
-  }
-  return Object.entries(input).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
 
 export interface ShopifyIntegrationInput extends ShopifyIntegrationData {
   syncProducts?: boolean;
@@ -62,8 +65,10 @@ export const brandIntegrationsApi = {
       );
       return status;
     } catch (error) {
-      console.error('Brand integration status fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/status`),
+      );
     }
   },
 
@@ -86,8 +91,10 @@ export const brandIntegrationsApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand Shopify integration test error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/shopify/test`),
+      );
     }
   },
 
@@ -110,8 +117,10 @@ export const brandIntegrationsApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand Shopify integration configure error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/shopify`),
+      );
     }
   },
 
@@ -139,8 +148,10 @@ export const brandIntegrationsApi = {
         domain: payload.domain,
       };
     } catch (error) {
-      console.error('Brand WooCommerce integration configure error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/woocommerce`),
+      );
     }
   },
 
@@ -168,8 +179,10 @@ export const brandIntegrationsApi = {
         domain: payload.domain,
       };
     } catch (error) {
-      console.error('Brand Wix integration configure error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/wix`),
+      );
     }
   },
 
@@ -182,6 +195,9 @@ export const brandIntegrationsApi = {
     credentials: Record<string, unknown>,
   ): Promise<string> {
     try {
+      if (!type?.trim()) {
+        throw new ApiError('Integration type is required', 400, 'VALIDATION_ERROR');
+      }
       const response = await api.put<ApiResponse<{ message: string }>>(
         `${BASE_PATH}/${encodeURIComponent(type)}`,
         baseApi.sanitizeRequestData({ credentials }),
@@ -193,8 +209,10 @@ export const brandIntegrationsApi = {
       );
       return message;
     } catch (error) {
-      console.error('Brand integration update error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('PUT', `${BASE_PATH}/:type`, { type }),
+      );
     }
   },
 
@@ -214,8 +232,10 @@ export const brandIntegrationsApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand integration removal error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('DELETE', `${BASE_PATH}/:type`, { type }),
+      );
     }
   },
 
@@ -235,8 +255,10 @@ export const brandIntegrationsApi = {
       );
       return configured;
     } catch (error) {
-      console.error('Brand configured integrations fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/configured`),
+      );
     }
   },
 
@@ -256,8 +278,10 @@ export const brandIntegrationsApi = {
       );
       return available;
     } catch (error) {
-      console.error('Brand available integrations fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/available`),
+      );
     }
   },
 
@@ -267,9 +291,12 @@ export const brandIntegrationsApi = {
    */
   async checkIntegrationPermissions(integrationType: string): Promise<boolean> {
     try {
+      if (!integrationType?.trim()) {
+        throw new ApiError('integrationType is required', 400, 'VALIDATION_ERROR');
+      }
       const response = await api.get<ApiResponse<{ hasPermission: boolean }>>(
         `${BASE_PATH}/permissions`,
-        { params: { integrationType } },
+        { params: baseApi.sanitizeQueryParams({ integrationType }) },
       );
       const { hasPermission } = baseApi.handleResponse(
         response,
@@ -278,8 +305,10 @@ export const brandIntegrationsApi = {
       );
       return hasPermission;
     } catch (error) {
-      console.error('Brand integration permission check error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/permissions`, { integrationType }),
+      );
     }
   },
 
@@ -299,8 +328,10 @@ export const brandIntegrationsApi = {
       );
       return stats;
     } catch (error) {
-      console.error('Brand integration statistics fetch error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/statistics`),
+      );
     }
   },
 };

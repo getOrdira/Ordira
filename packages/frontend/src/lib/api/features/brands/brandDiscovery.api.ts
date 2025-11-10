@@ -11,20 +11,29 @@ import type {
   EcosystemAnalytics,
   SearchSuggestion
 } from '@/lib/types/features/brands';
+import { ApiError } from '@/lib/errors/errors';
+import { handleApiError } from '@/lib/validation/middleware/apiError';
 
 const BASE_PATH = '/brand/discovery';
 
-const clean = (params?: Record<string, unknown>) => {
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+const createBrandLogContext = (
+  method: HttpMethod,
+  endpoint: string,
+  context?: Record<string, unknown>
+) => ({
+  feature: 'brands',
+  method,
+  endpoint,
+  ...context
+});
+
+const sanitizeDiscoveryParams = <T extends object>(params?: T) => {
   if (!params) {
     return undefined;
   }
-  return Object.entries(params).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (value === undefined || value === null || value === '') {
-      return acc;
-    }
-    acc[key] = value;
-    return acc;
-  }, {});
+  return baseApi.sanitizeQueryParams({ ...(params as Record<string, unknown>) });
 };
 
 export interface DiscoveryRecommendationsParams {
@@ -57,7 +66,7 @@ export const brandDiscoveryApi = {
     try {
       const response = await api.get<ApiResponse<{ recommendations: BrandRecommendation[] }>>(
         `${BASE_PATH}/recommendations`,
-        { params: clean(params) },
+        { params: sanitizeDiscoveryParams(params) },
       );
       const { recommendations } = baseApi.handleResponse(
         response,
@@ -66,8 +75,10 @@ export const brandDiscoveryApi = {
       );
       return recommendations;
     } catch (error) {
-      console.error('Brand discovery recommendations error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/recommendations`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -81,7 +92,7 @@ export const brandDiscoveryApi = {
     try {
       const response = await api.get<ApiResponse<{ opportunities: ConnectionOpportunity[] }>>(
         `${BASE_PATH}/opportunities`,
-        { params: clean(params) },
+        { params: sanitizeDiscoveryParams(params) },
       );
       const { opportunities } = baseApi.handleResponse(
         response,
@@ -90,8 +101,10 @@ export const brandDiscoveryApi = {
       );
       return opportunities;
     } catch (error) {
-      console.error('Brand discovery opportunities error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/opportunities`, params ? { ...params } : undefined),
+      );
     }
   },
 
@@ -115,8 +128,10 @@ export const brandDiscoveryApi = {
       );
       return result;
     } catch (error) {
-      console.error('Brand compatibility score calculation error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('POST', `${BASE_PATH}/compatibility`, { brandId1, brandId2 }),
+      );
     }
   },
 
@@ -129,9 +144,12 @@ export const brandDiscoveryApi = {
     limit?: number,
   ): Promise<SearchSuggestion[]> {
     try {
+      if (!query?.trim()) {
+        throw new ApiError('Query is required for search suggestions', 400, 'VALIDATION_ERROR');
+      }
       const response = await api.get<ApiResponse<{ suggestions: SearchSuggestion[] }>>(
         `${BASE_PATH}/suggestions`,
-        { params: clean({ query, limit }) },
+        { params: baseApi.sanitizeQueryParams({ query, limit }) },
       );
       const { suggestions } = baseApi.handleResponse(
         response,
@@ -140,8 +158,10 @@ export const brandDiscoveryApi = {
       );
       return suggestions;
     } catch (error) {
-      console.error('Brand discovery suggestions error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/suggestions`, { query, limit }),
+      );
     }
   },
 
@@ -155,7 +175,7 @@ export const brandDiscoveryApi = {
     try {
       const response = await api.get<ApiResponse<{ analytics: EcosystemAnalytics }>>(
         `${BASE_PATH}/analytics`,
-        { params: clean(params) },
+        { params: sanitizeDiscoveryParams(params) },
       );
       const { analytics } = baseApi.handleResponse(
         response,
@@ -164,8 +184,10 @@ export const brandDiscoveryApi = {
       );
       return analytics;
     } catch (error) {
-      console.error('Brand discovery analytics error:', error);
-      throw error;
+      throw handleApiError(
+        error,
+        createBrandLogContext('GET', `${BASE_PATH}/analytics`, params ? { ...params } : undefined),
+      );
     }
   },
 };
