@@ -29,6 +29,12 @@ import type {
   VotingProposalEvent,
   VotingContractVoteEvent
 } from '@backend/services/votes/utils/types';
+import type {
+  CreateProposalInput,
+  UpdateProposalInput,
+  DeployProposalResult,
+  ProposalStatistics
+} from '@backend/services/votes/features/votingProposalManagement.service';
 
 // Re-export all backend types
 export type {
@@ -51,7 +57,11 @@ export type {
   VotingHealthStatus,
   ContractInfo,
   VotingProposalEvent,
-  VotingContractVoteEvent
+  VotingContractVoteEvent,
+  CreateProposalInput,
+  UpdateProposalInput,
+  DeployProposalResult,
+  ProposalStatistics
 };
 
 // ===== FRONTEND-SPECIFIC EXTENSIONS =====

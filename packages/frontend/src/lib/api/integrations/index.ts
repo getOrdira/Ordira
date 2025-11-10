@@ -1,16 +1,15 @@
 // src/lib/api/integrations/index.ts
 // Integrations API barrel export
 
-/**
- * Integrations API
- * 
- * Barrel export for all integration-specific API modules
- * 
- * Note: This is a placeholder. Additional integration API modules will be added:
- * - ecommerce/
- * - blockchain/
- * - domains/
- */
+import blockchainIntegrationApi from './blockchain';
+import domainIntegrationApi from './domains';
 
+export * from './blockchain';
+export * from './domains';
 
+export const integrationsApi = {
+  blockchain: blockchainIntegrationApi,
+  domains: domainIntegrationApi
+};
 
+export default integrationsApi;
