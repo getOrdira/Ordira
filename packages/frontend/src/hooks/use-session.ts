@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getToken, getRefreshToken, setTokens, clearTokens } from '@/lib/auth/session';
+import { getToken, getRefreshToken, setTokens, clearTokens } from '@/lib/auth/session/session';
 import { AnyUser } from '@/lib/typessss/user';
 import * as authApi from '@/lib/apis/auth';
 

@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const inputVariants = cva(

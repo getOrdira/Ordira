@@ -3,7 +3,7 @@
 
 import React, { useId } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { CheckIcon } from '@heroicons/react/24/outline';
 
 const checkboxVariants = cva(

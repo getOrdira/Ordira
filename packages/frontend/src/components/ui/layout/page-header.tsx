@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { useAvatarMenu } from '@/hooks/use-avatar-menu';
 import { useNotifications } from '@/hooks/use-notifications';
 

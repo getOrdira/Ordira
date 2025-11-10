@@ -2,7 +2,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { AppProvider } from '@/providers/app-provider';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import '@/styles/globals.css';
 
 // Font configuration

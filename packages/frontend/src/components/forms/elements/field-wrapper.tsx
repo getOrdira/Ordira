@@ -1,7 +1,7 @@
 // src/components/forms/elements/field-wrapper.tsx
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { FieldLabel, type FieldLabelProps } from './field-label';
 import { FieldError, type FieldErrorProps } from './field-error';
 import { FieldHelp, type FieldHelpProps } from './field-help';

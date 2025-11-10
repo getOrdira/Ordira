@@ -19,7 +19,7 @@ import {
   RegisterProductRequest
 } from '@/lib/typessss/supply-chain';
 import { supplyChainApi } from '../lib/apis/supply-chain';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 
 // ===== CONTRACT MANAGEMENT HOOKS =====
 

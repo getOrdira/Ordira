@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { Product, CreateProductRequest, UpdateProductRequest } from '@/lib/typessss/products';
 import * as productsApi from '@/lib/apis/products';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 
 interface UseProductsOptions {
   businessId?: string;

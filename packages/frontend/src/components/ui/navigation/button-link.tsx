@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Button, type ButtonProps } from '@/components/ui/primitives/button';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 export interface ButtonLinkProps extends Omit<ButtonProps, 'asChild'> {
   href: string;

@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 const spinnerVariants = cva(
   // Base spinner styles - circular border with spinning animation

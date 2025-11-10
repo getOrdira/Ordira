@@ -3,7 +3,7 @@
 import React, { forwardRef, useCallback, useState, useRef } from 'react';
 import { FieldWrapper, type FieldWrapperProps } from '../elements/field-wrapper';
 import { useFieldState, type BaseFieldProps } from '../adapters/rhf/field';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 export interface RichTextEditorProps
   extends Omit<FieldWrapperProps, 'children'>,

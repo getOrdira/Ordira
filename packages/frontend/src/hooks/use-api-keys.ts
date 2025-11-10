@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, CreateApiKeyResponse, ApiKeyUsage } from '../lib/typessss/api-keys';
 import * as apiKeysApi from '@/lib/apis/api-keys';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 
 interface UseApiKeysOptions {
   businessId?: string;

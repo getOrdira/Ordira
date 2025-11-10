@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { useTableContext } from './table';
 import { TableRow } from './tr';
 import { TableHeader } from './th';

@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { CheckIcon } from '@heroicons/react/24/solid';
 import type { WizardStepData } from './index';
 

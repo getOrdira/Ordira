@@ -4,11 +4,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { AnyUser } from '@/lib/typessss/user';
-import { LoginCredentials, AuthResponse } from '@/lib/typessss/auth';
-import { getToken, setTokens, clearTokens, isTokenExpired, getRefreshToken } from '@/lib/auth/session';
-import { authApi, authHelpers } from '@/lib/apis/auth';
-import { ApiError } from '@/lib/typessss/common';
+import { AnyUser } from '@/lib/types/features/users';
+import { LoginCredentials, AuthResponse } from '@/lib/types/features/auth';
+import { getToken, setTokens, clearTokens, isTokenExpired, getRefreshToken } from '@/lib/auth/session/session';
+import { authApi, authHelpers } from '@/lib/api/core/auth.api';
+import { ApiError } from '@/lib/errors/errors';
 
 // Define the shape of the authentication context
 interface AuthContextType {

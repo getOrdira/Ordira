@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 const switchVariants = cva(
   // Base styles - matches the rounded pill design from your image

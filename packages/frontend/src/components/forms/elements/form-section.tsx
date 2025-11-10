@@ -1,7 +1,7 @@
 // src/components/forms/elements/form-section.tsx
 
 import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { FieldError, type FieldErrorProps } from './field-error';
 import { FieldHelp, type FieldHelpProps } from './field-help';
 

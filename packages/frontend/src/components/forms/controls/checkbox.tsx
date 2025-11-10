@@ -8,7 +8,7 @@ import {
   FieldPath,
   Control 
 } from 'react-hook-form';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 // Import your base checkbox primitives
 import { 

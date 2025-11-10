@@ -1,7 +1,7 @@
 // src/components/forms/elements/form-actions.tsx
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { SubmitButton, type SubmitButtonProps } from './submit-button';
 
 export interface FormActionsProps {

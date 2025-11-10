@@ -10,7 +10,7 @@ import {
   ControllerRenderProps,
   FieldError
 } from 'react-hook-form';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 // Import your UI primitives
 import { 

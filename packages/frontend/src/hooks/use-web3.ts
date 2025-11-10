@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { config } from '@/lib/config';
+import { config } from '@/lib/config/config';
 import { useNotifications } from './use-utilities';
 
 interface Web3State {

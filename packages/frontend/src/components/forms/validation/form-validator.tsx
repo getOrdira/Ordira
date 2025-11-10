@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { FieldValues, Path, useFormContext } from 'react-hook-form';
 import { ZodSchema, ZodError, ZodObject } from 'zod';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 // Types aligned with backend Joi validation patterns
 export interface ValidationError {

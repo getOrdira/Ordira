@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useFormContext } from 'react-hook-form';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 export interface SubmitButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   // Loading states

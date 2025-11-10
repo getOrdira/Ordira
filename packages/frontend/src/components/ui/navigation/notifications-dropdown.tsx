@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { BellIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 // Import types from your API client to ensure consistency

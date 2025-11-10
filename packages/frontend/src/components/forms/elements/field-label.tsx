@@ -1,7 +1,7 @@
 // src/components/forms/elements/field-label.tsx
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 export interface FieldLabelProps extends React.LabelHTMLAttributes<HTMLLabelElement> {
   required?: boolean;

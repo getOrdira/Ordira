@@ -12,7 +12,7 @@ import {
   SubscriptionCancellationRequest
 } from '@/lib/typessss/subscriptions';
 import * as billingApi from '@/lib/apis/billing';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 
 interface UseSubscriptionsOptions {
   businessId?: string;

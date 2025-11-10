@@ -19,7 +19,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { Card } from '@/components/ui/primitives/card';
 import { 
   ChartBarIcon,

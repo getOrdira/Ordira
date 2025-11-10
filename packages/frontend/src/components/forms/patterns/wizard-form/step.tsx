@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { useWizard } from './index';
 
 export interface WizardStepProps {

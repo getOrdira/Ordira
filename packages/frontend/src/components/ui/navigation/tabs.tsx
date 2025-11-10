@@ -3,7 +3,7 @@
 
 import React, { useState, createContext, useContext } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 
 const tabsVariants = cva(
   // Base tabs container styles aligned with Ordira design

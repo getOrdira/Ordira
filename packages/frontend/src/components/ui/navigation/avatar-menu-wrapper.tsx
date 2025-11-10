@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useRef, useCallback } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils/utils';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 
 // Import our hook and existing UI components

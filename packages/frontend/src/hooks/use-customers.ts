@@ -11,7 +11,7 @@ interface CustomerAnalyticsResponse {
   };
 }
 import * as customersApi from '@/lib/apis/customers';
-import { ApiError } from '@/lib/errors';
+import { ApiError } from '@/lib/errors/errors';
 
 interface UseCustomersOptions {
   source?: 'manual' | 'shopify' | 'woocommerce' | 'csv' | 'api';
