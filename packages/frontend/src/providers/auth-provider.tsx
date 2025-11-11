@@ -1,14 +1,22 @@
 // src/providers/auth-provider.tsx
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { AnyUser } from '@/lib/types/features/users';
-import { LoginCredentials, AuthResponse } from '@/lib/types/features/auth';
-import { getToken, setTokens, clearTokens, isTokenExpired, getRefreshToken } from '@/lib/auth/session/session';
-import { authApi, authHelpers } from '@/lib/api/core/auth.api';
+import type { AnyUser } from '@/lib/types/features/users';
+import type { LoginCredentials, AuthResponse } from '@/lib/types/features/auth';
+import {
+  getToken,
+  setTokens,
+  clearTokens,
+  isTokenExpired,
+  getRefreshToken,
+  updateStoredUserData
+} from '@/lib/auth/session/session';
+import authApi from '@/lib/api/core/auth.api';
 import { ApiError } from '@/lib/errors/errors';
+import { authQueryKeys } from '@/hooks/core/useAuth';
 
 // Define the shape of the authentication context
 interface AuthContextType {
@@ -16,12 +24,52 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 // Create the context with a default undefined value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type StoredUserSnapshot = {
+  id: string;
+  email: string;
+  role: AnyUser['role'];
+  isEmailVerified: boolean;
+  plan?: string;
+  tenant?: unknown;
+};
+
+const mapUserToStoredSnapshot = (user: AnyUser | null): StoredUserSnapshot | undefined => {
+  if (!user) {
+    return undefined;
+  }
+
+  const snapshot: StoredUserSnapshot = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    isEmailVerified: user.isEmailVerified,
+  };
+
+  if ('plan' in user && user.plan) {
+    snapshot.plan = user.plan;
+  }
+
+  if (user.role === 'brand') {
+    snapshot.tenant = {
+      businessId: user.businessId,
+      businessName: user.businessName,
+    };
+  } else if (user.role === 'manufacturer') {
+    snapshot.tenant = {
+      manufacturerId: user.manufacturerId,
+      manufacturerName: user.manufacturerName,
+    };
+  }
+
+  return snapshot;
+};
 
 /**
  * Provides authentication state and functions to its children.
@@ -33,133 +81,187 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  const syncAuthQueries = useCallback(
+    (nextUser: AnyUser | null) => {
+      if (nextUser) {
+        queryClient.setQueryData(authQueryKeys.profile(), nextUser);
+        queryClient.setQueryData(authQueryKeys.currentUser(), nextUser);
+      } else {
+        queryClient.removeQueries({ queryKey: authQueryKeys.profile() });
+        queryClient.removeQueries({ queryKey: authQueryKeys.currentUser() });
+      }
+
+      queryClient.removeQueries({ queryKey: authQueryKeys.securitySettings() });
+    },
+    [queryClient]
+  );
+
+  const syncAuthState = useCallback(
+    (nextUser: AnyUser | null, tokens?: { token?: string; refreshToken?: string }) => {
+      setUser(nextUser);
+      setIsLoading(false);
+      syncAuthQueries(nextUser);
+
+      const snapshot = mapUserToStoredSnapshot(nextUser);
+      if (!snapshot) {
+        return;
+      }
+
+      if (tokens?.token && tokens.refreshToken) {
+        setTokens(tokens.token, tokens.refreshToken, snapshot);
+      } else {
+        updateStoredUserData(snapshot);
+      }
+    },
+    [syncAuthQueries]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      // Even if server logout fails, continue with client cleanup
+      console.error('Server logout failed:', error);
+    } finally {
+      syncAuthState(null);
+      clearTokens('logout');
+      queryClient.clear();
+      router.push('/auth/login');
+    }
+  }, [queryClient, router, syncAuthState]);
+
   /**
    * Fetches the current user's profile from the backend if a token exists.
    * This function is memoized with useCallback to prevent re-creation on every render.
    */
   const fetchUserProfile = useCallback(async () => {
     const token = getToken();
+
     if (!token) {
-      setIsLoading(false);
+      syncAuthState(null);
       return;
     }
 
-    // Check if token is expired before making the request
     if (isTokenExpired(token)) {
-      // Try to refresh token
       const refreshToken = getRefreshToken();
-      if (refreshToken && !isTokenExpired(refreshToken)) {
-        try {
-          const response = await authApi.refreshToken();
-          if (response.refreshToken) {
-            setTokens(response.token, response.refreshToken);
-          }
-          
-          // Fetch user profile with new token
-          if (response.user) {
-            setUser(response.user);
-          } else {
-            const userResponse = await authApi.getCurrentUser();
-            setUser(userResponse);
-          }
-          setIsLoading(false);
-          return;
-        } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
-          logout();
-          return;
-        }
-      } else {
-        logout();
+      if (!refreshToken || isTokenExpired(refreshToken)) {
+        await logout();
+        return;
+      }
+
+      try {
+        await authApi.refreshToken();
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        await logout();
         return;
       }
     }
 
     try {
       const userResponse = await authApi.getCurrentUser();
-      setUser(userResponse);
+      syncAuthState(userResponse);
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       const apiError = error as ApiError;
-      
+
       // Only logout on authentication errors, not network errors
       if (apiError.statusCode === 401 || apiError.statusCode === 403) {
-        logout();
+        await logout();
+        return;
       }
+
+      syncAuthState(null);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [logout, syncAuthState]);
 
   // On initial component mount, try to fetch the user profile.
   useEffect(() => {
-    fetchUserProfile();
+    void fetchUserProfile();
   }, [fetchUserProfile]);
 
   /**
    * Handles the user login process using smart login detection.
    * @param credentials - The user's email/password and optional settings.
    */
-  const login = async (credentials: LoginCredentials) => {
-    try {
-      // Use smart login to detect user type and route to appropriate endpoint
-      const response: AuthResponse = await authHelpers.smartLogin(credentials);
-      
-      if (response.success && response.token && response.user) {
-        const { user, token, refreshToken } = response;
-        setUser(user);
-        
-        // Store tokens using the utility functions
-        if (refreshToken) {
-          setTokens(token, refreshToken);
-        }
+  const login = useCallback(
+    async (credentials: LoginCredentials) => {
+      try {
+        const response: AuthResponse = await authApi.login(credentials);
 
-        // Clear any existing query cache to ensure fresh data
+        await queryClient.cancelQueries();
         queryClient.clear();
 
-        // --- DYNAMIC REDIRECT BASED ON USER ROLE ---
-        switch (user.role) {
+        const tokens =
+          response.token && response.refreshToken
+            ? { token: response.token, refreshToken: response.refreshToken }
+            : undefined;
+
+        let currentUser: AnyUser;
+        try {
+          currentUser = await authApi.getCurrentUser();
+        } catch (profileError) {
+          console.error('Failed to fetch user profile after login:', profileError);
+
+          const profileApiError = profileError as ApiError;
+          const profileMessage =
+            profileError instanceof Error
+              ? profileError.message
+              : profileApiError?.message || 'Login failed. Unable to fetch user profile.';
+
+          throw new Error(profileMessage);
+        }
+
+        syncAuthState(currentUser, tokens);
+
+        let redirectPath = '/';
+        switch (currentUser.role) {
           case 'brand':
-            router.push('/brand/dashboard');
+            redirectPath = '/brand/dashboard';
             break;
           case 'manufacturer':
-            router.push('/manufacturer/dashboard');
+            redirectPath = '/manufacturer/dashboard';
             break;
-          case 'customer':
-            // For customers, redirect to voting gate or specific proposal
-            const urlParams = new URLSearchParams(window.location.search);
-            const redirectTo = urlParams.get('redirect');
-            if (redirectTo && (redirectTo.startsWith('/vote') || redirectTo.startsWith('/proposals') || redirectTo.startsWith('/certificate'))) {
-              router.push(redirectTo);
+          case 'customer': {
+            const params =
+              typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+            const redirectTo = params?.get('redirect');
+
+            if (
+              redirectTo &&
+              (redirectTo.startsWith('/vote') ||
+                redirectTo.startsWith('/proposals') ||
+                redirectTo.startsWith('/certificate'))
+            ) {
+              redirectPath = redirectTo;
             } else {
-              router.push('/gate');
+              redirectPath = '/gate';
             }
             break;
+          }
           default:
-            // Fallback redirect if the role is unknown
-            console.warn('Unknown user role:', user.role);
-            router.push('/');
-            break;
+            redirectPath = '/';
         }
-      } else {
-        throw new Error(response.message || 'Login failed - invalid response');
+
+        router.push(redirectPath);
+      } catch (error) {
+        console.error('Login error:', error);
+        clearTokens('login_failed');
+        syncAuthState(null);
+
+        const apiError = error as ApiError;
+        const message =
+          error instanceof Error
+            ? error.message
+            : apiError?.message || 'Login failed. Please check your credentials.';
+
+        throw new Error(message);
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      
-      // Clear any potentially corrupted tokens
-      clearTokens();
-      setUser(null);
-      
-      // Re-throw with user-friendly message
-      if (error instanceof Error) {
-        throw error;
-      }
-      
-      const apiError = error as ApiError;
-      throw new Error(apiError.message || 'Login failed. Please check your credentials.');
-    }
-  };
+    },
+    [queryClient, router, syncAuthState]
+  );
 
   /**
    * Refreshes the current user's profile data
@@ -168,49 +270,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!getToken()) {
       return;
     }
-    
+
     try {
       const userResponse = await authApi.getCurrentUser();
-      setUser(userResponse);
+      syncAuthState(userResponse);
     } catch (error) {
       console.error('Failed to refresh user profile:', error);
       const apiError = error as ApiError;
-      
+
       if (apiError.statusCode === 401 || apiError.statusCode === 403) {
-        logout();
+        await logout();
       }
     }
-  }, []);
+  }, [logout, syncAuthState]);
 
-  /**
-   * Handles the user logout process.
-   */
-  const logout = useCallback(async () => {
-    try {
-      // Attempt to logout on server (invalidate session)
-      await authApi.logout();
-    } catch (error) {
-      // Even if server logout fails, continue with client cleanup
-      console.error('Server logout failed:', error);
-    }
-    
-    // Clear client-side state
-    setUser(null);
-    clearTokens();
-    queryClient.clear();
-    
-    // Redirect to login page
-    router.push('/auth/login');
-  }, [queryClient, router]);
-
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    logout,
-    refreshUser,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated: Boolean(user),
+      isLoading,
+      login,
+      logout,
+      refreshUser,
+    }),
+    [user, isLoading, login, logout, refreshUser]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

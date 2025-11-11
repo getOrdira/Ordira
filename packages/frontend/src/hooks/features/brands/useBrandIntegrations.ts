@@ -14,7 +14,6 @@ import {
 
 import brandIntegrationsApi, {
   type ShopifyIntegrationInput,
-  type ShopifyIntegrationData,
   type WooCommerceIntegrationInput,
   type WixIntegrationInput
 } from '@/lib/api/features/brands/brandIntegrations.api';
@@ -23,7 +22,8 @@ import type {
   BrandIntegrationRemovalResult,
   BrandIntegrationStatistics,
   ConnectionTestResult,
-  IntegrationStatus
+  IntegrationStatus,
+  ShopifyIntegrationData
 } from '@/lib/types/features/brands';
 import { ApiError } from '@/lib/errors/errors';
 
@@ -146,8 +146,8 @@ export const useConfigureWixIntegration = (
 };
 
 export const useUpdateBrandIntegration = (
-  options?: MutationConfig<BrandConfiguredIntegration, { type: string; payload: Record<string, unknown> }>
-): UseMutationResult<BrandConfiguredIntegration, ApiError, { type: string; payload: Record<string, unknown> }, unknown> => {
+  options?: MutationConfig<UpdateIntegrationResponse, { type: string; payload: Record<string, unknown> }>
+): UseMutationResult<UpdateIntegrationResponse, ApiError, { type: string; payload: Record<string, unknown> }, unknown> => {
   return useMutation({
     mutationKey: brandIntegrationsMutationKeys.update,
     mutationFn: ({ type, payload }) => brandIntegrationsApi.updateIntegration(type, payload),
@@ -174,3 +174,4 @@ export const useCheckIntegrationPermissions = (
     ...options
   });
 };
+type UpdateIntegrationResponse = Awaited<ReturnType<typeof brandIntegrationsApi.updateIntegration>>;

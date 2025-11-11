@@ -1,345 +1,516 @@
-// src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { jwtVerify, type JWTPayload } from 'jose';
 
-// Constants
-const AUTH_TOKEN_COOKIE = 'auth_token';
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret');
-const MFG_JWT_SECRET = new TextEncoder().encode(process.env.MFG_JWT_SECRET || 'default-secret');
+import appConfig, { getApiUrl } from '@/lib/config/config';
+import {
+  canAccessRoute,
+  getDefaultRedirectPath,
+  PUBLIC_ROUTES
+} from '@/lib/auth/policy/routes';
+import type { MaybeAuthUser } from '@/lib/auth/policy/roles';
+import type { UserRole } from '@/lib/types/features/users';
+import { sanitizeSensitiveObject } from '@/lib/security/sensitiveData';
 
-// Types for better type safety
-interface JWTPayload {
-  sub: string; // User ID
-  userType: 'customer' | 'manufacturer' | 'business';
-  role: 'customer' | 'manufacturer' | 'brand';
-  email: string;
-  permissions?: string[];
-  iat: number;
-  exp: number;
+const encoder = new TextEncoder();
+const rawSecrets = [process.env.JWT_SECRET, process.env.MFG_JWT_SECRET].filter(
+  (value): value is string => typeof value === 'string' && value.length > 0
+);
+if (!rawSecrets.length && appConfig.environment.isDevelopment) {
+  rawSecrets.push('development-secret');
+}
+const JWT_SECRETS = rawSecrets.map((secret) => encoder.encode(secret));
+
+const AUTH_COOKIE = appConfig.auth.tokenKey;
+const REFRESH_COOKIE = appConfig.auth.refreshTokenKey;
+const REFRESH_ENDPOINT = getApiUrl('/auth/refresh');
+
+const AUTH_ROUTE_PREFIX = '/auth';
+const PUBLIC_ROUTE_SET = new Set(PUBLIC_ROUTES);
+const DEVELOPMENT_DEBUG_HEADERS = appConfig.environment.isDevelopment;
+
+const SITE_HOSTNAME = safeHostname(appConfig.urls.site);
+const API_HOSTNAME = safeHostname(appConfig.urls.api);
+const API_ORIGIN = safeOrigin(appConfig.urls.api);
+
+const INTERNAL_HOSTNAMES = Array.from(
+  new Set(
+    [
+      'localhost',
+      '127.0.0.1',
+      SITE_HOSTNAME,
+      API_HOSTNAME,
+      'ordira.com',
+      'vercel.app'
+    ].filter((value): value is string => typeof value === 'string' && value.length > 0)
+  )
+);
+
+const VALID_ROLES: readonly UserRole[] = ['brand', 'creator', 'manufacturer', 'customer'];
+
+const SECURITY_HEADERS = createSecurityHeaders();
+
+interface EdgeAuthPayload extends JWTPayload {
+  sub?: string;
+  email?: string;
+  role?: string;
+  userType?: string;
+  permissions?: readonly string[] | string[];
+  plan?: string | null;
+  tenant?: {
+    plan?: string | null;
+  } | null;
 }
 
-interface RouteConfig {
-  path: string;
-  allowedRoles?: ('customer' | 'manufacturer' | 'brand')[];
-  requireAuth: boolean;
-  redirectUnauthenticated?: string;
-  redirectUnauthorized?: string;
+interface SessionCookies {
+  token: string;
+  refreshToken: string;
 }
 
-/**
- * Route configuration aligned with backend middleware patterns
- */
-const routeConfigs: RouteConfig[] = [
-  // Public routes (no authentication required)
-  { path: '/', requireAuth: false },
-  { path: '/pricing', requireAuth: false },
-  { path: '/about', requireAuth: false },
-  { path: '/contact', requireAuth: false },
-  
-  // Authentication routes (redirect if already authenticated)
-  { path: '/auth/login', requireAuth: false },
-  { path: '/auth/register', requireAuth: false },
-  { path: '/auth/forgot-password', requireAuth: false },
-  { path: '/auth/reset-password', requireAuth: false },
-  { path: '/auth/verify-email', requireAuth: false },
-  
-  // Customer routes (for voting and certificates)
-  { 
-    path: '/gate', 
-    requireAuth: true, 
-    allowedRoles: ['customer'],
-    redirectUnauthenticated: '/auth/login',
-    redirectUnauthorized: '/auth/login?error=unauthorized'
-  },
-  { 
-    path: '/vote', 
-    requireAuth: true, 
-    allowedRoles: ['customer'],
-    redirectUnauthenticated: '/auth/login',
-    redirectUnauthorized: '/auth/login?error=unauthorized'
-  },
-  { 
-    path: '/certificate', 
-    requireAuth: true, 
-    allowedRoles: ['customer'],
-    redirectUnauthenticated: '/auth/login',
-    redirectUnauthorized: '/auth/login?error=unauthorized'
-  },
-  { 
-    path: '/proposals', 
-    requireAuth: true, 
-    allowedRoles: ['customer'],
-    redirectUnauthenticated: '/auth/login',
-    redirectUnauthorized: '/auth/login?error=unauthorized'
-  },
-  
-  // Brand routes (business users)
-  { 
-    path: '/brand', 
-    requireAuth: true, 
-    allowedRoles: ['brand'],
-    redirectUnauthenticated: '/auth/login',
-    redirectUnauthorized: '/manufacturer/dashboard'
-  },
-  
-  // Manufacturer routes
-  { 
-    path: '/manufacturer', 
-    requireAuth: true, 
-    allowedRoles: ['manufacturer'],
-    redirectUnauthenticated: '/auth/login',
-    redirectUnauthorized: '/brand/dashboard'
+interface VerifiedAuthResult {
+  payload: EdgeAuthPayload;
+  user: MaybeAuthUser;
+  userId?: string;
+  email?: string;
+}
+
+interface RefreshResult {
+  cookies: SessionCookies;
+  verified: VerifiedAuthResult;
+}
+
+export async function middleware(request: NextRequest) {
+  const normalizedPath = normalizePath(request.nextUrl.pathname);
+  const fullReturnPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+
+  const tenantRewrite = handleTenantRewrite(request, normalizedPath);
+  if (tenantRewrite) {
+    return applySecurityHeaders(tenantRewrite);
   }
-];
 
-/**
- * Authentication routes that should redirect authenticated users
- */
-const authRoutes = ['/auth/login', '/auth/register'];
+  const token = request.cookies.get(AUTH_COOKIE)?.value ?? null;
+  const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value ?? null;
 
-/**
- * Default redirects based on user role
- */
-const roleBasedRedirects = {
-  customer: '/gate',
-  manufacturer: '/manufacturer/dashboard',
-  brand: '/brand/dashboard'
-};
+  let authContext: VerifiedAuthResult | null = null;
+  let refreshedSession: RefreshResult | null = null;
+  let shouldClearSession = false;
 
-/**
- * Verify and decode JWT token
- * Tries both JWT_SECRET (for brands/customers) and MFG_JWT_SECRET (for manufacturers)
- */
-async function verifyToken(token: string): Promise<JWTPayload | null> {
-  try {
-    // Try JWT_SECRET first (for brands/customers)
-    const { payload } = await jwtVerify(token, JWT_SECRET, {
-      algorithms: ['HS256']
-    });
-    
-    return payload as unknown as JWTPayload;
-  } catch (error) {
-    try {
-      // Try MFG_JWT_SECRET (for manufacturers)
-      const { payload } = await jwtVerify(token, MFG_JWT_SECRET, {
-        algorithms: ['HS256']
-      });
-      
-      return payload as unknown as JWTPayload;
-    } catch (mfgError) {
-      console.error('Token verification failed with both secrets:', { error, mfgError });
-      return null;
+  if (token) {
+    authContext = await verifyAuthToken(token);
+
+    if (!authContext && refreshToken) {
+      refreshedSession = await tryRefreshSession(refreshToken);
+      if (refreshedSession) {
+        authContext = refreshedSession.verified;
+      } else {
+        shouldClearSession = true;
+      }
+    } else if (!authContext) {
+      shouldClearSession = true;
+    }
+  } else if (refreshToken) {
+    refreshedSession = await tryRefreshSession(refreshToken);
+    if (refreshedSession) {
+      authContext = refreshedSession.verified;
+    } else {
+      shouldClearSession = true;
     }
   }
+
+  if (authContext && shouldClearSession) {
+    shouldClearSession = false;
+  }
+
+  const user = authContext?.user ?? null;
+  const requiresAuth = !canAccessRoute(null, normalizedPath);
+  const isAuthRoute = isAuthEntryRoute(normalizedPath);
+
+  if (isAuthRoute && user) {
+    const redirectPath = getDefaultRedirectPath(user);
+    if (redirectPath && redirectPath !== normalizedPath) {
+      const redirectResponse = buildRedirectResponse(request, redirectPath);
+      return applySecurityHeaders(
+        applySessionCookies(redirectResponse, refreshedSession, shouldClearSession)
+      );
+    }
+  }
+
+  if (requiresAuth && !user) {
+    const redirectResponse = buildRedirectResponse(request, `${AUTH_ROUTE_PREFIX}/login`, {
+      reason: 'authentication_required',
+      returnUrl: fullReturnPath
+    });
+    return applySecurityHeaders(
+      applySessionCookies(redirectResponse, refreshedSession, shouldClearSession)
+    );
+  }
+
+  if (user && !canAccessRoute(user, normalizedPath)) {
+    const fallbackPath = getDefaultRedirectPath(user);
+    const redirectResponse = buildRedirectResponse(request, fallbackPath ?? '/');
+    return applySecurityHeaders(
+      applySessionCookies(redirectResponse, refreshedSession, shouldClearSession)
+    );
+  }
+
+  if (user && normalizedPath === '/') {
+    const dashboardPath = getDefaultRedirectPath(user);
+    if (dashboardPath && dashboardPath !== normalizedPath) {
+      const redirectResponse = buildRedirectResponse(request, dashboardPath);
+      return applySecurityHeaders(
+        applySessionCookies(redirectResponse, refreshedSession, shouldClearSession)
+      );
+    }
+  }
+
+  const response = applySessionCookies(NextResponse.next(), refreshedSession, shouldClearSession);
+
+  if (user && DEVELOPMENT_DEBUG_HEADERS) {
+    response.headers.set('X-User-Role', user.role);
+    if (authContext?.userId) {
+      response.headers.set('X-User-ID', authContext.userId);
+    }
+    if (authContext?.email) {
+      response.headers.set('X-User-Email', authContext.email);
+    }
+  }
+
+  return applySecurityHeaders(response);
 }
 
-/**
- * Find matching route configuration
- */
-function findRouteConfig(pathname: string): RouteConfig | null {
-  return routeConfigs.find(config => 
-    pathname === config.path || pathname.startsWith(config.path + '/')
-  ) || null;
+export const config = {
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.ico$).*)'
+  ]
+};
+
+function normalizePath(path: string): string {
+  if (!path || path === '/') {
+    return '/';
+  }
+  return path.endsWith('/') ? path.replace(/\/+$/u, '') || '/' : path;
 }
 
-/**
- * Check if user has required permissions for route
- */
-function hasPermission(userRole: string, allowedRoles?: string[]): boolean {
-  if (!allowedRoles || allowedRoles.length === 0) {
-    return true;
-  }
-  return allowedRoles.includes(userRole);
+function isAuthEntryRoute(path: string): boolean {
+  return path === AUTH_ROUTE_PREFIX || path.startsWith(`${AUTH_ROUTE_PREFIX}/`);
 }
 
-/**
- * Create redirect response with proper error handling
- */
-function createRedirect(url: string, request: NextRequest, options: {
-  reason?: string;
-  returnUrl?: string;
-} = {}): NextResponse {
-  const redirectUrl = new URL(url, request.url);
-  
-  if (options.reason) {
-    redirectUrl.searchParams.set('error', options.reason);
+function safeHostname(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
   }
-  
-  if (options.returnUrl) {
-    redirectUrl.searchParams.set('redirect', options.returnUrl);
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return undefined;
   }
-  
-  return NextResponse.redirect(redirectUrl);
 }
 
-/**
- * Handle tenant-specific routing (custom domains/subdomains)
- */
-function handleTenantRouting(request: NextRequest): NextResponse | null {
-  const hostname = request.headers.get('host') || '';
-  const isCustomDomain = !hostname.includes('localhost') && 
-                         !hostname.includes('vercel.app') && 
-                         !hostname.includes('ordira.com');
-  
-  // For custom domains, potentially rewrite to tenant-specific paths
-  if (isCustomDomain && request.nextUrl.pathname === '/') {
-    // Rewrite to tenant-specific landing page
-    const url = request.nextUrl.clone();
-    url.pathname = '/gate'; // Default to voting gate for custom domains
-    return NextResponse.rewrite(url);
+function safeOrigin(value?: string): string | undefined {
+  if (!value) {
+    return undefined;
   }
-  
+  try {
+    return new URL(value).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function createSecurityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'strict-origin-when-cross-origin'
+  };
+
+  const scriptSrc = ["'self'", "'unsafe-eval'", "'unsafe-inline'", 'https://www.google-analytics.com'];
+  const styleSrc = ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'];
+  const fontSrc = ["'self'", 'https://fonts.gstatic.com'];
+  const imgSrc = ["'self'", 'data:', 'https:'];
+
+  const connectSrc = new Set<string>(["'self'"]);
+  if (API_ORIGIN) {
+    connectSrc.add(API_ORIGIN);
+  }
+  connectSrc.add('https://www.google-analytics.com');
+
+  headers['Content-Security-Policy'] = [
+    `default-src 'self'`,
+    `script-src ${scriptSrc.join(' ')}`,
+    `style-src ${styleSrc.join(' ')}`,
+    `font-src ${fontSrc.join(' ')}`,
+    `img-src ${imgSrc.join(' ')}`,
+    `connect-src ${Array.from(connectSrc).join(' ')}`
+  ].join('; ');
+
+  return headers;
+}
+
+async function verifyAuthToken(token: string): Promise<VerifiedAuthResult | null> {
+  if (!token || !JWT_SECRETS.length) {
+    return null;
+  }
+
+  for (const secret of JWT_SECRETS) {
+    try {
+      const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] });
+      return mapPayloadToUser(payload as EdgeAuthPayload);
+    } catch {
+      // Try the next secret
+    }
+  }
+
   return null;
 }
 
-/**
- * Add security headers to response
- */
-function addSecurityHeaders(response: NextResponse): NextResponse {
-  // Security headers aligned with backend middleware
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set('X-XSS-Protection', '1; mode=block');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  
-  // CSP for XSS protection
-  response.headers.set(
-    'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.ordira.com;"
-  );
-  
+async function tryRefreshSession(refreshToken: string): Promise<RefreshResult | null> {
+  if (!refreshToken || !JWT_SECRETS.length) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(REFRESH_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      cache: 'no-store',
+      body: JSON.stringify({ refreshToken })
+    });
+
+    const body = await safeJson(response);
+
+    if (!response.ok) {
+      logEdgeEvent('middleware.refresh.failed', { status: response.status, body }, 'warn');
+      return null;
+    }
+
+    const cookies = extractSessionCookies(body);
+    if (!cookies) {
+      logEdgeEvent('middleware.refresh.missingTokens', body, 'warn');
+      return null;
+    }
+
+    const verified = await verifyAuthToken(cookies.token);
+    if (!verified) {
+      logEdgeEvent('middleware.refresh.invalidToken', body, 'warn');
+      return null;
+    }
+
+    return { cookies, verified };
+  } catch (error) {
+    logEdgeEvent('middleware.refresh.error', { error }, 'error');
+    return null;
+  }
+}
+
+function extractSessionCookies(payload: unknown): SessionCookies | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const candidates: Record<string, unknown>[] = [];
+  candidates.push(payload);
+
+  const data = payload.data;
+  if (isRecord(data)) {
+    candidates.push(data);
+  }
+
+  const attributes = payload.attributes;
+  if (isRecord(attributes)) {
+    candidates.push(attributes);
+  }
+
+  for (const candidate of candidates) {
+    const token = getStringField(candidate, ['token', 'accessToken']);
+    const refreshToken = getStringField(candidate, ['refreshToken', 'refresh_token']);
+
+    if (token && refreshToken) {
+      return { token, refreshToken };
+    }
+  }
+
+  return null;
+}
+
+function getStringField(source: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function mapPayloadToUser(payload: EdgeAuthPayload): VerifiedAuthResult {
+  const role = isUserRole(payload.role) ? payload.role : undefined;
+  const permissions = Array.isArray(payload.permissions)
+    ? payload.permissions.filter((value): value is string => typeof value === 'string')
+    : undefined;
+
+  const plan = typeof payload.plan === 'string' ? payload.plan : null;
+  const tenantPlan =
+    plan ??
+    (payload.tenant && typeof payload.tenant === 'object' && typeof payload.tenant.plan === 'string'
+      ? payload.tenant.plan
+      : null);
+
+  const tenant =
+    payload.tenant && typeof payload.tenant === 'object'
+      ? {
+          plan: typeof payload.tenant.plan === 'string' ? payload.tenant.plan : tenantPlan
+        }
+      : tenantPlan
+        ? { plan: tenantPlan }
+        : null;
+
+  const user: MaybeAuthUser =
+    role !== undefined
+      ? {
+          role,
+          permissions,
+          plan: tenantPlan,
+          tenant
+        }
+      : null;
+
+  return {
+    payload,
+    user,
+    userId: typeof payload.sub === 'string' ? payload.sub : undefined,
+    email: typeof payload.email === 'string' ? payload.email : undefined
+  };
+}
+
+function isUserRole(value: unknown): value is UserRole {
+  return typeof value === 'string' && (VALID_ROLES as readonly string[]).includes(value);
+}
+
+function applySessionCookies(
+  response: NextResponse,
+  refreshedSession: RefreshResult | null,
+  shouldClear: boolean
+): NextResponse {
+  if (refreshedSession) {
+    const accessMaxAge = computeTokenMaxAge(refreshedSession.verified.payload);
+
+    response.cookies.set(AUTH_COOKIE, refreshedSession.cookies.token, {
+      httpOnly: true,
+      secure: appConfig.environment.isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: accessMaxAge
+    });
+
+    response.cookies.set(REFRESH_COOKIE, refreshedSession.cookies.refreshToken, {
+      httpOnly: true,
+      secure: appConfig.environment.isProduction,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: appConfig.auth.rememberMeDurationDays * 24 * 60 * 60
+    });
+  }
+
+  if (shouldClear) {
+    response.cookies.delete(AUTH_COOKIE);
+    response.cookies.delete(REFRESH_COOKIE);
+  }
+
   return response;
 }
 
-/**
- * Main middleware function
- */
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
-  // Handle tenant-specific routing first
-  const tenantRedirect = handleTenantRouting(request);
-  if (tenantRedirect) {
-    return addSecurityHeaders(tenantRedirect);
+function computeTokenMaxAge(payload: EdgeAuthPayload): number {
+  if (typeof payload.exp === 'number') {
+    const ttl = Math.floor(payload.exp - Date.now() / 1000);
+    if (Number.isFinite(ttl) && ttl > 0) {
+      return ttl;
+    }
   }
-  
-  // Get authentication token
-  const token = request.cookies.get(AUTH_TOKEN_COOKIE)?.value;
-  let user: JWTPayload | null = null;
-  
-  // Verify token if present
-  if (token) {
-    user = await verifyToken(token);
-    
-    // If token is invalid or expired, try to refresh
-    if (!user) {
-      try {
-        // Attempt token refresh
-        const refreshToken = request.cookies.get('refresh_token')?.value;
-        if (refreshToken) {
-          const refreshResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/refresh`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ refreshToken }),
-          });
 
-          if (refreshResponse.ok) {
-            const refreshData = await refreshResponse.json();
-            if (refreshData.success && refreshData.data?.token && refreshData.data?.refreshToken) {
-              // Update cookies with new tokens
-              const response = NextResponse.next();
-              response.cookies.set(AUTH_TOKEN_COOKIE, refreshData.data.token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                maxAge: 15 * 60, // 15 minutes
-              });
-              response.cookies.set('refresh_token', refreshData.data.refreshToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                maxAge: 7 * 24 * 60 * 60, // 7 days
-              });
-              
-              // Verify the new token
-              user = await verifyToken(refreshData.data.token);
-              if (user) {
-                return addSecurityHeaders(response);
-              }
-            }
-          }
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed in middleware:', refreshError);
-      }
-      
-      // Clear invalid tokens if refresh failed
-      const response = NextResponse.next();
-      response.cookies.delete(AUTH_TOKEN_COOKIE);
-      response.cookies.delete('refresh_token');
-      return addSecurityHeaders(response);
-    }
-  }
-  
-  // Find route configuration
-  const routeConfig = findRouteConfig(pathname);
-  
-  // Handle authentication routes (login, register)
-  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
-  if (isAuthRoute && user) {
-    const redirectUrl = roleBasedRedirects[user.role] || '/';
-    return addSecurityHeaders(createRedirect(redirectUrl, request));
-  }
-  
-  // Handle protected routes
-  if (routeConfig?.requireAuth) {
-    // Check if user is authenticated
-    if (!user) {
-      const redirectUrl = routeConfig.redirectUnauthenticated || '/auth/login';
-      return addSecurityHeaders(createRedirect(redirectUrl, request, {
-        reason: 'authentication_required',
-        returnUrl: pathname
-      }));
-    }
-    
-    // Check if user has required role
-    if (!hasPermission(user.role, routeConfig.allowedRoles)) {
-      const redirectUrl = routeConfig.redirectUnauthorized || roleBasedRedirects[user.role] || '/';
-      return addSecurityHeaders(createRedirect(redirectUrl, request, {
-        reason: 'insufficient_permissions'
-      }));
-    }
-  }
-  
-  // Handle root path redirects for authenticated users
-  if (pathname === '/' && user) {
-    const redirectUrl = roleBasedRedirects[user.role] || '/';
-    if (redirectUrl !== '/') {
-      return addSecurityHeaders(createRedirect(redirectUrl, request));
-    }
-  }
-  
-  // Create response with user context headers for debugging
-  const response = NextResponse.next();
-  
-  if (user && process.env.NODE_ENV === 'development') {
-    response.headers.set('X-User-Role', user.role);
-    response.headers.set('X-User-Type', user.userType);
-    response.headers.set('X-User-ID', user.sub);
-  }
-  
-  return addSecurityHeaders(response);
+  return appConfig.auth.sessionTimeoutMinutes * 60;
 }
 
-/**
- * Middleware configuration
- * Excludes API routes, static files, and optimization files
- */
-export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$|.*\\.ico$).*)',
-  ],
-};
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(header, value);
+  }
+  return response;
+}
+
+function buildRedirectResponse(
+  request: NextRequest,
+  destination: string,
+  options: {
+    reason?: string;
+    returnUrl?: string;
+  } = {}
+): NextResponse {
+  const target = new URL(destination, request.url);
+
+  if (options.reason) {
+    target.searchParams.set('error', options.reason);
+  }
+
+  if (options.returnUrl) {
+    target.searchParams.set('redirect', options.returnUrl);
+  }
+
+  return NextResponse.redirect(target);
+}
+
+function handleTenantRewrite(request: NextRequest, pathname: string): NextResponse | null {
+  const hostHeader = request.headers.get('host');
+  if (!hostHeader) {
+    return null;
+  }
+
+  const normalizedHost = hostHeader.toLowerCase();
+  const isInternalHost = INTERNAL_HOSTNAMES.some(
+    (known) => normalizedHost === known || normalizedHost.endsWith(`.${known}`)
+  );
+
+  if (!isInternalHost && pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/gate';
+    return NextResponse.rewrite(url);
+  }
+
+  return null;
+}
+
+async function safeJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function logEdgeEvent(label: string, data: unknown, level: 'info' | 'warn' | 'error' = 'info'): void {
+  const payload = sanitizeSensitiveObject({ label, data });
+
+  if (!appConfig.environment.isDevelopment && level !== 'error') {
+    return;
+  }
+
+  switch (level) {
+    case 'error':
+      console.error(label, payload);
+      break;
+    case 'warn':
+      console.warn(label, payload);
+      break;
+    default:
+      console.info(label, payload);
+      break;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}

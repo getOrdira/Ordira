@@ -37,6 +37,7 @@ import type {
   WebhookReconciliationResult,
   IntegrationAnalyticsReport
 } from '@backend/services/integrations/ecommerce/core/types';
+import type { ConnectionHealthReport } from '@backend/services/integrations/ecommerce/features/connectionHealth.service';
 
 // Re-export all backend types
 export type {
@@ -67,7 +68,8 @@ export type {
   OrderProcessingResult,
   ProductSyncResult,
   WebhookReconciliationResult,
-  IntegrationAnalyticsReport
+  IntegrationAnalyticsReport,
+  ConnectionHealthReport
 };
 
 // ===== FRONTEND-SPECIFIC EXTENSIONS =====

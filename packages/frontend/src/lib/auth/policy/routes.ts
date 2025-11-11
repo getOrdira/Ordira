@@ -7,10 +7,16 @@ import { isBrandLike, isManufacturer, type MaybeAuthUser } from './roles';
  */
 export const PUBLIC_ROUTES = [
   '/',
+  '/about',
+  '/contact',
+  '/pricing',
   '/auth',
   '/auth/login',
   '/auth/register',
-  '/pricing'
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/verify-email',
+  '/auth/verify'
 ] as const;
 
 /**
@@ -45,8 +51,8 @@ export const BRAND_SETTINGS_ROUTES = [
   '/settings/billing',
   '/settings/security',
   '/settings/domains',
-  'settings/certificates',
-  'settings/voting',
+  '/settings/certificates',
+  '/settings/voting',
 ] as const;
 
 export const MANUFACTURER_SETTINGS_ROUTES = [

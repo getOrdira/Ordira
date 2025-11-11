@@ -161,6 +161,15 @@ export const useAuth = (options: UseAuthOptions = {}): UseAuthResult => {
     [queryClient, refreshAuthQueries]
   );
 
+  const fetchAndSyncUser = useCallback(async () => {
+    try {
+      const user = await authApi.getProfile();
+      syncUserCache(user);
+    } catch (error) {
+      syncUserCache();
+    }
+  }, [syncUserCache]);
+
   const profile = useQuery<AnyUser, ApiError>({
     queryKey: authQueryKeys.profile(),
     queryFn: authApi.getProfile,
@@ -206,56 +215,56 @@ export const useAuth = (options: UseAuthOptions = {}): UseAuthResult => {
     'login',
     authApi.login,
     mutationOptions.login,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const loginUser = createAuthMutation<AuthResponse, LoginCredentials>(
     'loginUser',
     authApi.loginUser,
     mutationOptions.loginUser,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const loginBusiness = createAuthMutation<AuthResponse, BusinessLoginCredentials>(
     'loginBusiness',
     authApi.loginBusiness,
     mutationOptions.loginBusiness,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const loginManufacturer = createAuthMutation<AuthResponse, LoginCredentials>(
     'loginManufacturer',
     authApi.loginManufacturer,
     mutationOptions.loginManufacturer,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const register = createAuthMutation<AuthResponse, RegisterUserData | RegisterBusinessData>(
     'register',
     authApi.register,
     mutationOptions.register,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const registerUser = createAuthMutation<AuthResponse, RegisterUserData>(
     'registerUser',
     authApi.registerUser,
     mutationOptions.registerUser,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const registerBusiness = createAuthMutation<AuthResponse, RegisterBusinessData>(
     'registerBusiness',
     authApi.registerBusiness,
     mutationOptions.registerBusiness,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const registerManufacturer = createAuthMutation<AuthResponse, RegisterManufacturerData>(
     'registerManufacturer',
     authApi.registerManufacturer,
     mutationOptions.registerManufacturer,
-    async data => syncUserCache(data.user)
+    async () => fetchAndSyncUser()
   );
 
   const verify = createAuthMutation<void, EmailVerificationData>(

@@ -27,8 +27,10 @@ import type {
   BrandSettingsHealth,
   BrandSettingsSyncResult,
   BrandSettingsTestResult,
+  BrandSettingsFormData,
   EnhancedBrandSettings,
   IntegrationStatus,
+  UpdateBrandSettingsInput,
   WalletValidationResult
 } from '@/lib/types/features/brands';
 import { ApiError } from '@/lib/errors/errors';
@@ -57,6 +59,9 @@ type SettingsHealthQueryOptions = Omit<
   UseQueryOptions<BrandSettingsHealth, ApiError, BrandSettingsHealth, QueryKey>,
   'queryKey' | 'queryFn'
 >;
+
+type UpdateBrandSettingsVariables =
+  Partial<BrandSettingsFormData> & Partial<UpdateBrandSettingsInput>;
 
 export const brandSettingsQueryKeys = {
   root: ['brands', 'settings'] as const,
@@ -117,8 +122,8 @@ export const useBrandSettingsHealth = (
 };
 
 export const useUpdateBrandSettings = (
-  options?: MutationConfig<EnhancedBrandSettings, Partial<EnhancedBrandSettings>>
-): UseMutationResult<EnhancedBrandSettings, ApiError, Partial<EnhancedBrandSettings>, unknown> => {
+  options?: MutationConfig<EnhancedBrandSettings, UpdateBrandSettingsVariables>
+): UseMutationResult<EnhancedBrandSettings, ApiError, UpdateBrandSettingsVariables, unknown> => {
   return useMutation({
     mutationKey: brandSettingsMutationKeys.update,
     mutationFn: brandSettingsApi.updateSettings,
