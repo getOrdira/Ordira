@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import sharp from 'sharp';
-import { S3Service } from '../../services/external/s3.service';
+import { S3Service } from '../../services/media/core/s3.service';
 import { hasUserId, hasTenantContext } from '../../utils/typeGuards';
 
 // Configuration

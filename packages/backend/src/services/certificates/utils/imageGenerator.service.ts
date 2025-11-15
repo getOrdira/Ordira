@@ -8,8 +8,9 @@
  * - Support multiple certificate levels and templates
  */
 
-import { Business } from '../../../models/deprecated/business.model';
-import { S3Service } from '../../external/s3.service';
+import { BrandSettings } from '../../../models/brands/brandSettings.model';
+import { Business } from '../../../models/core/business.model';
+import { S3Service } from '../../media/core/s3.service';
 import { logger } from '../../../utils/logger';
 
 export interface ImageGenerationOptions {
@@ -86,7 +87,7 @@ export async function generateDefaultCertificateImage(
   options: ImageGenerationOptions
 ): Promise<CertificateImageResult> {
   try {
-    const business = await Business.findById(businessId);
+    const business = await Business.findById(businessId).select('businessName');
     const brandName = options.brandName || business?.businessName || 'Brand';
 
     // Generate SVG certificate

@@ -5,7 +5,7 @@ import { NftMintResult, ContractDeployment, NftContractInfo, TransferResult } fr
 import { BrandSettings, IBrandSettings } from '../../models/brands/brandSettings.model';
 import { Certificate, ICertificate } from '../../models/certificates/certificate.model';
 import { Types } from 'mongoose';
-import { S3Service } from '../external/s3.service';
+import { S3Service } from '../media/core/s3.service';
 import { mediaAnalyticsService } from '../media';
 import { createAppError } from '../../middleware/deprecated/error.middleware';
 import nftFactoryAbi from '../../abi/nftFactoryAbi.json';

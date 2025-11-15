@@ -183,6 +183,48 @@ export interface IVotingQrCodeData {
 
 export type IQrCodeData = ISupplyChainQrCodeData | ICertificateQrCodeData | IVotingQrCodeData;
 
+// ===== QR CODE REQUEST TYPES =====
+
+export interface IQrCodeGenerationRequest {
+  type: QrCodeType;
+  data: any;
+  options?: IQrCodeOptions;
+}
+
+export interface IQrCodeGenerationResult {
+  success: boolean;
+  qrCode?: string;
+  error?: string;
+  metadata?: {
+    type: QrCodeType;
+    size: number;
+    format: string;
+    errorCorrectionLevel: string;
+  };
+}
+
+export interface ISupplyChainQrCodeRequest {
+  productId: string;
+  productName: string;
+  manufacturerId: string;
+  contractAddress: string;
+  businessId: string;
+  options?: IQrCodeOptions;
+}
+
+export interface ICertificateQrCodeRequest {
+  certificateId: string;
+  tokenId: string;
+  contractAddress: string;
+  options?: IQrCodeOptions;
+}
+
+export interface IVotingQrCodeRequest {
+  proposalId: string;
+  voterEmail: string;
+  options?: IQrCodeOptions;
+}
+
 // ===== RESPONSE TYPES =====
 
 export interface IApiResponse<T = any> {

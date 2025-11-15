@@ -3,58 +3,11 @@ import { logger } from '../../../utils/logger';
 import { QrCodeService } from '../../external/qrCode.service';
 import { SupplyChainValidationService } from '../validation/supplyChainValidation.service';
 import { ContractReadService } from '../core/contractRead.service';
-import {
-  IQrCodeOptions,
-  IQrCodeResult,
-  ISupplyChainQrCodeData,
-  ICertificateQrCodeData,
-  IVotingQrCodeData,
-  IQrCodeData,
-  QrCodeType,
-  IApiResponse
-} from '../utils/types';
+import type { ICertificateQrCodeData, IQrCodeData, IQrCodeOptions, ISupplyChainQrCodeData, IVotingQrCodeData, IApiResponse } from '@ordira/shared/src/types/features/supplyChain/types';
+import { QrCodeType } from '@ordira/shared/src/types/features/supplyChain/types';
+import type { ISupplyChainQrCodeRequest, ICertificateQrCodeRequest, IVotingQrCodeRequest, IQrCodeGenerationRequest, IQrCodeGenerationResult } from '@ordira/shared/src/types/features/supplyChain/qr-code';
 
 // ===== INTERFACES =====
-
-export interface IQrCodeGenerationRequest {
-  type: QrCodeType;
-  data: any;
-  options?: IQrCodeOptions;
-}
-
-export interface IQrCodeGenerationResult {
-  success: boolean;
-  qrCode?: string;
-  error?: string;
-  metadata?: {
-    type: QrCodeType;
-    size: number;
-    format: string;
-    errorCorrectionLevel: string;
-  };
-}
-
-export interface ISupplyChainQrCodeRequest {
-  productId: string;
-  productName: string;
-  manufacturerId: string;
-  contractAddress: string;
-  businessId: string;
-  options?: IQrCodeOptions;
-}
-
-export interface ICertificateQrCodeRequest {
-  certificateId: string;
-  tokenId: string;
-  contractAddress: string;
-  options?: IQrCodeOptions;
-}
-
-export interface IVotingQrCodeRequest {
-  proposalId: string;
-  voterEmail: string;
-  options?: IQrCodeOptions;
-}
 
 // ===== ERROR CLASS =====
 

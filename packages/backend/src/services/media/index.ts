@@ -7,6 +7,7 @@ import {
   StorageProviderService,
   storageProviderService
 } from './core/storageProvider.service';
+import { S3Service } from './core/s3.service';
 
 // Feature Services
 import {
@@ -45,7 +46,8 @@ export {
   MediaDataService,
   mediaDataService,
   StorageProviderService,
-  storageProviderService
+  storageProviderService,
+  S3Service
 };
 
 // Export feature services

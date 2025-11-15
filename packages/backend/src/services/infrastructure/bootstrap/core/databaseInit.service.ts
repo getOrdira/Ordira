@@ -7,7 +7,7 @@
 import mongoose from 'mongoose';
 import { logger } from '../../logging';
 import { configService } from '../../config/core/config.service';
-import { container, SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
+import { container, SERVICE_TOKENS } from '../../dependency-injection';
 import { monitoringService } from '../../../external/monitoring.service';
 import { databaseOptimizationService } from '../../../external/database-optimization.service';
 import { enhancedDatabaseService } from '../../../external/enhanced-database.service';
@@ -161,7 +161,7 @@ export class DatabaseInitService {
 
   private async ensureModelRegistrations(): Promise<void> {
     const registrations: Array<{
-      token: string;
+      token: symbol | string;
       resolver: () => Promise<Record<string, unknown>>;
       exportKey: string;
     }> = [
@@ -176,7 +176,7 @@ export class DatabaseInitService {
     ];
 
     for (const { token, resolver, exportKey } of registrations) {
-      if (container.has(token)) {
+      if (container.isRegistered(token)) {
         continue;
       }
 
@@ -184,12 +184,12 @@ export class DatabaseInitService {
       const model = moduleRef[exportKey];
 
       if (!model) {
-        logger.warn(`Missing model export '${exportKey}' while registering ${token}`);
+        logger.warn(`Missing model export '${exportKey}' while registering ${String(token)}`);
         continue;
       }
 
       container.registerInstance(token, model);
-      logger.debug(`Registered ${exportKey} for token ${token}`);
+      logger.debug(`Registered ${exportKey} for token ${String(token)}`);
     }
   }
 

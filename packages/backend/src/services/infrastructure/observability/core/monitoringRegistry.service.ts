@@ -3,25 +3,96 @@
  * 
  * Provides comprehensive monitoring, metrics collection, and alerting
  * capabilities for the application.
+ * 
+ * Now uses OpenTelemetry as the backend for metrics while maintaining
+ * backward compatibility with the existing facade.
  */
 
 import { CircuitBreakerStats, Alert, AlertRule, MetricData, SystemHealth } from '../utils/types';
-
+import { getOpenTelemetryService } from './otel.service';
+import { metrics, Counter, Histogram, Meter } from '@opentelemetry/api';
+import { logger } from '../../../../utils/logger';
 
 export class MonitoringService {
-  private metrics: MetricData[] = [];
+  // In-memory storage for backward compatibility (alerts, rules)
   private alertRules: Map<string, AlertRule> = new Map();
   private activeAlerts: Map<string, Alert> = new Map();
   private alertHistory: Alert[] = [];
-  private maxMetricsHistory = 10000; // Keep last 10k metrics
   private maxAlertHistory = 1000; // Keep last 1k alerts
+
+  // OpenTelemetry metrics
+  private meter: Meter | null = null;
+  private counters: Map<string, Counter> = new Map();
+  private histograms: Map<string, Histogram> = new Map();
+
+  // Legacy in-memory metrics (for backward compatibility during migration)
+  private metrics: MetricData[] = [];
+  private maxMetricsHistory = 10000; // Keep last 10k metrics
+  private useOpenTelemetry = false;
 
   constructor() {
     this.initializeDefaultAlertRules();
+    this.initializeOpenTelemetry();
   }
 
   /**
-   * Record a metric
+   * Initialize OpenTelemetry metrics
+   */
+  private initializeOpenTelemetry(): void {
+    try {
+      const otelService = getOpenTelemetryService();
+      if (otelService && otelService.isInitialized()) {
+        this.meter = otelService.getMeter();
+        this.useOpenTelemetry = !!this.meter;
+        
+        if (this.useOpenTelemetry) {
+          logger.info('✅ MonitoringService using OpenTelemetry backend');
+        }
+      }
+    } catch (error) {
+      logger.warn('⚠️ OpenTelemetry not available, using in-memory metrics');
+      this.useOpenTelemetry = false;
+    }
+  }
+
+  /**
+   * Get or create a counter metric
+   */
+  private getCounter(name: string, description?: string): Counter {
+    if (!this.meter) {
+      throw new Error('OpenTelemetry meter not available');
+    }
+
+    if (!this.counters.has(name)) {
+      const counter = this.meter.createCounter(name, {
+        description: description || `Counter for ${name}`
+      });
+      this.counters.set(name, counter);
+    }
+
+    return this.counters.get(name)!;
+  }
+
+  /**
+   * Get or create a histogram metric
+   */
+  private getHistogram(name: string, description?: string): Histogram {
+    if (!this.meter) {
+      throw new Error('OpenTelemetry meter not available');
+    }
+
+    if (!this.histograms.has(name)) {
+      const histogram = this.meter.createHistogram(name, {
+        description: description || `Histogram for ${name}`
+      });
+      this.histograms.set(name, histogram);
+    }
+
+    return this.histograms.get(name)!;
+  }
+
+  /**
+   * Record a metric (facade - uses OpenTelemetry or in-memory)
    */
   recordMetric(metric: Omit<MetricData, 'timestamp'>): void {
     const metricData: MetricData = {
@@ -29,15 +100,55 @@ export class MonitoringService {
       timestamp: new Date()
     };
 
-    this.metrics.push(metricData);
+    // Record to OpenTelemetry if available
+    if (this.useOpenTelemetry && this.meter) {
+      try {
+        this.recordMetricToOpenTelemetry(metricData);
+      } catch (error) {
+        logger.warn('Failed to record metric to OpenTelemetry, falling back to in-memory:', error);
+        this.recordMetricToMemory(metricData);
+      }
+    } else {
+      // Fallback to in-memory storage
+      this.recordMetricToMemory(metricData);
+    }
+
+    // Check alert rules (always)
+    this.checkAlertRules(metricData);
+  }
+
+  /**
+   * Record metric to OpenTelemetry
+   */
+  private recordMetricToOpenTelemetry(metric: MetricData): void {
+    if (!this.meter) return;
+
+    // Determine metric type based on name patterns
+    if (metric.name.includes('_total') || metric.name.includes('_count')) {
+      // Counter metric
+      const counter = this.getCounter(metric.name, metric.unit);
+      counter.add(metric.value, metric.tags || {});
+    } else if (metric.name.includes('_duration') || metric.name.includes('_time') || metric.unit === 'ms' || metric.unit === 'seconds') {
+      // Histogram metric (for durations/times)
+      const histogram = this.getHistogram(metric.name, metric.unit);
+      histogram.record(metric.value, metric.tags || {});
+    } else {
+      // Default to counter
+      const counter = this.getCounter(metric.name, metric.unit);
+      counter.add(metric.value, metric.tags || {});
+    }
+  }
+
+  /**
+   * Record metric to in-memory storage (backward compatibility)
+   */
+  private recordMetricToMemory(metric: MetricData): void {
+    this.metrics.push(metric);
 
     // Trim metrics history if needed
     if (this.metrics.length > this.maxMetricsHistory) {
       this.metrics = this.metrics.slice(-this.maxMetricsHistory);
     }
-
-    // Check alert rules
-    this.checkAlertRules(metricData);
   }
 
   /**
@@ -48,7 +159,8 @@ export class MonitoringService {
   }
 
   /**
-   * Get metrics for a specific time range
+   * Get metrics for a specific time range (from in-memory storage)
+   * Note: OpenTelemetry metrics should be queried via Prometheus/Grafana
    */
   getMetrics(
     name?: string,
@@ -56,6 +168,8 @@ export class MonitoringService {
     endTime?: Date,
     limit?: number
   ): MetricData[] {
+    // Only return in-memory metrics (for backward compatibility)
+    // For OpenTelemetry metrics, use Prometheus queries
     let filtered = this.metrics;
 
     if (name) {
@@ -79,6 +193,7 @@ export class MonitoringService {
 
   /**
    * Get aggregated metrics (average, min, max, sum)
+   * Note: For OpenTelemetry metrics, use Prometheus aggregation functions
    */
   getAggregatedMetrics(
     name: string,
@@ -166,7 +281,7 @@ export class MonitoringService {
     const now = new Date();
     const last5Minutes = new Date(now.getTime() - 5 * 60 * 1000);
 
-    // Get recent metrics
+    // Get recent metrics (from in-memory or OpenTelemetry)
     const responseTime = this.getAggregatedMetrics('response_time', last5Minutes, now, 'avg');
     const errorRate = this.getAggregatedMetrics('error_rate', last5Minutes, now, 'avg');
     
@@ -397,6 +512,21 @@ export class MonitoringService {
         }
       ]);
     });
+  }
+
+  /**
+   * Get metrics (for backward compatibility)
+   * Note: Returns empty array if using OpenTelemetry - use Prometheus queries instead
+   */
+  getMetricsData(): MetricData[] {
+    return this.useOpenTelemetry ? [] : this.metrics;
+  }
+
+  /**
+   * Check if using OpenTelemetry backend
+   */
+  isUsingOpenTelemetry(): boolean {
+    return this.useOpenTelemetry;
   }
 }
 

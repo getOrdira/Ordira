@@ -8,8 +8,8 @@
  * - Support certificate levels and templates
  */
 
-import { Business } from '../../../models/deprecated/business.model';
-import { S3Service } from '../../external/s3.service';
+import { Business } from '../../../models/core/business.model';
+import { S3Service } from '../../media/core/s3.service';
 
 export interface MetadataOptions {
   productId: string;
@@ -53,18 +53,15 @@ export async function generateNFTMetadata(
   businessId: string,
   options: MetadataOptions
 ): Promise<NFTMetadata> {
-  const business = await Business.findById(businessId);
+  const business = await Business.findById(businessId).select('businessName');
   const brandName = business?.businessName || 'Brand';
-
-  // Use provided image or will be set by caller
-  const imageUrl = options.imageUrl || '';
 
   const metadata: NFTMetadata = {
     name: `${brandName} Certificate - ${options.productId}`,
     description:
       options.customMessage ||
       `Digital certificate of authenticity for ${options.productId} issued by ${brandName}`,
-    image: imageUrl,
+    image: options.imageUrl || '',
     external_url: `${process.env.FRONTEND_URL}/certificates/${options.productId}`,
     attributes: [
       {

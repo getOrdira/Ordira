@@ -8,6 +8,9 @@
 // Load environment variables early
 import 'dotenv/config';
 
+// Import reflect-metadata for dependency injection decorators
+import 'reflect-metadata';
+
 // Import services
 import { AppBootstrapService, DatabaseInitService, ServerStartupService } from './services/infrastructure/bootstrap';
 import { logger } from './services/infrastructure/logging'; 

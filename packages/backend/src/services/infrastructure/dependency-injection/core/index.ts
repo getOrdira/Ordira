@@ -1,8 +1,9 @@
 /**
  * Dependency Injection Core Module
  * 
- * Core DI container and service management
+ * Exports tsyringe container and service tokens
  */
 
-export * from './diContainer.service';
-
+export * from './container';
+export * from './serviceTokens';
+export { container } from 'tsyringe';

@@ -7,13 +7,11 @@ import {
   QrCodeType,
   type IQrCodeOptions,
   type IQrCodeData,
+  type IQrCodeGenerationRequest,
+  type ISupplyChainQrCodeRequest,
+  type ICertificateQrCodeRequest,
+  type IVotingQrCodeRequest,
 } from '../../../services/supplyChain/utils/types';
-import type {
-  IQrCodeGenerationRequest,
-  ISupplyChainQrCodeRequest,
-  ICertificateQrCodeRequest,
-  IVotingQrCodeRequest,
-} from '../../../services/supplyChain/features/qrCode.service';
 
 interface QrCodeRequest extends SupplyChainBaseRequest {
   validatedBody?: any;

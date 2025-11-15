@@ -1,4 +1,18 @@
+/**
+ * Job Queue Adapter Service
+ * 
+ * Provides a Bull-based job queue with Redis backend.
+ * Redis is REQUIRED - no fallback to in-memory processing.
+ * 
+ * This ensures:
+ * - No data loss in multi-instance deployments
+ * - Consistent job processing across instances
+ * - Proper infrastructure setup
+ */
+
 import { logger } from '../../../../utils/logger';
+import { getOpenTelemetryService } from '../../observability';
+import { metrics, Counter, Histogram, Meter } from '@opentelemetry/api';
 import type {
   JobData,
   JobResult,
@@ -30,6 +44,7 @@ interface BullQueue {
   clean: (grace: number, status?: string) => Promise<BullJob[]>;
   close: () => Promise<void>;
   on: (event: string, handler: (...args: any[]) => void) => void;
+  isReady: () => Promise<void>;
 }
 
 interface JobQueueAdapterOptions {
@@ -37,32 +52,28 @@ interface JobQueueAdapterOptions {
   metricsRecorder?: MetricsRecorder;
   statsIntervalMs?: number;
   cleanupIntervalMs?: number;
-  fallbackIntervalMs?: number;
   defaultJobOptions?: Record<string, unknown>;
 }
 
-interface FallbackJobRecord {
-  id: string;
-  data: JobData & Record<string, any>;
-  createdAt: Date;
-  attemptsMade: number;
-}
-
-const DEFAULT_OPTIONS: Required<Pick<JobQueueAdapterOptions, 'statsIntervalMs' | 'cleanupIntervalMs' | 'fallbackIntervalMs'>> = {
+const DEFAULT_OPTIONS: Required<Pick<JobQueueAdapterOptions, 'statsIntervalMs' | 'cleanupIntervalMs'>> = {
   statsIntervalMs: 60_000,
-  cleanupIntervalMs: 3_600_000,
-  fallbackIntervalMs: 5_000
+  cleanupIntervalMs: 3_600_000
 };
 
 export class JobQueueAdapter {
   private bullQueue: BullQueue | null = null;
-  private readonly fallbackJobs = new Map<string, FallbackJobRecord>();
-  private readonly processingFallbackJobs = new Set<string>();
   private readonly processors = new Map<string, JobProcessor>();
   private readonly pendingProcessors: Array<{ jobType: string; processor: JobProcessor }> = [];
   private metricsRecorder?: MetricsRecorder;
   private readonly queueName: string;
   private readonly defaultJobOptions: Record<string, unknown>;
+
+  // OpenTelemetry metrics
+  private meter: Meter | null = null;
+  private queueDepthCounter?: Counter;
+  private processingRateCounter?: Counter;
+  private failureRateCounter?: Counter;
+  private processingTimeHistogram?: Histogram;
 
   private jobStats: JobStats = {
     total: 0,
@@ -75,8 +86,8 @@ export class JobQueueAdapter {
 
   private statsTimer?: NodeJS.Timeout;
   private cleanupTimer?: NodeJS.Timeout;
-  private fallbackTimer?: NodeJS.Timeout;
   private initialized = false;
+  private isHealthy = false;
 
   constructor(options: JobQueueAdapterOptions = {}) {
     this.queueName = options.queueName ?? 'job-processing';
@@ -91,41 +102,136 @@ export class JobQueueAdapter {
       }
     };
 
+    // Initialize OpenTelemetry metrics
+    this.initializeOpenTelemetryMetrics();
+
+    // Initialize queue synchronously - fail fast if Redis is not available
     this.initializeQueue().catch(error => {
-      logger.error('Failed to initialize job queue adapter:', {
+      logger.error('❌ Failed to initialize job queue adapter - Redis is required:', {
         message: error instanceof Error ? error.message : 'Unknown error'
       });
-      this.initializeFallbackProcessor();
+      throw new Error(`Job queue initialization failed: Redis connection required. ${error instanceof Error ? error.message : 'Unknown error'}`);
     });
+  }
 
-    this.startSchedule(options);
+  /**
+   * Initialize OpenTelemetry metrics
+   */
+  private initializeOpenTelemetryMetrics(): void {
+    try {
+      const otelService = getOpenTelemetryService();
+      if (otelService && otelService.isInitialized()) {
+        this.meter = otelService.getMeter();
+        
+        if (this.meter) {
+          this.queueDepthCounter = this.meter.createCounter('job_queue_depth_total', {
+            description: 'Total number of jobs in queue'
+          });
+          this.processingRateCounter = this.meter.createCounter('job_queue_processing_rate_total', {
+            description: 'Total number of jobs processed'
+          });
+          this.failureRateCounter = this.meter.createCounter('job_queue_failure_rate_total', {
+            description: 'Total number of job failures'
+          });
+          this.processingTimeHistogram = this.meter.createHistogram('job_queue_processing_time_ms', {
+            description: 'Job processing time in milliseconds'
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn('OpenTelemetry metrics not available for job queue', error);
+    }
+  }
+
+  /**
+   * Initialize Bull queue - REQUIRES Redis
+   */
+  private async initializeQueue(): Promise<void> {
+    // Check Redis URL is configured
+    if (!process.env.REDIS_URL) {
+      throw new Error('REDIS_URL environment variable is required for job queue. No fallback available.');
+    }
+
+    try {
+      const BullModule = await import('bull');
+      // Bull can be exported as default or named export
+      const Bull = (BullModule.default || BullModule) as any;
+
+      logger.info('🔧 Initializing Bull job queue adapter (Redis required)...', { queue: this.queueName });
+
+      this.bullQueue = Bull(this.queueName, {
+        redis: process.env.REDIS_URL,
+        defaultJobOptions: this.defaultJobOptions
+      }) as any;
+
+      // Wait for queue to be ready
+      await this.bullQueue.isReady();
+
+      // Verify Redis connection by getting job counts
+      await this.bullQueue.getJobCounts();
+
+      this.setupBullListeners();
+      this.registerPendingProcessors();
+      this.initialized = true;
+      this.isHealthy = true;
+
+      logger.info('✅ Bull job queue adapter initialized successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('❌ Bull queue initialization failed - Redis connection required:', {
+        message: errorMessage,
+        redisUrl: process.env.REDIS_URL ? 'configured' : 'missing'
+      });
+      this.isHealthy = false;
+      throw new Error(`Job queue initialization failed: ${errorMessage}. Redis connection is required.`);
+    }
+  }
+
+  /**
+   * Check if queue is healthy (Redis connection available)
+   */
+  async checkHealth(): Promise<{ healthy: boolean; error?: string }> {
+    if (!this.bullQueue) {
+      return { healthy: false, error: 'Queue not initialized' };
+    }
+
+    try {
+      // Test Redis connection by getting job counts
+      await this.bullQueue.getJobCounts();
+      this.isHealthy = true;
+      return { healthy: true };
+    } catch (error) {
+      this.isHealthy = false;
+      return {
+        healthy: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Get queue health status
+   */
+  isQueueHealthy(): boolean {
+    return this.isHealthy && this.initialized;
   }
 
   async addJob(jobData: JobData): Promise<string> {
-    this.jobStats.total++;
-
-    if (this.bullQueue) {
-      const job = await this.bullQueue.add(jobData.type, jobData, {
-        priority: jobData.priority ?? 0,
-        delay: jobData.delay ?? 0,
-        attempts: jobData.attempts ?? this.defaultJobOptions.attempts,
-        ...this.defaultJobOptions
-      });
-
-      this.recordMetric('job_added', 1, { type: jobData.type });
-      return String(job.id);
+    if (!this.bullQueue) {
+      throw new Error('Job queue not initialized. Redis connection required.');
     }
 
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    this.fallbackJobs.set(jobId, {
-      id: jobId,
-      data: jobData,
-      createdAt: new Date(),
-      attemptsMade: 0
+    this.jobStats.total++;
+
+    const job = await this.bullQueue.add(jobData.type, jobData, {
+      priority: jobData.priority ?? 0,
+      delay: jobData.delay ?? 0,
+      attempts: jobData.attempts ?? this.defaultJobOptions.attempts,
+      ...this.defaultJobOptions
     });
 
-    this.recordMetric('job_added_fallback', 1, { type: jobData.type });
-    return jobId;
+    this.recordMetric('job_added', 1, { type: jobData.type });
+    return String(job.id);
   }
 
   registerProcessor(jobType: string, processor: JobProcessor): void {
@@ -142,74 +248,49 @@ export class JobQueueAdapter {
   }
 
   async getJobStats(): Promise<JobStats> {
-    if (this.bullQueue) {
-      const counts = await this.bullQueue.getJobCounts();
-      return {
-        total: this.jobStats.total,
-        active: counts.active ?? 0,
-        waiting: counts.waiting ?? 0,
-        completed: counts.completed ?? 0,
-        failed: counts.failed ?? 0,
-        processing: { ...this.jobStats.processing }
-      };
+    if (!this.bullQueue) {
+      throw new Error('Job queue not initialized. Redis connection required.');
     }
 
+    const counts = await this.bullQueue.getJobCounts();
     return {
       total: this.jobStats.total,
-      active: this.processingFallbackJobs.size,
-      waiting: this.fallbackJobs.size,
-      completed: this.jobStats.completed,
-      failed: this.jobStats.failed,
+      active: counts.active ?? 0,
+      waiting: counts.waiting ?? 0,
+      completed: counts.completed ?? 0,
+      failed: counts.failed ?? 0,
       processing: { ...this.jobStats.processing }
     };
   }
 
   async getQueueStatus(): Promise<Record<string, number>> {
-    if (this.bullQueue) {
-      return this.bullQueue.getJobCounts();
+    if (!this.bullQueue) {
+      throw new Error('Job queue not initialized. Redis connection required.');
     }
 
-    return {
-      waiting: this.fallbackJobs.size,
-      active: this.processingFallbackJobs.size,
-      failed: this.jobStats.failed,
-      completed: this.jobStats.completed
-    };
+    return this.bullQueue.getJobCounts();
   }
 
   async getJobs(types: string[] = ['active', 'waiting', 'failed']): Promise<Array<JobData & { id: string }>> {
-    if (this.bullQueue) {
-      const jobs = await this.bullQueue.getJobs(types, 0, 50);
-      return jobs.map(job => ({
-        ...job.data,
-        id: String(job.id ?? '')
-      }));
+    if (!this.bullQueue) {
+      throw new Error('Job queue not initialized. Redis connection required.');
     }
 
-    return Array.from(this.fallbackJobs.values()).map(({ id, data }) => ({
-      ...data,
-      id
+    const jobs = await this.bullQueue.getJobs(types, 0, 50);
+    return jobs.map(job => ({
+      ...job.data,
+      id: String(job.id ?? '')
     }));
   }
 
   async cleanup(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<number> {
-    if (this.bullQueue) {
-      const cleaned = await this.bullQueue.clean(maxAgeMs, 'completed');
-      this.recordMetric('jobs_cleaned', cleaned.length);
-      return cleaned.length;
+    if (!this.bullQueue) {
+      throw new Error('Job queue not initialized. Redis connection required.');
     }
 
-    let cleaned = 0;
-    const now = Date.now();
-    for (const [jobId, jobRecord] of this.fallbackJobs.entries()) {
-      if (now - jobRecord.createdAt.getTime() > maxAgeMs) {
-        this.fallbackJobs.delete(jobId);
-        cleaned++;
-      }
-    }
-
-    this.recordMetric('jobs_cleaned_fallback', cleaned);
-    return cleaned;
+    const cleaned = await this.bullQueue.clean(maxAgeMs, 'completed');
+    this.recordMetric('jobs_cleaned', cleaned.length);
+    return cleaned.length;
   }
 
   async shutdown(): Promise<void> {
@@ -219,52 +300,12 @@ export class JobQueueAdapter {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
     }
-    if (this.fallbackTimer) {
-      clearInterval(this.fallbackTimer);
-    }
 
     if (this.bullQueue) {
       await this.bullQueue.close();
     }
 
-    this.fallbackJobs.clear();
-    this.processingFallbackJobs.clear();
-  }
-
-  private async initializeQueue(): Promise<void> {
-    try {
-      const Bull = await import('bull').then(mod => mod.default).catch(() => null);
-
-      if (Bull && process.env.REDIS_URL) {
-        logger.info('Initializing Bull job queue adapter...', { queue: this.queueName });
-
-        this.bullQueue = new Bull(this.queueName, {
-          redis: process.env.REDIS_URL,
-          defaultJobOptions: this.defaultJobOptions
-        }) as any;
-
-        this.setupBullListeners();
-        this.registerPendingProcessors();
-        this.initialized = true;
-        return;
-      }
-    } catch (error) {
-      logger.error('Bull queue initialization failed, falling back to in-memory queue.', {
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-
-    this.initializeFallbackProcessor();
-  }
-
-  private initializeFallbackProcessor(): void {
-    if (this.initialized) {
-      return;
-    }
-
-    logger.info('Using in-memory fallback job queue.');
-    this.initialized = true;
-    this.startFallbackLoop();
+    this.isHealthy = false;
   }
 
   private registerPendingProcessors(): void {
@@ -309,6 +350,10 @@ export class JobQueueAdapter {
 
       this.jobStats.completed++;
       this.recordMetric('job_completed', 1, { type: jobType });
+      
+      // Record OpenTelemetry metrics
+      this.processingRateCounter?.add(1, { type: jobType });
+      this.processingTimeHistogram?.record(duration, { type: jobType });
 
       return {
         success: true,
@@ -319,6 +364,10 @@ export class JobQueueAdapter {
       const duration = Date.now() - start;
       this.jobStats.failed++;
       this.recordMetric('job_failed', 1, { type: jobType });
+      
+      // Record OpenTelemetry metrics
+      this.failureRateCounter?.add(1, { type: jobType });
+      this.processingTimeHistogram?.record(duration, { type: jobType, status: 'failed' });
 
       logger.error('Job processor failed', {
         jobType,
@@ -333,58 +382,6 @@ export class JobQueueAdapter {
       };
     } finally {
       this.decrementProcessing(jobType);
-    }
-  }
-
-  private startFallbackLoop(): void {
-    if (this.fallbackTimer) {
-      clearInterval(this.fallbackTimer);
-    }
-
-    this.fallbackTimer = setInterval(() => {
-      void this.processFallbackJobs();
-    }, DEFAULT_OPTIONS.fallbackIntervalMs);
-  }
-
-  private async processFallbackJobs(): Promise<void> {
-    if (this.processors.size === 0) {
-      return;
-    }
-
-    for (const [jobId, jobRecord] of this.fallbackJobs.entries()) {
-      if (this.processingFallbackJobs.has(jobId)) {
-        continue;
-      }
-
-      const processor = this.processors.get(jobRecord.data.type);
-      if (!processor) {
-        continue;
-      }
-
-      this.processingFallbackJobs.add(jobId);
-
-      const context: JobExecutionContext = {
-        id: jobId,
-        data: jobRecord.data,
-        attemptsMade: jobRecord.attemptsMade,
-        progress: () => undefined,
-        createdAt: jobRecord.createdAt
-      };
-
-      const result = await this.executeProcessor(jobRecord.data.type, processor, context);
-
-      if (result.success) {
-        this.fallbackJobs.delete(jobId);
-        this.processingFallbackJobs.delete(jobId);
-      } else {
-        this.processingFallbackJobs.delete(jobId);
-        this.fallbackJobs.delete(jobId);
-        logger.error('Fallback job removed after failure', {
-          jobId,
-          jobType: jobRecord.data.type,
-          error: result.error
-        });
-      }
     }
   }
 
@@ -413,13 +410,18 @@ export class JobQueueAdapter {
       logger.error('Bull queue error', {
         message: error instanceof Error ? error.message : 'Unknown error'
       });
+      this.isHealthy = false;
+    });
+
+    this.bullQueue.on('ready', () => {
+      logger.info('Bull queue ready');
+      this.isHealthy = true;
     });
   }
 
   private startSchedule(options: JobQueueAdapterOptions): void {
     const statsInterval = options.statsIntervalMs ?? DEFAULT_OPTIONS.statsIntervalMs;
     const cleanupInterval = options.cleanupIntervalMs ?? DEFAULT_OPTIONS.cleanupIntervalMs;
-    const fallbackInterval = options.fallbackIntervalMs ?? DEFAULT_OPTIONS.fallbackIntervalMs;
 
     this.statsTimer = setInterval(async () => {
       try {
@@ -427,6 +429,10 @@ export class JobQueueAdapter {
         this.recordMetric('jobs_total', stats.total);
         this.recordMetric('jobs_active', stats.active);
         this.recordMetric('jobs_waiting', stats.waiting);
+        
+        // Record OpenTelemetry metrics
+        this.queueDepthCounter?.add(stats.waiting, { status: 'waiting' });
+        this.queueDepthCounter?.add(stats.active, { status: 'active' });
       } catch (error) {
         logger.error('Failed to collect job stats', {
           message: error instanceof Error ? error.message : 'Unknown error'
@@ -443,10 +449,6 @@ export class JobQueueAdapter {
         });
       }
     }, cleanupInterval);
-
-    this.fallbackTimer = setInterval(() => {
-      void this.processFallbackJobs();
-    }, fallbackInterval);
   }
 
   private incrementProcessing(jobType: string): void {
@@ -486,5 +488,5 @@ export class JobQueueAdapter {
   }
 }
 
+// Export singleton instance - will fail fast if Redis is not available
 export const jobQueueAdapter = new JobQueueAdapter();
-

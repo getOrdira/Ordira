@@ -5,63 +5,63 @@
  * with proper dependency injection and service registration.
  */
 
-import express, { Application, RequestHandler, Request, Response, NextFunction } from 'express';
+import express, { Application } from 'express';
 import { logger } from '../../logging'; 
-import helmet from 'helmet';
-import compression from 'compression';
-import mongoSanitize from 'express-mongo-sanitize';
-import * as Sentry from '@sentry/node';
-import * as Tracing from '@sentry/tracing';
 import path from 'path';
 
 import { configService } from '../../config/core/config.service';
-import { container, SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
+import { container, SERVICE_TOKENS, Container } from '../../dependency-injection';
+// Note: 'container' is the tsyringe container, 'Container' is the utility wrapper class
+import { 
+  serviceModuleRegistry,
+  AuthServiceModule,
+  BusinessServiceModule,
+  InfrastructureServiceModule,
+  SupplyChainServiceModule
+} from '../../dependency-injection/modules';
 import { monitoringService } from '../../../external/monitoring.service';
-import { securityScanService } from '../../../external/security-scan.service';
 import { circuitBreakerManager } from '../../../external/circuit-breaker.service';
+import { initializeOpenTelemetry, setupPrometheusEndpoint } from '../../observability';
+import { queueHealthService, jobQueueAdapter } from '../../resilience';
 
+// Middleware configuration modules
 import {
-  // Core middleware
-  loggingMiddleware,
-  productionLoggingMiddleware,
-  developmentLoggingMiddleware,
+  configureSecurityMiddleware,
+  configurePerformanceMiddleware,
+  configureMonitoringMiddleware,
+  configureSentryErrorHandler,
+  configureBodyParsingMiddleware,
+  configureCorsMiddleware
+} from '../middleware';
+
+// Feature modules and registry
+import {
+  moduleRegistry,
+  AuthModule,
+  UsersModule,
+  ManufacturersModule,
+  BrandsModule,
+  SupplyChainModule,
+  AnalyticsModule,
+  CertificatesModule,
+  IntegrationsModule,
+  ProductsModule,
+  VotesModule,
+  SubscriptionsModule,
+  NotificationsModule,
+  SecurityModule,
+  DomainsModule,
+  MediaModule,
+  NftModule
+} from '../modules';
+
+// Core middleware (still needed for routes)
+import {
   errorHandler,
-  
-  // Security middleware
-  productionCorsMiddleware,
-  developmentCorsMiddleware,
-  webhookMiddleware,
-  
-  // Performance middleware
-  metricsMiddleware,
-  performanceMiddleware,
-  cacheMiddleware,
-  trackManufacturerAction,
-  trackBrandConnection,
-  
-  // Auth middleware
   authenticate,
-  requireManufacturer,
-  requireBrandAccess,
-  requireVerifiedManufacturer,
-  
-  // Tenant middleware
-  resolveTenant,
-  requireTenantSetup,
-  requireTenantPlan,
-  tenantCorsMiddleware,
-  
-  // Rate limiting
   dynamicRateLimiter,
-  strictRateLimiter,
-  apiRateLimiter,
-  warmupPlanCache,
-  clearPlanCache,
-  
-  // Upload middleware
-  uploadMiddleware,
   cleanupOnError,
-  validateUploadOrigin
+  warmupPlanCache
 } from '../../../../middleware';
 
 export class AppBootstrapService {
@@ -75,7 +75,10 @@ export class AppBootstrapService {
    * Initialize the Express application
    */
   async initialize(): Promise<Application> {
-    logger.info('ðŸš€ Initializing Ordira Platform...');
+    logger.info(' Initializing Ordira Platform...');
+
+    // Initialize OpenTelemetry (must be done early, before other services)
+    await this.initializeOpenTelemetry();
 
     // Register services in DI container
     await this.registerServices();
@@ -95,61 +98,92 @@ export class AppBootstrapService {
     // Start monitoring
     this.startMonitoring();
 
-    logger.info('âœ… Application initialization completed');
+    // Start queue health monitoring
+    this.startQueueHealthMonitoring();
+
+    logger.info('✅ Application initialization completed');
     return this.app;
   }
 
   /**
-   * Register services in the DI container
+   * Initialize OpenTelemetry
+   */
+  private async initializeOpenTelemetry(): Promise<void> {
+    try {
+      logger.info('🔧 Initializing OpenTelemetry...');
+
+      await initializeOpenTelemetry({
+        serviceName: process.env.SERVICE_NAME || 'ordira-backend',
+        serviceVersion: process.env.SERVICE_VERSION || '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        enableMetrics: process.env.OTEL_METRICS_ENABLED !== 'false',
+        enableTracing: process.env.OTEL_TRACING_ENABLED !== 'false',
+        enablePrometheus: process.env.OTEL_PROMETHEUS_ENABLED !== 'false',
+        prometheusPort: parseInt(process.env.OTEL_PROMETHEUS_PORT || '9090', 10),
+        otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+        jaegerEndpoint: process.env.JAEGER_ENDPOINT,
+        zipkinEndpoint: process.env.ZIPKIN_ENDPOINT
+      });
+
+      // Setup Prometheus metrics endpoint
+      setupPrometheusEndpoint(this.app, '/metrics');
+
+      logger.info('✅ OpenTelemetry initialized');
+    } catch (error: any) {
+      logger.error('❌ Failed to initialize OpenTelemetry:', error);
+      // Don't throw - continue without OpenTelemetry (graceful degradation)
+    }
+  }
+
+  /**
+   * Register services in the DI container using tsyringe and module registry
    */
   private async registerServices(): Promise<void> {
-    logger.info('ðŸ“‹ Registering services in DI container...');
+    logger.info('📦 Registering services in DI container (tsyringe)...');
 
-    // Register configuration service
-    container.registerInstance(SERVICE_TOKENS.CONFIG_SERVICE, configService);
+    // Register core infrastructure services as instances (these are already instantiated)
+    Container.registerInstance(SERVICE_TOKENS.CONFIG_SERVICE, configService);
 
-    // Register external services
-    const { cacheService } = await import('../../../external/cache.service');
-    const { databaseService } = await import('../../../external/database.service');
-    const { performanceService } = await import('../../../external/performance.service');
-    const { S3Service } = await import('../../../external/s3.service');
+    // Register infrastructure services
+    const { cacheStoreService } = await import('../../cache');
+    const { databaseService } = await import('../../database');
+    const { performanceService } = await import('../../observability');
+    const { S3Service } = await import('../../../media');
 
-    container.registerInstance(SERVICE_TOKENS.CACHE_SERVICE, cacheService);
-    container.registerInstance(SERVICE_TOKENS.DATABASE_SERVICE, databaseService);
-    container.registerInstance(SERVICE_TOKENS.PERFORMANCE_SERVICE, performanceService);
-    container.registerInstance(SERVICE_TOKENS.S3_SERVICE, new S3Service());
+    Container.registerInstance(SERVICE_TOKENS.CACHE_SERVICE, cacheStoreService);
+    Container.registerInstance(SERVICE_TOKENS.DATABASE_SERVICE, databaseService);
+    Container.registerInstance(SERVICE_TOKENS.PERFORMANCE_SERVICE, performanceService);
+    Container.registerInstance(SERVICE_TOKENS.S3_SERVICE, S3Service);
 
-    // Register business services
+    // Register business services as instances (for now, can be migrated to @injectable later)
     const { authService } = await import('../../../auth/index');
     const { securityService } = await import('../../../business/security.service');
     const { tenantService } = await import('../../../business/tenant.service');
     const { UtilsService } = await import('../../shared/core/utils.service');
 
-    container.registerInstance(SERVICE_TOKENS.AUTH_SERVICE, authService);
-    container.registerInstance(SERVICE_TOKENS.SECURITY_SERVICE, securityService);
-    container.registerInstance(SERVICE_TOKENS.TENANT_SERVICE, tenantService);
-    container.registerInstance(SERVICE_TOKENS.UTILS_SERVICE, new UtilsService());
+    Container.registerInstance(SERVICE_TOKENS.AUTH_SERVICE, authService);
+    Container.registerInstance(SERVICE_TOKENS.SECURITY_SERVICE, securityService);
+    Container.registerInstance(SERVICE_TOKENS.TENANT_SERVICE, tenantService);
+    Container.registerInstance(SERVICE_TOKENS.UTILS_SERVICE, new UtilsService());
 
     // Register models
-    const { User } = await import('../../../../models/deprecated/user.model');
-    const { Business } = await import('../../../../models/deprecated/business.model');
+    const { User } = await import('../../../../models/user/user.model');
     const { Manufacturer } = await import('../../../../models/manufacturer/manufacturer.model');
     const { BrandSettings } = await import('../../../../models/brands/brandSettings.model');
     const { VotingRecord } = await import('../../../../models/voting/votingRecord.model');
     const { Certificate } = await import('../../../../models/certificates/certificate.model');
-    const { SecurityEventModel } = await import('../../../../models/deprecated/securityEvent.model');
-    const { ActiveSessionModel } = await import('../../../../models/deprecated/activeSession.model');
-    const { BlacklistedTokenModel } = await import('../../../../models/deprecated/blacklistedToken.model');
+    const { SecurityEventModel } = await import('../../../../models/security/securityEvent.model');
+    const { ActiveSessionModel } = await import('../../../../models/security/activeSession.model');
+    const { BlacklistedTokenModel } = await import('../../../../models/security/blacklistedToken.model');
 
-    container.registerInstance(SERVICE_TOKENS.USER_MODEL, User);
-    container.registerInstance(SERVICE_TOKENS.BUSINESS_MODEL, Business);
-    container.registerInstance(SERVICE_TOKENS.MANUFACTURER_MODEL, Manufacturer);
-    container.registerInstance(SERVICE_TOKENS.BRAND_SETTINGS_MODEL, BrandSettings);
-    container.registerInstance(SERVICE_TOKENS.VOTING_RECORD_MODEL, VotingRecord);
-    container.registerInstance(SERVICE_TOKENS.CERTIFICATE_MODEL, Certificate);
-    container.registerInstance(SERVICE_TOKENS.SECURITY_EVENT_MODEL, SecurityEventModel);
-    container.registerInstance(SERVICE_TOKENS.ACTIVE_SESSION_MODEL, ActiveSessionModel);
-    container.registerInstance(SERVICE_TOKENS.BLACKLISTED_TOKEN_MODEL, BlacklistedTokenModel);
+    Container.registerInstance(SERVICE_TOKENS.USER_MODEL, User);
+    Container.registerInstance(SERVICE_TOKENS.MANUFACTURER_MODEL, Manufacturer);
+    Container.registerInstance(SERVICE_TOKENS.BRAND_SETTINGS_MODEL, BrandSettings);
+    Container.registerInstance(SERVICE_TOKENS.VOTING_RECORD_MODEL, VotingRecord);
+    Container.registerInstance(SERVICE_TOKENS.CERTIFICATE_MODEL, Certificate);
+    Container.registerInstance(SERVICE_TOKENS.SECURITY_EVENT_MODEL, SecurityEventModel);
+    Container.registerInstance(SERVICE_TOKENS.ACTIVE_SESSION_MODEL, ActiveSessionModel);
+    Container.registerInstance(SERVICE_TOKENS.BLACKLISTED_TOKEN_MODEL, BlacklistedTokenModel);
 
     const {
       SupplyChainServicesRegistry,
@@ -166,63 +200,76 @@ export class AppBootstrapService {
       LogParsingService
     } = await import('../../../supplyChain');
 
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_REGISTRY,
       SupplyChainServicesRegistry.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_DEPLOYMENT_SERVICE,
       DeploymentService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_ASSOCIATION_SERVICE,
       AssociationService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_READ_SERVICE,
       ContractReadService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_WRITE_SERVICE,
       ContractWriteService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_QR_CODE_SERVICE,
       SupplyChainQrCodeService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_DASHBOARD_SERVICE,
       SupplyChainDashboardService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_ANALYTICS_SERVICE,
       SupplyChainAnalyticsService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_PRODUCT_LIFECYCLE_SERVICE,
       ProductLifecycleService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_VALIDATION_SERVICE,
       SupplyChainValidationService.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_MAPPERS,
       SupplyChainMappers.getInstance()
     );
-    container.registerInstance(
+    Container.registerInstance(
       SERVICE_TOKENS.SUPPLY_CHAIN_LOG_SERVICE,
       LogParsingService.getInstance()
     );
 
-    logger.info('âœ… Services registered in DI container');
+    // Register service modules using module registry
+    logger.info('📦 Registering service modules...');
+    serviceModuleRegistry.registerAll([
+      new InfrastructureServiceModule(),
+      new AuthServiceModule(),
+      new BusinessServiceModule(),
+      new SupplyChainServiceModule()
+    ]);
+
+    // Register and initialize all modules
+    await serviceModuleRegistry.registerAllModules(container);
+    await serviceModuleRegistry.initializeAll(container);
+
+    logger.info('✅ Services registered in DI container');
   }
 
   /**
    * Configure Express application settings
    */
   private configureExpress(): void {
-    logger.info('âš™ï¸ Configuring Express application...');
+    logger.info('🔧 Configuring Express application...');
 
     // Trust proxy for accurate IP addresses behind load balancers
     this.app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
@@ -231,212 +278,54 @@ export class AppBootstrapService {
     this.app.set('view engine', 'ejs');
     this.app.set('views', path.join(__dirname, '../../../../views'));
 
-    logger.info('âœ… Express application configured');
+    logger.info('✅ Express application configured');
   }
 
   /**
-   * Setup middleware
+   * Setup middleware using modular configuration
    */
   private setupMiddleware(): void {
-    logger.info('ðŸ”§ Setting up middleware...');
+    logger.info('🔧 Setting up middleware...');
 
     // Security middleware
-    this.setupSecurityMiddleware();
+    configureSecurityMiddleware(this.app);
 
     // Performance middleware
-    this.setupPerformanceMiddleware();
+    configurePerformanceMiddleware(this.app);
 
     // Body parsing middleware
-    this.setupBodyParsingMiddleware();
+    configureBodyParsingMiddleware(this.app);
 
     // CORS middleware
-    this.setupCorsMiddleware();
+    configureCorsMiddleware(this.app);
 
     // Monitoring middleware
-    this.setupMonitoringMiddleware();
+    configureMonitoringMiddleware(this.app);
 
-    logger.info('âœ… Middleware setup completed');
-  }
-
-  /**
-   * Setup security middleware
-   */
-  private setupSecurityMiddleware(): void {
-    // Helmet security headers
-    this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-          fontSrc: ["'self'", "https://fonts.gstatic.com"],
-          imgSrc: ["'self'", "data:", "https:", "blob:"],
-          connectSrc: ["'self'", "https:", "wss:"],
-          mediaSrc: ["'self'", "https:", "blob:"],
-          objectSrc: ["'none'"],
-          childSrc: ["'self'"],
-          workerSrc: ["'self'"],
-          upgradeInsecureRequests: []
-        }
-      },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true
-      }
-    }));
-
-    // MongoDB sanitization
-    this.app.use(mongoSanitize());
-  }
-
-  /**
-   * Setup performance middleware
-   */
-  private setupPerformanceMiddleware(): void {
-    // Enhanced Compression with optimized settings
-    this.app.use(compression({
-      level: 6,                    // Compression level (1-9, 6 is good balance)
-      threshold: 100 * 1024,       // Only compress responses > 100KB
-      memLevel: 8,                 // Memory level (1-9, 8 is default)
-      windowBits: 15,              // Window size
-      chunkSize: 16 * 1024,        // 16KB chunks
-      filter: (req, res) => {
-        // Don't compress if explicitly disabled
-        if (req.headers['x-no-compression']) {
-          return false;
-        }
-
-        // Don't compress responses that are already compressed
-        const contentEncoding = res.getHeader('Content-Encoding');
-        if (contentEncoding) {
-          return false;
-        }
-
-        // Don't compress certain content types
-        const contentType = res.getHeader('Content-Type');
-        if (contentType) {
-          const type = contentType.toString().toLowerCase();
-          const excludeTypes = [
-            'image/',
-            'video/',
-            'audio/',
-            'application/zip',
-            'application/gzip',
-            'application/x-compressed',
-            'application/pdf'
-          ];
-
-          if (excludeTypes.some(excludeType => type.includes(excludeType))) {
-            return false;
-          }
-        }
-
-        // Use built-in filter for everything else
-        return compression.filter(req, res);
-      }
-    }));
-
-    // Use modular logging middleware for request/response tracking
-    const environment = process.env.NODE_ENV || 'development';
-    
-    if (environment === 'production') {
-      this.app.use(productionLoggingMiddleware);
-    } else {
-      this.app.use(developmentLoggingMiddleware);
-    }
-    
-    // Add Prometheus metrics tracking
-    this.app.use(metricsMiddleware);
-  }
-
-  /**
-   * Setup body parsing middleware
-   */
-  private setupBodyParsingMiddleware(): void {
-    // JSON parsing with size limits
-    this.app.use(express.json({ 
-      limit: '10mb',
-      verify: (req: any, res, buf) => {
-        // Store raw body for webhook signature verification
-        if (req.url?.includes('/webhook')) {
-          req.rawBody = buf;
-        }
-      }
-    }));
-
-    // URL encoded parsing
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-    // Raw body handling for webhook endpoints
-    const webhookPaths = [
-      '/api/integrations/shopify/webhook',
-      '/api/integrations/woocommerce/webhook',
-      '/api/integrations/wix/webhook',
-      '/api/billing/webhook'
-    ];
-    
-    webhookPaths.forEach(path => {
-      this.app.use(path, express.raw({ type: 'application/json', limit: '1mb' }));
-    });
-  }
-
-  /**
-   * Setup CORS middleware
-   */
-  private setupCorsMiddleware(): void {
-    // Use modular CORS middleware with environment-specific configuration
-    const environment = process.env.NODE_ENV || 'development';
-    
-    if (environment === 'production') {
-      this.app.use(productionCorsMiddleware);
-    } else {
-      this.app.use(developmentCorsMiddleware);
-    }
-    
-    logger.info('âœ… CORS middleware configured');
-  }
-
-  /**
-   * Setup monitoring middleware
-   */
-  private setupMonitoringMiddleware(): void {
-    // Sentry monitoring
-    if (process.env.SENTRY_DSN) {
-      Sentry.init({
-        dsn: process.env.SENTRY_DSN,
-        tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-        environment: process.env.NODE_ENV,
-        integrations: [
-          new Sentry.Integrations.Http({ tracing: true }),
-          new Tracing.Integrations.Express({ app: this.app }),
-          new Tracing.Integrations.Mongo()
-        ]
-      });
-      
-      this.app.use(Sentry.Handlers.requestHandler());
-      this.app.use(Sentry.Handlers.tracingHandler());
-      logger.info('âœ… Sentry monitoring initialized');
-    }
+    logger.info('✅ Middleware setup completed');
   }
 
   /**
    * Setup routes
    */
   private async setupRoutes(): Promise<void> {
-    logger.info('ðŸ›£ï¸ Setting up routes...');
+    logger.info('📦 Setting up routes...');
 
     // Health check routes
     this.setupHealthRoutes();
 
-    // API routes (now async)
-    await this.setupApiRoutes();
+    // Register all feature modules
+    await this.registerFeatureModules();
+
+    // Global API middleware (applied after module routes)
+    this.setupGlobalApiMiddleware();
 
     // Static file serving
     this.setupStaticRoutes();
 
     // 404 handler
     this.app.use('*', (req, res) => {
-      logger.warn(`âš ï¸ Route not found: ${req.method} ${req.originalUrl}`);
+      logger.warn(`🚫 Route not found: ${req.method} ${req.originalUrl}`);
       res.status(404).json({ 
         error: 'Route not found',
         path: req.originalUrl,
@@ -444,7 +333,7 @@ export class AppBootstrapService {
       });
     });
 
-    logger.info('âœ… Routes setup completed');
+    logger.info('✅ Routes setup completed');
   }
 
   /**
@@ -473,6 +362,10 @@ export class AppBootstrapService {
         
         const memUsage = process.memoryUsage();
         
+        // Check queue health
+        const queueHealth = await jobQueueAdapter.checkHealth();
+        const queueMetrics = queueHealthService.getMetrics();
+        
         res.status(200).json({
           status: 'healthy',
           timestamp: new Date().toISOString(),
@@ -480,11 +373,22 @@ export class AppBootstrapService {
           environment: process.env.NODE_ENV,
           services: {
             mongodb: mongoStatus,
+            redis: queueHealth.healthy ? 'connected' : 'disconnected',
+            jobQueue: queueHealth.healthy ? 'healthy' : 'unhealthy',
             memory: {
               used: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
               total: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB'
             }
-          }
+          },
+          queue: queueMetrics ? {
+            depth: queueMetrics.queueDepth,
+            active: queueMetrics.activeJobs,
+            waiting: queueMetrics.waitingJobs,
+            failed: queueMetrics.failedJobs,
+            processingRate: queueMetrics.processingRate,
+            failureRate: queueMetrics.failureRate,
+            healthy: queueMetrics.isHealthy
+          } : null
         });
       } catch (error: any) {
         res.status(503).json({
@@ -522,240 +426,41 @@ export class AppBootstrapService {
   }
 
   /**
-   * Setup API routes
+   * Register all feature modules
    */
-  private async setupApiRoutes(): Promise<void> {
-    logger.info('📦 Loading route modules...');
+  private async registerFeatureModules(): Promise<void> {
+    logger.info('📦 Registering feature modules...');
 
-    // Import Express Router for combining modular routes
-    const { Router } = await import('express');
-    
-    // Import all new modular route modules
-    const [
-      // Core routes
-      { default: authRoutes },
-      // User routes (modular)
-      userRoutesModule,
-      // Manufacturer routes (modular)
-      manufacturerRoutesModule,
-      // Product routes (modular)
-      productRoutesModule,
-      // Brand routes (modular)
-      brandRoutesModule,
-      // Vote routes (modular)
-      voteRoutesModule,
-      // Analytics routes (modular)
-      analyticsRoutesModule,
-      // Certificate routes (modular)
-      certificateRoutesModule,
-      // Integration routes (modular)
-      integrationRoutesModule,
-      // Domain routes (modular)
-      domainRoutesModule,
-      // Subscription/Billing routes (modular)
-      subscriptionRoutesModule,
-      // Notification routes (modular)
-      notificationRoutesModule,
-      // Security routes (modular)
-      securityRoutesModule,
-      // Supply Chain routes (modular)
-      supplyChainRoutesModule,
-      // Media routes (modular)
-      mediaRoutesModule,
-      // NFT routes (modular)
-      nftRoutesModule
-    ] = await Promise.all([
-      // Core routes
-      import('../../../../routes/core/auth.routes'),
-      // Feature routes
-      import('../../../../routes/features/users'),
-      import('../../../../routes/features/manufacturers'),
-      import('../../../../routes/features/products'),
-      import('../../../../routes/features/brands'),
-      import('../../../../routes/features/votes'),
-      import('../../../../routes/features/analytics'),
-      import('../../../../routes/features/certificates'),
-      import('../../../../routes/integrations'),
-      import('../../../../routes/features/domains'),
-      import('../../../../routes/features/subscriptions'),
-      import('../../../../routes/features/notifications'),
-      import('../../../../routes/features/security'),
-      import('../../../../routes/features/supplyChain'),
-      // Media routes
-      import('../../../../routes/features/media'),
-      // NFT routes
-      import('../../../../routes/features/nft')
+    // Register all modules
+    moduleRegistry.registerAll([
+      new AuthModule(),
+      new UsersModule(),
+      new ManufacturersModule(),
+      new BrandsModule(),
+      new SupplyChainModule(),
+      new AnalyticsModule(),
+      new CertificatesModule(),
+      new IntegrationsModule(),
+      new ProductsModule(),
+      new VotesModule(),
+      new SubscriptionsModule(),
+      new NotificationsModule(),
+      new SecurityModule(),
+      new DomainsModule(),
+      new MediaModule(),
+      new NftModule()
     ]);
 
-    // Combine modular routes into unified routers
-    const userRoutes = Router();
-    userRoutes.use('/', userRoutesModule.usersAuthRoutes);
-    userRoutes.use('/', userRoutesModule.usersProfileRoutes);
-    userRoutes.use('/', userRoutesModule.usersDataRoutes);
-    userRoutes.use('/', userRoutesModule.usersSearchRoutes);
-    userRoutes.use('/', userRoutesModule.usersAnalyticsRoutes);
-    userRoutes.use('/', userRoutesModule.usersCacheRoutes);
-    userRoutes.use('/', userRoutesModule.usersValidationRoutes);
+    // Initialize all modules (validates dependencies, registers routes)
+    await moduleRegistry.initializeModules(this.app);
+  }
 
-    const manufacturerRoutes = Router();
-    manufacturerRoutes.use('/', manufacturerRoutesModule.manufacturerDataRoutes);
-    manufacturerRoutes.use('/account', manufacturerRoutesModule.manufacturerAccountRoutes);
-    manufacturerRoutes.use('/profile', manufacturerRoutesModule.manufacturerProfileRoutes);
-    manufacturerRoutes.use('/media', manufacturerRoutesModule.manufacturerMediaRoutes);
-    manufacturerRoutes.use('/search', manufacturerRoutesModule.manufacturerSearchRoutes);
-    manufacturerRoutes.use('/verification', manufacturerRoutesModule.manufacturerVerificationRoutes);
-    manufacturerRoutes.use('/supply-chain', manufacturerRoutesModule.manufacturerSupplyChainRoutes);
-    manufacturerRoutes.use('/comparison', manufacturerRoutesModule.manufacturerComparisonRoutes);
-    manufacturerRoutes.use('/score', manufacturerRoutesModule.manufacturerScoreRoutes);
-    manufacturerRoutes.use('/helpers', manufacturerRoutesModule.manufacturerHelpersRoutes);
-
-    const productRoutes = Router();
-    productRoutes.use('/', productRoutesModule.productsDataRoutes);
-    productRoutes.use('/account', productRoutesModule.productsAccountRoutes);
-    productRoutes.use('/analytics', productRoutesModule.productsAnalyticsRoutes);
-    productRoutes.use('/aggregation', productRoutesModule.productsAggregationRoutes);
-    productRoutes.use('/search', productRoutesModule.productsSearchRoutes);
-    productRoutes.use('/validation', productRoutesModule.productsValidationRoutes);
-
-    const brandSettingsRoutes = brandRoutesModule.brandSettingsRoutes;
-    const brandProfilesRoutes = brandRoutesModule.brandProfileRoutes;
-    const brandAccountRoutes = brandRoutesModule.brandAccountRoutes;
-
-    const votesRoutes = Router();
-    votesRoutes.use('/', voteRoutesModule.votesDataRoutes);
-    votesRoutes.use('/contract', voteRoutesModule.votesContractRoutes);
-    votesRoutes.use('/stats', voteRoutesModule.votesStatsRoutes);
-    votesRoutes.use('/analytics', voteRoutesModule.votesAnalyticsRoutes);
-    votesRoutes.use('/dashboard', voteRoutesModule.votesDashboardRoutes);
-    votesRoutes.use('/proposals', voteRoutesModule.votesProposalsRoutes);
-    votesRoutes.use('/proposals/management', voteRoutesModule.votesProposalManagementRoutes);
-    votesRoutes.use('/deployment', voteRoutesModule.votesDeploymentRoutes);
-
-    const analyticsRoutes = Router();
-    analyticsRoutes.use('/platform', analyticsRoutesModule.analyticsPlatformDataRoutes);
-    analyticsRoutes.use('/reporting', analyticsRoutesModule.analyticsReportingRoutes);
-    analyticsRoutes.use('/dashboard', analyticsRoutesModule.analyticsDashboardRoutes);
-    analyticsRoutes.use('/insights', analyticsRoutesModule.analyticsInsightsRoutes);
-    analyticsRoutes.use('/reports', analyticsRoutesModule.analyticsReportGenerationRoutes);
-    analyticsRoutes.use('/health', analyticsRoutesModule.analyticsSystemHealthRoutes);
-
-    const certificateRoutes = Router();
-    certificateRoutes.use('/', certificateRoutesModule.certificateDataRoutes);
-    certificateRoutes.use('/account', certificateRoutesModule.certificateAccountRoutes);
-    certificateRoutes.use('/minting', certificateRoutesModule.certificateMintingRoutes);
-    certificateRoutes.use('/batch', certificateRoutesModule.certificateBatchRoutes);
-    certificateRoutes.use('/helpers', certificateRoutesModule.certificateHelpersRoutes);
-    certificateRoutes.use('/validation', certificateRoutesModule.certificateValidationRoutes);
-
-    const integrationsRouter = Router();
-    // Ecommerce integrations
-    const ecommerceRouter = Router();
-    ecommerceRouter.use('/data', integrationRoutesModule.ecommerceIntegrationDataRoutes);
-    ecommerceRouter.use('/oauth', integrationRoutesModule.ecommerceOAuthRoutes);
-    ecommerceRouter.use('/operations', integrationRoutesModule.ecommerceOperationsRoutes);
-    ecommerceRouter.use('/webhooks', integrationRoutesModule.ecommerceWebhooksRoutes);
-    ecommerceRouter.use('/health', integrationRoutesModule.ecommerceHealthRoutes);
-    ecommerceRouter.use('/providers', integrationRoutesModule.ecommerceProvidersRoutes);
-    ecommerceRouter.use('/shopify', integrationRoutesModule.shopifyRoutes);
-    ecommerceRouter.use('/wix', integrationRoutesModule.wixRoutes);
-    ecommerceRouter.use('/woocommerce', integrationRoutesModule.woocommerceRoutes);
-    integrationsRouter.use('/ecommerce', ecommerceRouter);
-    // Blockchain integrations
-    integrationsRouter.use('/blockchain', integrationRoutesModule.blockchainIntegrationRoutes);
-    // Domain integrations
-    integrationsRouter.use('/domains', integrationRoutesModule.domainIntegrationRoutes);
-
-    const domainMappingRoutes = Router();
-    domainMappingRoutes.use('/registry', domainRoutesModule.domainRegistryRoutes);
-    domainMappingRoutes.use('/verification', domainRoutesModule.domainVerificationRoutes);
-    domainMappingRoutes.use('/dns', domainRoutesModule.domainDnsRoutes);
-    domainMappingRoutes.use('/health', domainRoutesModule.domainHealthRoutes);
-    domainMappingRoutes.use('/certificate', domainRoutesModule.domainCertificateLifecycleRoutes);
-    domainMappingRoutes.use('/provisioner', domainRoutesModule.domainCertificateProvisionerRoutes);
-    domainMappingRoutes.use('/storage', domainRoutesModule.domainStorageRoutes);
-    domainMappingRoutes.use('/analytics', domainRoutesModule.domainAnalyticsRoutes);
-
-    const billingRoutes = Router();
-    billingRoutes.use('/data', subscriptionRoutesModule.subscriptionsDataRoutes);
-    billingRoutes.use('/lifecycle', subscriptionRoutesModule.subscriptionsLifecycleRoutes);
-    billingRoutes.use('/billing', subscriptionRoutesModule.subscriptionsBillingRoutes);
-    billingRoutes.use('/usage', subscriptionRoutesModule.subscriptionsUsageRoutes);
-    billingRoutes.use('/analytics', subscriptionRoutesModule.subscriptionsAnalyticsRoutes);
-    billingRoutes.use('/plans', subscriptionRoutesModule.subscriptionsPlansRoutes);
-    billingRoutes.use('/discounts', subscriptionRoutesModule.subscriptionsDiscountsRoutes);
-
-    const notificationRoutes = Router();
-    notificationRoutes.use('/', notificationRoutesModule.notificationsInboxRoutes);
-    notificationRoutes.use('/preferences', notificationRoutesModule.notificationsPreferencesRoutes);
-    notificationRoutes.use('/template', notificationRoutesModule.notificationsTemplateRoutes);
-    notificationRoutes.use('/outbound', notificationRoutesModule.notificationsOutboundRoutes);
-    notificationRoutes.use('/delivery', notificationRoutesModule.notificationsDeliveryRoutes);
-    notificationRoutes.use('/batching', notificationRoutesModule.notificationsBatchingRoutes);
-    notificationRoutes.use('/triggers', notificationRoutesModule.notificationsTriggersRoutes);
-    notificationRoutes.use('/analytics', notificationRoutesModule.notificationsAnalyticsRoutes);
-    notificationRoutes.use('/maintenance', notificationRoutesModule.notificationsMaintenanceRoutes);
-
-    const apiKeyRoutes = securityRoutesModule.securityTokensRoutes; // API keys are part of security tokens
-
-    const manufacturerProfilesRoutes = manufacturerRoutesModule.manufacturerProfileRoutes;
-    const manufacturerAccountRoutes = manufacturerRoutesModule.manufacturerAccountRoutes;
-
-    const supplyChainRoutes = Router();
-    supplyChainRoutes.use('/deployment', supplyChainRoutesModule.supplyChainDeploymentRoutes);
-    supplyChainRoutes.use('/association', supplyChainRoutesModule.supplyChainAssociationRoutes);
-    supplyChainRoutes.use('/contract/read', supplyChainRoutesModule.supplyChainContractReadRoutes);
-    supplyChainRoutes.use('/contract/write', supplyChainRoutesModule.supplyChainContractWriteRoutes);
-    supplyChainRoutes.use('/qr-code', supplyChainRoutesModule.supplyChainQrCodeRoutes);
-    supplyChainRoutes.use('/dashboard', supplyChainRoutesModule.supplyChainDashboardRoutes);
-    supplyChainRoutes.use('/analytics', supplyChainRoutesModule.supplyChainAnalyticsRoutes);
-    supplyChainRoutes.use('/product-lifecycle', supplyChainRoutesModule.supplyChainProductLifecycleRoutes);
-
-    // Media routes - combine all media feature routes
-    const mediaRoutes = Router();
-    mediaRoutes.use('/', mediaRoutesModule.mediaDataRoutes);
-    mediaRoutes.use('/', mediaRoutesModule.mediaUploadRoutes);
-    mediaRoutes.use('/', mediaRoutesModule.mediaSearchRoutes);
-    mediaRoutes.use('/', mediaRoutesModule.mediaAnalyticsRoutes);
-    mediaRoutes.use('/', mediaRoutesModule.mediaDeletionRoutes);
-
-    // NFT routes - combine all NFT feature routes
-    const nftsRoutes = Router();
-    nftsRoutes.use('/', nftRoutesModule.nftDataRoutes);
-    nftsRoutes.use('/', nftRoutesModule.nftDeploymentRoutes);
-    nftsRoutes.use('/', nftRoutesModule.nftMintingRoutes);
-    nftsRoutes.use('/', nftRoutesModule.nftTransferRoutes);
-    nftsRoutes.use('/', nftRoutesModule.nftAnalyticsRoutes);
-    nftsRoutes.use('/', nftRoutesModule.nftBurningRoutes);
-
-    logger.info('✅ Route modules loaded');
-
-    // Enhanced rate limiting for authentication routes
-    this.app.use('/api/auth/login', strictRateLimiter());
-    this.app.use('/api/auth/register', strictRateLimiter());
-    this.app.use('/api/auth/forgot-password', strictRateLimiter());
-    this.app.use('/api/auth', dynamicRateLimiter());
-
+  /**
+   * Setup global API middleware that applies to all API routes
+   */
+  private setupGlobalApiMiddleware(): void {
     // Plan cache warmup for authenticated users
     this.app.use(warmupPlanCache());
-
-    // Public authentication routes
-    this.app.use('/api/auth', authRoutes);
-    
-    // Public user routes with upload origin validation
-    this.app.use('/api/users', 
-      validateUploadOrigin,
-      userRoutes
-    );
-
-    // Enhanced manufacturer routes with upload origin validation
-    this.app.use('/api/manufacturer', 
-      validateUploadOrigin,
-      manufacturerRoutes
-    );
-
-    // Tenant resolution middleware for brand context
-    this.app.use('/api/brand', resolveTenant, tenantCorsMiddleware);
-    this.app.use('/api/tenant', resolveTenant, tenantCorsMiddleware);
 
     // Protected API routes with authentication and rate limiting
     this.app.use('/api', 
@@ -763,203 +468,6 @@ export class AppBootstrapService {
       dynamicRateLimiter(),
       cleanupOnError
     );
-
-    // Product management
-    this.app.use('/api/products', productRoutes);
-
-    // Enhanced brand settings with plan-based features
-    this.app.use('/api/brand-settings',
-      requireTenantSetup,
-      brandSettingsRoutes
-    );
-
-    // Voting system with comprehensive governance validation
-    this.app.use('/api/votes',
-      requireTenantPlan(['growth', 'premium', 'enterprise']),
-      votesRoutes
-    );
-
-    // NFT functionality with premium plan requirement
-    this.app.use('/api/nfts',
-      requireTenantPlan(['premium', 'enterprise']),
-      nftsRoutes
-    );
-
-    // Analytics with metrics tracking and caching
-    this.app.use('/api/analytics', 
-      cacheMiddleware(300), // 5 minute cache
-      trackManufacturerAction('view_analytics'),
-      analyticsRoutes
-    );
-
-    // Certificate management
-    this.app.use('/api/certificates',
-      requireTenantSetup,
-      certificateRoutes
-    );
-
-    // Enhanced brand profile management
-    this.app.use('/api/brands', 
-      authenticate, 
-      requireTenantSetup,
-      brandProfilesRoutes
-    );
-
-    // Manufacturer profiles with verification requirements and caching
-    this.app.use('/api/manufacturers', 
-      cacheMiddleware(600), // 10 minute cache for profiles
-      authenticate,
-      requireManufacturer,
-      manufacturerProfilesRoutes
-    );
-
-    // Brand account management
-    this.app.use('/api/brand/account',
-      authenticate,
-      requireTenantSetup,
-      brandAccountRoutes
-    );
-
-    // Manufacturer account management
-    this.app.use('/api/manufacturer/account',
-      authenticate,
-      requireManufacturer,
-      manufacturerAccountRoutes
-    );
-
-    // API key management with enterprise features
-    this.app.use('/api/brand/api-keys', 
-      authenticate,
-      requireTenantPlan(['premium', 'enterprise']),
-      apiKeyRoutes
-    );
-
-    // Enhanced notification system
-    this.app.use('/api/notifications', 
-      dynamicRateLimiter(),
-      notificationRoutes
-    );
-
-    // Domain mapping with custom domain support
-    this.app.use('/api/domain-mappings',
-      authenticate,
-      requireTenantPlan(['premium', 'enterprise']),
-      domainMappingRoutes
-    );
-
-    // Enhanced integrations with plan-based access
-    this.app.use('/api/integrations',
-      requireTenantPlan(['growth', 'premium', 'enterprise']),
-      integrationsRouter
-    );
-
-    // Billing and subscription management
-    this.app.use('/api/billing',
-      authenticate,
-      billingRoutes
-    );
-
-    // Supply chain management for manufacturers
-    this.app.use('/api/supply-chain',
-      authenticate,
-      requireManufacturer,
-      supplyChainRoutes
-    );
-
-    // Media routes
-    this.app.use('/api/media',
-      authenticate,
-      mediaRoutes
-    );
-
-    // Performance monitoring endpoint
-    this.app.get('/api/performance', async (req, res) => {
-      try {
-        const { performanceService } = await import('../../../external/performance.service');
-        const { cacheService } = await import('../../../external/cache.service');
-        const { databaseService } = await import('../../../external/database.service');
-        
-        const health = await performanceService.getSystemHealth();
-        const summary = performanceService.getPerformanceSummary();
-        const cacheStats = await cacheService.getStats();
-        const dbStats = await databaseService.getStats();
-        
-        res.json({
-          status: health.status,
-          timestamp: new Date().toISOString(),
-          performance: summary,
-          system: health,
-          cache: cacheStats,
-          database: dbStats,
-          recommendations: await performanceService.optimizePerformance()
-        });
-      } catch (error) {
-        res.status(500).json({
-          error: 'Failed to get performance metrics',
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-
-    // Manufacturer connection tracking endpoints
-    this.app.post('/api/connections/track',
-      authenticate,
-      trackBrandConnection('created'),
-      (req, res) => {
-        res.status(200).json({ message: 'Connection tracked' });
-      }
-    );
-
-    // Cache management endpoints (admin only)
-    this.app.post('/api/admin/cache/clear',
-      authenticate,
-      requireTenantPlan(['enterprise']),
-      (req, res) => {
-        const { type, identifier } = req.body;
-        
-        try {
-          switch (type) {
-            case 'plan':
-              clearPlanCache(identifier);
-              break;
-            default:
-              return res.status(400).json({ error: 'Invalid cache type. Only "plan" is supported.' });
-          }
-          
-          res.status(200).json({ 
-            message: `${type} cache cleared`,
-            identifier 
-          });
-        } catch (error) {
-          res.status(500).json({ error: 'Cache clear failed' });
-        }
-      }
-    );
-
-    // API routes with enhanced rate limiting
-    this.app.use('/api/v1', 
-      apiRateLimiter(),
-      (req, res) => {
-        res.status(200).json({
-          message: 'Enhanced Manufacturer Platform API v1',
-          version: '1.0.0',
-          endpoints: {
-            auth: '/api/auth',
-            manufacturer: '/api/manufacturer',
-            brand: '/api/brand',
-            products: '/api/products',
-            nfts: '/api/nfts',
-            votes: '/api/votes',
-            analytics: '/api/analytics',
-            supplyChain: '/api/supply-chain',
-            performance: '/api/performance',
-            health: '/health'
-          }
-        });
-      }
-    );
-
-    logger.info('✅ API routes setup completed');
   }
 
   /**
@@ -993,14 +501,8 @@ export class AppBootstrapService {
    * Setup error handling
    */
   private setupErrorHandling(): void {
-    // Sentry error handler
-    if (process.env.SENTRY_DSN) {
-      this.app.use(Sentry.Handlers.errorHandler({
-        shouldHandleError: (error: any) => {
-          return Number(error.status) >= 500;
-        }
-      }));
-    }
+    // Sentry error handler (configured via monitoring middleware)
+    configureSentryErrorHandler(this.app);
 
     // Global error handler (imported from modular middleware)
     this.app.use(errorHandler);
@@ -1010,7 +512,7 @@ export class AppBootstrapService {
    * Start monitoring services
    */
   private startMonitoring(): void {
-    logger.info('ðŸ“Š Starting monitoring services...');
+    logger.info('📊 Starting monitoring services...');
 
     // Start system metrics collection
     setInterval(() => {
@@ -1023,10 +525,16 @@ export class AppBootstrapService {
       monitoringService.recordCircuitBreakerMetrics(stats);
     }, 60000); // Every minute
 
-    logger.info('âœ… Monitoring services started');
+    logger.info('✅ Monitoring services started');
+  }
+
+  /**
+   * Start queue health monitoring
+   */
+  private startQueueHealthMonitoring(): void {
+    logger.info('📊 Starting queue health monitoring...');
+    queueHealthService.start();
+    logger.info('✅ Queue health monitoring started');
   }
 
 }
-
-
-

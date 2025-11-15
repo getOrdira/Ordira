@@ -15,7 +15,7 @@ import { NftService } from '../../blockchain/nft.service';
 import { getPlatformAnalyticsDataService } from '../../container.service';
 import { eventHandlerService, NotificationCategory, NotificationEventType, NotificationPriority } from '../../notifications';
 import { mediaUploadService } from '../../media';
-import { S3Service } from '../../external/s3.service';
+import { S3Service } from '../../media/core/s3.service';
 import { logger } from '../../../utils/logger';
 
 export interface CreateCertInput {

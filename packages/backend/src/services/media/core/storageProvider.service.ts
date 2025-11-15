@@ -1,5 +1,5 @@
 import path from 'path';
-import { S3Service } from '../../external/s3.service';
+import { S3Service } from './s3.service';
 import { S3UploadResult, MediaUploadOptions } from '../utils/types';
 import { MediaError } from '../utils/errors';
 import { logger } from '../../../utils/logger';

@@ -4,13 +4,21 @@
  * Central export point for all dependency injection services
  *
  * Organized into:
- * - Core: DI container and service registration
- * - Utils: Service tokens and DI utilities
+ * - Core: Tsyringe container and service tokens
+ * - Modules: Module-based service registration
+ * - Decorators: Injectable, Inject decorators (tsyringe built-in)
  */
 
-// Core DI services
+// Import reflect-metadata for decorator support
+import 'reflect-metadata';
+
+// Core DI services (tsyringe-based)
 export * from './core';
 
-// Utilities
-export * from './utils';
+// Service modules and registry
+export * from './modules';
+
+// Re-export tsyringe decorators for convenience
+export { injectable, inject, singleton, container } from 'tsyringe';
+export type { DependencyContainer } from 'tsyringe';
 

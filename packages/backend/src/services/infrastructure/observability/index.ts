@@ -9,6 +9,25 @@ import { metricValidationService } from './validation/metricValidation.service';
 import { alertValidationService } from './validation/alertValidation.service';
 import { observabilityValidationService } from './validation/observabilityValidation.service';
 
+// OpenTelemetry exports
+export { 
+  OpenTelemetryService, 
+  initializeOpenTelemetry, 
+  getOpenTelemetryService,
+  shutdownOpenTelemetry,
+  type OpenTelemetryConfig 
+} from './core/otel.service';
+export { 
+  getPrometheusExporter, 
+  setupPrometheusEndpoint,
+  getPrometheusExporterInstance 
+} from './exporters/prometheus.exporter';
+export { 
+  setupExpressInstrumentation,
+  getExpressInstrumentation,
+  getHttpInstrumentation 
+} from './instrumentation/express.instrumentation';
+
 const monitoringService = new MonitoringService();
 const circuitBreakerManager = new CircuitBreakerRegistry();
 const memoryMonitorService = new MemoryMonitorService();

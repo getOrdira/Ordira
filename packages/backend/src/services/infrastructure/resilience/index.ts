@@ -3,6 +3,7 @@ import { jobQueueAdapter } from './core/jobQueueAdapter.service';
 import { backgroundTaskProcessorService } from './features/backgroundTaskProcessor.service';
 import { retryPolicyService } from './features/retryPolicy.service';
 import { queueDashboardService } from './features/queueDashboard.service';
+import { queueHealthService } from './features/queueHealth.service';
 import { slidingWindowRateLimiter } from './features/slidingWindowRateLimiter.service';
 
 export {
@@ -15,6 +16,13 @@ export { JobQueueAdapter, jobQueueAdapter } from './core/jobQueueAdapter.service
 export { BackgroundTaskProcessorService, backgroundTaskProcessorService } from './features/backgroundTaskProcessor.service';
 export { RetryPolicyService, retryPolicyService } from './features/retryPolicy.service';
 export { QueueDashboardService, queueDashboardService } from './features/queueDashboard.service';
+export { 
+  QueueHealthService, 
+  queueHealthService,
+  type QueueHealthMetrics,
+  type QueueHealthAlert,
+  type QueueHealthConfig
+} from './features/queueHealth.service';
 export {
   SlidingWindowRateLimiter,
   slidingWindowRateLimiter,
@@ -33,6 +41,7 @@ export const resilienceServices = {
   backgroundTaskProcessorService,
   retryPolicyService,
   queueDashboardService,
+  queueHealthService,
   slidingWindowRateLimiter
 };
 
