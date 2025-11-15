@@ -7,10 +7,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
-  type QueryKey,
-  type UseMutationOptions,
   type UseMutationResult,
-  type UseQueryOptions,
   type UseQueryResult
 } from '@tanstack/react-query';
 
@@ -33,6 +30,10 @@ import {
 } from '@/lib/types/features/auth';
 import type { AnyUser } from '@/lib/types/features/users';
 import { ApiError } from '@/lib/errors/errors';
+import {
+  type FeatureQueryOptions,
+  type FeatureMutationOptions
+} from '@/hooks/query';
 
 type SetupTwoFactorResponse = Awaited<ReturnType<typeof authApi.setupTwoFactor>>;
 type VerifyTwoFactorResponse = Awaited<ReturnType<typeof authApi.verifyTwoFactor>>;
@@ -47,47 +48,37 @@ export const authQueryKeys = {
   mutation: (name: string) => [...authQueryKeys.root, 'mutation', name] as const
 } as const;
 
-type AuthQueryConfig<TData> = Omit<
-  UseQueryOptions<TData, ApiError, TData, QueryKey>,
-  'queryKey' | 'queryFn'
->;
-
-type AuthMutationConfig<TData, TVariables> = Omit<
-  UseMutationOptions<TData, ApiError, TVariables, unknown>,
-  'mutationFn'
->;
-
 export interface UseAuthOptions {
   queries?: {
-    profile?: AuthQueryConfig<AnyUser>;
-    currentUser?: AuthQueryConfig<AnyUser>;
-    securitySettings?: AuthQueryConfig<SecuritySettings>;
+    profile?: FeatureQueryOptions<AnyUser>;
+    currentUser?: FeatureQueryOptions<AnyUser>;
+    securitySettings?: FeatureQueryOptions<SecuritySettings>;
   };
   mutations?: {
-    login?: AuthMutationConfig<AuthResponse, LoginCredentials>;
-    loginUser?: AuthMutationConfig<AuthResponse, LoginCredentials>;
-    loginBusiness?: AuthMutationConfig<AuthResponse, BusinessLoginCredentials>;
-    loginManufacturer?: AuthMutationConfig<AuthResponse, LoginCredentials>;
-    register?: AuthMutationConfig<AuthResponse, RegisterUserData | RegisterBusinessData>;
-    registerUser?: AuthMutationConfig<AuthResponse, RegisterUserData>;
-    registerBusiness?: AuthMutationConfig<AuthResponse, RegisterBusinessData>;
-    registerManufacturer?: AuthMutationConfig<AuthResponse, RegisterManufacturerData>;
-    verify?: AuthMutationConfig<void, EmailVerificationData>;
-    verifyUser?: AuthMutationConfig<void, EmailVerificationData>;
-    verifyBusiness?: AuthMutationConfig<void, EmailVerificationData>;
-    verifyManufacturer?: AuthMutationConfig<void, EmailVerificationData>;
-    forgotPassword?: AuthMutationConfig<void, ForgotPasswordData>;
-    resetPassword?: AuthMutationConfig<void, ResetPasswordData>;
-    resendVerification?: AuthMutationConfig<void, EmailVerificationData>;
-    logout?: AuthMutationConfig<void, void>;
-    refreshToken?: AuthMutationConfig<TokenRefreshResponse, void>;
-    changePassword?: AuthMutationConfig<void, ChangePasswordData>;
-    setupTwoFactor?: AuthMutationConfig<SetupTwoFactorResponse, SetupTwoFactorData>;
-    verifyTwoFactor?: AuthMutationConfig<VerifyTwoFactorResponse, VerifyTwoFactorData>;
-    disableTwoFactor?: AuthMutationConfig<void, string>;
-    updateSecuritySettings?: AuthMutationConfig<SecuritySettings, Partial<SecuritySettings>>;
-    checkEmailAvailability?: AuthMutationConfig<EmailAvailabilityResponse, string>;
-    validateToken?: AuthMutationConfig<TokenValidationResponse, string>;
+    login?: FeatureMutationOptions<AuthResponse, LoginCredentials>;
+    loginUser?: FeatureMutationOptions<AuthResponse, LoginCredentials>;
+    loginBusiness?: FeatureMutationOptions<AuthResponse, BusinessLoginCredentials>;
+    loginManufacturer?: FeatureMutationOptions<AuthResponse, LoginCredentials>;
+    register?: FeatureMutationOptions<AuthResponse, RegisterUserData | RegisterBusinessData>;
+    registerUser?: FeatureMutationOptions<AuthResponse, RegisterUserData>;
+    registerBusiness?: FeatureMutationOptions<AuthResponse, RegisterBusinessData>;
+    registerManufacturer?: FeatureMutationOptions<AuthResponse, RegisterManufacturerData>;
+    verify?: FeatureMutationOptions<void, EmailVerificationData>;
+    verifyUser?: FeatureMutationOptions<void, EmailVerificationData>;
+    verifyBusiness?: FeatureMutationOptions<void, EmailVerificationData>;
+    verifyManufacturer?: FeatureMutationOptions<void, EmailVerificationData>;
+    forgotPassword?: FeatureMutationOptions<void, ForgotPasswordData>;
+    resetPassword?: FeatureMutationOptions<void, ResetPasswordData>;
+    resendVerification?: FeatureMutationOptions<void, EmailVerificationData>;
+    logout?: FeatureMutationOptions<void, void>;
+    refreshToken?: FeatureMutationOptions<TokenRefreshResponse, void>;
+    changePassword?: FeatureMutationOptions<void, ChangePasswordData>;
+    setupTwoFactor?: FeatureMutationOptions<SetupTwoFactorResponse, SetupTwoFactorData>;
+    verifyTwoFactor?: FeatureMutationOptions<VerifyTwoFactorResponse, VerifyTwoFactorData>;
+    disableTwoFactor?: FeatureMutationOptions<void, string>;
+    updateSecuritySettings?: FeatureMutationOptions<SecuritySettings, Partial<SecuritySettings>>;
+    checkEmailAvailability?: FeatureMutationOptions<EmailAvailabilityResponse, string>;
+    validateToken?: FeatureMutationOptions<TokenValidationResponse, string>;
   };
 }
 
@@ -136,7 +127,7 @@ export const useAuth = (options: UseAuthOptions = {}): UseAuthResult => {
   const queryOptions = options.queries ?? {};
   const mutationOptions = options.mutations ?? {};
 
-  const securitySettingsOptions = (queryOptions.securitySettings ?? {}) as AuthQueryConfig<SecuritySettings>;
+  const securitySettingsOptions = (queryOptions.securitySettings ?? {}) as FeatureQueryOptions<SecuritySettings>;
   const { enabled: securityEnabled, ...securitySettingsRest } = securitySettingsOptions;
 
   const refreshAuthQueries = useCallback(() => {
@@ -194,7 +185,7 @@ export const useAuth = (options: UseAuthOptions = {}): UseAuthResult => {
   const createAuthMutation = <TData, TVariables>(
     name: string,
     mutationFn: (variables: TVariables) => Promise<TData>,
-    config?: AuthMutationConfig<TData, TVariables>,
+    config?: FeatureMutationOptions<TData, TVariables>,
     sideEffect?: (data: TData, variables: TVariables, context: unknown) => Promise<void> | void
   ) =>
     useMutation<TData, ApiError, TVariables>({

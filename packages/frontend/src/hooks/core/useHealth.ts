@@ -4,8 +4,6 @@
 
 import {
   useQuery,
-  type QueryKey,
-  type UseQueryOptions,
   type UseQueryResult
 } from '@tanstack/react-query';
 
@@ -16,6 +14,7 @@ import healthApi, {
   type ReadinessResponse
 } from '@/lib/api/core/health.api';
 import { ApiError } from '@/lib/errors/errors';
+import { type FeatureQueryOptions } from '@/hooks/query';
 
 export const healthQueryKeys = {
   root: ['core', 'health'] as const,
@@ -25,16 +24,11 @@ export const healthQueryKeys = {
   liveness: () => [...healthQueryKeys.root, 'liveness'] as const
 } as const;
 
-type HealthQueryConfig<TData> = Omit<
-  UseQueryOptions<TData, ApiError, TData, QueryKey>,
-  'queryKey' | 'queryFn'
->;
-
 export interface UseHealthOptions {
-  basic?: HealthQueryConfig<BasicHealthResponse>;
-  detailed?: HealthQueryConfig<DetailedHealthResponse>;
-  readiness?: HealthQueryConfig<ReadinessResponse>;
-  liveness?: HealthQueryConfig<LivenessResponse>;
+  basic?: FeatureQueryOptions<BasicHealthResponse>;
+  detailed?: FeatureQueryOptions<DetailedHealthResponse>;
+  readiness?: FeatureQueryOptions<ReadinessResponse>;
+  liveness?: FeatureQueryOptions<LivenessResponse>;
 }
 
 export interface UseHealthResult {
@@ -50,10 +44,10 @@ export interface UseHealthResult {
  * providing `enabled` flags through the optional configuration.
  */
 export const useHealth = (options: UseHealthOptions = {}): UseHealthResult => {
-  const basicOptions = (options.basic ?? {}) as HealthQueryConfig<BasicHealthResponse>;
-  const detailedOptions = (options.detailed ?? {}) as HealthQueryConfig<DetailedHealthResponse>;
-  const readinessOptions = (options.readiness ?? {}) as HealthQueryConfig<ReadinessResponse>;
-  const livenessOptions = (options.liveness ?? {}) as HealthQueryConfig<LivenessResponse>;
+  const basicOptions = (options.basic ?? {}) as FeatureQueryOptions<BasicHealthResponse>;
+  const detailedOptions = (options.detailed ?? {}) as FeatureQueryOptions<DetailedHealthResponse>;
+  const readinessOptions = (options.readiness ?? {}) as FeatureQueryOptions<ReadinessResponse>;
+  const livenessOptions = (options.liveness ?? {}) as FeatureQueryOptions<LivenessResponse>;
 
   const { enabled: detailedEnabled, ...detailedRest } = detailedOptions;
   const { enabled: readinessEnabled, ...readinessRest } = readinessOptions;
