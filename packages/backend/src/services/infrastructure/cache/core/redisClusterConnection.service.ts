@@ -114,11 +114,17 @@ export class RedisClusterService {
 
   /**
    * Get secure password with validation
+   * Only required when NOT using REDIS_URL (password is embedded in URL)
    */
   private getSecurePassword(): string | undefined {
+    // If REDIS_URL is set, password is embedded in the URL, so we don't need REDIS_PASSWORD
+    if (process.env.REDIS_URL) {
+      return undefined;
+    }
+
     const password = process.env.REDIS_PASSWORD;
     if (!password) {
-      throw new Error('REDIS_PASSWORD environment variable is required');
+      throw new Error('REDIS_PASSWORD environment variable is required when not using REDIS_URL');
     }
 
     // Basic password strength validation
