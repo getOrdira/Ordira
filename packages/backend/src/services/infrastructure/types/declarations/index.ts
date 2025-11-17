@@ -10,6 +10,7 @@
 // This index file is for documentation and potential re-exports of non-global types
 
 // Re-export exported types from multer declarations (non-global types)
+// Types come from multer-types.d.ts (declaration file)
 export type {
   MulterFile,
   MulterRequest,
@@ -21,7 +22,7 @@ export type {
   RequestHandler,
   Field,
   Multer
-} from './multer';
+} from './multer-types';
 
+// MulterError class comes from multer.ts (runtime code)
 export { MulterError } from './multer';
-
