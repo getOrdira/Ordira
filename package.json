@@ -14,7 +14,7 @@
     "dev:frontend": "npm run dev -w packages/frontend",
     "dev:backend": "npm run dev -w packages/backend",
     "build": "npm run build -w packages/backend",
-    "build:render": "cd packages/backend && npm install --include=optional && npm run build",
+    "build:render": "cd packages/backend && npm install --include=optional --legacy-peer-deps && npm run build",
     "postinstall": "cd packages/backend && npm rebuild sharp",
     "build:frontend": "npm run build -w packages/frontend",
     "build:backend": "npm run build -w packages/backend",
@@ -37,6 +37,10 @@
   },
   "overrides": {
     "ethers": "6.15.0",
-    "viem": "2.37.3"
+    "viem": "2.37.3",
+    "react-helmet-async": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }
