@@ -8,6 +8,7 @@ import { Request, Response, NextFunction } from 'express';
 import sharp from 'sharp';
 import { S3Service } from '../../services/media/core/s3.service';
 import { hasUserId, hasTenantContext } from '../../utils/typeGuards';
+import type { BaseRequest } from '../../controllers/core/base.controller';
 
 // Configuration
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '15728640'); // 15MB default
@@ -73,7 +74,7 @@ export interface UploadedFile extends Express.Multer.File {
 /**
  * Upload request interface
  */
-export interface UploadRequest extends Request {
+export interface UploadRequest extends BaseRequest {
   files?: UploadedFile[] | { [fieldname: string]: UploadedFile[] };
   uploadMetadata?: {
     totalSize: number;

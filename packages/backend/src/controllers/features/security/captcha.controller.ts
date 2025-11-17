@@ -18,7 +18,7 @@ interface CaptchaVerifyBody {
   metadata?: Record<string, unknown>;
 }
 
-interface CaptchaVerifyRequest extends Request, UnifiedAuthRequest, ValidatedRequest {
+interface CaptchaVerifyRequest extends UnifiedAuthRequest, ValidatedRequest {
   validatedBody?: CaptchaVerifyBody;
 }
 

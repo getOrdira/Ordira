@@ -6,8 +6,9 @@ import { performance } from 'perf_hooks';
 import { performanceService } from '../../services/infrastructure/observability';
 import { cacheStoreService } from '../../services/infrastructure/cache';
 import { hasPerformanceTracking } from '../../utils/typeGuards';
+import type { BaseRequest } from '../../controllers/core/base.controller';
 
-export interface PerformanceRequest extends Request {
+export interface PerformanceRequest extends BaseRequest {
   startTime?: number;
   requestId?: string;
 }

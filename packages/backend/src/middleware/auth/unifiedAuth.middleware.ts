@@ -1,4 +1,4 @@
-﻿// src/middleware/auth/unifiedAuth.middleware.ts
+// src/middleware/auth/unifiedAuth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
@@ -6,13 +6,14 @@ import { createAppError } from '../core';
 import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
 import { Business } from '../../models/core/business.model';
 import { User } from '../../models/user';
+import type { BaseRequest } from '../../controllers/core/base.controller';
 
 /**
  * Unified request interface for all authentication types
  */
-export interface UnifiedAuthRequest extends Request {
+export interface UnifiedAuthRequest extends BaseRequest {
   userId?: string;
-  userType?: 'business' | 'manufacturer' | 'user';
+  userType?: BaseRequest['userType'];
   tokenPayload?: JWTPayload;
   sessionId?: string;
   user?: any; // Will contain the full user document (manufacturer, business, or user)
@@ -235,7 +236,7 @@ function validateToken(token: string): TokenValidationResult {
 /**
  * Middleware to require specific user type
  */
-export function requireUserType(allowedTypes: ('business' | 'manufacturer' | 'user')[]) {
+export function requireUserType(allowedTypes: BaseRequest['userType'][]) {
   return (req: UnifiedAuthRequest, res: Response, next: NextFunction): void => {
     try {
       if (!req.userType) {

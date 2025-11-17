@@ -22,7 +22,7 @@ export abstract class NftBaseController extends BaseController {
    */
   protected ensureAuthenticated(
     req: BaseRequest,
-    allowedTypes?: Array<'business' | 'manufacturer' | 'customer'>,
+    allowedTypes?: Array<'business' | 'manufacturer' | 'customer' | 'user'>,
   ): void {
     if (!req.userId || !req.userType) {
       throw { statusCode: 401, message: 'Authentication required' };

@@ -6,11 +6,12 @@ import multer from 'multer';
 import { MulterError } from '../../services/infrastructure/types/declarations';
 import { hasErrorMessage, isOperationalErrorType, hasErrorStatusCode } from '../../utils/typeGuards';
 import { logger, LogContext } from '../../services/infrastructure/logging';
+import type { BaseRequest } from '../../controllers/core/base.controller';
 
 // ===== TYPE DEFINITIONS =====
 
 // Extended Request interface for custom request properties
-interface ExtendedRequest extends Request {
+interface ExtendedRequest extends BaseRequest {
   userId?: string;
   businessId?: string;
   tenant?: {

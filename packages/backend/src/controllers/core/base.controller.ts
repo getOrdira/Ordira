@@ -13,15 +13,32 @@ import { PerformanceHelpers } from '../utils/performance.helpers';
  * Enhanced request interface with all middleware properties
  */
 export interface BaseRequest extends Request {
+  // Core auth/tenant context populated by middleware
   userId?: string;
-  userType?: 'business' | 'manufacturer' | 'customer';
+  userType?: 'business' | 'manufacturer' | 'customer' | 'user';
   businessId?: string;
   manufacturerId?: string;
   tenantId?: string;
+
+  // Validation helpers
   validatedBody?: any;
   validatedQuery?: any;
   validatedParams?: any;
   performanceMetrics?: any;
+
+  // Explicitly mirror key Express request properties to avoid missing type augments
+  headers: Request['headers'];
+  params: Request['params'];
+  query: Request['query'];
+  body: Request['body'];
+  ip: Request['ip'];
+  path: Request['path'];
+  hostname: Request['hostname'];
+  method: Request['method'];
+  url: Request['url'];
+  get: Request['get'];
+  file?: Request['file'];
+  files?: Request['files'];
 }
 
 /**
@@ -309,7 +326,7 @@ export abstract class BaseController {
    */
   protected ensureAuthenticated(
     req: BaseRequest,
-    allowedTypes?: Array<'business' | 'manufacturer' | 'customer'>,
+    allowedTypes?: Array<'business' | 'manufacturer' | 'customer' | 'user'>,
   ): void {
     if (!req.userId || !req.userType) {
       throw { statusCode: 401, message: 'Authentication required' };

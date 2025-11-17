@@ -1,4 +1,4 @@
-﻿import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import { logger } from '../../utils/logger';
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { BrandSettings } from '../../models/brands/brandSettings.model';
@@ -7,12 +7,6 @@ import { PlanKey, PLAN_DEFINITIONS } from '../../constants/plans';
 import { ManufacturerPlanKey, MANUFACTURER_PLAN_DEFINITIONS } from '../../constants/manufacturerPlans';
 import { UnifiedAuthRequest } from '../auth/unifiedAuth.middleware';
 import redis from 'ioredis';
-
-// Type compatibility helper for express-rate-limit
-type CompatibleRequest = Parameters<RateLimitRequestHandler>[0];
-type CompatibleResponse = Parameters<RateLimitRequestHandler>[1];
-
-
 
 const redisClient= new redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
@@ -214,10 +208,10 @@ export function dynamicRateLimiter(): RateLimitRequestHandler {
     // Remove the static windowMs and max - we'll use dynamic ones
     
     // Custom key generator
-    keyGenerator: (req: CompatibleRequest) => generateRateLimitKey(req as unknown as Request),
+    keyGenerator: (req) => generateRateLimitKey(req as unknown as Request),
 
     // Dynamic rate limit based on user
-    skip: async (req: CompatibleRequest) => {
+    skip: async (req) => {
       // Skip rate limiting for health checks and metrics
       if (req.path === '/health' || req.path === '/metrics') {
         return true;
@@ -226,7 +220,7 @@ export function dynamicRateLimiter(): RateLimitRequestHandler {
     },
 
     // Custom rate limit logic (keep only this max property)
-    max: async (req: CompatibleRequest) => {
+    max: async (req) => {
       const userType = getUserType(req as unknown as Request);
       
       if (userType === 'anonymous') {
@@ -253,7 +247,7 @@ export function dynamicRateLimiter(): RateLimitRequestHandler {
     windowMs: DEFAULT_RATE_LIMIT.window * 60 * 1000,
 
     // Custom handler for rate limit exceeded
-    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+    handler: (req, res) => {
       const userType = getUserType(req as unknown as Request);
       const key = generateRateLimitKey(req as unknown as Request);
       
@@ -280,9 +274,9 @@ export function strictRateLimiter(): RateLimitRequestHandler {
   return rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // 5 attempts per window
-    keyGenerator: (req: CompatibleRequest) => generateRateLimitKey(req as unknown as Request),
+    keyGenerator: (req) => generateRateLimitKey(req as unknown as Request),
     
-    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+    handler: (req, res) => {
       const key = generateRateLimitKey(req as unknown as Request);
       logger.warn('Strict rate limit exceeded for ${key} on ${req.method} ${req.path}');
       
@@ -305,7 +299,7 @@ export function strictRateLimiter(): RateLimitRequestHandler {
 export function apiRateLimiter(): RateLimitRequestHandler {
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: async (req: CompatibleRequest) => {
+    max: async (req) => {
       const userType = getUserType(req as unknown as Request);
       
       if (userType === 'anonymous') return 10; // Very restrictive for anonymous
@@ -321,12 +315,12 @@ export function apiRateLimiter(): RateLimitRequestHandler {
       return 20; // Default for authenticated users
     },
     
-    keyGenerator: (req: CompatibleRequest) => {
+    keyGenerator: (req) => {
       const baseKey = generateRateLimitKey(req as unknown as Request);
       return `api:${baseKey}`;
     },
 
-    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+    handler: (req, res) => {
       res.status(429).json({
         error: 'API rate limit exceeded',
         message: 'Too many API requests. Please reduce your request frequency.',
@@ -352,7 +346,7 @@ export function clearPlanCache(userId: string): void {
 export function supplyChainRateLimiter(): RateLimitRequestHandler {
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute window
-    max: async (req: CompatibleRequest) => {
+    max: async (req) => {
       const unifiedReq = req as unknown as UnifiedAuthRequest;
       if (!unifiedReq.userId || unifiedReq.userType !== 'manufacturer') {
         return 0; // No access for non-manufacturers
@@ -371,12 +365,12 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
       }
     },
     
-    keyGenerator: (req: CompatibleRequest) => {
+    keyGenerator: (req) => {
       const unifiedReq = req as unknown as UnifiedAuthRequest;
       return `supply-chain:${unifiedReq.userId}`;
     },
 
-    skip: async (req: CompatibleRequest) => {
+    skip: async (req) => {
       // Skip rate limiting for health checks
       if (req.path === '/health' || req.path === '/metrics') {
         return true;
@@ -384,7 +378,7 @@ export function supplyChainRateLimiter(): RateLimitRequestHandler {
       return false;
     },
 
-    handler: (req: CompatibleRequest, res: CompatibleResponse) => {
+    handler: (req, res) => {
       const unifiedReq = req as unknown as UnifiedAuthRequest;
       const key = `supply-chain:${unifiedReq.userId}`;
       

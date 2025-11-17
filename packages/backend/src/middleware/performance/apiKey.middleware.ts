@@ -2,12 +2,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import { getApiKeyServicesGroup } from '../../services/container/container.getters';
-import { createAppError } from '../core'; 
+import { createAppError } from '../core';
+import type { BaseRequest } from '../../controllers/core/base.controller';
 
 /**
  * Extended request interface for API key authentication
  */
-export interface ApiKeyRequest extends Request {
+export interface ApiKeyRequest extends BaseRequest {
   businessId?: string;
   apiKeyId?: string;
   rateLimit?: {

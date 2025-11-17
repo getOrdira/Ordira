@@ -1,4 +1,4 @@
-﻿// src/middleware/limits/planLimits.middleware.ts
+// src/middleware/limits/planLimits.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import { UnifiedAuthRequest } from '../auth/unifiedAuth.middleware';

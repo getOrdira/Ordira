@@ -513,9 +513,7 @@ export function validateMultiple(validations: {
           status: () => ({ json: (data: any) => { validationError = data.message; } })
         } as unknown as Response;
 
-        // Type-safe call: middleware expects RequestHandler signature
-        // Cast req to match RequestHandler's expected Request type (express-serve-static-core)
-        (middleware as RequestHandler)(req as unknown as import('express-serve-static-core').Request, mockRes, (err?: any) => {
+        (middleware as RequestHandler)(req, mockRes, (err?: any) => {
           if (err || validationError) {
             errors.push(validationError || err.message);
           }
@@ -547,8 +545,7 @@ export function validateConditional(
   return (req: Request, res: Response, next: NextFunction): void => {
     if (condition(req)) {
       const validationMiddleware = validate(target, schema, options);
-      // Cast req to match RequestHandler's expected Request type
-      (validationMiddleware as RequestHandler)(req as unknown as import('express-serve-static-core').Request, res, next);
+      (validationMiddleware as RequestHandler)(req, res, next);
       return;
     }
     next();

@@ -6,18 +6,8 @@ import 'express';
 declare global {
   namespace Express {
     interface Request {
-      params: any;
-      body: any;
-      query: any;
-      headers: any;
-      ip: string;
-      hostname: string;
-      path: string;
-      url: string;
-      method: string;
       files?: any;
       file?: any;
-      get: (name: string) => string | string[] | undefined;
       code?: any;
       validatedBody?: any;
       validatedQuery?: any;
@@ -44,18 +34,8 @@ declare global {
 // Extend the base Express Request interface
 declare module 'express-serve-static-core' {
   interface Request {
-    params: any;
-    body: any;
-    query: any;
-    headers: any;
-    ip: string;
-    hostname: string;
-    path: string;
-    url: string;
-    method: string;
     files?: any;
     file?: any;
-    get: (name: string) => string | string[] | undefined;
     code?: any;
     validatedBody?: any;
     validatedQuery?: any;
@@ -67,18 +47,8 @@ declare module 'express-serve-static-core' {
 // Make all custom interfaces extend Express Request
 declare module 'express' {
   interface Request {
-    params: any;
-    body: any;
-    query: any;
-    headers: any;
-    ip: string;
-    hostname: string;
-    path: string;
-    url: string;
-    method: string;
     files?: any;
     file?: any;
-    get: (name: string) => string | string[] | undefined;
     code?: any;
     validatedBody?: any;
     validatedQuery?: any;

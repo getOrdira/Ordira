@@ -15,13 +15,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger, LogContext, LogLevel } from '../../utils/logger';
 import { sanitizeRequestData } from '../../utils/dataSanitizer';
+import type { BaseRequest } from '../../controllers/core/base.controller';
 
 // ===== TYPE DEFINITIONS =====
 
 /**
  * Extended Request interface with logging metadata
  */
-interface LoggingRequest extends Request {
+interface LoggingRequest extends BaseRequest {
   requestId?: string;
   startTime?: bigint;
   startMemory?: NodeJS.MemoryUsage;
