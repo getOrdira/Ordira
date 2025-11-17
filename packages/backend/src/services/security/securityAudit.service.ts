@@ -379,7 +379,7 @@ export class SecurityAuditService {
     const issues: SecurityIssue[] = [];
 
     // Check for suspicious headers
-    const userAgent = req.get('User-Agent');
+    const userAgent = req.headers['user-agent'];
     if (!userAgent || userAgent.length < 10) {
       issues.push({
         severity: 'low',

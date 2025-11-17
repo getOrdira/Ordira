@@ -5,7 +5,8 @@
  * automatic failover, and load balancing across multiple Redis nodes.
  */
 
-import Redis, { Cluster, Redis as RedisType } from 'ioredis';
+import Redis, { Cluster, RedisOptions } from 'ioredis';
+import type { Redis as RedisInstance } from 'ioredis';
 import { logger } from '../../../../utils/logger';
 import { monitoringService } from '../../observability/core/monitoringRegistry.service'; 
 import { secureRedisClusterConfigs, validateRedisSecurityConfig } from '../../../../config/redis-cluster-secure.config';
@@ -70,7 +71,7 @@ export interface ClusterStats {
 
 export class RedisClusterService {
   private cluster: Cluster | null = null;
-  private singleRedis: RedisType | null = null;
+  private singleRedis: RedisInstance | null = null;
   private isClusterMode: boolean = false;
   private metricsInterval: NodeJS.Timeout | null = null;
   private performanceInterval: NodeJS.Timeout | null = null;
@@ -371,7 +372,7 @@ export class RedisClusterService {
       const password = this.getSecurePassword();
       const tlsConfig = this.getSecureTLSConfig();
 
-      const redisOptions: Redis.RedisOptions = {
+      const redisOptions: RedisOptions = {
         ...config,
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379'),
@@ -626,14 +627,14 @@ export class RedisClusterService {
   /**
    * Get Redis client (cluster or single)
    */
-  public getClient(): Cluster | RedisType | null {
+  public getClient(): Cluster | RedisInstance | null {
     return this.cluster || this.singleRedis;
   }
 
   /**
    * Release Redis client (no-op for compatibility)
    */
-  public releaseClient(client: Cluster | RedisType | null): void {
+  public releaseClient(client: Cluster | RedisInstance | null): void {
     // No-op: client is managed internally
   }
 

@@ -153,6 +153,8 @@ export class JobQueueAdapter {
     }
 
     try {
+      // Dynamic import for optional bull dependency
+      // @ts-ignore - bull is an optional dependency, types may not be available
       const BullModule = await import('bull');
       // Bull can be exported as default or named export
       const Bull = (BullModule.default || BullModule) as any;

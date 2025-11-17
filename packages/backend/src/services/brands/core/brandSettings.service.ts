@@ -824,7 +824,8 @@ export class BrandSettingsCoreService {
       const shopData = await response.json();
       
       // Validate shop data structure
-      if (!shopData.shop || !shopData.shop.id) {
+      const shopDataTyped = shopData as { shop?: { id?: string; name?: string; email?: string; currency?: string; timezone?: string; plan_name?: string } };
+      if (!shopDataTyped.shop || !shopDataTyped.shop.id) {
         return {
           success: false,
           errors: ['Invalid shop data received from Shopify']
@@ -846,9 +847,9 @@ export class BrandSettingsCoreService {
           });
 
           if (webhookResponse.ok) {
-            const webhookData = await webhookResponse.json();
+            const webhookData = await webhookResponse.json() as { webhooks?: unknown[] };
             webhookTestResult = {
-              webhooksConfigured: webhookData.webhooks?.length > 0,
+              webhooksConfigured: (webhookData.webhooks?.length || 0) > 0,
               webhookCount: webhookData.webhooks?.length || 0
             };
           }
@@ -861,12 +862,12 @@ export class BrandSettingsCoreService {
         success: true,
         data: {
           shopifyDomain: normalizedDomain,
-          shopId: shopData.shop.id,
-          shopName: shopData.shop.name,
-          shopEmail: shopData.shop.email,
-          shopCurrency: shopData.shop.currency,
-          shopTimezone: shopData.shop.timezone,
-          shopPlan: shopData.shop.plan_name,
+          shopId: shopDataTyped.shop.id,
+          shopName: shopDataTyped.shop.name,
+          shopEmail: shopDataTyped.shop.email,
+          shopCurrency: shopDataTyped.shop.currency,
+          shopTimezone: shopDataTyped.shop.timezone,
+          shopPlan: shopDataTyped.shop.plan_name,
           connected: true,
           testedAt: new Date(),
           ...webhookTestResult
