@@ -16,7 +16,7 @@
     "build:verify": "node scripts/verify-build.js",
     "build:full": "npm run build && npm run build:verify",
     "build:stats": "node scripts/build-stats.js",
-    "build:render": "npm install --include=optional && npm run build",
+    "build:render": "npm install --include=optional --legacy-peer-deps && npm run build",
     "postinstall": "npm rebuild sharp",
     "type-check": "tsc --noEmit",
     "start": "cross-env NODE_ENV=production node dist/index.js",
