@@ -180,11 +180,24 @@ export class JobQueueAdapter {
       logger.info('✅ Bull job queue adapter initialized successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check if it's a missing module error
+      if (errorMessage.includes('Cannot find module') && errorMessage.includes('bull')) {
+        logger.warn('⚠️ Bull package not installed. Job queue functionality disabled. Install "bull" package to enable.', {
+          queue: this.queueName,
+          hint: 'Run: npm install bull'
+        });
+        this.initialized = false;
+        this.isHealthy = false;
+        return; // Don't throw - allow app to continue without job queue
+      }
+      
       logger.error('❌ Bull queue initialization failed - Redis connection required:', {
         message: errorMessage,
         redisUrl: process.env.REDIS_URL ? 'configured' : 'missing'
       });
       this.isHealthy = false;
+      // Only throw if it's not a missing module error
       throw new Error(`Job queue initialization failed: ${errorMessage}. Redis connection is required.`);
     }
   }

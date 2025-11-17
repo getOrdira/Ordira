@@ -1,5 +1,5 @@
 // src/models/user/user.model.ts
-import { Schema, model, Document, Types, Model } from 'mongoose';
+import { Schema, model, Document, Types, Model, models } from 'mongoose';
 import bcrypt from 'bcrypt';
 
 export interface IUser extends Document {
@@ -663,5 +663,6 @@ UserSchema.statics.bulkUpdatePreferences = function(userIds: string[], preferenc
   );
 };
 
-export const User = model<IUser, IUserModel>('User', UserSchema);
+// Check if User model already exists to avoid "Cannot overwrite model" error
+export const User = (models.User as IUserModel) || model<IUser, IUserModel>('User', UserSchema);
 
