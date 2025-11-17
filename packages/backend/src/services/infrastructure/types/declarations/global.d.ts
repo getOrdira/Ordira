@@ -6,6 +6,15 @@ import 'express';
 declare global {
   namespace Express {
     interface Request {
+      ip?: string;
+      headers: import('http').IncomingHttpHeaders;
+      path: string;
+      hostname: string;
+      method: string;
+      url: string;
+      params: import('express-serve-static-core').ParamsDictionary;
+      query: import('qs').ParsedQs;
+      body: any;
       files?: any;
       file?: any;
       code?: any;
@@ -34,6 +43,15 @@ declare global {
 // Extend the base Express Request interface
 declare module 'express-serve-static-core' {
   interface Request {
+    ip?: string;
+    headers: import('http').IncomingHttpHeaders;
+    path: string;
+    hostname: string;
+    method: string;
+    url: string;
+    params: import('express-serve-static-core').ParamsDictionary;
+    query: import('qs').ParsedQs;
+    body: any;
     files?: any;
     file?: any;
     code?: any;
@@ -47,6 +65,15 @@ declare module 'express-serve-static-core' {
 // Make all custom interfaces extend Express Request
 declare module 'express' {
   interface Request {
+    ip?: string;
+    headers: import('http').IncomingHttpHeaders;
+    path: string;
+    hostname: string;
+    method: string;
+    url: string;
+    params: import('express-serve-static-core').ParamsDictionary;
+    query: import('qs').ParsedQs;
+    body: any;
     files?: any;
     file?: any;
     code?: any;
