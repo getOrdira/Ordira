@@ -9,10 +9,10 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../infrastructure/shared';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { Business } from '../../../models/deprecated/business.model';
-import { User } from '../../../models/user';
-import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
+import { Business } from '../../../models/core/business.model';
+import { User } from '../../../models/core/user.model';
+import { Manufacturer } from '../../../models/core/manufacturer.model';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';

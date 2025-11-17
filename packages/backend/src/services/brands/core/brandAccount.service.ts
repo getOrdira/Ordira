@@ -1,5 +1,5 @@
 ﻿// src/services/brands/core/brandAccount.service.ts
-import { Business, IBusiness } from '../../../models/deprecated/business.model';
+import { Business, IBusiness } from '../../../models/core/business.model';
 import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger, logSafeInfo, logSafeError } from '../../../utils/logger';
 import { MediaDataService } from '../../media/core/mediaData.service';

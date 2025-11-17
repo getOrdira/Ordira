@@ -4,7 +4,7 @@ import { logger } from '../../utils/logger';
 import jwt from 'jsonwebtoken';
 import { createAppError } from '../core';
 import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
-import { Business } from '../../models/deprecated/business.model';
+import { Business } from '../../models/core/business.model';
 import { User } from '../../models/user';
 
 /**

@@ -1,5 +1,5 @@
 import { logger } from '../../../utils/logger';
-import { aggregationOptimizationService } from '../../external/aggregation-optimization.service';
+import { aggregationOptimizationService } from '../../infrastructure/database/features/aggregationOptimization.service';
 import { ProductFilters, ProductListResult, ManufacturerProductsWithStats, AggregationOptions } from '../utils';
 
 /**

@@ -4,7 +4,7 @@
 import { BaseController, BaseRequest } from '../../core/base.controller';
 import {
   getDomainServices,
-} from '../../../services/container.service';
+} from '../../../services/container/container.getters';  
 import { 
   domainRegistryService,
   domainStorageService,

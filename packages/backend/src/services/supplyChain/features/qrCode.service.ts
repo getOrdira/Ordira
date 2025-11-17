@@ -1,11 +1,11 @@
 // src/services/supplyChain/features/qrCode.service.ts
 import { logger } from '../../../utils/logger';
-import { QrCodeService } from '../../external/qrCode.service';
+import { generateQrCode, generateQrCodeWithLogo } from '../utils/qrCodeGenerator.util';
 import { SupplyChainValidationService } from '../validation/supplyChainValidation.service';
 import { ContractReadService } from '../core/contractRead.service';
-import type { ICertificateQrCodeData, IQrCodeData, IQrCodeOptions, ISupplyChainQrCodeData, IVotingQrCodeData, IApiResponse } from '@ordira/shared/src/types/features/supplyChain/types';
-import { QrCodeType } from '@ordira/shared/src/types/features/supplyChain/types';
-import type { ISupplyChainQrCodeRequest, ICertificateQrCodeRequest, IVotingQrCodeRequest, IQrCodeGenerationRequest, IQrCodeGenerationResult } from '@ordira/shared/src/types/features/supplyChain/qr-code';
+import type { ICertificateQrCodeData, IQrCodeData, IQrCodeOptions, ISupplyChainQrCodeData, IVotingQrCodeData, IApiResponse } from '../utils/types';
+import { QrCodeType } from '../utils/types';
+import type { ISupplyChainQrCodeRequest, ICertificateQrCodeRequest, IVotingQrCodeRequest, IQrCodeGenerationRequest, IQrCodeGenerationResult } from '../utils/types';
 
 // ===== INTERFACES =====
 
@@ -25,12 +25,10 @@ class QrCodeFeatureError extends Error {
 
 export class SupplyChainQrCodeService {
   private static instance: SupplyChainQrCodeService;
-  private qrCodeService: QrCodeService;
   private validationService: SupplyChainValidationService;
   private contractReadService: ContractReadService;
 
   private constructor() {
-    this.qrCodeService = new QrCodeService();
     this.validationService = SupplyChainValidationService.getInstance();
     this.contractReadService = ContractReadService.getInstance();
   }
@@ -93,7 +91,7 @@ export class SupplyChainQrCodeService {
       };
 
       // Generate QR code
-      const qrCode = await this.qrCodeService.generateQrCode(
+      const qrCode = await generateQrCode(
         JSON.stringify(qrCodeData),
         {
           ...request.options,
@@ -154,7 +152,7 @@ export class SupplyChainQrCodeService {
       };
 
       // Generate QR code
-      const qrCode = await this.qrCodeService.generateQrCode(
+      const qrCode = await generateQrCode(
         JSON.stringify(qrCodeData),
         request.options
       );
@@ -217,7 +215,7 @@ export class SupplyChainQrCodeService {
       };
 
       // Generate QR code
-      const qrCode = await this.qrCodeService.generateQrCode(
+      const qrCode = await generateQrCode(
         JSON.stringify(qrCodeData),
         request.options
       );
@@ -264,7 +262,7 @@ export class SupplyChainQrCodeService {
       }
 
       // Generate QR code with logo
-      const qrCode = await this.qrCodeService.generateQrCodeWithLogo(
+      const qrCode = await generateQrCodeWithLogo(
         JSON.stringify(request.data),
         logoUrl,
         request.options

@@ -1,10 +1,9 @@
 ﻿// src/services/manufacturers/features/search.service.ts
 
 import { Manufacturer, IManufacturer } from '../../../models/manufacturer/manufacturer.model';
-import { enhancedDatabaseService } from '../../external/enhanced-database.service';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { aggregationOptimizationService } from '../../external/aggregation-optimization.service';
-import { cacheService } from '../../external/cache.service';
+import { enhancedDatabaseService } from '../../infrastructure/database';
+import { aggregationOptimizationService } from '../../infrastructure/database/features/aggregationOptimization.service';
+import { cacheStoreService } from '../../infrastructure/cache/core/cacheStore.service';
 
 export interface AdvancedSearchFilters {
   name?: string;
@@ -148,7 +147,7 @@ export class ManufacturerSearchService {
       const startTime = Date.now();
       const cacheKey = `advanced_search:${JSON.stringify({ filters, options })}`;
 
-      const cached = await cacheService.get(cacheKey);
+      const cached = await cacheStoreService.get(cacheKey);
       if (cached) {
         return {
           ...(cached as any),
@@ -367,7 +366,7 @@ export class ManufacturerSearchService {
         suggestions
       };
 
-      await cacheService.set(cacheKey, searchResult, { ttl: this.cacheTimeout });
+      await cacheStoreService.set(cacheKey, searchResult, { ttl: this.cacheTimeout });
       return searchResult;
 
     } catch (error) {
@@ -382,7 +381,7 @@ export class ManufacturerSearchService {
     try {
       const cacheKey = `manufacturer_comparison:${manufacturerIds.sort().join(',')}:${JSON.stringify(criteria)}`;
 
-      const cached = await cacheService.get(cacheKey);
+      const cached = await cacheStoreService.get(cacheKey);
       if (cached) {
         return cached as ManufacturerComparison;
       }
@@ -504,7 +503,7 @@ export class ManufacturerSearchService {
         generatedAt: new Date()
       };
 
-      await cacheService.set(cacheKey, comparison, { ttl: this.cacheTimeout });
+      await cacheStoreService.set(cacheKey, comparison, { ttl: this.cacheTimeout });
       return comparison;
 
     } catch (error) {
@@ -520,7 +519,7 @@ export class ManufacturerSearchService {
     try {
       const cacheKey = `trend_analysis:${manufacturerId}:${metric}:${timeframe}`;
 
-      const cached = await cacheService.get(cacheKey);
+      const cached = await cacheStoreService.get(cacheKey);
       if (cached) {
         return cached as TrendAnalysis;
       }
@@ -582,7 +581,7 @@ export class ManufacturerSearchService {
         forecast
       };
 
-      await cacheService.set(cacheKey, analysis, { ttl: this.cacheTimeout });
+      await cacheStoreService.set(cacheKey, analysis, { ttl: this.cacheTimeout });
       return analysis;
 
     } catch (error) {
@@ -594,7 +593,7 @@ export class ManufacturerSearchService {
     try {
       const cacheKey = `industry_benchmarks:${industry}`;
 
-      const cached = await cacheService.get(cacheKey);
+      const cached = await cacheStoreService.get(cacheKey);
       if (cached) {
         return cached as IndustryBenchmark;
       }
@@ -656,7 +655,7 @@ export class ManufacturerSearchService {
         lastUpdated: new Date()
       };
 
-      await cacheService.set(cacheKey, benchmark, { ttl: 3600 }); // Cache for 1 hour
+      await cacheStoreService.set(cacheKey, benchmark, { ttl: 3600 }); // Cache for 1 hour
       return benchmark;
 
     } catch (error) {

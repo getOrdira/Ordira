@@ -4,7 +4,7 @@
  * Manages customer access control and email gating for brand voting platforms.
  * This service handles:
  * - Email whitelist/blacklist management
- * - Customer import from CSV, Shopify, and other sources
+ * - Customer import from CSV, Shopify, Wix, WooCommerce, and other sources
  * - Voting access validation and grants
  * - Customer analytics and engagement tracking
  * - Bulk customer operations
@@ -14,7 +14,9 @@ import { AllowedCustomer, IAllowedCustomer } from '../../../models/brands/allowe
 import { User } from '../../../models/user';
 import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { getNotificationsServices } from '../../notifications';
-import { ShopifyService } from '../../external/shopify.service';
+import { shopifyClientService } from '../../integrations/ecommerce/providers/shopify/shopifyClient.service';
+import { wixClientService } from '../../integrations/ecommerce/providers/wix/wixClient.service';
+import { wooClientService } from '../../integrations/ecommerce/providers/woocommerce/wooClient.service';
 import { UtilsService } from '../../infrastructure/shared';
 import { logger } from '../../../utils/logger'; 
 
@@ -79,7 +81,6 @@ class CustomerAccessError extends Error {
 
 export class CustomerAccessService {
   private notificationsServices = getNotificationsServices();
-  private shopifyService = new ShopifyService();
 
   /**
    * Check if an email is allowed to access the voting platform
@@ -337,30 +338,52 @@ export class CustomerAccessService {
   }
 
 /**
- * Sync customers from Shopify
+ * Sync customers from ecommerce platform (Shopify, Wix, or WooCommerce)
  */
-async syncFromShopify(businessId: string): Promise<{
+async syncFromEcommerce(businessId: string, provider: 'shopify' | 'wix' | 'woocommerce'): Promise<{
   synced: number;
   errors: string[];
 }> {
   try {
-    // Get Shopify settings from brand settings
-    const brandSettings = await BrandSettings.findOne({ business: businessId });
-    if (!brandSettings?.shopifyDomain || !brandSettings?.shopifyAccessToken) {
-      throw new CustomerAccessError('Shopify integration not configured', 400);
-    }
+    let customers: CustomerImportData[] = [];
 
-    // Get Shopify customers directly using Shopify Admin API
-    const shopifyCustomers = await this.fetchShopifyCustomers(brandSettings);
-    
-    const customers: CustomerImportData[] = shopifyCustomers.map(customer => ({
-      email: customer.email,
-      firstName: customer.first_name,
-      lastName: customer.last_name,
-      externalCustomerId: customer.id.toString(),
-      tags: customer.tags?.split(',').map(t => t.trim()) || [],
-      vipStatus: customer.tags?.includes('VIP') || false
-    }));
+    switch (provider) {
+      case 'shopify':
+        const shopifyCustomers = await this.fetchShopifyCustomers(businessId);
+        customers = shopifyCustomers.map(customer => ({
+          email: customer.email,
+          firstName: customer.first_name,
+          lastName: customer.last_name,
+          externalCustomerId: customer.id.toString(),
+          tags: customer.tags?.split(',').map(t => t.trim()) || [],
+          vipStatus: customer.tags?.includes('VIP') || false
+        }));
+        break;
+
+      case 'wix':
+        const wixCustomers = await this.fetchWixCustomers(businessId);
+        customers = wixCustomers.map(customer => ({
+          email: customer.email,
+          firstName: customer.firstName,
+          lastName: customer.lastName,
+          externalCustomerId: customer.id,
+          tags: customer.tags || [],
+          vipStatus: customer.tags?.includes('VIP') || false
+        }));
+        break;
+
+      case 'woocommerce':
+        const wooCustomers = await this.fetchWooCommerceCustomers(businessId);
+        customers = wooCustomers.map(customer => ({
+          email: customer.email,
+          firstName: customer.first_name,
+          lastName: customer.last_name,
+          externalCustomerId: customer.id.toString(),
+          tags: customer.meta_data?.filter(m => m.key === 'tags')?.map(m => m.value) || [],
+          vipStatus: customer.meta_data?.some(m => m.key === 'vip' && m.value === 'true') || false
+        }));
+        break;
+    }
 
     // Use 'api_import' as the source since this is an API-based import
     const result = await this.addCustomers(businessId, customers, 'api_import');
@@ -378,9 +401,39 @@ async syncFromShopify(businessId: string): Promise<{
 }
 
 /**
- * Fetch customers directly from Shopify API
+ * Sync customers from Shopify (backward compatibility)
  */
-private async fetchShopifyCustomers(brandSettings: any): Promise<Array<{
+async syncFromShopify(businessId: string): Promise<{
+  synced: number;
+  errors: string[];
+}> {
+  return this.syncFromEcommerce(businessId, 'shopify');
+}
+
+/**
+ * Sync customers from Wix
+ */
+async syncFromWix(businessId: string): Promise<{
+  synced: number;
+  errors: string[];
+}> {
+  return this.syncFromEcommerce(businessId, 'wix');
+}
+
+/**
+ * Sync customers from WooCommerce
+ */
+async syncFromWooCommerce(businessId: string): Promise<{
+  synced: number;
+  errors: string[];
+}> {
+  return this.syncFromEcommerce(businessId, 'woocommerce');
+}
+
+/**
+ * Fetch customers directly from Shopify API using the ecommerce integration client
+ */
+private async fetchShopifyCustomers(businessId: string): Promise<Array<{
   id: number;
   email: string;
   first_name: string;
@@ -388,11 +441,22 @@ private async fetchShopifyCustomers(brandSettings: any): Promise<Array<{
   tags?: string;
 }>> {
   try {
-    const axios = require('axios');
-    const response = await axios.get(
-      `https://${brandSettings.shopifyDomain}/admin/api/2024-01/customers.json`,
+    // Get authenticated REST client from shopifyClientService
+    const client = await shopifyClientService.getRestClient(businessId);
+    
+    // Get API version from environment (defaults to '2024-10' in shopifyClientService)
+    const apiVersion = process.env.SHOPIFY_API_VERSION ?? '2024-10';
+    
+    // Fetch customers from Shopify Admin API
+    const response = await client.get<{ customers: Array<{
+      id: number;
+      email: string;
+      first_name: string;
+      last_name: string;
+      tags?: string;
+    }> }>(
+      `/admin/api/${apiVersion}/customers.json`,
       {
-        headers: { 'X-Shopify-Access-Token': brandSettings.shopifyAccessToken },
         params: { limit: 250 }
       }
     );
@@ -401,8 +465,9 @@ private async fetchShopifyCustomers(brandSettings: any): Promise<Array<{
       throw new Error('Invalid response from Shopify customers API');
     }
 
-    return response.data.customers.filter((customer: any) => customer.email);
+    return response.data.customers.filter((customer) => customer.email);
   } catch (error: any) {
+    // Handle specific error cases
     if (error.response?.status === 401) {
       throw new Error('Shopify access token is invalid or expired');
     }
@@ -413,7 +478,121 @@ private async fetchShopifyCustomers(brandSettings: any): Promise<Array<{
       throw new Error('Shopify API is currently unavailable');
     }
     
-    throw new Error(`Failed to fetch Shopify customers: ${error.message}`);
+    // Handle integration not connected error
+    if (error.message?.includes('not connected') || error.code === 'NOT_CONNECTED') {
+      throw new CustomerAccessError('Shopify integration not configured or not connected', 400);
+    }
+    
+    throw new Error(`Failed to fetch Shopify customers: ${error.message || error}`);
+  }
+}
+
+/**
+ * Fetch customers directly from Wix API using the ecommerce integration client
+ */
+private async fetchWixCustomers(businessId: string): Promise<Array<{
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  tags?: string[];
+}>> {
+  try {
+    // Access private method via type assertion (executeWithAutoRefresh handles token refresh)
+    const wixService = wixClientService as any;
+    const response = await wixService.executeWithAutoRefresh(businessId, async (client: any) => {
+      return client.post('/stores/v1/customers/query', {
+        query: {
+          paging: {
+            limit: 100
+          }
+        }
+      });
+    });
+
+    const customers = response.data?.customers ?? [];
+    
+    if (!Array.isArray(customers)) {
+      throw new Error('Invalid response from Wix customers API');
+    }
+
+    return customers
+      .filter((customer: any) => customer.email)
+      .map((customer: any) => ({
+        id: customer._id || customer.id || '',
+        email: customer.email || '',
+        firstName: customer.firstName || customer.first_name || '',
+        lastName: customer.lastName || customer.last_name || '',
+        tags: customer.tags || []
+      }));
+  } catch (error: any) {
+    // Handle specific error cases
+    if (error.response?.status === 401) {
+      throw new Error('Wix access token is invalid or expired');
+    }
+    if (error.response?.status === 403) {
+      throw new Error('Insufficient permissions to access Wix customers');
+    }
+    if (error.response?.status >= 500) {
+      throw new Error('Wix API is currently unavailable');
+    }
+    
+    // Handle integration not connected error
+    if (error.message?.includes('not connected') || error.code === 'NOT_CONNECTED' || error.code === 'ACCESS_TOKEN_MISSING') {
+      throw new CustomerAccessError('Wix integration not configured or not connected', 400);
+    }
+    
+    throw new Error(`Failed to fetch Wix customers: ${error.message || error}`);
+  }
+}
+
+/**
+ * Fetch customers directly from WooCommerce API using the ecommerce integration client
+ */
+private async fetchWooCommerceCustomers(businessId: string): Promise<Array<{
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  meta_data?: Array<{ key: string; value: string }>;
+}>> {
+  try {
+    // Access private method via type assertion (execute handles error wrapping)
+    const wooService = wooClientService as any;
+    const response = await wooService.execute(businessId, async (client: any) => {
+      return client.get('/customers', {
+        params: {
+          per_page: 100,
+          role: 'customer'
+        }
+      });
+    });
+
+    const customers = response.data ?? [];
+    
+    if (!Array.isArray(customers)) {
+      throw new Error('Invalid response from WooCommerce customers API');
+    }
+
+    return customers.filter((customer: any) => customer.email);
+  } catch (error: any) {
+    // Handle specific error cases
+    if (error.response?.status === 401) {
+      throw new Error('WooCommerce credentials are invalid');
+    }
+    if (error.response?.status === 403) {
+      throw new Error('Insufficient permissions to access WooCommerce customers');
+    }
+    if (error.response?.status >= 500) {
+      throw new Error('WooCommerce API is currently unavailable');
+    }
+    
+    // Handle integration not connected error
+    if (error.message?.includes('not connected') || error.code === 'NOT_CONNECTED' || error.code === 'MISSING_CREDENTIALS') {
+      throw new CustomerAccessError('WooCommerce integration not configured or not connected', 400);
+    }
+    
+    throw new Error(`Failed to fetch WooCommerce customers: ${error.message || error}`);
   }
 }
 

@@ -2,7 +2,7 @@
 
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { logger } from '../../../utils/logger';
-import { QrCodeService } from '../../external/qrCode.service';
+import { SupplyChainQrCodeService } from '../../supplyChain/features/qrCode.service';
 import {
   SupplyChainServicesRegistry,
   DeploymentService,
@@ -115,10 +115,10 @@ export class SupplyChainService {
   private readonly deploymentService: DeploymentService;
   private readonly contractReadService: ContractReadService;
   private readonly contractWriteService: ContractWriteService;
-  private qrCodeService: QrCodeService;
+  private qrCodeService: SupplyChainQrCodeService;
 
   constructor() {
-    this.qrCodeService = new QrCodeService();
+    this.qrCodeService = SupplyChainQrCodeService.getInstance();
     this.registry = SupplyChainServicesRegistry.getInstance();
     this.deploymentService = this.registry.deploymentService;
     this.contractReadService = this.registry.contractReadService;

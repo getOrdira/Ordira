@@ -3,8 +3,8 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { certificateDataService } from '../../../services/certificates/core/certificateData.service';
-import { certificateValidationService } from '../../../services/certificates/validation/certificateValidation.service';
+import { getCertificatesServices } from '../../../services/container/container.getters';  
+
 
 /**
  * Certificate data request interfaces
@@ -100,8 +100,8 @@ interface BulkUpdateRequest extends BaseRequest {
  * Certificate data controller
  */
 export class CertificateDataController extends BaseController {
-  private certificateDataService = certificateDataService;
-  private certificateValidationService = certificateValidationService;
+  private certificateDataService = getCertificatesServices().data;
+  private certificateValidationService = getCertificatesServices().certificate;
 
   /**
    * GET /api/certificates/:certificateId

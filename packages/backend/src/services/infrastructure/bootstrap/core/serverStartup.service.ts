@@ -8,8 +8,8 @@ import { Server } from 'http';
 import { logger } from '../../logging';
 import { Application } from 'express';
 import * as Sentry from '@sentry/node';
-import { monitoringService } from '../../../external/monitoring.service';
-import { securityScanService } from '../../../external/security-scan.service';
+import { monitoringService } from '../../observability';
+import { securityScanningService } from '../../security';
 
 export class ServerStartupService {
   private server: Server | null = null;
@@ -229,7 +229,7 @@ export class ServerStartupService {
     // Run security scan every hour
     setInterval(async () => {
       try {
-        const result = await securityScanService.performSecurityScan();
+        const result = await securityScanningService.performSecurityScan();
         
         // Record scan metrics
         monitoringService.recordMetric({

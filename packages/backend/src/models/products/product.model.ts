@@ -522,15 +522,14 @@ ProductSchema.methods.generateSlug = function(): string {
 // Generate supply chain QR code for product tracking
 ProductSchema.methods.generateSupplyChainQrCode = async function(): Promise<IProduct> {
   try {
-    // Import QR code service dynamically to avoid circular dependencies
-    const { QrCodeService } = await import('../../services/external/qrCode.service');
-    const qrService = new QrCodeService();
+    // Import QR code generator utility dynamically to avoid circular dependencies
+    const { generateQrCode } = await import('../../services/supplyChain/utils/qrCodeGenerator.util');
     
     // Generate QR code data containing product ID and tracking URL
     const qrData = this.getSupplyChainQrData();
     
     // Generate QR code image
-    const qrCodeImage = await qrService.generateQrCode(qrData, {
+    const qrCodeImage = await generateQrCode(qrData, {
       size: 256,
       format: 'png',
       errorCorrectionLevel: 'M'

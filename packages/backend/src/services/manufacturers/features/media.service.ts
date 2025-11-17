@@ -1,7 +1,7 @@
 ﻿// src/services/manufacturers/features/media.service.ts
 
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
-import { cacheService } from '../../external/cache.service';
+import { cacheStoreService } from '../../infrastructure/cache/core/cacheStore.service';
 import mongoose from 'mongoose';
 import * as QRCode from 'qrcode';
 import * as fs from 'fs/promises';
@@ -490,7 +490,7 @@ export class ManufacturerMediaService {
   async getBrandAssets(manufacturerId: string): Promise<BrandAssets> {
     try {
       const cacheKey = `brand_assets:${manufacturerId}`;
-      const cached = await cacheService.get<BrandAssets>(cacheKey);
+      const cached = await cacheStoreService.get<BrandAssets>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -539,7 +539,7 @@ export class ManufacturerMediaService {
         certificateImages: certificateImages as any
       };
 
-      await cacheService.set(cacheKey, brandAssets, { ttl: 1800 }); // 30 minutes
+      await cacheStoreService.set(cacheKey, brandAssets, { ttl: 1800 }); // 30 minutes
       return brandAssets;
 
     } catch (error) {
@@ -550,7 +550,7 @@ export class ManufacturerMediaService {
   async getMediaAnalytics(manufacturerId: string): Promise<MediaAnalytics> {
     try {
       const cacheKey = `media_analytics:${manufacturerId}`;
-      const cached = await cacheService.get<MediaAnalytics>(cacheKey);
+      const cached = await cacheStoreService.get<MediaAnalytics>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -619,7 +619,7 @@ export class ManufacturerMediaService {
         monthlyUsage
       };
 
-      await cacheService.set(cacheKey, analytics, { ttl: 3600 }); // 1 hour
+      await cacheStoreService.set(cacheKey, analytics, { ttl: 3600 }); // 1 hour
       return analytics;
 
     } catch (error) {

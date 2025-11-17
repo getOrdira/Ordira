@@ -7,7 +7,7 @@ type PlanPricingDefinition = {
 };
 
 const PLAN_PRICING: Record<string, PlanPricingDefinition> = {
-  foundation: { stripePriceId: process.env.STRIPE_FOUNDATION_PRICE_ID, amount: 30 },
+  foundation: { stripePriceId: process.env.STRIPE_FOUNDATION_PRICE_ID, amount: 24.99 },
   growth: { stripePriceId: process.env.STRIPE_GROWTH_PRICE_ID, amount: 59.99 },
   premium: { stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID, amount: 119.99 },
   enterprise: { stripePriceId: process.env.STRIPE_ENTERPRISE_PRICE_ID, amount: 499.99 }

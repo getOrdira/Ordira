@@ -3,7 +3,7 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { certificateValidationService } from '../../../services/certificates/validation/certificateValidation.service';
+import { getCertificatesServices } from '../../../services/container/container.getters';  
 
 /**
  * Certificate validation request interfaces
@@ -74,7 +74,7 @@ interface ValidateBatchInputsRequest extends BaseRequest {
  * Certificate validation controller
  */
 export class CertificateValidationController extends BaseController {
-  private certificateValidationService = certificateValidationService;
+  private certificateValidationService = getCertificatesServices().certificate;
 
   /**
    * POST /api/certificates/check-duplicate

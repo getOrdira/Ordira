@@ -2,7 +2,7 @@
 
 import { Manufacturer, IManufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { logger } from '../../../utils/logger';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 
 // Helper type for connection requests
 interface ConnectionRequestData {

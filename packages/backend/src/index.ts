@@ -14,8 +14,8 @@ import 'reflect-metadata';
 // Import services
 import { AppBootstrapService, DatabaseInitService, ServerStartupService } from './services/infrastructure/bootstrap';
 import { logger } from './services/infrastructure/logging'; 
-import { monitoringService } from './services/external/monitoring.service';
-import { securityScanService } from './services/external/security-scan.service';
+import { getMonitoringService } from './services/container/container.getters';
+
 
 /**
  * Main application initialization function
@@ -38,7 +38,7 @@ async function initializeApplication(): Promise<void> {
     await serverStartup.start(app, port);
 
     // Record successful startup
-    monitoringService.recordMetric({
+    getMonitoringService().recordMetric({
       name: 'application_startup',
       value: 1,
       tags: { 
@@ -54,7 +54,7 @@ async function initializeApplication(): Promise<void> {
     logger.error('❌ Failed to start Ordira Platform:', error);
     
     // Record startup failure
-    monitoringService.recordMetric({
+    getMonitoringService().recordMetric({
       name: 'application_startup',
       value: 0,
       tags: { 

@@ -1,8 +1,8 @@
 ﻿// src/services/connections/utils/matchingEngine.service.ts
 
 import { Types } from 'mongoose';
-import { Business, IBusiness } from '../../../models/deprecated/business.model';
-import { Manufacturer, IManufacturer } from '../../../models/manufacturer/manufacturer.model';
+import { Business, IBusiness } from '../../../models/core/business.model';
+import { Manufacturer, IManufacturer } from '../../../models/core/manufacturer.model';
 import { Product } from '../../../models/products/product.model';
 import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';

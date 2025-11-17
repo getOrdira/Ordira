@@ -11,9 +11,9 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../infrastructure/shared';
 import { notificationsService } from '../../notifications/notifications.service';
-import { User } from '../../../models/user';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { getCustomerAccessService } from '../../container.service';
+import { User } from '../../../models/core/user.model';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
+import { customerAccessService } from '../../brands';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';
@@ -30,7 +30,7 @@ import {
 
 export class UserAuthService extends AuthBaseService {
   private notificationsService = notificationsService;
-  private customerAccessService = getCustomerAccessService();
+  private customerAccessService = customerAccessService;
 
   // ===== USER REGISTRATION =====
 

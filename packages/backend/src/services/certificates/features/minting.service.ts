@@ -10,9 +10,8 @@
 
 import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
 import { BrandSettings } from '../../../models/brands/brandSettings.model';
-import { Business } from '../../../models/deprecated/business.model';
+import { Business } from '../../../models/core/business.model';
 import { NftService } from '../../blockchain/nft.service';
-import { getPlatformAnalyticsDataService } from '../../container.service';
 import { eventHandlerService, NotificationCategory, NotificationEventType, NotificationPriority } from '../../notifications';
 import { mediaUploadService } from '../../media';
 import { S3Service } from '../../media/core/s3.service';

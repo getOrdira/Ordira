@@ -1,6 +1,6 @@
 ﻿// src/models/security/activeSession.model.ts
 import { Schema, model, models, type Document } from 'mongoose';
-import type { SecurityActorType } from '../../services/security/utilities/securityTypes';
+import type { SecurityActorType } from '../../services/infrastructure/security/utils/securityTypes';
 
 export interface ActiveSessionDocument extends Document {
   sessionId: string;

@@ -8,12 +8,11 @@
 import 'reflect-metadata';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { metrics, Meter, MeterProvider } from '@opentelemetry/api';
 import { trace, Tracer, TracerProvider } from '@opentelemetry/api';
 import { logger } from '../../logging';
 import { getPrometheusExporter } from '../exporters/prometheus.exporter';
-import { setupExpressInstrumentation } from '../instrumentation/express.instrumentation';
+
 
 export interface OpenTelemetryConfig {
   serviceName: string;
@@ -59,9 +58,9 @@ export class OpenTelemetryService {
 
       // Create resource with service information
       const resource = new Resource({
-        [SemanticResourceAttributes.SERVICE_NAME]: this.config.serviceName,
-        [SemanticResourceAttributes.SERVICE_VERSION]: this.config.serviceVersion,
-        [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: this.config.environment,
+        'service.name': this.config.serviceName,
+        'service.version': this.config.serviceVersion,
+        'deployment.environment': this.config.environment,
       });
 
       // Setup instrumentations

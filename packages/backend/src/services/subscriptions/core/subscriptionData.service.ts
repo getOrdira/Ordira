@@ -1,5 +1,5 @@
 ﻿import { Subscription, ISubscription } from '../../../models/subscription/subscription.model';
-import { Business } from '../../../models/deprecated/business.model';
+import { Business } from '../../../models/core/business.model';
 import {
   SubscriptionSummary,
   SubscriptionUsageMetrics,

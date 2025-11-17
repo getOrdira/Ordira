@@ -195,7 +195,7 @@ export class BackgroundTaskProcessorService {
     logger.info('Processing cache warmup job', { jobId: context.id });
 
     try {
-      const { enhancedCacheService } = await import('../../../external/enhanced-cache.service');
+      const { enhancedCacheService } = await import('../../../infrastructure/cache'); 
       await enhancedCacheService.warmupCache();
 
       return {
@@ -215,7 +215,7 @@ export class BackgroundTaskProcessorService {
     logger.info('Processing database maintenance job', { jobId: context.id });
 
     try {
-      const { enhancedDatabaseService } = await import('../../../external/enhanced-database.service');
+      const { enhancedDatabaseService } = await import('../../database/core/enhancedDatabaseConnection.service'); 
       await enhancedDatabaseService.performMaintenance();
 
       return {

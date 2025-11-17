@@ -6,6 +6,9 @@ import { votingDashboardService } from './features/votingDashboard.service';
 import { votingProposalsService } from './features/votingProposals.service';
 import { votingProposalManagementService } from './features/votingProposalManagement.service';
 import { votingContractDeploymentService } from './features/votingContractDeployment.service';
+import { votingBatchProcessingService } from './features/votingBatchProcessing.service';
+import { votingRecordValidationService } from './features/votingRecordValidation.service';
+import { votingManagementService } from './features/votingManagement.service';
 import { votingValidationService } from './validation/votingValidation.service';
 
 export {
@@ -41,6 +44,18 @@ export {
   votingContractDeploymentService
 } from './features/votingContractDeployment.service';
 export {
+  VotingBatchProcessingService,
+  votingBatchProcessingService
+} from './features/votingBatchProcessing.service';
+export {
+  VotingRecordValidationService,
+  votingRecordValidationService
+} from './features/votingRecordValidation.service';
+export {
+  VotingManagementService,
+  votingManagementService
+} from './features/votingManagement.service';
+export {
   VotingValidationService,
   votingValidationService
 } from './validation/votingValidation.service';
@@ -58,7 +73,10 @@ export const votesServices = {
     dashboard: votingDashboardService,
     proposals: votingProposalsService,
     proposalManagement: votingProposalManagementService,
-    contractDeployment: votingContractDeploymentService
+    contractDeployment: votingContractDeploymentService,
+    batchProcessing: votingBatchProcessingService,
+    recordValidation: votingRecordValidationService,
+    management: votingManagementService
   },
   validation: votingValidationService
 };

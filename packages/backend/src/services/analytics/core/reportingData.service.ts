@@ -1,7 +1,7 @@
 ﻿import { logger } from '../../../utils/logger';
 import { VotingRecord } from '../../../models/voting/votingRecord.model';
 import { Product } from '../../../models/products/product.model';
-import { executeAnalyticsQuery, executeReportingQuery } from '../../external/read-replica.service';
+import { executeAnalyticsQuery, executeReportingQuery } from '../../infrastructure/database/core/readReplica.service';
 import {
   ANALYTICS_CACHE_SEGMENT,
   ANALYTICS_CACHE_TTL,

@@ -4,7 +4,7 @@
 import Joi from 'joi';
 import { createRouteBuilder, createHandler } from '../../core/base.routes';
 import { brandProfileController } from '../../../controllers/features/brands/brandProfile.controller';
-import { authenticate } from '../../../middleware/deprecated/unifiedAuth.middleware';
+import { authenticate } from '../../../middleware/auth/unifiedAuth.middleware';
 
 const builder = createRouteBuilder({ requireAuth: false, rateLimit: 'dynamic' });
 

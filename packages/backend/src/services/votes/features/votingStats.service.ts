@@ -1,5 +1,5 @@
 import { logger } from '../../../utils/logger';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service'; 
 import {
   createStatsCacheMetadata,
   VOTING_CACHE_TTL

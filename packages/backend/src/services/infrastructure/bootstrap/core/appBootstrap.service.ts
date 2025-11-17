@@ -10,18 +10,12 @@ import { logger } from '../../logging';
 import path from 'path';
 
 import { configService } from '../../config/core/config.service';
-import { container, SERVICE_TOKENS, Container } from '../../dependency-injection';
-// Note: 'container' is the tsyringe container, 'Container' is the utility wrapper class
 import { 
-  serviceModuleRegistry,
-  AuthServiceModule,
-  BusinessServiceModule,
-  InfrastructureServiceModule,
-  SupplyChainServiceModule
-} from '../../dependency-injection/modules';
-import { monitoringService } from '../../../external/monitoring.service';
-import { circuitBreakerManager } from '../../../external/circuit-breaker.service';
-import { initializeOpenTelemetry, setupPrometheusEndpoint } from '../../observability';
+  monitoringService, 
+  circuitBreakerManager,
+  initializeOpenTelemetry, 
+  setupPrometheusEndpoint 
+} from '../../observability';
 import { queueHealthService, jobQueueAdapter } from '../../resilience';
 
 // Middleware configuration modules
@@ -80,9 +74,6 @@ export class AppBootstrapService {
     // Initialize OpenTelemetry (must be done early, before other services)
     await this.initializeOpenTelemetry();
 
-    // Register services in DI container
-    await this.registerServices();
-
     // Configure Express app
     this.configureExpress();
 
@@ -135,135 +126,6 @@ export class AppBootstrapService {
     }
   }
 
-  /**
-   * Register services in the DI container using tsyringe and module registry
-   */
-  private async registerServices(): Promise<void> {
-    logger.info('📦 Registering services in DI container (tsyringe)...');
-
-    // Register core infrastructure services as instances (these are already instantiated)
-    Container.registerInstance(SERVICE_TOKENS.CONFIG_SERVICE, configService);
-
-    // Register infrastructure services
-    const { cacheStoreService } = await import('../../cache');
-    const { databaseService } = await import('../../database');
-    const { performanceService } = await import('../../observability');
-    const { S3Service } = await import('../../../media');
-
-    Container.registerInstance(SERVICE_TOKENS.CACHE_SERVICE, cacheStoreService);
-    Container.registerInstance(SERVICE_TOKENS.DATABASE_SERVICE, databaseService);
-    Container.registerInstance(SERVICE_TOKENS.PERFORMANCE_SERVICE, performanceService);
-    Container.registerInstance(SERVICE_TOKENS.S3_SERVICE, S3Service);
-
-    // Register business services as instances (for now, can be migrated to @injectable later)
-    const { authService } = await import('../../../auth/index');
-    const { securityService } = await import('../../../business/security.service');
-    const { tenantService } = await import('../../../business/tenant.service');
-    const { UtilsService } = await import('../../shared/core/utils.service');
-
-    Container.registerInstance(SERVICE_TOKENS.AUTH_SERVICE, authService);
-    Container.registerInstance(SERVICE_TOKENS.SECURITY_SERVICE, securityService);
-    Container.registerInstance(SERVICE_TOKENS.TENANT_SERVICE, tenantService);
-    Container.registerInstance(SERVICE_TOKENS.UTILS_SERVICE, new UtilsService());
-
-    // Register models
-    const { User } = await import('../../../../models/user/user.model');
-    const { Manufacturer } = await import('../../../../models/manufacturer/manufacturer.model');
-    const { BrandSettings } = await import('../../../../models/brands/brandSettings.model');
-    const { VotingRecord } = await import('../../../../models/voting/votingRecord.model');
-    const { Certificate } = await import('../../../../models/certificates/certificate.model');
-    const { SecurityEventModel } = await import('../../../../models/security/securityEvent.model');
-    const { ActiveSessionModel } = await import('../../../../models/security/activeSession.model');
-    const { BlacklistedTokenModel } = await import('../../../../models/security/blacklistedToken.model');
-
-    Container.registerInstance(SERVICE_TOKENS.USER_MODEL, User);
-    Container.registerInstance(SERVICE_TOKENS.MANUFACTURER_MODEL, Manufacturer);
-    Container.registerInstance(SERVICE_TOKENS.BRAND_SETTINGS_MODEL, BrandSettings);
-    Container.registerInstance(SERVICE_TOKENS.VOTING_RECORD_MODEL, VotingRecord);
-    Container.registerInstance(SERVICE_TOKENS.CERTIFICATE_MODEL, Certificate);
-    Container.registerInstance(SERVICE_TOKENS.SECURITY_EVENT_MODEL, SecurityEventModel);
-    Container.registerInstance(SERVICE_TOKENS.ACTIVE_SESSION_MODEL, ActiveSessionModel);
-    Container.registerInstance(SERVICE_TOKENS.BLACKLISTED_TOKEN_MODEL, BlacklistedTokenModel);
-
-    const {
-      SupplyChainServicesRegistry,
-      DeploymentService,
-      AssociationService,
-      ContractReadService,
-      ContractWriteService,
-      SupplyChainQrCodeService,
-      SupplyChainDashboardService,
-      SupplyChainAnalyticsService,
-      ProductLifecycleService,
-      SupplyChainValidationService,
-      SupplyChainMappers,
-      LogParsingService
-    } = await import('../../../supplyChain');
-
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_REGISTRY,
-      SupplyChainServicesRegistry.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_DEPLOYMENT_SERVICE,
-      DeploymentService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_ASSOCIATION_SERVICE,
-      AssociationService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_READ_SERVICE,
-      ContractReadService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_CONTRACT_WRITE_SERVICE,
-      ContractWriteService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_QR_CODE_SERVICE,
-      SupplyChainQrCodeService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_DASHBOARD_SERVICE,
-      SupplyChainDashboardService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_ANALYTICS_SERVICE,
-      SupplyChainAnalyticsService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_PRODUCT_LIFECYCLE_SERVICE,
-      ProductLifecycleService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_VALIDATION_SERVICE,
-      SupplyChainValidationService.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_MAPPERS,
-      SupplyChainMappers.getInstance()
-    );
-    Container.registerInstance(
-      SERVICE_TOKENS.SUPPLY_CHAIN_LOG_SERVICE,
-      LogParsingService.getInstance()
-    );
-
-    // Register service modules using module registry
-    logger.info('📦 Registering service modules...');
-    serviceModuleRegistry.registerAll([
-      new InfrastructureServiceModule(),
-      new AuthServiceModule(),
-      new BusinessServiceModule(),
-      new SupplyChainServiceModule()
-    ]);
-
-    // Register and initialize all modules
-    await serviceModuleRegistry.registerAllModules(container);
-    await serviceModuleRegistry.initializeAll(container);
-
-    logger.info('✅ Services registered in DI container');
-  }
 
   /**
    * Configure Express application settings

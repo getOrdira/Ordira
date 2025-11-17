@@ -2,7 +2,7 @@
 import { BrandSettings, IBrandSettings } from '../../../models/brands/brandSettings.model';
 import { logger } from '../../../utils/logger';
 import { ethers } from 'ethers';
-import * as certificateManager from '../../external/certificateManager';
+import { certificateProvisionerService } from '../../domains';
 
 export interface EnhancedBrandSettings extends IBrandSettings {
   version?: number;
@@ -220,7 +220,7 @@ export class BrandSettingsCoreService {
       if (data.customDomain) {
         try {
           logger.info(`Provisioning SSL certificate for domain: ${data.customDomain}`);
-          await certificateManager.provisionCertForHost(data.customDomain);
+          await certificateProvisionerService.provisionCertificate(data.customDomain);
           logger.info(`SSL certificate provisioned successfully for domain: ${data.customDomain}`);
         } catch (err) {
           logger.error(`SSL provisioning failed for ${data.customDomain}:`, err);
@@ -1202,7 +1202,7 @@ export class BrandSettingsCoreService {
     // Handle SSL provisioning for custom domain
     if (data.customDomain) {
       try {
-        await certificateManager.provisionCertForHost(data.customDomain);
+        await certificateProvisionerService.provisionCertificate(data.customDomain);
       } catch (err) {
         logger.error('SSL provisioning failed for ${data.customDomain}:', err);
       }
@@ -1835,7 +1835,7 @@ export class BrandSettingsCoreService {
 
       // Attempt to import and use TokenDiscountService
       try {
-        const { TokenDiscountService } = await import('../../external/tokenDiscount.service');
+        const { TokenDiscountService } = await import('../../subscriptions/features/tokenDiscount.service');
         const tokenDiscountService = new TokenDiscountService();
         const discounts = await tokenDiscountService.getDiscountInfoForWallet(walletAddress);
         

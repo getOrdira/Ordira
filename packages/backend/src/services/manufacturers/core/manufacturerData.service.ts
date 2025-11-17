@@ -2,8 +2,8 @@
 
 import { logger } from '../../../utils/logger';
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
-import { queryOptimizationService } from '../../external/query-optimization.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
+import { queryOptimizationService } from '../../infrastructure/database/features/queryOptimization.service';
 
 export interface ManufacturerSearchParams {
   query?: string;

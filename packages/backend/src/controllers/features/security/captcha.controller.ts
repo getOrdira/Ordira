@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { asyncHandler } from '../../../middleware/deprecated/error.middleware';
-import { ValidatedRequest } from '../../../middleware/deprecated/validation.middleware';
-import { UnifiedAuthRequest } from '../../../middleware/deprecated/unifiedAuth.middleware';
-import { ResponseHelper } from '../../../utils/responseUtils';
-import { getCaptchaConfig } from '../../../config/captcha.config';
+import { asyncHandler } from '../../../middleware/core';
+import { ValidatedRequest } from '../../../middleware/validation/validation.middleware';
+import { UnifiedAuthRequest } from '../../../middleware/auth/unifiedAuth.middleware';
+import { ResponseHelper } from '../../../services/infrastructure/http/core/response.service';
+import { getCaptchaConfig } from '../../../services/infrastructure/config/features/captcha.config';
 import { captchaValidationService } from '../../../services/security/captcha/captchaValidation.service';
 import type {
   CaptchaVerificationContext,

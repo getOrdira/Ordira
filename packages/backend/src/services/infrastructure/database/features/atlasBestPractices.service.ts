@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../../../../utils/logger';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service';
 import { databasePlatformConfigService, DatabasePlatformConfig } from '../utils/databasePlatformConfig.service';
 import mongoose from 'mongoose';
 

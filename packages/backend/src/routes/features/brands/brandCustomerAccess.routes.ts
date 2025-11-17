@@ -5,7 +5,7 @@ import Joi from 'joi';
 import { RequestHandler } from 'express';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { brandCustomerAccessController } from '../../../controllers/features/brands/brandCustomerAccess.controller';
-import { uploadMiddleware } from '../../../middleware/deprecated/upload.middleware';
+import { uploadMiddleware } from '../../../middleware/upload/upload.middleware';
 
 const builder = createRouteBuilder(RouteConfigs.tenant);
 

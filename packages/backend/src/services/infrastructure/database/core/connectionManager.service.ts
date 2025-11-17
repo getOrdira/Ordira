@@ -1,6 +1,6 @@
 import mongoose, { type Connection, type ConnectOptions } from 'mongoose';
 import { logger } from '../../../../utils/logger';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service';
 import type { DatabasePlatformConfig } from '../utils/databasePlatformConfig.service';
 
 export interface ConnectionStats {

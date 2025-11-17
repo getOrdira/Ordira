@@ -1,4 +1,4 @@
-﻿import { BillingService } from '../../external/billing.service';
+﻿import { BillingManagementService, billingManagementService } from '../features/billingManagement.service';
 import { outboundNotificationService } from '../../notifications';
 import { Subscription } from '../../../models/subscription/subscription.model';
 import {
@@ -22,7 +22,7 @@ export class SubscriptionLifecycleService {
   constructor(
     private readonly dataService: SubscriptionDataService = subscriptionDataService,
     private readonly planValidationService: SubscriptionPlanValidationService = subscriptionPlanValidationService,
-    private readonly billingService: BillingService = new BillingService()
+    private readonly billingService: BillingManagementService = billingManagementService
   ) {}
 
   /**
@@ -180,8 +180,8 @@ export class SubscriptionLifecycleService {
 
     if (subscription.stripeSubscriptionId) {
       await this.billingService.cancelSubscription(
-        subscription.stripeSubscriptionId,
-        cancelImmediately
+        businessId,
+        { immediate: cancelImmediately }
       );
     }
 

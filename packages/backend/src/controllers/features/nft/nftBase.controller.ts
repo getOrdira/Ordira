@@ -3,7 +3,7 @@
 
 import { Response } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { getNftService } from '../../../services/container.service';
+import { getNftService } from '../../../services/container/container.getters';  
 
 interface PaginationResult {
   page: number;

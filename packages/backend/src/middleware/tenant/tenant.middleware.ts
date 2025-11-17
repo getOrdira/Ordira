@@ -1,7 +1,7 @@
 ﻿import { NextFunction, Request, Response } from 'express';
 import { logger } from '../../utils/logger';
 import { IBrandSettings } from '../../models/brands/brandSettings.model';
-import { tenantService } from '../../services/business/tenant.service';
+import { getTenantServices } from '../../services/container/container.getters';
 
 /**
  * Extended Request interface with tenant information
@@ -27,7 +27,8 @@ export async function resolveTenant(
     const hostname = req.hostname.toLowerCase();
     
     // Use tenant service to resolve tenant
-    const result = await tenantService.resolveTenant(hostname);
+    const tenantServices = getTenantServices();
+    const result = await tenantServices.resolution.resolveTenant(hostname);
     
     // Check if tenant was found
     if (!result.settings) {
@@ -39,7 +40,7 @@ export async function resolveTenant(
     }
 
     // Validate business status
-    const businessValidation = tenantService.validateBusinessStatus(result.business);
+    const businessValidation = tenantServices.validation.validateBusinessStatus(result.business);
     if (!businessValidation.valid) {
       return res.status(403).json({ 
         error: 'Account issue',
@@ -95,7 +96,8 @@ export function requireTenantPlan(requiredPlans: string[]) {
       });
     }
 
-    const hasRequiredPlan = tenantService.validateTenantPlan(req.tenant, requiredPlans);
+    const tenantServices = getTenantServices();
+    const hasRequiredPlan = tenantServices.validation.validateTenantPlan(req.tenant, requiredPlans);
     
     if (!hasRequiredPlan) {
       return res.status(403).json({ 
@@ -123,7 +125,8 @@ export function requireTenantSetup(req: TenantRequest, res: Response, next: Next
   }
 
   // Use tenant service to validate setup
-  const setupValidation = tenantService.validateTenantSetup(req.business);
+  const tenantServices = getTenantServices();
+  const setupValidation = tenantServices.validation.validateTenantSetup(req.business);
 
   if (!setupValidation.valid) {
     return res.status(403).json({ 
@@ -141,21 +144,21 @@ export function requireTenantSetup(req: TenantRequest, res: Response, next: Next
  * Clear tenant cache for a specific identifier
  */
 export function clearTenantCache(identifier: string, isSubdomain: boolean = true): void {
-  tenantService.clearTenantCache(identifier, isSubdomain);
+  getTenantServices().resolution.clearTenantCache(identifier, isSubdomain);
 }
 
 /**
  * Clear all tenant cache entries
  */
 export function clearAllTenantCache(): void {
-  tenantService.clearAllTenantCache();
+  getTenantServices().cache.clear();
 }
 
 /**
  * Get tenant cache statistics
  */
 export function getTenantCacheStats(): { size: number; entries: string[] } {
-  return tenantService.getTenantCacheStats();
+  return getTenantServices().resolution.getTenantCacheStats();
 }
 
 /**
@@ -167,7 +170,8 @@ export function tenantCorsMiddleware(req: TenantRequest, res: Response, next: Ne
     const hostname = req.hostname;
     
     // Use tenant service for security validation
-    if (tenantService.validateTenantHostname(hostname)) {
+    const tenantServices = getTenantServices();
+    if (tenantServices.validation.validateTenantHostname(hostname)) {
       // Only allow HTTPS in production
       const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
       const origin = `${protocol}://${hostname}`;

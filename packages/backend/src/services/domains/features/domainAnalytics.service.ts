@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../middleware/core/error.middleware';
 import { logger } from '../../../utils/logger';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 import { domainRegistryService } from '../core/domainRegistry.service';
 import type { DomainMappingRecord } from '../core/domainStorage.service';
 

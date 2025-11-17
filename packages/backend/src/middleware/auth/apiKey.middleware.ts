@@ -1,11 +1,8 @@
-// @ts-nocheck
 // src/middleware/auth/apiKey.middleware.ts
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../../../utils/logger';
-import { ApiKeyService } from '../../../services/business/apiKey.service';
+import { logger } from '../../utils/logger';
+import { getApiKeyServicesGroup } from '../../services/container/container.getters';
 import { createAppError } from '../core';
-
-const apiKeyService = new ApiKeyService();
 
 /**
  * Extended request interface for API key authentication
@@ -44,7 +41,7 @@ export async function authenticateApiKey(
     }
 
     // Verify API key and get associated business
-    const apiKeyDoc = await apiKeyService.verifyApiKey(apiKey);
+    const apiKeyDoc = await getApiKeyServicesGroup().data.verifyApiKey(apiKey);
     
     if (!apiKeyDoc || !apiKeyDoc.business) {
       throw createAppError('Invalid or revoked API key', 401, 'UNAUTHORIZED');
@@ -135,7 +132,7 @@ async function checkRateLimit(apiKeyId: string, hourlyLimit: number = 1000): Pro
   try {
     // This would typically use Redis or similar for distributed rate limiting
     // For now, implementing a simple in-memory approach
-    const result = await apiKeyService.checkRateLimit(apiKeyId, hourlyLimit);
+    const result = await getApiKeyServicesGroup().usage.checkRateLimit(apiKeyId, hourlyLimit);
     
     return {
       allowed: result.remaining > 0,
@@ -221,7 +218,7 @@ function isIPInCIDR(ip: string, cidr: string): boolean {
  */
 async function logApiKeyUsage(apiKeyId: string, req: Request): Promise<void> {
   try {
-    await apiKeyService.logUsage(apiKeyId, {
+    await getApiKeyServicesGroup().usage.logUsage(apiKeyId, {
       method: req.method,
       path: req.path,
       userAgent: req.headers['user-agent'] || 'unknown',
@@ -244,7 +241,7 @@ export function requireApiKeyPermission(permission: string) {
         throw createAppError('API key authentication required', 401, 'UNAUTHORIZED');
       }
 
-      const hasPermission = await apiKeyService.hasPermission(req.apiKeyId, permission);
+      const hasPermission = await getApiKeyServicesGroup().validation.hasPermission(req.apiKeyId, permission);
       if (!hasPermission) {
         throw createAppError(`API key does not have required permission: ${permission}`, 403, 'FORBIDDEN');
       }
@@ -266,7 +263,7 @@ export function requireApiKeyScope(scope: string) {
         throw createAppError('API key authentication required', 401, 'UNAUTHORIZED');
       }
 
-      const hasScope = await apiKeyService.hasScope(req.apiKeyId, scope);
+      const hasScope = await getApiKeyServicesGroup().validation.hasScope(req.apiKeyId, scope);
       if (!hasScope) {
         throw createAppError(`API key does not have required scope: ${scope}`, 403, 'FORBIDDEN');
       }

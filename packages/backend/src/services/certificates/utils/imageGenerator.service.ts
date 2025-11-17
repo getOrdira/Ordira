@@ -8,7 +8,6 @@
  * - Support multiple certificate levels and templates
  */
 
-import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { Business } from '../../../models/core/business.model';
 import { S3Service } from '../../media/core/s3.service';
 import { logger } from '../../../utils/logger';

@@ -1,4 +1,4 @@
-// @ts-nocheck
+// src/middleware/performance/metrics.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import client from 'prom-client';

@@ -1,7 +1,7 @@
 // src/services/users/utils/cache.service.ts
 
 import { User } from '../../../models/user';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service'; 
 import { logger } from '../../../utils/logger';
 
 export interface CacheTtlConfig {

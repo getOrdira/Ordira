@@ -1,9 +1,9 @@
-﻿import { createAppError } from '../../../middleware/deprecated/error.middleware';
+﻿import { createAppError } from '../../../middleware/core/error.middleware';
 import { Proposal } from '../../../models/voting/proposal.model';
 import { Product } from '../../../models/products/product.model';
 import { logger } from '../../../utils/logger';
 import { VotingService as BlockchainVotingService } from '../../blockchain/voting.service';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service'; 
 import { votingDataService } from '../core/votingData.service';
 import { getVotingCacheTags } from '../utils/cache';
 import type { ProposalStatus } from '../utils/types';

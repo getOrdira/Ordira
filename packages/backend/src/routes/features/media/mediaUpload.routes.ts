@@ -4,8 +4,8 @@
 import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { mediaUploadController } from '../../../controllers/features/media/mediaUpload.controller';
-import { uploadMiddleware } from '../../../middleware/deprecated/upload.middleware';
-import { validateBody } from '../../../middleware/deprecated/validation.middleware';
+import { uploadMiddleware } from '../../../middleware/upload/upload.middleware';
+import { validateBody } from '../../../middleware/validation/validation.middleware';
 
 const uploadMediaBodySchema = Joi.object({
   category: Joi.string().valid('profile', 'product', 'banner', 'certificate', 'document').optional(),

@@ -111,6 +111,17 @@ import {
   logRateLimitHit
 } from './utils/rateLimiter';
 
+import {
+  IntegrationValidationService,
+  integrationValidationService
+} from './validation/integrationValidation.service';
+import {
+  validateWebhookPayload,
+  assertWebhookPayload
+} from './validation/webhookPayload.validation';
+import type { WebhookValidationResult } from './validation/webhookPayload.validation';
+import type { ValidationResult } from './validation/integrationValidation.service';
+
 export {
   // Core services
   IntegrationDataService,
@@ -172,7 +183,13 @@ export {
   normaliseSku,
   TokenBucketRateLimiter,
   exponentialBackoff,
-  logRateLimitHit
+  logRateLimitHit,
+
+  // Validation services
+  IntegrationValidationService,
+  integrationValidationService,
+  validateWebhookPayload,
+  assertWebhookPayload
 };
 
 export type {
@@ -195,7 +212,9 @@ export type {
   ExpectedWebhookDefinition,
   WebhookReconciliationResult,
   IntegrationAnalyticsReport,
-  ConnectionHealthReport
+  ConnectionHealthReport,
+  ValidationResult,
+  WebhookValidationResult
 };
 
 export const ecommerceProviders = {
@@ -244,5 +263,10 @@ export const ecommerceServices = {
     TokenBucketRateLimiter,
     exponentialBackoff,
     logRateLimitHit
+  },
+  validation: {
+    integration: integrationValidationService,
+    webhookPayload: validateWebhookPayload,
+    assertWebhookPayload
   }
 };

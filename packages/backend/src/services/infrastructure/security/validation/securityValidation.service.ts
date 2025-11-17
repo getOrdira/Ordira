@@ -1,4 +1,4 @@
-import { createAppError } from '../../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../../middleware/core/error.middleware'; 
 import {
   SecurityActorType,
   SecurityEventCreateInput,

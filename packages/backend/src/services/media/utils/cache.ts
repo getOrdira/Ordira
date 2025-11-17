@@ -1,4 +1,4 @@
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 import { logger } from '../../../utils/logger';
 
 /**

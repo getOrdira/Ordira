@@ -1,9 +1,8 @@
-﻿// @ts-nocheck
-// src/middleware/limits/planLimits.middleware.ts
+﻿// src/middleware/limits/planLimits.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import { UnifiedAuthRequest } from '../auth/unifiedAuth.middleware';
-import { TenantRequest } from '../deprecated/tenant.middleware';
+import { TenantRequest } from '../tenant/tenant.middleware';
 import { BrandSettings } from '../../models/brands/brandSettings.model';
 import { Billing } from '../../models/subscription/billing.model';
 import { PLAN_DEFINITIONS, PlanKey } from '../../constants/plans';

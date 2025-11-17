@@ -11,7 +11,7 @@ import {
   getReportGenerationService,
   getSystemHealthService,
   getAnalyticsValidationService
-} from '../../../services/container.service';
+} from '../../../services/container/container.getters';
 import type {
   AnalyticsGrouping,
   AnalyticsReportRequest,

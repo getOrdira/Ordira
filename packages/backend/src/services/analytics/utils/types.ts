@@ -1,4 +1,4 @@
-import type { CacheOptions } from '../../external/enhanced-cache.service';
+import type { CacheOptions } from '../../infrastructure/cache/features/enhancedCache.service';
 
 /**
  * Shared analytics type definitions used across the modular analytics services.

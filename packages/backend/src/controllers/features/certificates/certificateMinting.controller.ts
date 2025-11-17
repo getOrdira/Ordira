@@ -3,7 +3,7 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { mintingService } from '../../../services/certificates/features/minting.service';
+import { getCertificatesServices } from '../../../services/container/container.getters';  
 
 /**
  * Certificate minting request interfaces
@@ -93,7 +93,7 @@ interface DeleteCertificateAssetsRequest extends BaseRequest {
  * Certificate minting controller
  */
 export class CertificateMintingController extends BaseController {
-  private mintingService = mintingService;
+  private mintingService = getCertificatesServices().minting;
 
   /**
    * POST /api/certificates/create

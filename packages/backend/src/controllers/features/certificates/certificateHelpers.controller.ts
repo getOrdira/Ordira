@@ -3,7 +3,7 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { certificateHelpersService } from '../../../services/certificates/utils/certificateHelpers.service';
+import { getCertificatesServices } from '../../../services/container/container.getters';  
 
 /**
  * Certificate helpers request interfaces
@@ -90,7 +90,7 @@ interface GenerateWeb3RecommendationsRequest extends BaseRequest {
  * Certificate helpers controller
  */
 export class CertificateHelpersController extends BaseController {
-  private certificateHelpersService = certificateHelpersService;
+  private certificateHelpersService = getCertificatesServices().helpers;
 
   /**
    * POST /api/certificates/validate-recipient

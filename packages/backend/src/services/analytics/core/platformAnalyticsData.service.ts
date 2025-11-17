@@ -1,9 +1,9 @@
 ﻿import { VotingRecord } from '../../../models/voting/votingRecord.model';
 import { Product } from '../../../models/products/product.model';
-import { Business } from '../../../models/deprecated/business.model';
+import { Business } from '../../../models/core/business.model'; 
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
-import { queryOptimizationService } from '../../external/query-optimization.service';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { queryOptimizationService } from '../../infrastructure/database/features/queryOptimization.service'; 
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service'; 
 import {
   ANALYTICS_CACHE_SEGMENT,
   ANALYTICS_CACHE_TTL,

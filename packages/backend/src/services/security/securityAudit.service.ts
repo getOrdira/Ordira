@@ -1,6 +1,6 @@
 ﻿// src/services/security/securityAudit.service.ts
 import { Request, Response } from 'express';
-import { UnifiedAuthRequest } from '../../middleware/deprecated/unifiedAuth.middleware';
+import { UnifiedAuthRequest } from '../../middleware/auth/unifiedAuth.middleware';
 import { Manufacturer } from '../../models/manufacturer/manufacturer.model';
 import { Business } from '../../models/core/business.model';
 import { User } from '../../models/user';

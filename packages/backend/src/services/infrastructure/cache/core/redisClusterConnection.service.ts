@@ -7,10 +7,10 @@
 
 import Redis, { Cluster, Redis as RedisType } from 'ioredis';
 import { logger } from '../../../../utils/logger';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service'; 
 import { secureRedisClusterConfigs, validateRedisSecurityConfig } from '../../../../config/redis-cluster-secure.config';
 import crypto from 'crypto';
-import { configService } from '../../../utils/config.service';
+import { configService } from '../../config/core/config.service';
 
 export interface RedisClusterConfig {
   nodes: Array<{ host: string; port: number }>;

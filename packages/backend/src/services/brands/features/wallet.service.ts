@@ -517,7 +517,7 @@ export class WalletService {
   private async getAvailableTokenDiscounts(walletAddress: string): Promise<any[]> {
     try {
       // Import token discount service dynamically to avoid circular dependencies
-      const { TokenDiscountService } = await import('../../external/tokenDiscount.service');
+      const { TokenDiscountService } = await import('../../subscriptions/features/tokenDiscount.service');
       const tokenService = new TokenDiscountService();
       return await tokenService.getAvailableDiscounts(walletAddress);
     } catch (error) {

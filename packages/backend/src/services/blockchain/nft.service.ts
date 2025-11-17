@@ -7,7 +7,7 @@ import { Certificate, ICertificate } from '../../models/certificates/certificate
 import { Types } from 'mongoose';
 import { S3Service } from '../media/core/s3.service';
 import { mediaAnalyticsService } from '../media';
-import { createAppError } from '../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../middleware/core/error.middleware';
 import nftFactoryAbi from '../../abi/nftFactoryAbi.json';
 import erc721Abi from '../../abi/erc721Abi.json';
 import sharp from 'sharp';

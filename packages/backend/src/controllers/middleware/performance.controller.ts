@@ -3,7 +3,7 @@
 
 import { Response } from 'express';
 import { MiddlewareBaseController, MiddlewareBaseRequest } from './middlewareBase.controller';
-import { getMetricsJSON } from '../../middleware/deprecated/metrics.middleware';
+import { getMetricsJSON } from '../../middleware/performance/metrics.middleware';
 
 interface OptimizeRequest extends MiddlewareBaseRequest {}
 

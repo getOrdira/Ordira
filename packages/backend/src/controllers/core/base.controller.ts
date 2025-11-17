@@ -3,7 +3,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger, LogLevel } from '../../services/infrastructure/logging/index';
-import { getServices } from '../../services/container.service';
+import { getServices } from '../../services/container/container.getters';
 import { ResponseHelpers, ResponseMeta } from '../utils/response.helpers';
 import { ErrorHelpers, AppError } from '../utils/error.helpers';
 import { ValidationHelpers } from '../utils/validation.helpers';

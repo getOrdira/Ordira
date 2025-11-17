@@ -2,7 +2,7 @@
 // Shared helpers for notification feature controllers
 
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { getNotificationsServices } from '../../../services/container.service';
+import { getNotificationsServices } from '../../../services/container/container.getters';  
 import { NotificationRecipient } from '../../../services/notifications';
 
 interface ResolveRecipientOptions {

@@ -7,7 +7,7 @@
 
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../infrastructure/shared';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';

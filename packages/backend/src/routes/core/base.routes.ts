@@ -2,10 +2,10 @@
 // Base route utilities and helpers for consistent route creation
 
 import { Router, RequestHandler } from 'express';
-import { validateBody, validateQuery, validateParams } from '../../middleware/deprecated/validation.middleware';
-import { authenticate } from '../../middleware/deprecated/unifiedAuth.middleware';
-import { resolveTenant, requireTenantSetup } from '../../middleware/deprecated/tenant.middleware';
-import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/deprecated/rateLimiter.middleware';
+import { validateBody, validateQuery, validateParams } from '../../middleware/validation/validation.middleware';
+import { authenticate } from '../../middleware/auth/unifiedAuth.middleware';
+import { resolveTenant, requireTenantSetup } from '../../middleware/tenant/tenant.middleware';
+import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/limits/rateLimiter.middleware';
 import { asRouteHandler, asRateLimitHandler } from '../../utils/routeHelpers';
 import Joi from 'joi';
 

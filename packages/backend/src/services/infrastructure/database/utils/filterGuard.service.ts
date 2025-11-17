@@ -1,6 +1,6 @@
-import { createAppError } from '../../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../../middleware/core/error.middleware'; 
 import { logger } from '../../../../utils/logger';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service';
 
 // Allowed MongoDB operators for safe queries
 const ALLOWED_OPERATORS = new Set([

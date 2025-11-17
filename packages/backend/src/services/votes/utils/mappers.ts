@@ -1,4 +1,6 @@
 import type { VoteRecord, PendingVoteRecord } from './types';
+import type { IPendingVote } from '../../../models/voting/pendingVote.model';
+import { calculateProcessingPriority, estimateVoteGasCost } from './pendingVoteHelpers';
 
 type VotingRecordLike = {
   voterAddress?: string;
@@ -47,3 +49,56 @@ export const mapPendingVote = (vote: PendingVoteLike): PendingVoteRecord => ({
   selectionReason: vote.selectionReason,
   createdAt: vote.createdAt
 });
+
+/**
+ * Map pending vote with enhanced validation fields
+ * Requires validation service to be passed in for validation checks
+ */
+export const mapPendingVoteEnhanced = (
+  vote: IPendingVote | any,
+  validationService?: {
+    validateVoteRecord: (vote: any) => boolean;
+    canProcessVote: (vote: any) => boolean;
+    getValidationErrors: (vote: any) => string[];
+    isEligibleForBatch: (vote: any) => boolean;
+  }
+): PendingVoteRecord => {
+  const base = mapPendingVote({
+    businessId: vote.businessId,
+    proposalId: vote.proposalId,
+    userId: vote.userId,
+    voteId: vote.voteId,
+    selectedProductId: vote.selectedProductId,
+    productName: vote.productName,
+    productImageUrl: vote.productImageUrl,
+    selectionReason: vote.selectionReason,
+    createdAt: vote.createdAt
+  });
+
+  // Add enhanced fields if validation service is provided
+  if (validationService) {
+    return {
+      ...base,
+      id: vote._id?.toString() || vote.id,
+      userSignature: vote.userSignature,
+      isProcessed: vote.isProcessed,
+      processedAt: vote.processedAt,
+      isValid: validationService.validateVoteRecord(vote),
+      canProcess: validationService.canProcessVote(vote),
+      validationErrors: validationService.getValidationErrors(vote),
+      eligibleForBatch: validationService.isEligibleForBatch(vote),
+      estimatedGasCost: estimateVoteGasCost(),
+      processingPriority: calculateProcessingPriority(vote),
+      estimatedConfirmationTime: '2-5 minutes'
+    };
+  }
+
+  // Return base mapping without enhanced fields
+  return {
+    ...base,
+    id: vote._id?.toString() || vote.id,
+    userSignature: vote.userSignature,
+    isProcessed: vote.isProcessed,
+    processedAt: vote.processedAt
+  };
+};

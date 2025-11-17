@@ -1,4 +1,4 @@
-import { cacheService } from '../../external/cache.service';
+import { cacheStoreService } from '../../infrastructure/cache/core/cacheStore.service';
 import { logger } from '../../../utils/logger';
 import { ProductFilters, ProductOwner } from './types';
 import { CacheKeys, getProductCacheTags } from './helpers';
@@ -14,7 +14,7 @@ export class ProductCacheService {
    */
   async get<T>(key: string): Promise<T | null> {
     try {
-      const cached = await cacheService.get<T>(key);
+      const cached = await cacheStoreService.get<T>(key);
       return cached;
     } catch (error: any) {
       logger.error('Cache get error', { key, error: error.message });
@@ -27,7 +27,7 @@ export class ProductCacheService {
    */
   async set<T>(key: string, value: T, ttl: number = this.DEFAULT_TTL): Promise<void> {
     try {
-      await cacheService.set(key, value, { ttl });
+      await cacheStoreService.set(key, value, { ttl });
     } catch (error: any) {
       logger.error('Cache set error', { key, error: error.message });
     }
@@ -38,7 +38,7 @@ export class ProductCacheService {
    */
   async delete(key: string): Promise<void> {
     try {
-      await cacheService.delete(key);
+      await cacheStoreService.delete(key);
     } catch (error: any) {
       logger.error('Cache delete error', { key, error: error.message });
     }

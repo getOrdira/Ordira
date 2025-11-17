@@ -3,7 +3,7 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { getBrandsServices } from '../../../services/container.service';
+import { getBrandsServices } from '../../../services/container/container.getters';  
 
 /**
  * Brand verification request interfaces

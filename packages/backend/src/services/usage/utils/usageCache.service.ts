@@ -1,6 +1,6 @@
 import { logger } from '../../../utils/logger';
-import { cacheService } from '../../external/cache.service';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { cacheStoreService} from '../../infrastructure/cache/core/cacheStore.service';  
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 import type { UsageAnalytics, UsageLimits, UsagePlanCacheEntry } from './types';
 
 class UsageCacheService {
@@ -15,32 +15,32 @@ class UsageCacheService {
 
   async getUsageLimits(businessId: string): Promise<UsageLimits | null> {
     const key = this.buildKey('limits', businessId);
-    return cacheService.get<UsageLimits>(key);
+    return cacheStoreService.get<UsageLimits>(key);
   }
 
   async setUsageLimits(businessId: string, limits: UsageLimits): Promise<void> {
     const key = this.buildKey('limits', businessId);
-    await cacheService.set(key, limits, { ttl: this.LIMITS_TTL });
+    await cacheStoreService.set(key, limits, { ttl: this.LIMITS_TTL });
   }
 
   async getUsageAnalytics(businessId: string, days: number): Promise<UsageAnalytics | null> {
     const key = this.buildKey('analytics', `${businessId}:${days}`);
-    return cacheService.get<UsageAnalytics>(key);
+    return cacheStoreService.get<UsageAnalytics>(key);
   }
 
   async setUsageAnalytics(businessId: string, days: number, analytics: UsageAnalytics): Promise<void> {
     const key = this.buildKey('analytics', `${businessId}:${days}`);
-    await cacheService.set(key, analytics, { ttl: this.ANALYTICS_TTL });
+    await cacheStoreService.set(key, analytics, { ttl: this.ANALYTICS_TTL });
   }
 
   async getPlan(businessId: string): Promise<UsagePlanCacheEntry | null> {
     const key = this.buildKey('plan', businessId);
-    return cacheService.get<UsagePlanCacheEntry>(key);
+    return cacheStoreService.get<UsagePlanCacheEntry>(key);
   }
 
   async setPlan(businessId: string, plan: UsagePlanCacheEntry): Promise<void> {
     const key = this.buildKey('plan', businessId);
-    await cacheService.set(key, plan, { ttl: this.PLAN_TTL });
+    await cacheStoreService.set(key, plan, { ttl: this.PLAN_TTL });
   }
 
   async invalidateUsage(businessId: string): Promise<void> {
@@ -51,7 +51,7 @@ class UsageCacheService {
       this.buildKey('analytics', `${businessId}:90`)
     ];
 
-    const operations = keys.map(key => cacheService.delete(key));
+    const operations = keys.map(key => cacheStoreService.delete(key));
     await Promise.all(operations);
 
     try {

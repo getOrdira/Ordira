@@ -1,4 +1,4 @@
-import { cacheService } from '../../external/cache.service';
+import { cacheStoreService } from '../../infrastructure/cache/core/cacheStore.service';
 import { logger } from '../../../utils/logger';
 import { domainRegistryService } from '../core/domainRegistry.service';
 import type { DomainMappingRecord } from '../core/domainStorage.service';
@@ -25,7 +25,7 @@ export class DomainCacheService {
     const normalizedDomain = this.normalizeDomain(domain);
     const key = this.buildKey(normalizedDomain);
 
-    await cacheService.set(key, businessId, { ttl: ttlSeconds });
+    await cacheStoreService.set(key, businessId, { ttl: ttlSeconds });
     this.localCache.set(normalizedDomain, {
       businessId,
       expiresAt: Date.now() + ttlSeconds * 1000
@@ -46,7 +46,7 @@ export class DomainCacheService {
     }
 
     const key = this.buildKey(normalizedDomain);
-    const cached = await cacheService.get<string>(key);
+    const cached = await cacheStoreService.get<string>(key);
     if (cached) {
       this.localCache.set(normalizedDomain, {
         businessId: cached,
@@ -72,7 +72,7 @@ export class DomainCacheService {
     const normalizedDomain = this.normalizeDomain(domain);
     const key = this.buildKey(normalizedDomain);
 
-    await cacheService.delete(key);
+    await cacheStoreService.delete(key);
     this.localCache.delete(normalizedDomain);
   }
 

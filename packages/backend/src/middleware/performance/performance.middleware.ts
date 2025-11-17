@@ -1,11 +1,10 @@
-// @ts-nocheck
 // src/middleware/performance/performance.middleware.ts
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
 import { performance } from 'perf_hooks';
-import { performanceService } from '../../services/external/performance.service';
-import { cacheService } from '../../services/external/cache.service';
+import { performanceService } from '../../services/infrastructure/observability';
+import { cacheStoreService } from '../../services/infrastructure/cache';
 import { hasPerformanceTracking } from '../../utils/typeGuards';
 
 export interface PerformanceRequest extends Request {
@@ -55,7 +54,7 @@ export function cacheMiddleware(ttl: number = 300, keyGenerator?: (req: Request)
       const cacheKey = keyGenerator ? keyGenerator(req) : `cache:${req.path}:${JSON.stringify(req.query)}`;
       
       // Try to get from cache
-      const cached = await cacheService.get(cacheKey, { ttl });
+      const cached = await cacheStoreService.get(cacheKey);
       
       if (cached !== null) {
         if (!res.headersSent) {
@@ -80,7 +79,7 @@ export function cacheMiddleware(ttl: number = 300, keyGenerator?: (req: Request)
       res.on('finish', async () => {
         if (res.statusCode === 200 && responseData) {
           // Cache successful responses
-          await cacheService.set(cacheKey, responseData, { ttl });
+          await cacheStoreService.set(cacheKey, responseData, { ttl });
           if (!res.headersSent) {
             res.set('X-Cache', 'MISS');
             res.set('X-Cache-Key', cacheKey);

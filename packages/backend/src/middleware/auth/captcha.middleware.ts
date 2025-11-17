@@ -2,7 +2,7 @@ import { Request, Response, NextFunction, RequestHandler } from 'express';
 import Joi from 'joi';
 import { asyncHandler, createAppError } from '../core';
 import { ResponseHelper } from '../../utils/responseUtils';
-import { captchaService } from '../../services/security/captcha/captcha.service';
+import { captchaService } from '../../services/security/captcha/captcha.service'; 
 import type {
   CaptchaAwareRequest,
   CaptchaEvaluation,

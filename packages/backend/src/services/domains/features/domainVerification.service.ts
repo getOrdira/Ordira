@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../middleware/core/error.middleware';
 import { logger } from '../../../utils/logger';
-import { jobQueueService } from '../../external/job-queue.service';
+import { jobQueueAdapter } from '../../infrastructure/resilience/core/jobQueueAdapter.service';
 import { domainRegistryService } from '../core/domainRegistry.service';
 import type { DomainMappingRecord } from '../core/domainStorage.service';
 import { domainDnsService, DnsInstructionSet, DnsVerificationResult } from './domainDns.service';
@@ -196,7 +196,7 @@ export class DomainVerificationService {
    */
   async scheduleRecheckJob(payload: { businessId: string; domainId: string; method: VerificationMethod }): Promise<void> {
     try {
-      await jobQueueService.addJob({
+      await jobQueueAdapter.addJob({
         type: VERIFICATION_RECHECK_JOB,
         payload,
         businessId: payload.businessId,

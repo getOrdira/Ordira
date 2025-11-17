@@ -1,6 +1,6 @@
 ﻿// src/models/security/securityEvent.model.ts
 import { Schema, model, models, type Document } from 'mongoose';
-import { SecurityEventType, SecuritySeverity, type SecurityActorType } from '../../services/security/utilities/securityTypes';
+import { SecurityEventType, SecuritySeverity, type SecurityActorType } from '../../services/infrastructure/security/utils/securityTypes'; 
 
 export interface SecurityEventDocument extends Document {
   eventType: SecurityEventType;

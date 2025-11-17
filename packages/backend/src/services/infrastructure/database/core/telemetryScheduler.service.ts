@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { logger } from '../../../../utils/logger';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service'; 
 import type { ConnectionManager } from './connectionManager.service';
 
 export class TelemetryScheduler {

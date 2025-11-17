@@ -1,0 +1,49 @@
+# Development Dockerfile for Backend
+# This is optimized for development with hot-reload and live code editing
+
+FROM node:20-alpine
+
+# Install development tools
+RUN apk add --no-cache \
+    git \
+    python3 \
+    make \
+    g++
+
+# Set working directory
+WORKDIR /app
+
+# Copy root package files (for workspace setup)
+COPY package*.json ./
+COPY lerna.json ./
+
+# Copy backend package files
+COPY packages/backend/package*.json ./packages/backend/
+
+# Install ALL dependencies (including dev dependencies) at root
+# This installs workspace dependencies for all packages
+RUN npm ci
+
+# Rebuild sharp for Alpine Linux (native dependency)
+WORKDIR /app/packages/backend
+RUN npm rebuild sharp
+
+# Install nodemon globally for hot-reload
+RUN npm install -g nodemon
+
+# Copy TypeScript config (needed for ts-node)
+COPY tsconfig.json ./
+
+# Note: Source code is mounted as volume in docker-compose.dev.yml
+# This allows live editing without rebuilding the container
+
+# Expose application port
+EXPOSE 4000
+
+# Expose Node.js debugging port
+EXPOSE 9229
+
+# Start development server with nodemon
+# This watches for file changes and auto-restarts
+CMD ["npm", "run", "dev"]
+

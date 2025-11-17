@@ -1,6 +1,6 @@
 // src/services/users/core/userData.service.ts
 
-import { queryOptimizationService } from '../../external/query-optimization.service';
+import { queryOptimizationService } from '../../infrastructure/database/features/queryOptimization.service'; 
 import { User } from '../../../models/user';
 import { userCacheService } from '../utils/cache.service';
 import { userProfileFormatterService } from '../utils/profileFormatter.service'; 

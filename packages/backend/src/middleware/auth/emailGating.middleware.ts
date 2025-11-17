@@ -1,10 +1,8 @@
 // src/middleware/auth/emailGating.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';
-import { getCustomerAccessService } from '../../services/container.service';
+import { getCustomerAccessService } from '../../services/container/container.getters';
 import { UnifiedAuthRequest } from './unifiedAuth.middleware';
-
-const customerAccessService = getCustomerAccessService();
 
 export interface EmailGatingResult {
   allowed: boolean;
@@ -40,7 +38,7 @@ export async function checkEmailGating(
     }
 
     // Check if email is allowed
-    const result = await customerAccessService.isEmailAllowed(email, businessId);
+    const result = await getCustomerAccessService().isEmailAllowed(email, businessId);
     
     // Attach result to request for use in controllers
     req.emailGating = result;
@@ -61,7 +59,7 @@ export async function checkEmailGating(
 
     // Record access if customer exists
     if (result.customer) {
-     await customerAccessService.grantVotingAccess(email, businessId, req.user?.id);
+     await getCustomerAccessService().grantVotingAccess(email, businessId, req.user?.id);
     }
 
     next();

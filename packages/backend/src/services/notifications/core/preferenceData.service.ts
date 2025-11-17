@@ -1,4 +1,4 @@
-﻿import { Business } from '../../../models/deprecated/business.model';
+﻿import { Business } from '../../../models/core/business.model';
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { NotificationPreferences, DEFAULT_CHANNEL_PREFERENCES, DEFAULT_CATEGORY_PREFERENCES } from '../types';
 

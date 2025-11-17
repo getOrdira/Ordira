@@ -1,5 +1,5 @@
 // src/services/brands/features/discovery.service.ts
-import { Business } from '../../../models/deprecated/business.model';
+import { Business } from '../../../models/core/business.model';
 import { logger } from '../../../utils/logger';
 
 export interface BrandRecommendation {

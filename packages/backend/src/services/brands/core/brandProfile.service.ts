@@ -1,6 +1,6 @@
 ﻿// src/services/brands/core/brandProfile.service.ts
 import { BrandSettings, IBrandSettings } from '../../../models/brands/brandSettings.model';
-import { Business, IBusiness } from '../../../models/deprecated/business.model';
+import { Business, IBusiness } from '../../../models/core/business.model';
 import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { connectionDataService } from '../../connections/core/connectionData.service';
 import { matchingEngineService } from '../../connections/utils/matchingEngine.service';

@@ -67,6 +67,7 @@ export interface ProcessPendingResult {
 }
 
 export interface PendingVoteRecord {
+  id?: string;
   businessId: string;
   proposalId: string;
   userId: string;
@@ -75,7 +76,17 @@ export interface PendingVoteRecord {
   productName?: string;
   productImageUrl?: string;
   selectionReason?: string;
+  userSignature?: string;
+  isProcessed?: boolean;
+  processedAt?: Date;
   createdAt: Date;
+  isValid?: boolean;
+  canProcess?: boolean;
+  validationErrors?: string[];
+  eligibleForBatch?: boolean;
+  estimatedGasCost?: string;
+  processingPriority?: number;
+  estimatedConfirmationTime?: string;
 }
 
 export interface VotingTrendSummary {
@@ -132,6 +143,113 @@ export interface PendingVotesFilters {
   limit?: number;
   offset?: number;
   useCache?: boolean;
+}
+
+export interface PendingVoteListOptions {
+  proposalId?: string;
+  userId?: string;
+  includeProcessed?: boolean;
+  onlyProcessed?: boolean;
+  sortBy?: string;
+  sortOrder?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PendingVoteStats {
+  totalPending: number;
+  totalProcessed: number;
+  oldestPendingAge?: string;
+  newestPendingAge?: string;
+  averageProcessingTime?: string;
+  processingEfficiency: number;
+  averageBatchSize: number;
+  gasOptimization: number;
+}
+
+export interface BatchingInfo {
+  readyForBatch: number;
+  batchThreshold: number;
+  autoProcessEnabled: boolean;
+  nextBatchSize: number;
+  estimatedGasCost: string;
+  lastProcessedAt?: Date;
+  canProcessNow: boolean;
+  reasonCannotProcess?: string;
+  batchEfficiency: number;
+  estimatedSavings: string;
+  recommendedAction: string;
+}
+
+export interface ProposalBreakdown {
+  proposalId: string;
+  pendingCount: number;
+  readyForBatch: boolean;
+  oldestVoteAge?: string;
+  voteDistribution: {
+    for: number;
+    against: number;
+    abstain: number;
+  };
+}
+
+export interface BatchProcessingOptions {
+  voteIds?: string[];
+  proposalId?: string;
+  maxGasPrice?: string;
+  forceProcess?: boolean;
+  contractAddress: string;
+}
+
+export interface BatchProcessingResult {
+  success: boolean;
+  batchId?: string;
+  totalVotes: number;
+  processedCount: number;
+  failedCount: number;
+  skippedCount: number;
+  transactionHash?: string;
+  blockNumber?: number;
+  gasUsed?: string;
+  gasPrice?: string;
+  totalCost?: string;
+  processedVotes?: string[];
+  failedVotes?: Array<{ voteId: string; error: string }>;
+  errors?: string[];
+  error?: string;
+}
+
+export interface BatchConfig {
+  batchThreshold: number;
+  autoProcessEnabled: boolean;
+  maxBatchSize: number;
+  processingDelay: number;
+  lastUpdatedAt: Date;
+}
+
+export interface ValidationResult {
+  totalValidated: number;
+  eligibleCount: number;
+  ineligibleCount: number;
+  warningCount: number;
+  eligibleVotes: string[];
+  ineligibleVotes: Array<{
+    voteId: string;
+    reason: string;
+    canFix: boolean;
+    recommendation: string;
+  }>;
+  warnings: string[];
+  canProcessBatch: boolean;
+  recommendedBatchSize: number;
+  estimatedGasCost: string;
+  blockers: string[];
+}
+
+export interface RelatedVotes {
+  sameProposal: number;
+  sameUser: number;
+  totalForProposal: number;
 }
 
 export interface BusinessProposalsOptions {

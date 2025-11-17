@@ -1,6 +1,6 @@
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../middleware/core/error.middleware';
 import { logger } from '../../../utils/logger';
-import { jobQueueService } from '../../external/job-queue.service';
+import { jobQueueAdapter } from '../../infrastructure/resilience/core/jobQueueAdapter.service';
 import { domainRegistryService } from '../core/domainRegistry.service';
 import type { DomainMappingRecord } from '../core/domainStorage.service';
 
@@ -128,7 +128,7 @@ export class DomainCertificateLifecycleService {
         domainId,
         expiresAt: expiresAt.toISOString()
       });
-      await jobQueueService.addJob({
+      await jobQueueAdapter.addJob({
         type: CERTIFICATE_RENEWAL_JOB,
         businessId,
         payload: { businessId, domainId },
@@ -137,7 +137,7 @@ export class DomainCertificateLifecycleService {
       return null;
     }
 
-    const jobId = await jobQueueService.addJob({
+    const jobId = await jobQueueAdapter.addJob({
       type: CERTIFICATE_RENEWAL_JOB,
       businessId,
       payload: { businessId, domainId },

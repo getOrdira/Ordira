@@ -4,9 +4,9 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import { authController } from '../../controllers/core/auth.controller';
-import { validateBody } from '../../middleware/deprecated/validation.middleware';
-import { strictRateLimiter } from '../../middleware/deprecated/rateLimiter.middleware';
-import { authenticate } from '../../middleware/deprecated/unifiedAuth.middleware';
+import { validateBody } from '../../middleware/validation/validation.middleware'; 
+import { strictRateLimiter } from '../../middleware/limits/rateLimiter.middleware';
+import { authenticate } from '../../middleware/auth/unifiedAuth.middleware';
 import { asRateLimitHandler, asRouteHandler } from '../../utils/routeHelpers';
 
 const router = Router();

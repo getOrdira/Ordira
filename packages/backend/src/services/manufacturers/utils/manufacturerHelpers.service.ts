@@ -6,7 +6,7 @@
 
 import { UtilsService } from '../../infrastructure/shared';
 import { RegisterManufacturerData, UpdateManufacturerData } from '../core/manufacturerData.service';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 
 export class ManufacturerHelpersService {

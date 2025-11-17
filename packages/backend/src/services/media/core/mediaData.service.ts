@@ -1,5 +1,5 @@
 ﻿import { Media } from '../../../models/media/media.model';
-import { queryOptimizationService } from '../../external/query-optimization.service';
+import { queryOptimizationService } from '../../infrastructure/database/features/queryOptimization.service';
 import { MediaLeanDocument, MediaListOptions, MediaListResult, MediaSearchResult } from '../utils/types';
 import { MediaError } from '../utils/errors';
 import { mediaCacheService } from '../utils/cache';

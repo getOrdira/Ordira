@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service';
 import { redisClusterService } from '../../cache/core/redisClusterConnection.service';
 import type { ConnectionManager } from '../core/connectionManager.service';
 

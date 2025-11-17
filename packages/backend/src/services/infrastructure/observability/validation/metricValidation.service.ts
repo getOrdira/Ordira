@@ -1,4 +1,4 @@
-import { createAppError } from '../../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../../middleware/core/error.middleware';
 import type { MetricData } from '../utils/types';
 
 type MetricInput = Omit<MetricData, 'timestamp'>;

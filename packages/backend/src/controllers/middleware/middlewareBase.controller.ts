@@ -10,8 +10,9 @@ import {
   SlidingWindowRateLimiter,
   SlidingWindowConfig
 } from '../../services/infrastructure/resilience/features/slidingWindowRateLimiter.service';
-import { performanceService } from '../../services/external/performance.service';
-import { securityValidationMiddleware } from '../../middleware/deprecated/security-validation.middleware';
+import { performanceService } from '../../services/infrastructure/observability';
+import { securityValidationMiddleware } from '../../middleware/validation/security-validation.middleware'; 
+
 
 /**
  * Base controller providing access to shared middleware services.

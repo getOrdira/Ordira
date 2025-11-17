@@ -1,7 +1,7 @@
 import { databaseOptimizationService } from '../features/indexOptimization.service';
 import { logger } from '../../../../utils/logger';
 import mongoose from 'mongoose';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service';
 
 export interface SchemaDriftSummary {
   missingIndexes: number;

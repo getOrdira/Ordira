@@ -1,6 +1,6 @@
 ﻿import type { FilterQuery, LeanDocument, UpdateQuery } from 'mongoose';
 
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../middleware/core/error.middleware';
 import { DomainMapping, IDomainMapping } from '../../../models/infrastructure/domainMapping.model';
 import { logger } from '../../../utils/logger';
 

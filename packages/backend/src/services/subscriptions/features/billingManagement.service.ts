@@ -1,7 +1,7 @@
 ﻿// src/services/subscriptions/features/billingManagement.service.ts
 import Stripe from 'stripe';
 import { logger } from '../../../utils/logger'; 
-import { Business } from '../../../models/deprecated/business.model';
+import { Business } from '../../../models/core/business.model'; 
 import { notificationsService } from '../../notifications/notifications.service'; 
 import { StripeGatewayService, stripeGatewayService } from '../core/stripeGateway.service';
 import { TokenDiscountService, tokenDiscountService } from './tokenDiscount.service';

@@ -1,7 +1,7 @@
 // src/services/supplyChain/core/deployment.service.ts
 import { BlockchainProviderService } from '../../blockchain/provider.service';
 import { logger } from '../../../utils/logger';
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../middleware/core/error.middleware'; 
 import { SupplyChainValidationService } from '../validation/supplyChainValidation.service';
 import { AssociationService } from './association.service';
 import { LogParsingService } from '../utils/logs';

@@ -11,7 +11,7 @@
 
 import { isValidObjectId } from 'mongoose';
 import { Certificate, ICertificate } from '../../../models/certificates/certificate.model';
-import { Business } from '../../../models/deprecated/business.model';
+import { Business } from '../../../models/core/business.model';
 import { Product } from '../../../models/products/product.model';
 import { logger } from '../../../utils/logger';
 

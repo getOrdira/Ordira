@@ -4,6 +4,7 @@
  * Provides type-safe service registration and resolution
  */
 
+import { ServiceMetadata, DIContainer } from '../core/diContainer.service';
 import { container, SERVICE_TOKENS, ServiceToken } from '../core/diContainer.service';
 import { ServiceScope, ServiceLifecycle } from '../core/diContainer.service';
 
@@ -35,7 +36,7 @@ export class ServiceRegistry {
    */
   static registerFactory<T>(
     token: ServiceToken | string,
-    factory: (container: typeof container) => T,
+    factory: (container: DIContainer) => T,
     options: {
       scope?: ServiceScope;
       dependencies?: (ServiceToken | string)[];
@@ -45,7 +46,7 @@ export class ServiceRegistry {
     container.registerFactory(token, factory, {
       scope: options.scope,
       dependencies: options.dependencies,
-      lifecycle: options.lifecycle
+      lifecycle: options.lifecycle as ServiceMetadata['lifecycle']
     });
   }
 

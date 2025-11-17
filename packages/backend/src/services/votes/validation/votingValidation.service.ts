@@ -1,7 +1,9 @@
-import { createAppError } from '../../../middleware/deprecated/error.middleware';
+import { createAppError } from '../../../middleware/core/error.middleware'; 
 import type {
+  BatchProcessingOptions,
   BusinessProposalsOptions,
   BusinessVotesOptions,
+  PendingVoteListOptions,
   PendingVotesFilters,
   VotingAnalyticsOptions
 } from '../utils/types';
@@ -84,6 +86,50 @@ export class VotingValidationService {
     }
 
     return normalized;
+  }
+
+  normalizePendingVoteListOptions(options: PendingVoteListOptions = {}): Required<Omit<PendingVoteListOptions, 'proposalId' | 'userId'>> & { proposalId?: string; userId?: string } {
+    const limit = options.limit && options.limit > 0 ? Math.min(options.limit, MAX_PAGE_LIMIT) : DEFAULT_PAGE_LIMIT;
+    const offset = options.offset && options.offset > 0 ? options.offset : 0;
+    const sortBy = options.sortBy || 'createdAt';
+    const sortOrder = options.sortOrder || 'desc';
+
+    if (sortOrder && !['asc', 'desc'].includes(sortOrder)) {
+      throw createAppError('Invalid sortOrder value for pending vote listing', 400, 'INVALID_SORT_ORDER');
+    }
+
+    return {
+      proposalId: options.proposalId?.trim() || undefined,
+      userId: options.userId?.trim() || undefined,
+      includeProcessed: options.includeProcessed !== undefined ? options.includeProcessed : false,
+      onlyProcessed: options.onlyProcessed !== undefined ? options.onlyProcessed : false,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc',
+      limit,
+      offset
+    };
+  }
+
+  validateBatchProcessingOptions(options: BatchProcessingOptions): BatchProcessingOptions {
+    if (!options.contractAddress?.trim()) {
+      throw createAppError('Contract address is required for batch processing', 400, 'MISSING_CONTRACT_ADDRESS');
+    }
+
+    if (options.voteIds && options.voteIds.length === 0) {
+      throw createAppError('Vote IDs array cannot be empty', 400, 'INVALID_VOTE_IDS');
+    }
+
+    if (options.voteIds && options.proposalId) {
+      throw createAppError('Cannot specify both voteIds and proposalId', 400, 'INVALID_BATCH_OPTIONS');
+    }
+
+    return {
+      contractAddress: options.contractAddress.trim(),
+      voteIds: options.voteIds?.map(id => id.trim()).filter(Boolean),
+      proposalId: options.proposalId?.trim(),
+      maxGasPrice: options.maxGasPrice?.trim(),
+      forceProcess: options.forceProcess || false
+    };
   }
 }
 

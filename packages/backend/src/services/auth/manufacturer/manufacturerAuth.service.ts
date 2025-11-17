@@ -10,8 +10,8 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger';
 import { UtilsService } from '../../infrastructure/shared';
 import { notificationsService } from '../../notifications/notifications.service';
-import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
-import { enhancedCacheService } from '../../external/enhanced-cache.service';
+import { Manufacturer } from '../../../models/core/manufacturer.model';
+import { enhancedCacheService } from '../../infrastructure/cache/features/enhancedCache.service';
 
 // Import base service and types
 import { AuthBaseService } from '../base/authBase.service';

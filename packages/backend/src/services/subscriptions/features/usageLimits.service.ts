@@ -1,4 +1,4 @@
-import { BillingService } from '../../external/billing.service';
+import { BillingManagementService, billingManagementService } from '../features/billingManagement.service';
 import { SubscriptionDataService, subscriptionDataService } from '../core/subscriptionData.service';
 import { UsageLimitsCheck, SubscriptionDocument } from '../utils/types';
 
@@ -8,7 +8,7 @@ const formatDollars = (amount: number): string => (amount / 100).toFixed(2);
 export class SubscriptionUsageLimitsService {
   constructor(
     private readonly dataService: SubscriptionDataService = subscriptionDataService,
-    private readonly billingService: BillingService = new BillingService()
+    private readonly billingService: BillingManagementService = billingManagementService
   ) {}
 
   /**

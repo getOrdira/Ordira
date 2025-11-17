@@ -3,7 +3,7 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { batchService } from '../../../services/certificates/features/batch.service';
+import { getCertificatesServices } from '../../../services/container/container.getters';  
 
 /**
  * Certificate batch request interfaces
@@ -75,7 +75,7 @@ interface CalculateBatchDurationRequest extends BaseRequest {
  * Certificate batch controller
  */
 export class CertificateBatchController extends BaseController {
-  private batchService = batchService;
+  private batchService = getCertificatesServices().batch;
 
   /**
    * POST /api/certificates/batch/create-job

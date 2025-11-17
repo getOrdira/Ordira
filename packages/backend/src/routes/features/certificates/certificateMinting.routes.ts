@@ -4,7 +4,7 @@
 import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { certificateMintingController } from '../../../controllers/features/certificates/certificateMinting.controller';
-import { safeUploadMiddleware, uploadRateLimit } from '../../../middleware';
+import { safeUploadMiddleware, uploadRateLimit } from '../../../middleware/upload/upload.middleware';
 
 const objectIdSchema = Joi.string().hex().length(24);
 

@@ -3,7 +3,7 @@
 
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from '../../core/base.controller';
-import { BrandServices } from '../../../services/brands';
+import { getBrandsServices } from '../../../services/container/container.getters'; 
 
 /**
  * Brand profile request interfaces
@@ -89,7 +89,7 @@ interface GetBrandRecommendationsRequest extends BaseRequest {
  * Brand profile controller
  */
 export class BrandProfileController extends BaseController {
-  private brandServices = BrandServices;
+  private brandServices = getBrandsServices();
 
   /**
    * GET /api/brands

@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-// src/middleware/limits/manufacturerPlanLimits.middleware.ts
+﻿// src/middleware/limits/manufacturerPlanLimits.middleware.ts
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../../utils/logger';

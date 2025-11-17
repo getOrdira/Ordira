@@ -1,4 +1,4 @@
-import { enhancedCacheService, type CacheOptions } from '../../external/enhanced-cache.service';
+import { enhancedCacheService, type CacheOptions } from '../../infrastructure/cache/features/enhancedCache.service'; 
 import { hashCacheParams, serializeParams } from './helpers';
 
 const ANALYTICS_CACHE_PREFIX = 'analytics';

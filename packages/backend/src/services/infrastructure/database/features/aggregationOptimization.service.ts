@@ -7,7 +7,7 @@
 
 import mongoose, { Model, Document, PipelineStage } from 'mongoose';
 import { logger } from '../../../../utils/logger';
-import { monitoringService } from '../../../external/monitoring.service';
+import { monitoringService } from '../../observability/core/monitoringRegistry.service';
 import mongoSanitize from 'express-mongo-sanitize';
 import crypto from 'crypto';
 
