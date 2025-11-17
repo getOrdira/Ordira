@@ -11,8 +11,8 @@ const schema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'staging', 'production').required(),
   PORT: Joi.number().default(4000),
   
-  // Database - MongoDB URI required
-  MONGODB_URI: Joi.string().uri().required(),
+  // Database - MongoDB URI required (mongodb:// or mongodb+srv://)
+  MONGODB_URI: Joi.string().pattern(/^mongodb(\+srv)?:\/\//).required(),
   
   // Blockchain configuration
   BASE_RPC_URL: Joi.string().uri().required(),
