@@ -5,7 +5,8 @@
  * with proper dependency injection and service registration.
  */
 
-import express, { Application } from 'express';
+import express, { Application, Response, NextFunction, RequestHandler, ErrorRequestHandler } from 'express';
+import type { Request } from 'express';
 import { logger } from '../../logging'; 
 import path from 'path';
 
@@ -57,6 +58,25 @@ import {
   cleanupOnError,
   warmupPlanCache
 } from '../../../../middleware';
+import type { UnifiedAuthRequest } from '../../../../middleware/auth/unifiedAuth.middleware';
+import type { UploadRequest } from '../../../../middleware/upload/upload.middleware';
+
+/**
+ * Type-safe wrapper for authenticate middleware
+ * Converts standard Express Request to UnifiedAuthRequest for compatibility
+ */
+const authenticateMiddleware: RequestHandler = (req, res, next) => {
+  authenticate(req as UnifiedAuthRequest, res, next).catch(next);
+};
+
+/**
+ * Type-safe wrapper for cleanupOnError middleware
+ * Converts standard Express Request to UploadRequest for compatibility
+ * Note: This is safe because cleanupOnError checks for req.files before accessing it
+ */
+const cleanupOnErrorMiddleware: RequestHandler = (req, res, next) => {
+  cleanupOnError(req as UploadRequest, res, next);
+};
 
 export class AppBootstrapService {
   private app: Application;
@@ -262,8 +282,12 @@ export class AppBootstrapService {
     });
 
     // Enhanced metrics endpoint with authentication in production
+    const metricsAuthMiddleware: RequestHandler = process.env.NODE_ENV === 'production' 
+      ? authenticateMiddleware 
+      : (req, res, next) => next();
+    
     this.app.get('/metrics', 
-      process.env.NODE_ENV === 'production' ? authenticate : (req, res, next) => next(),
+      metricsAuthMiddleware,
       async (req, res) => {
         try {
           const health = await monitoringService.getSystemHealth();
@@ -322,13 +346,15 @@ export class AppBootstrapService {
    */
   private setupGlobalApiMiddleware(): void {
     // Plan cache warmup for authenticated users
-    this.app.use(warmupPlanCache());
+    // warmupPlanCache returns an async middleware, which Express handles automatically
+    const warmupMiddleware = warmupPlanCache();
+    this.app.use(warmupMiddleware as RequestHandler);
 
     // Protected API routes with authentication and rate limiting
     this.app.use('/api', 
-      authenticate, 
+      authenticateMiddleware, 
       dynamicRateLimiter(),
-      cleanupOnError
+      cleanupOnErrorMiddleware
     );
   }
 
@@ -367,7 +393,8 @@ export class AppBootstrapService {
     configureSentryErrorHandler(this.app);
 
     // Global error handler (imported from modular middleware)
-    this.app.use(errorHandler);
+    // Error handlers have signature: (err, req, res, next) => void
+    this.app.use(errorHandler as ErrorRequestHandler);
   }
 
   /**

@@ -63,7 +63,7 @@ function defaultContextBuilder(req: Request): CaptchaVerificationContext {
 export function createCaptchaMiddleware(options: CaptchaMiddlewareOptions = {}): RequestHandler {
   const merged = { ...DEFAULT_OPTIONS, ...options };
 
-  return asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  const handler = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     if (merged.skip?.(req)) {
       return next();
     }
@@ -124,6 +124,8 @@ export function createCaptchaMiddleware(options: CaptchaMiddlewareOptions = {}):
 
     next();
   });
+  
+  return handler as RequestHandler;
 }
 
 export const captchaMiddleware = createCaptchaMiddleware();

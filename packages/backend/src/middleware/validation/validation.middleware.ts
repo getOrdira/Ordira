@@ -29,9 +29,13 @@ export interface RequiredValidatedRequest {
 export function asValidatedHandler<T extends ValidatedRequest>(
   handler: (req: T, res: Response, next: NextFunction) => void | Promise<void>
 ): RequestHandler {
-  return (req: Request, res: Response, next: NextFunction) => {
-    return handler(req as unknown as T, res, next);
+  const wrappedHandler: RequestHandler = (req, res, next) => {
+    const result = handler(req as unknown as T, res, next);
+    if (result instanceof Promise) {
+      result.catch(next);
+    }
   };
+  return wrappedHandler;
 }
 
 /**
@@ -402,18 +406,19 @@ export function validate(
   target: 'body' | 'query' | 'params',
   schema: ObjectSchema,
   options: ValidationOptions = {}
-) {
+): RequestHandler {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   
-  return (req: Request, res: Response, next: NextFunction): void | Response => {
+  const handler = (req: Request, res: Response, next: NextFunction): void => {
     try {
       const dataToValidate = req[target];
       
       if (!dataToValidate && target === 'body') {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Request body is required',
           code: 'MISSING_BODY'
         });
+        return;
       }
 
       // Sanitize input data
@@ -431,15 +436,17 @@ export function validate(
         
         if (opts.skipOnError) {
           req.validationErrors = formattedError.details.map(d => d.message);
-          return next();
+          next();
+          return;
         }
 
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Validation failed',
           message: formattedError.message,
           details: formattedError.details,
           code: 'VALIDATION_ERROR'
         });
+        return;
       }
 
       // Attach validated data to request
@@ -458,12 +465,15 @@ export function validate(
       next();
     } catch (err) {
       logger.error('Validation middleware error:', err);
-      return res.status(500).json({
+      res.status(500).json({
         error: 'Internal validation error',
         code: 'VALIDATION_INTERNAL_ERROR'
       });
+      return;
     }
   };
+  
+  return handler as RequestHandler;
 }
 
 /**
@@ -503,7 +513,9 @@ export function validateMultiple(validations: {
           status: () => ({ json: (data: any) => { validationError = data.message; } })
         } as unknown as Response;
 
-        middleware(req, mockRes, (err?: any) => {
+        // Type-safe call: middleware expects RequestHandler signature
+        // Cast req to match RequestHandler's expected Request type (express-serve-static-core)
+        (middleware as RequestHandler)(req as unknown as import('express-serve-static-core').Request, mockRes, (err?: any) => {
           if (err || validationError) {
             errors.push(validationError || err.message);
           }
@@ -532,9 +544,12 @@ export function validateConditional(
   target: 'body' | 'query' | 'params' = 'body',
   options?: ValidationOptions
 ) {
-  return (req: Request, res: Response, next: NextFunction): void | Response => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     if (condition(req)) {
-      return validate(target, schema, options)(req, res, next);
+      const validationMiddleware = validate(target, schema, options);
+      // Cast req to match RequestHandler's expected Request type
+      (validationMiddleware as RequestHandler)(req as unknown as import('express-serve-static-core').Request, res, next);
+      return;
     }
     next();
   };

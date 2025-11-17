@@ -1,13 +1,21 @@
 // src/routes/core/auth.routes.ts
 // Authentication routes using modular auth controller
 
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import Joi from 'joi';
 import { authController } from '../../controllers/core/auth.controller';
 import { validateBody } from '../../middleware/validation/validation.middleware'; 
 import { strictRateLimiter } from '../../middleware/limits/rateLimiter.middleware';
 import { authenticate } from '../../middleware/auth/unifiedAuth.middleware';
 import { asRateLimitHandler, asRouteHandler } from '../../utils/routeHelpers';
+import type { UnifiedAuthRequest } from '../../middleware/auth/unifiedAuth.middleware';
+
+/**
+ * Type-safe wrapper for authenticate middleware
+ */
+const authenticateMiddleware: RequestHandler = (req, res, next) => {
+  authenticate(req as UnifiedAuthRequest, res, next).catch(next);
+};
 
 const router = Router();
 
@@ -96,13 +104,13 @@ router.post(
 
 router.post(
   '/logout',
-  authenticate,
+  authenticateMiddleware,
   asRouteHandler(authController.logout.bind(authController))
 );
 
 router.get(
   '/me',
-  authenticate,
+  authenticateMiddleware,
   asRouteHandler(authController.getProfile.bind(authController))
 );
 

@@ -2,9 +2,18 @@
 // Brand profile routes using modular brand profile controller
 
 import Joi from 'joi';
+import { RequestHandler } from 'express';
 import { createRouteBuilder, createHandler } from '../../core/base.routes';
 import { brandProfileController } from '../../../controllers/features/brands/brandProfile.controller';
 import { authenticate } from '../../../middleware/auth/unifiedAuth.middleware';
+import type { UnifiedAuthRequest } from '../../../middleware/auth/unifiedAuth.middleware';
+
+/**
+ * Type-safe wrapper for authenticate middleware
+ */
+const authenticateMiddleware: RequestHandler = (req, res, next) => {
+  authenticate(req as UnifiedAuthRequest, res, next).catch(next);
+};
 
 const builder = createRouteBuilder({ requireAuth: false, rateLimit: 'dynamic' });
 
@@ -116,7 +125,7 @@ builder.get(
   createHandler(brandProfileController, 'trackBrandView'),
   {
     validateParams: brandIdParamSchema,
-    middleware: [authenticate]
+    middleware: [authenticateMiddleware]
   }
 );
 

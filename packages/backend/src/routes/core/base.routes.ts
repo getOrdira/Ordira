@@ -4,10 +4,41 @@
 import { Router, RequestHandler } from 'express';
 import { validateBody, validateQuery, validateParams } from '../../middleware/validation/validation.middleware';
 import { authenticate } from '../../middleware/auth/unifiedAuth.middleware';
+import type { UnifiedAuthRequest } from '../../middleware/auth/unifiedAuth.middleware';
 import { resolveTenant, requireTenantSetup } from '../../middleware/tenant/tenant.middleware';
+import type { TenantRequest } from '../../middleware/tenant/tenant.middleware';
 import { dynamicRateLimiter, strictRateLimiter } from '../../middleware/limits/rateLimiter.middleware';
 import { asRouteHandler, asRateLimitHandler } from '../../utils/routeHelpers';
 import Joi from 'joi';
+
+/**
+ * Type-safe wrapper for authenticate middleware
+ */
+const authenticateMiddleware: RequestHandler = (req, res, next) => {
+  authenticate(req as UnifiedAuthRequest, res, next).catch(next);
+};
+
+/**
+ * Type-safe wrapper for resolveTenant middleware
+ */
+const resolveTenantMiddleware: RequestHandler = (req, res, next) => {
+  const result = resolveTenant(req as TenantRequest, res, next);
+  if (result instanceof Promise) {
+    result.catch(next);
+  }
+};
+
+/**
+ * Type-safe wrapper for requireTenantSetup middleware
+ */
+const requireTenantSetupMiddleware: RequestHandler = (req, res, next) => {
+  const result = requireTenantSetup(req as TenantRequest, res, next);
+  if (result) {
+    // If it returns a Response, the middleware already handled it
+    return;
+  }
+  next();
+};
 
 /**
  * Route configuration options
@@ -64,17 +95,17 @@ export class BaseRouteBuilder {
 
     // Authentication
     if (this.config.requireAuth) {
-      this.router.use(authenticate);
+      this.router.use(authenticateMiddleware);
     }
 
     // Tenant resolution
     if (this.config.requireTenant || this.config.requireTenantSetup) {
-      this.router.use(resolveTenant);
+      this.router.use(resolveTenantMiddleware);
     }
 
     // Tenant setup requirement
     if (this.config.requireTenantSetup) {
-      this.router.use(requireTenantSetup);
+      this.router.use(requireTenantSetupMiddleware);
     }
 
     // Additional middleware

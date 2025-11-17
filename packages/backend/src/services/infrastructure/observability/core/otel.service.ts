@@ -8,7 +8,6 @@
 import 'reflect-metadata';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
-import type { ResourceAttributes } from '@opentelemetry/resources';
 import { metrics, Meter, MeterProvider } from '@opentelemetry/api';
 import { trace, Tracer, TracerProvider } from '@opentelemetry/api';
 import { logger } from '../../logging';

@@ -29,7 +29,7 @@ export function createCaptchaRateLimitMiddleware(
 ): RequestHandler {
   const merged = { ...DEFAULT_RATE_LIMIT_OPTIONS, ...options };
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  const handler = (req: Request, res: Response, next: NextFunction) => {
     const awareReq = req as CaptchaAwareRequest;
     const responseHelper = new ResponseHelper(res);
 
@@ -72,6 +72,8 @@ export function createCaptchaRateLimitMiddleware(
 
     next();
   };
+  
+  return handler as RequestHandler;
 }
 
 export const captchaRateLimitMiddleware = createCaptchaRateLimitMiddleware();
