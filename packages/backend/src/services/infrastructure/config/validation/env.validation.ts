@@ -37,20 +37,15 @@ const schema = Joi.object({
   
   // Optional monitoring and services
   SENTRY_DSN: Joi.string().uri().optional(),
-  REDIS_URL: Joi.string().uri().optional(),
+  REDIS_URL: Joi.string().pattern(/^redis(s)?:\/\//).optional(),
   CLOUDFLARE_API_TOKEN: Joi.string().optional(),
   
   // Email services
-  POSTMARK_API_KEY: Joi.string().optional(),
   SMTP_HOST: Joi.string().optional(),
   SMTP_PORT: Joi.number().optional(),
   SMTP_USER: Joi.string().optional(),
   SMTP_PASS: Joi.string().optional(),
   
-  // SMS services
-  TWILIO_SID: Joi.string().optional(),
-  TWILIO_TOKEN: Joi.string().optional(),
-  TWILIO_FROM: Joi.string().optional(),
   
   // File upload configuration
   UPLOAD_DIR: Joi.string().default('uploads'),

@@ -44,7 +44,7 @@ export class ConfigService {
       
       // Database configuration
       MONGODB_URI: Joi.string().pattern(/^mongodb(\+srv)?:\/\//).required(),
-      REDIS_URL: Joi.string().pattern(/^redis:\/\//).optional(),
+      REDIS_URL: Joi.string().pattern(/^redis(s)?:\/\//).optional(),
       REDIS_CLUSTER_NODES: Joi.string().optional(),
       REDIS_EVICTION_POLICY: Joi.string().optional(),
       MONGODB_ANALYTICS_URI: Joi.string().optional(),
