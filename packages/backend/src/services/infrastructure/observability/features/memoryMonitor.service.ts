@@ -19,6 +19,7 @@ export class MemoryMonitorService {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private gcInterval: NodeJS.Timeout | null = null;
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private gcWarningLogged = false;
 
   private readonly MAX_HISTORY_SIZE = 60; // Keep 60 samples (5 minutes if sampling every 5 seconds)
   private readonly LEAK_DETECTION_SAMPLES = 20; // Number of samples to analyze for leak detection
@@ -29,6 +30,8 @@ export class MemoryMonitorService {
     maxHeapUsage: 85,  // 85% max heap usage
     gcHint: 256        // GC hint at 256 MB
   };
+
+  private readonly gcSupported = typeof global.gc === 'function';
 
   constructor() {
     this.setupProcessHandlers();
@@ -58,9 +61,14 @@ export class MemoryMonitorService {
     }, intervalMs);
 
     // Periodic garbage collection hints
-    this.gcInterval = setInterval(() => {
-      this.checkGarbageCollection();
-    }, 30000); // Every 30 seconds
+    if (this.gcSupported) {
+      this.gcInterval = setInterval(() => {
+        this.checkGarbageCollection();
+      }, 30000); // Every 30 seconds
+    } else if (!this.gcWarningLogged) {
+      this.gcWarningLogged = true;
+      logger.info('Manual GC hints disabled (start Node with --expose-gc to enable)');
+    }
 
     // Periodic cleanup of old data
     this.cleanupInterval = setInterval(() => {
@@ -107,34 +115,38 @@ export class MemoryMonitorService {
    * Collect current memory statistics
    */
   private collectMemoryStats(): void {
-    const memUsage = process.memoryUsage();
-    const timestamp = Date.now();
+    try {
+      const memUsage = process.memoryUsage();
+      const timestamp = Date.now();
 
-    const stats: MemoryStats = {
-      rss: Math.round(memUsage.rss / 1024 / 1024),
-      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-      external: Math.round(memUsage.external / 1024 / 1024),
-      arrayBuffers: Math.round(memUsage.arrayBuffers / 1024 / 1024),
-      timestamp
-    };
+      const stats: MemoryStats = {
+        rss: Math.round(memUsage.rss / 1024 / 1024),
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+        external: Math.round(memUsage.external / 1024 / 1024),
+        arrayBuffers: Math.round(memUsage.arrayBuffers / 1024 / 1024),
+        timestamp
+      };
 
-    // Add to history
-    this.memoryHistory.push(stats);
+      // Add to history
+      this.memoryHistory.push(stats);
 
-    // Keep only recent history
-    if (this.memoryHistory.length > this.MAX_HISTORY_SIZE) {
-      this.memoryHistory = this.memoryHistory.slice(-this.MAX_HISTORY_SIZE);
+      // Keep only recent history
+      if (this.memoryHistory.length > this.MAX_HISTORY_SIZE) {
+        this.memoryHistory = this.memoryHistory.slice(-this.MAX_HISTORY_SIZE);
+      }
+
+      // Check thresholds
+      this.checkThresholds(stats);
+
+      // Check for memory leaks
+      this.checkForLeaks();
+
+      // Record metrics
+      this.recordMetrics(stats);
+    } catch (error) {
+      this.handleMonitoringError(error, 'collectMemoryStats');
     }
-
-    // Check thresholds
-    this.checkThresholds(stats);
-
-    // Check for memory leaks
-    this.checkForLeaks();
-
-    // Record metrics
-    this.recordMetrics(stats);
   }
 
   /**
@@ -210,7 +222,7 @@ export class MemoryMonitorService {
    * Check if garbage collection should be hinted
    */
   private checkGarbageCollection(): void {
-    if (this.memoryHistory.length === 0) return;
+    if (!this.gcSupported || this.memoryHistory.length === 0) return;
 
     const latest = this.memoryHistory[this.memoryHistory.length - 1];
 
@@ -224,7 +236,7 @@ export class MemoryMonitorService {
    * Force garbage collection if available
    */
   private forceGarbageCollection(reason: string): void {
-    if (global.gc && typeof global.gc === 'function') {
+    if (this.gcSupported && global.gc && typeof global.gc === 'function') {
       const beforeGC = process.memoryUsage();
 
       try {
@@ -253,8 +265,9 @@ export class MemoryMonitorService {
           timestamp: new Date().toISOString()
         });
       }
-    } else {
-      logger.warn('Garbage collection not available (use --expose-gc flag)');
+    } else if (!this.gcWarningLogged) {
+      this.gcWarningLogged = true;
+      logger.info('Manual GC hints are disabled because global.gc is unavailable (start Node with --expose-gc to enable).');
     }
   }
 
@@ -313,29 +326,33 @@ export class MemoryMonitorService {
    * Record memory metrics for monitoring
    */
   private recordMetrics(stats: MemoryStats): void {
-    const metrics = [
-      { name: 'memory_rss', value: stats.rss },
-      { name: 'memory_heap_total', value: stats.heapTotal },
-      { name: 'memory_heap_used', value: stats.heapUsed },
-      { name: 'memory_external', value: stats.external },
-      { name: 'memory_array_buffers', value: stats.arrayBuffers }
-    ];
+    try {
+      const metrics = [
+        { name: 'memory_rss', value: stats.rss },
+        { name: 'memory_heap_total', value: stats.heapTotal },
+        { name: 'memory_heap_used', value: stats.heapUsed },
+        { name: 'memory_external', value: stats.external },
+        { name: 'memory_array_buffers', value: stats.arrayBuffers }
+      ];
 
-    metrics.forEach(metric => {
+      metrics.forEach(metric => {
+        monitoringService.recordMetric({
+          name: metric.name,
+          value: metric.value,
+          tags: {}
+        });
+      });
+
+      // Calculate and record heap usage percentage
+      const heapUsagePercent = (stats.heapUsed / stats.heapTotal) * 100;
       monitoringService.recordMetric({
-        name: metric.name,
-        value: metric.value,
+        name: 'memory_heap_usage_percent',
+        value: heapUsagePercent,
         tags: {}
       });
-    });
-
-    // Calculate and record heap usage percentage
-    const heapUsagePercent = (stats.heapUsed / stats.heapTotal) * 100;
-    monitoringService.recordMetric({
-      name: 'memory_heap_usage_percent',
-      value: heapUsagePercent,
-      tags: {}
-    });
+    } catch (error) {
+      this.handleMonitoringError(error, 'recordMetrics');
+    }
   }
 
   /**
@@ -355,7 +372,10 @@ export class MemoryMonitorService {
       const sanitizedError = {
         message: 'Uncaught exception detected',
         timestamp: new Date().toISOString(),
-        type: error.name || 'UnknownError'
+        type: error?.name || 'UnknownError',
+        errorMessage: error && typeof error === 'object' && 'message' in error
+          ? String((error as Error).message).slice(0, 200)
+          : undefined
       };
       logger.error('Uncaught exception (potential memory leak source):', sanitizedError);
 
@@ -507,6 +527,17 @@ export class MemoryMonitorService {
       isMonitoring: this.isMonitoring,
       recommendations
     };
+  }
+
+  private handleMonitoringError(error: unknown, context: string): void {
+    const sanitizedError = {
+      message: 'Memory monitor operation failed',
+      context,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message.slice(0, 200) : undefined,
+      timestamp: new Date().toISOString()
+    };
+    logger.error('Memory monitor error:', sanitizedError);
   }
 }
 
