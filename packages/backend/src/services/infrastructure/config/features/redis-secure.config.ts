@@ -8,21 +8,27 @@
 import * as crypto from 'crypto';
 
 // Security helper functions
-const getSecurePassword = (): string => {
+const getSecurePassword = (): string | undefined => {
+  // If REDIS_URL is set, password is embedded in the URL, so we don't need REDIS_PASSWORD
+  if (process.env.REDIS_URL) {
+    return undefined;
+  }
+
   const password = process.env.REDIS_PASSWORD;
   if (!password) {
-    throw new Error('REDIS_PASSWORD environment variable is required');
+    throw new Error('REDIS_PASSWORD environment variable is required when not using REDIS_URL');
   }
   return password;
 };
 
-const getTLSConfig = () => {
+const getTLSConfig = (): { tls?: any } => {
+  // Only configure TLS if explicitly enabled
   if (process.env.REDIS_TLS !== 'true') {
-    throw new Error('REDIS_TLS must be set to "true"');
+    return {};
   }
 
   if (!process.env.REDIS_CA_CERT) {
-    throw new Error('REDIS_CA_CERT environment variable is required');
+    throw new Error('REDIS_CA_CERT environment variable is required when REDIS_TLS=true');
   }
 
   return {
@@ -69,7 +75,7 @@ export const secureRedisClusterConfigs: RedisSecureEnvironmentConfig = {
         lazyConnect: true,
         maxRetriesPerRequest: 3,
         retryDelayOnFailover: 100,
-        password: process.env.REDIS_PASSWORD,
+        ...(getSecurePassword() ? { password: getSecurePassword() } : {}),
         commandTimeout: 5000,
         ...getTLSConfig()
       },
@@ -93,7 +99,7 @@ export const secureRedisClusterConfigs: RedisSecureEnvironmentConfig = {
         lazyConnect: true,
         maxRetriesPerRequest: 3,
         retryDelayOnFailover: 100,
-        password: getSecurePassword(),
+        ...(getSecurePassword() ? { password: getSecurePassword() } : {}),
         commandTimeout: 5000,
         ...getTLSConfig()
       },
@@ -124,7 +130,7 @@ export const secureRedisClusterConfigs: RedisSecureEnvironmentConfig = {
         lazyConnect: true,
         maxRetriesPerRequest: 2,
         retryDelayOnFailover: 50,
-        password: getSecurePassword(),
+        ...(getSecurePassword() ? { password: getSecurePassword() } : {}),
         commandTimeout: 3000,
         ...getTLSConfig(),
         // Security hardening
@@ -457,24 +463,28 @@ export function getSecureRedisClusterConfig(environment: keyof RedisSecureEnviro
 
 /**
  * Validate Redis connection security
+ * Only validates TLS if REDIS_TLS is explicitly set to 'true'
+ * If REDIS_URL is set, password is embedded in URL and REDIS_PASSWORD is not required
  */
 export function validateRedisSecurityConfig() {
-  const requiredVars = ['REDIS_PASSWORD'];
-  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  // If REDIS_URL is set, password is embedded in the URL, so we don't need REDIS_PASSWORD
+  if (!process.env.REDIS_URL) {
+    const requiredVars = ['REDIS_PASSWORD'];
+    const missingVars = requiredVars.filter(varName => !process.env[varName]);
 
-  if (missingVars.length > 0) {
-    throw new Error(`Missing required Redis security environment variables: ${missingVars.join(', ')}`);
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required Redis security environment variables: ${missingVars.join(', ')}`);
+    }
   }
 
-  const tlsVars = ['REDIS_TLS', 'REDIS_CA_CERT'];
-  const missingTlsVars = tlsVars.filter(varName => !process.env[varName]);
+  // Only validate TLS if explicitly enabled
+  if (process.env.REDIS_TLS === 'true') {
+    const tlsVars = ['REDIS_CA_CERT'];
+    const missingTlsVars = tlsVars.filter(varName => !process.env[varName]);
 
-  if (missingTlsVars.length > 0) {
-    throw new Error(`Missing required Redis TLS variables: ${missingTlsVars.join(', ')}`);
-  }
-
-  if (process.env.REDIS_TLS !== 'true') {
-    throw new Error('REDIS_TLS must be set to "true"');
+    if (missingTlsVars.length > 0) {
+      throw new Error(`Missing required Redis TLS variables: ${missingTlsVars.join(', ')}`);
+    }
   }
 
   return true;
