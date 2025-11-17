@@ -73,43 +73,53 @@ export class AggregationOptimizationService {
 
   /**
    * Validate and load cache secret from environment variables.
-   * Ensures CACHE_SECRET is present and meets minimum security requirements.
+   * Falls back to JWT_SECRET if CACHE_SECRET is not provided.
    * 
-   * @throws {Error} If CACHE_SECRET is missing or too short
+   * @throws {Error} If neither CACHE_SECRET nor JWT_SECRET is available
    */
   private validateAndLoadCacheSecret(): void {
     const cacheSecret = process.env.CACHE_SECRET;
+    const jwtSecret = process.env.JWT_SECRET;
     const nodeEnv = process.env.NODE_ENV || 'development';
 
-    if (!cacheSecret) {
-      const errorMsg = `CACHE_SECRET environment variable is required for secure cache key generation`;
+    // Use CACHE_SECRET if provided, otherwise fall back to JWT_SECRET
+    const secretToUse = cacheSecret || jwtSecret;
+
+    if (!secretToUse) {
+      const errorMsg = `CACHE_SECRET or JWT_SECRET environment variable is required for secure cache key generation`;
       logger.error(errorMsg, {
         environment: nodeEnv,
         error: 'Missing required environment variable'
       });
-      throw new Error(`${errorMsg}. Please set CACHE_SECRET in your environment configuration.`);
+      throw new Error(`${errorMsg}. Please set CACHE_SECRET (or JWT_SECRET) in your environment configuration.`);
     }
 
     // Minimum 32 characters for cryptographically secure keys (matches JWT_SECRET requirement)
     const MIN_SECRET_LENGTH = 32;
-    if (cacheSecret.length < MIN_SECRET_LENGTH) {
-      const errorMsg = `CACHE_SECRET must be at least ${MIN_SECRET_LENGTH} characters long for security`;
+    if (secretToUse.length < MIN_SECRET_LENGTH) {
+      const errorMsg = `Cache secret (CACHE_SECRET or JWT_SECRET) must be at least ${MIN_SECRET_LENGTH} characters long for security`;
       logger.error(errorMsg, {
         environment: nodeEnv,
-        providedLength: cacheSecret.length,
+        providedLength: secretToUse.length,
         requiredLength: MIN_SECRET_LENGTH,
         error: 'Insufficient secret length'
       });
-      throw new Error(`${errorMsg}. Current length: ${cacheSecret.length}, required: ${MIN_SECRET_LENGTH}`);
+      throw new Error(`${errorMsg}. Current length: ${secretToUse.length}, required: ${MIN_SECRET_LENGTH}`);
     }
 
     // Store the validated secret
-    this.cacheSecret = cacheSecret;
+    this.cacheSecret = secretToUse;
 
-    logger.debug('Cache secret validated and loaded', {
-      secretLength: cacheSecret.length,
-      environment: nodeEnv
-    });
+    if (!cacheSecret && jwtSecret) {
+      logger.warn('CACHE_SECRET not set, using JWT_SECRET as fallback for cache key generation', {
+        environment: nodeEnv
+      });
+    } else {
+      logger.debug('Cache secret validated and loaded', {
+        secretLength: secretToUse.length,
+        environment: nodeEnv
+      });
+    }
   }
 
   /**
