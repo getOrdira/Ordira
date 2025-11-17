@@ -107,7 +107,9 @@ export class RedisClusterService {
   }
 
   private shouldRequireSecureConfig(): boolean {
-    return true;
+    // Only require secure config if TLS is explicitly enabled
+    // This allows non-TLS Redis connections (common in development and some cloud providers)
+    return process.env.REDIS_TLS === 'true';
   }
 
   /**
@@ -131,15 +133,16 @@ export class RedisClusterService {
   }
 
   /**
-   * Get secure TLS configuration
+   * Get secure TLS configuration (only if TLS is enabled)
    */
-  private getSecureTLSConfig() {
+  private getSecureTLSConfig(): { tls?: any } {
+    // Only configure TLS if explicitly enabled
     if (process.env.REDIS_TLS !== 'true') {
-      throw new Error('REDIS_TLS must be set to "true"');
+      return {};
     }
 
     if (!process.env.REDIS_CA_CERT) {
-      throw new Error('REDIS_CA_CERT environment variable is required');
+      throw new Error('REDIS_CA_CERT environment variable is required when REDIS_TLS=true');
     }
 
     return {
