@@ -96,7 +96,8 @@ export class DatabasePlatformConfigService {
       maxConnecting: isProduction ? 10 : 5,
       // Atlas-specific optimizations
       directConnection: false, // Use Atlas connection string routing
-      loadBalanced: isProduction, // Enable load balancing for Atlas clusters
+      // Note: loadBalanced must be set in the URI, not as a connection option
+      // Example URI: mongodb+srv://user:pass@cluster.mongodb.net/db?loadBalanced=true
     };
 
     const workloadIdentity = this.resolveWorkloadIdentity();
