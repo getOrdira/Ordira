@@ -31,16 +31,29 @@ export class ConnectionManager {
 
     const connectOptions: ConnectOptions = {
       ...config.options,
-      serverApi: config.serverApi,
+      // Only include serverApi if explicitly configured (some MongoDB instances don't support it)
+      ...(config.serverApi ? { serverApi: config.serverApi } : {}),
       appName: config.appName
     };
 
-    logger.info('Connecting to MongoDB with Stable API v1...', {
+    logger.info('Connecting to MongoDB...', {
       appName: config.appName,
-      workloadIdentity: config.workloadIdentity
+      workloadIdentity: config.workloadIdentity,
+      usesStableApi: !!config.serverApi
     });
 
-    await mongoose.connect(config.uri, connectOptions);
+    try {
+      await mongoose.connect(config.uri, connectOptions);
+      logger.info('✅ MongoDB connection established successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('❌ MongoDB connection failed:', {
+        error: errorMessage,
+        uri: config.uri ? `${config.uri.substring(0, 20)}...` : 'not configured',
+        hasTlsOptions: !!(connectOptions.tlsCAFile || connectOptions.tlsCertificateKeyFile)
+      });
+      throw error;
+    }
   }
 
   async disconnect(): Promise<void> {

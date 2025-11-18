@@ -7,6 +7,7 @@ import { authController } from '../../controllers/core/auth.controller';
 import { validateBody } from '../../middleware/validation/validation.middleware'; 
 import { strictRateLimiter } from '../../middleware/limits/rateLimiter.middleware';
 import { authenticate } from '../../middleware/auth/unifiedAuth.middleware';
+import { authHttpsEnforcement } from '../../middleware/security/httpsEnforcement.middleware';
 import { asRateLimitHandler, asRouteHandler } from '../../utils/routeHelpers';
 import type { UnifiedAuthRequest } from '../../middleware/auth/unifiedAuth.middleware';
 
@@ -59,9 +60,11 @@ const resendVerificationSchema = Joi.object({
 
 /**
  * Authentication Routes
+ * All auth endpoints enforce HTTPS in production for security
  */
 router.post(
   '/login',
+  authHttpsEnforcement,
   asRateLimitHandler(strictRateLimiter()),
   validateBody(loginSchema),
   asRouteHandler(authController.login.bind(authController))
@@ -69,6 +72,7 @@ router.post(
 
 router.post(
   '/register',
+  authHttpsEnforcement,
   asRateLimitHandler(strictRateLimiter()),
   validateBody(registerSchema),
   asRouteHandler(authController.register.bind(authController))
@@ -76,6 +80,7 @@ router.post(
 
 router.post(
   '/verify',
+  authHttpsEnforcement,
   asRateLimitHandler(strictRateLimiter()),
   validateBody(verifySchema),
   asRouteHandler(authController.verify.bind(authController))
@@ -83,6 +88,7 @@ router.post(
 
 router.post(
   '/forgot-password',
+  authHttpsEnforcement,
   asRateLimitHandler(strictRateLimiter()),
   validateBody(forgotPasswordSchema),
   asRouteHandler(authController.forgotPassword.bind(authController))
@@ -90,6 +96,7 @@ router.post(
 
 router.post(
   '/reset-password',
+  authHttpsEnforcement,
   asRateLimitHandler(strictRateLimiter()),
   validateBody(resetPasswordSchema),
   asRouteHandler(authController.resetPassword.bind(authController))
@@ -97,6 +104,7 @@ router.post(
 
 router.post(
   '/resend-verification',
+  authHttpsEnforcement,
   asRateLimitHandler(strictRateLimiter()),
   validateBody(resendVerificationSchema),
   asRouteHandler(authController.resendVerification.bind(authController))

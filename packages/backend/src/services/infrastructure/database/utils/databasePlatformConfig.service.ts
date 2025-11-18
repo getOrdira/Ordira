@@ -4,7 +4,7 @@ import { configService } from '../../../utils/config.service';
 export interface DatabasePlatformConfig {
   uri: string;
   options: ConnectOptions;
-  serverApi: {
+  serverApi?: {
     version: '1';
     strict: true;
     deprecationErrors: boolean;
@@ -53,7 +53,10 @@ export class DatabasePlatformConfigService {
     }
 
     const tlsOptions = this.buildTlsOptions(databaseConfig?.mongodb?.tls);
-
+    
+    // Detect if connection string uses mongodb+srv:// (which handles TLS automatically)
+    const usesSrvProtocol = uri.startsWith('mongodb+srv://');
+    
     // Enhanced Atlas best practices configuration
     const baseOptions: ConnectOptions = {
       maxPoolSize: isProduction ? 50 : 20,
@@ -76,16 +79,19 @@ export class DatabasePlatformConfigService {
       compressors: isProduction ? ['zstd', 'snappy'] : undefined,
       appName: this.resolveAppName(),
       authSource: process.env.MONGODB_AUTH_SOURCE,
-      // TLS Everywhere - Atlas best practice
-      ssl: true, // Force SSL/TLS
-      tls: true, // Force TLS
-      tlsCAFile: tlsOptions?.caFile,
-      tlsCertificateKeyFile: tlsOptions?.keyFile,
-      tlsCertificateFile: tlsOptions?.certFile,
-      // Additional Atlas security settings
-      tlsInsecure: false, // Never allow insecure connections
-      tlsAllowInvalidCertificates: false, // Strict certificate validation
-      tlsAllowInvalidHostnames: false, // Strict hostname validation
+      // TLS configuration - only force if not using mongodb+srv:// (which handles TLS automatically)
+      // If using mongodb://, force TLS for security. If using mongodb+srv://, let the protocol handle it.
+      ...(usesSrvProtocol ? {} : {
+        ssl: true, // Force SSL/TLS for non-SRV connections
+        tls: true, // Force TLS for non-SRV connections
+        tlsInsecure: false,
+        tlsAllowInvalidCertificates: false,
+        tlsAllowInvalidHostnames: false
+      }),
+      // TLS certificate options (only if explicitly provided)
+      ...(tlsOptions?.caFile ? { tlsCAFile: tlsOptions.caFile } : {}),
+      ...(tlsOptions?.keyFile ? { tlsCertificateKeyFile: tlsOptions.keyFile } : {}),
+      ...(tlsOptions?.certFile ? { tlsCertificateFile: tlsOptions.certFile } : {}),
       // Connection pooling optimizations for Atlas
       maxConnecting: isProduction ? 10 : 5,
       // Atlas-specific optimizations
@@ -98,11 +104,12 @@ export class DatabasePlatformConfigService {
     return {
       uri,
       options: baseOptions,
-      serverApi: {
+      // Stable API - only enable if explicitly requested (some MongoDB instances don't support it)
+      serverApi: process.env.MONGODB_ENABLE_STABLE_API === 'true' ? {
         version: '1',
         strict: true,
         deprecationErrors: true
-      },
+      } : undefined,
       appName: baseOptions.appName ?? 'OrdiraPlatform',
       workloadIdentity,
       analyticsUris: databaseConfig?.mongodb?.analyticsUris ?? [],

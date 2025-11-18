@@ -19,24 +19,39 @@ import { logger } from '../../logging';
 export function configureSecurityMiddleware(app: Application): void {
   logger.info('🔒 Configuring security middleware...');
 
-  // Helmet security headers
+  // Helmet security headers with hardened CSP
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
+        // Scripts: More restrictive - avoid unsafe-inline when possible
+        // Note: Some legacy code may require unsafe-inline, but we should minimize it
+        scriptSrc: ["'self'", ...(isProduction ? [] : ["'unsafe-eval'"])], // Only allow eval in dev
+        // Styles: Allow unsafe-inline for CSS frameworks and inline styles
+        // This is often necessary for dynamic styling, but consider nonces for critical styles
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
         connectSrc: ["'self'", "https:", "wss:"],
         mediaSrc: ["'self'", "https:", "blob:"],
-        objectSrc: ["'none'"],
+        objectSrc: ["'none'"], // Prevent plugins
         childSrc: ["'self'"],
         workerSrc: ["'self'"],
-        upgradeInsecureRequests: []
-      }
+        baseUri: ["'self'"], // Restrict base tag
+        formAction: ["'self'"], // Restrict form submissions
+        frameAncestors: ["'none'"], // Prevent embedding
+        upgradeInsecureRequests: [] // Upgrade HTTP to HTTPS
+      },
+      // Report CSP violations in production if reportUri is configured
+      reportOnly: false,
+      ...(isProduction && process.env.CSP_REPORT_URI ? {
+        reportUri: process.env.CSP_REPORT_URI
+      } : {})
     },
     hsts: {
-      maxAge: 31536000,
+      maxAge: 31536000, // 1 year
       includeSubDomains: true,
       preload: true
     }
