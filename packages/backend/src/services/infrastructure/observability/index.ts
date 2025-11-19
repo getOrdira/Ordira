@@ -1,6 +1,6 @@
 import { MonitoringService } from './core/monitoringRegistry.service';
 import { CircuitBreakerRegistry } from '../resilience/core/circuitBreakerRegistry.service';
-import { MemoryMonitorService } from './features/memoryMonitor.service';
+import { MemoryMonitorService, memoryMonitorService } from './features/memoryMonitor.service';
 import { PerformanceService } from './features/performanceMonitor.service';
 import { jobQueueAdapter } from '../resilience/core/jobQueueAdapter.service';
 import { backgroundTaskProcessorService } from '../resilience/features/backgroundTaskProcessor.service';
@@ -30,7 +30,8 @@ export {
 
 const monitoringService = new MonitoringService();
 const circuitBreakerManager = new CircuitBreakerRegistry();
-const memoryMonitorService = new MemoryMonitorService();
+// memoryMonitorService is already instantiated as a singleton in memoryMonitor.service.ts
+// No need to create a new instance here - just use the imported one
 const performanceService = new PerformanceService();
 const jobQueueService = jobQueueAdapter;
 jobQueueService.setMetricsRecorder(monitoringService);
