@@ -63,7 +63,7 @@ export class DatabasePlatformConfigService {
       minPoolSize: isProduction ? 5 : 1,
       maxIdleTimeMS: 30_000,
       heartbeatFrequencyMS: 10_000,
-      serverSelectionTimeoutMS: 5_000,
+      serverSelectionTimeoutMS: 30_000, // Increased timeout for cloud deployments
       socketTimeoutMS: 45_000,
       retryReads: true,
       retryWrites: true,
