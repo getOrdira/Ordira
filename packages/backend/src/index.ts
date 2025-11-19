@@ -1,9 +1,5 @@
-/**
- * Refactored Main Application Entry Point
- * 
- * This file has been refactored to reduce complexity by breaking down
- * the initialization process into smaller, focused services.
- */
+
+import './instrument';
 
 // Load environment variables early
 import 'dotenv/config';

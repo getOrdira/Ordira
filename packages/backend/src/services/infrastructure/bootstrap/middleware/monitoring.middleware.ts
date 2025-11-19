@@ -29,51 +29,34 @@ export function configureMonitoringMiddleware(app: Application): void {
     logger.warn('⚠️ OpenTelemetry not initialized - some observability features may be limited');
   }
 
-  // Sentry monitoring (for error tracking - works alongside OpenTelemetry)
+  // Sentry request handler (Sentry is initialized in instrument.ts)
+  // This must be added before routes to capture request context
   if (process.env.SENTRY_DSN) {
-    Sentry.init({
-      dsn: process.env.SENTRY_DSN,
-      // Lower trace sample rate since OpenTelemetry handles traces
-      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0.5,
-      environment: process.env.NODE_ENV,
-      // Focus on error tracking, not tracing (OpenTelemetry handles that)
-      integrations: [
-        new Sentry.Integrations.Http({ tracing: false }), // Disable Sentry tracing, use OpenTelemetry
-        new Sentry.Integrations.OnUncaughtException(),
-        new Sentry.Integrations.OnUnhandledRejection()
-      ],
-      // Only capture errors, not all traces
-      beforeSend(event) {
-        // Filter out non-error events if OpenTelemetry is active
-        if (otelService?.isInitialized() && event.level !== 'error' && event.level !== 'fatal') {
-          return null; // Don't send to Sentry, OpenTelemetry handles it
-        }
-        return event;
-      }
-    });
-    
     app.use(Sentry.Handlers.requestHandler());
     // Don't use Sentry tracing handler - OpenTelemetry handles tracing
-    logger.info('✅ Sentry error tracking initialized (OpenTelemetry handles traces)');
+    logger.info('✅ Sentry request handler configured (Sentry initialized in instrument.ts)');
   } else {
-    logger.warn('⚠️ Sentry DSN not configured, skipping Sentry initialization');
+    logger.warn('⚠️ Sentry DSN not configured, skipping Sentry request handler');
   }
 
   logger.info('✅ Monitoring middleware configured');
 }
 
 /**
- * Configure Sentry error handler (should be added after routes)
+ * Configure Sentry error handler (should be added after routes, before other error handlers)
  * 
  * @param app - Express application instance
  */
 export function configureSentryErrorHandler(app: Application): void {
   if (process.env.SENTRY_DSN) {
+    // Error handler must be before any other error middleware and after all controllers
     app.use(Sentry.Handlers.errorHandler({
       shouldHandleError: (error: any) => {
+        // Only capture 500+ errors
         return Number(error.status) >= 500;
       }
     }));
+    logger.info('✅ Sentry error handler configured');
   }
 }
 
