@@ -19,7 +19,7 @@
     "build:render": "npm install --include=optional --legacy-peer-deps && npm run build",
     "postinstall": "npm rebuild sharp",
     "type-check": "tsc --noEmit",
-    "start": "cross-env NODE_ENV=production node --max-old-space-size=1536 dist/index.js",
+    "start": "cross-env NODE_ENV=production node --max-old-space-size=1536 --expose-gc dist/index.js",
     "lint": "eslint 'src/**/*.ts'",
     "test": "jest --coverage --config jest.config.js",
     "test:unit": "cross-env TEST_TYPE=unit jest --testPathPatterns=__tests__ --config jest.config.js",
