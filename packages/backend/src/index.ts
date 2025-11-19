@@ -16,6 +16,22 @@ import { AppBootstrapService, DatabaseInitService, ServerStartupService } from '
 import { logger } from './services/infrastructure/logging'; 
 import { getMonitoringService } from './services/container/container.getters';
 
+// Check NODE_OPTIONS at startup
+const nodeOptions = process.env.NODE_OPTIONS || '';
+const maxOldSpaceSize = nodeOptions.match(/--max-old-space-size=(\d+)/);
+if (!maxOldSpaceSize) {
+  logger.warn('⚠️ NODE_OPTIONS not set with --max-old-space-size. Heap size may be too small for production.', {
+    hint: 'Set NODE_OPTIONS=--max-old-space-size=1536 in Render environment variables for Standard plan (2GB RAM)',
+    currentHeapLimit: 'default (varies by system)'
+  });
+} else {
+  const heapSizeMB = parseInt(maxOldSpaceSize[1], 10);
+  logger.info('✅ NODE_OPTIONS detected:', {
+    heapSizeMB,
+    note: heapSizeMB < 500 ? 'Heap size may be too small for production workloads' : 'Heap size configured correctly'
+  });
+}
+
 
 /**
  * Main application initialization function

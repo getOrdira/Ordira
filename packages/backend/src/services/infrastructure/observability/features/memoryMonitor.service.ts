@@ -136,7 +136,7 @@ export class MemoryMonitorService {
           heapUsagePercent: `${((stats.heapUsed / stats.heapTotal) * 100).toFixed(1)}%`,
           rss: `${stats.rss}MB`,
           external: `${stats.external}MB`,
-          note: stats.heapTotal < 200 ? 'Small heap detected - consider increasing with NODE_OPTIONS="--max-old-space-size=512"' : 'Heap size normal'
+          note: stats.heapTotal < 200 ? 'Small heap detected - NODE_OPTIONS may not be set. For Standard plan (2GB), use NODE_OPTIONS="--max-old-space-size=1536"' : stats.heapTotal < 500 ? 'Heap size below recommended. For Standard plan (2GB), use NODE_OPTIONS="--max-old-space-size=1536"' : 'Heap size normal'
         });
       }
 
