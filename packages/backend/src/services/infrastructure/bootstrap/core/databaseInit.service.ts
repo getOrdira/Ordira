@@ -73,12 +73,20 @@ export class DatabaseInitService {
         logger.info(`[db] Analytics read replicas configured: ${databaseConfig.mongodb.analyticsUris.join(', ')}`);
       }
 
-      if (!databaseConfig?.mongodb?.tls) {
-        logger.warn('[db] TLS client certificates not configured. Atlas clusters require TLS in production.');
+      // Check TLS configuration - only warn if using mongodb:// (non-SRV) without TLS
+      // mongodb+srv:// handles TLS automatically, so no warning needed
+      const mongoUri = databaseConfig?.mongodb?.uri || '';
+      const usesSrvProtocol = mongoUri.startsWith('mongodb+srv://');
+      if (!usesSrvProtocol && !databaseConfig?.mongodb?.tls) {
+        logger.warn('[db] TLS client certificates not configured. For mongodb:// connections, TLS is recommended in production. Note: mongodb+srv:// handles TLS automatically.');
+      } else if (usesSrvProtocol) {
+        logger.debug('[db] Using mongodb+srv:// protocol - TLS is handled automatically by the connection string.');
       }
 
+      // Backups are configured in MongoDB Atlas dashboard, not via environment variables
+      // This is informational only - backups must be enabled in Atlas UI
       if (databaseConfig?.mongodb?.backupsEnabled === false) {
-        logger.warn('[db] MongoDB continuous backups are disabled.');
+        logger.info('[db] MongoDB continuous backups: Configure in MongoDB Atlas dashboard (not via environment variables). Enable "Cloud Backup" in your Atlas cluster settings for point-in-time recovery.');
       }
 
       if (databaseConfig?.mongodb?.queryableEncryption) {
