@@ -63,6 +63,11 @@ const EXPECTED_INDEXES: Record<string, string[]> = {
 export class DatabaseOptimizationService {
   async generateIndexReport(): Promise<IndexReport> {
     const db = mongoose.connection.db;
+    
+    if (!db) {
+      throw new Error('Database connection not available. Ensure MongoDB is connected before generating index report.');
+    }
+    
     const items: IndexReportItem[] = [];
 
     for (const [collectionName, expectedIndexes] of Object.entries(EXPECTED_INDEXES)) {

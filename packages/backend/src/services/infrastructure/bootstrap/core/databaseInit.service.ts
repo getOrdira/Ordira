@@ -99,12 +99,19 @@ export class DatabaseInitService {
 
   /**
    * Analyze index coverage without mutating collections
+   * This is a non-critical operation - failures should not block app startup
    */
   private async reportIndexHealth(): Promise<void> {
     logger.info('[db] Analyzing database index health...');
 
     try {
       await this.ensureModelRegistrations();
+
+      // Check if database connection is ready
+      if (!mongoose.connection.db) {
+        logger.warn('Database connection not ready, skipping index report');
+        return;
+      }
 
       const report = await databaseOptimizationService.generateIndexReport();
       databaseOptimizationService.logIndexReport(report);
@@ -123,7 +130,11 @@ export class DatabaseInitService {
         logger.warn(`Index audit detected ${missingTotal} missing indexes across collections.`);
       }
     } catch (error) {
-      logger.error('Failed to generate database index report:', error);
+      // Don't block app startup if index report fails - this is a non-critical operation
+      logger.warn('Failed to generate database index report (non-critical, continuing startup):', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        hint: 'Index report generation is optional and will not prevent the application from starting'
+      });
 
       monitoringService.recordMetric({
         name: 'database_indexes_missing',
@@ -131,7 +142,7 @@ export class DatabaseInitService {
         tags: { status: 'unknown' }
       });
 
-      throw error;
+      // Don't throw - allow app to continue starting
     }
   }
 
