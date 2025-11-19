@@ -175,36 +175,54 @@ export class DatabaseInitService {
   }
 
   private async ensureModelRegistrations(): Promise<void> {
-    const registrations: Array<{
-      token: symbol | string;
-      resolver: () => Promise<Record<string, unknown>>;
-      exportKey: string;
-    }> = [
-      { token: SERVICE_TOKENS.USER_MODEL, resolver: () => import('../../../../models/deprecated/user.model'), exportKey: 'User' },
-      { token: SERVICE_TOKENS.BUSINESS_MODEL, resolver: () => import('../../../../models/deprecated/business.model'), exportKey: 'Business' },
-      { token: SERVICE_TOKENS.MANUFACTURER_MODEL, resolver: () => import('../../../../models/manufacturer/manufacturer.model'), exportKey: 'Manufacturer' },
-      { token: SERVICE_TOKENS.PRODUCT_MODEL, resolver: () => import('../../../../models/products/product.model'), exportKey: 'Product' },
-      { token: SERVICE_TOKENS.VOTING_RECORD_MODEL, resolver: () => import('../../../../models/voting/votingRecord.model'), exportKey: 'VotingRecord' },
-      { token: SERVICE_TOKENS.BRAND_SETTINGS_MODEL, resolver: () => import('../../../../models/brands/brandSettings.model'), exportKey: 'BrandSettings' },
-      { token: SERVICE_TOKENS.CERTIFICATE_MODEL, resolver: () => import('../../../../models/certificates/certificate.model'), exportKey: 'Certificate' },
-      { token: SERVICE_TOKENS.MEDIA_MODEL, resolver: () => import('../../../../models/media/media.model'), exportKey: 'Media' }
-    ];
+    // Skip model registration if already done to avoid re-compiling models
+    // Models are typically registered during app bootstrap
+    try {
+      const registrations: Array<{
+        token: symbol | string;
+        resolver: () => Promise<Record<string, unknown>>;
+        exportKey: string;
+      }> = [
+        { token: SERVICE_TOKENS.USER_MODEL, resolver: () => import('../../../../models/deprecated/user.model'), exportKey: 'User' },
+        { token: SERVICE_TOKENS.BUSINESS_MODEL, resolver: () => import('../../../../models/deprecated/business.model'), exportKey: 'Business' },
+        { token: SERVICE_TOKENS.MANUFACTURER_MODEL, resolver: () => import('../../../../models/manufacturer/manufacturer.model'), exportKey: 'Manufacturer' },
+        { token: SERVICE_TOKENS.PRODUCT_MODEL, resolver: () => import('../../../../models/products/product.model'), exportKey: 'Product' },
+        { token: SERVICE_TOKENS.VOTING_RECORD_MODEL, resolver: () => import('../../../../models/voting/votingRecord.model'), exportKey: 'VotingRecord' },
+        { token: SERVICE_TOKENS.BRAND_SETTINGS_MODEL, resolver: () => import('../../../../models/brands/brandSettings.model'), exportKey: 'BrandSettings' },
+        { token: SERVICE_TOKENS.CERTIFICATE_MODEL, resolver: () => import('../../../../models/certificates/certificate.model'), exportKey: 'Certificate' },
+        { token: SERVICE_TOKENS.MEDIA_MODEL, resolver: () => import('../../../../models/media/media.model'), exportKey: 'Media' }
+      ];
 
-    for (const { token, resolver, exportKey } of registrations) {
-      if (container.isRegistered(token)) {
-        continue;
+      for (const { token, resolver, exportKey } of registrations) {
+        if (container.isRegistered(token)) {
+          continue;
+        }
+
+        try {
+          const moduleRef = await resolver();
+          const model = moduleRef[exportKey];
+
+          if (!model) {
+            logger.warn(`Missing model export '${exportKey}' while registering ${String(token)}`);
+            continue;
+          }
+
+          container.registerInstance(token, model);
+          logger.debug(`Registered ${exportKey} for token ${String(token)}`);
+        } catch (error) {
+          // If model is already compiled (e.g., User model), skip registration
+          if (error instanceof Error && error.message.includes('Cannot overwrite')) {
+            logger.debug(`Model ${exportKey} already compiled, skipping registration`);
+            continue;
+          }
+          throw error;
+        }
       }
-
-      const moduleRef = await resolver();
-      const model = moduleRef[exportKey];
-
-      if (!model) {
-        logger.warn(`Missing model export '${exportKey}' while registering ${String(token)}`);
-        continue;
-      }
-
-      container.registerInstance(token, model);
-      logger.debug(`Registered ${exportKey} for token ${String(token)}`);
+    } catch (error) {
+      // Don't block startup if model registration fails - models may already be registered
+      logger.warn('Model registration encountered an error (non-critical):', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 

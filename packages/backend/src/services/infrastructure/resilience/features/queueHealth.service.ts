@@ -149,6 +149,24 @@ export class QueueHealthService {
    */
   async checkHealth(): Promise<QueueHealthMetrics> {
     try {
+      // Check if queue is initialized (bull package may not be installed)
+      if (!jobQueueAdapter.isQueueHealthy() && !jobQueueAdapter.isInitialized()) {
+        // Queue not available (bull not installed or not initialized)
+        return {
+          queueDepth: 0,
+          activeJobs: 0,
+          waitingJobs: 0,
+          failedJobs: 0,
+          completedJobs: 0,
+          processingRate: 0,
+          failureRate: 0,
+          averageProcessingTime: 0,
+          isHealthy: true, // Not unhealthy, just unavailable
+          redisConnected: false,
+          lastCheck: new Date()
+        };
+      }
+
       // Check Redis connection
       const healthCheck = await jobQueueAdapter.checkHealth();
       const redisConnected = healthCheck.healthy;

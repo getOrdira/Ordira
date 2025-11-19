@@ -91,6 +91,9 @@ export class AppBootstrapService {
   async initialize(): Promise<Application> {
     logger.info(' Initializing Ordira Platform...');
 
+    // Register all services in DI container (must be done before modules)
+    await this.registerDIContainerServices();
+
     // Initialize OpenTelemetry (must be done early, before other services)
     await this.initializeOpenTelemetry();
 
@@ -309,6 +312,17 @@ export class AppBootstrapService {
         }
       }
     );
+  }
+
+  /**
+   * Register all services in DI container before modules initialize
+   */
+  private async registerDIContainerServices(): Promise<void> {
+    logger.info('📦 Registering services in DI container...');
+    
+    // Import and call the service registration function
+    const { registerAllDIContainerServices } = await import('../../dependency-injection/core/serviceRegistration.service');
+    registerAllDIContainerServices();
   }
 
   /**

@@ -18,21 +18,32 @@ export async function startDomainCachePolling(intervalMs = 10 * 60_000) { // Inc
 }
 
 async function reloadCache() {
-  const newSet = new Set<string>();
+  try {
+    const newSet = new Set<string>();
 
-  // 1) Load all brand custom domains
-  const brands = await BrandSettings.find({ customDomain: { $exists: true, $ne: '' } })
-    .select('customDomain')
-    .lean();
-  for (const b of brands) {
-    if (b.customDomain) {
-      newSet.add(b.customDomain);
+    // 1) Load all brand custom domains
+    // Use proper MongoDB query syntax - customDomain exists and is not empty string
+    const brands = await BrandSettings.find({
+      customDomain: { $exists: true, $ne: '', $type: 'string' }
+    })
+      .select('customDomain')
+      .lean();
+    
+    for (const b of brands) {
+      if (b.customDomain && typeof b.customDomain === 'string' && b.customDomain.trim() !== '') {
+        newSet.add(b.customDomain.trim());
+      }
     }
-  }
 
-  // 3) Swap in the new set
-  allowedDomains = newSet;
-  logger.info('Domain cache reloaded: ${allowedDomains.size} entries');
+    // 3) Swap in the new set
+    allowedDomains = newSet;
+    logger.info(`Domain cache reloaded: ${allowedDomains.size} entries`);
+  } catch (error) {
+    logger.error('Failed to reload domain cache:', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    // Don't throw - allow app to continue with existing cache
+  }
 }
 
 /**

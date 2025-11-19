@@ -231,6 +231,13 @@ export class JobQueueAdapter {
     return this.isHealthy && this.initialized;
   }
 
+  /**
+   * Check if queue is initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
   async addJob(jobData: JobData): Promise<string> {
     if (!this.bullQueue) {
       throw new Error('Job queue not initialized. Redis connection required.');
