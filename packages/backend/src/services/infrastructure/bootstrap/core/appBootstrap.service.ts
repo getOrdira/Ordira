@@ -249,11 +249,16 @@ export class AppBootstrapService {
         
         // Check Redis connection directly (not through job queue)
         let redisStatus = 'disconnected';
-        let redisLatency = 0;
+        let redisLatency: number | null = null;
         try {
           const redisHealth = await redisClusterService.healthCheck();
-          redisStatus = redisHealth.healthy ? 'connected' : 'disconnected';
-          redisLatency = redisHealth.latency;
+          // If we got a latency measurement, Redis is connected (even if healthy is false due to other issues)
+          if (redisHealth.latency > 0) {
+            redisStatus = redisHealth.healthy ? 'connected' : 'degraded';
+            redisLatency = redisHealth.latency;
+          } else {
+            redisStatus = 'disconnected';
+          }
         } catch (error) {
           // Redis check failed, status remains 'disconnected'
           logger.debug('Redis health check failed in /health endpoint:', { error });
@@ -279,7 +284,7 @@ export class AppBootstrapService {
           services: {
             mongodb: mongoStatus,
             redis: redisStatus,
-            redisLatency: redisLatency > 0 ? `${redisLatency}ms` : null,
+            redisLatency: redisLatency !== null && redisLatency > 0 ? `${redisLatency}ms` : null,
             jobQueue: queueHealth.healthy ? 'healthy' : 'unhealthy',
             memory: {
               used: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',

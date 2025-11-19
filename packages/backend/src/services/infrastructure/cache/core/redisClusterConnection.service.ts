@@ -86,6 +86,10 @@ export class RedisClusterService {
   private authAttempts = 0;
   private readonly maxAuthAttempts = 3;
   private lastAuthFailure: number = 0;
+  // Throttling for event logs to prevent spam
+  private lastCloseLog: number = 0;
+  private lastReconnectLog: number = 0;
+  private readonly LOG_THROTTLE_MS = 30000; // 30 seconds
 
   constructor() {
     this.requireSecureConfig = this.shouldRequireSecureConfig();
@@ -229,6 +233,12 @@ export class RedisClusterService {
    * Determine if cluster mode should be used based on formalized cache strategy
    */
   private shouldUseClusterMode(clusterConfig: RedisClusterConfig): boolean {
+    // If REDIS_URL is set, use single node mode (REDIS_URL is for single Redis instances)
+    if (process.env.REDIS_URL) {
+      logger.info('Redis single node mode: REDIS_URL detected (single Redis instance)');
+      return false;
+    }
+
     // Force cluster mode if explicitly enabled
     if (process.env.REDIS_FORCE_CLUSTER === 'true') {
       logger.info('Redis cluster mode forced via REDIS_FORCE_CLUSTER environment variable');
@@ -241,7 +251,7 @@ export class RedisClusterService {
       return false;
     }
 
-    // Use cluster mode only when multiple nodes are specified
+    // Use cluster mode only when multiple nodes are specified AND REDIS_URL is not set
     const hasMultipleNodes = clusterConfig.nodes.length > 1;
     
     if (hasMultipleNodes) {
@@ -446,11 +456,25 @@ export class RedisClusterService {
     });
 
     this.cluster.on('close', () => {
-      logger.warn('⚠️ Redis cluster connection closed');
+      const now = Date.now();
+      // Throttle close event logs to prevent spam (max once per 30 seconds)
+      if (now - this.lastCloseLog > this.LOG_THROTTLE_MS) {
+        logger.warn('⚠️ Redis cluster connection closed', {
+          note: 'Connection will automatically reconnect. Further close events will be throttled.'
+        });
+        this.lastCloseLog = now;
+      }
     });
 
     this.cluster.on('reconnecting', () => {
-      logger.info('🔄 Redis cluster reconnecting...');
+      const now = Date.now();
+      // Throttle reconnecting event logs to prevent spam (max once per 30 seconds)
+      if (now - this.lastReconnectLog > this.LOG_THROTTLE_MS) {
+        logger.info('🔄 Redis cluster reconnecting...', {
+          note: 'Automatic reconnection in progress. Further reconnect events will be throttled.'
+        });
+        this.lastReconnectLog = now;
+      }
     });
 
     this.cluster.on('node error', (error, node) => {
@@ -486,11 +510,25 @@ export class RedisClusterService {
     });
 
     this.singleRedis.on('close', () => {
-      logger.warn('⚠️ Redis connection closed');
+      const now = Date.now();
+      // Throttle close event logs to prevent spam (max once per 30 seconds)
+      if (now - this.lastCloseLog > this.LOG_THROTTLE_MS) {
+        logger.warn('⚠️ Redis connection closed', {
+          note: 'Connection will automatically reconnect. Further close events will be throttled.'
+        });
+        this.lastCloseLog = now;
+      }
     });
 
     this.singleRedis.on('reconnecting', () => {
-      logger.info('🔄 Redis reconnecting...');
+      const now = Date.now();
+      // Throttle reconnecting event logs to prevent spam (max once per 30 seconds)
+      if (now - this.lastReconnectLog > this.LOG_THROTTLE_MS) {
+        logger.info('🔄 Redis reconnecting...', {
+          note: 'Automatic reconnection in progress. Further reconnect events will be throttled.'
+        });
+        this.lastReconnectLog = now;
+      }
     });
   }
 
