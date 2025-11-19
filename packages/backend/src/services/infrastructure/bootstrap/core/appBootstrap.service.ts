@@ -347,6 +347,181 @@ export class AppBootstrapService {
         }
       }
     );
+
+    // Memory diagnostics endpoint - shows real memory health analysis
+    this.app.get('/health/memory', async (req, res) => {
+      try {
+        const { memoryMonitorService } = await import('../../observability');
+        const memUsage = process.memoryUsage();
+        const v8 = require('v8');
+        const heapStats = v8.getHeapStatistics();
+        const heapLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+        const heapAllocatedMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+        const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+        const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+        const externalMB = Math.round(memUsage.external / 1024 / 1024);
+        
+        // Get comprehensive memory report
+        const memoryReport = memoryMonitorService.getMemoryReport();
+        const leakDetection = memoryMonitorService.getLeakDetection();
+        const currentStats = memoryMonitorService.getCurrentStats();
+        
+        // Calculate percentages
+        const heapUsagePercentOfAllocated = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+        const heapUsagePercentOfLimit = (memUsage.heapUsed / heapStats.heap_size_limit) * 100;
+        const heapGrowthPotential = heapLimitMB - heapAllocatedMB;
+        
+        // Determine if this is a real problem or just display issue
+        const isRealProblem = heapAllocatedMB >= 500 || heapUsagePercentOfLimit > 80 || leakDetection.isLeakDetected;
+        const isDisplayIssue = heapAllocatedMB < 500 && heapGrowthPotential > 200 && heapUsagePercentOfLimit < 20;
+        
+        // Calculate growth trend if we have history
+        let growthTrend = 'stable';
+        let growthRateMBPerMin = 0;
+        if (currentStats && memoryReport.leakDetection.samples.length >= 2) {
+          const samples = memoryReport.leakDetection.samples;
+          const oldest = samples[0];
+          const newest = samples[samples.length - 1];
+          const durationMinutes = (newest.timestamp - oldest.timestamp) / (1000 * 60);
+          growthRateMBPerMin = durationMinutes > 0 ? (newest.heapUsed - oldest.heapUsed) / durationMinutes : 0;
+          
+          if (growthRateMBPerMin > 5) {
+            growthTrend = 'increasing (potential leak)';
+          } else if (growthRateMBPerMin > 1) {
+            growthTrend = 'slowly increasing';
+          } else if (growthRateMBPerMin < -1) {
+            growthTrend = 'decreasing (GC active)';
+          } else {
+            growthTrend = 'stable';
+          }
+        }
+        
+        res.json({
+          timestamp: new Date().toISOString(),
+          assessment: {
+            isRealProblem,
+            isDisplayIssue,
+            verdict: isRealProblem 
+              ? '⚠️ Real memory concern detected' 
+              : isDisplayIssue 
+              ? '✅ Normal - just a display calculation issue' 
+              : '✅ Healthy',
+            explanation: isDisplayIssue
+              ? `Heap is small (${heapAllocatedMB}MB) but has room to grow (${heapGrowthPotential}MB available). The "95%" is misleading - you're only using ${heapUsagePercentOfLimit.toFixed(1)}% of your actual ${heapLimitMB}MB limit.`
+              : isRealProblem
+              ? `Memory usage is genuinely high: ${heapUsagePercentOfLimit.toFixed(1)}% of limit used, or heap is large (${heapAllocatedMB}MB) with high usage.`
+              : 'Memory usage is within normal parameters.'
+          },
+          current: {
+            heapUsed: `${heapUsedMB} MB`,
+            heapAllocated: `${heapAllocatedMB} MB`,
+            heapLimit: `${heapLimitMB} MB`,
+            rss: `${rssMB} MB`,
+            external: `${externalMB} MB`,
+            heapUsagePercentOfAllocated: `${heapUsagePercentOfAllocated.toFixed(1)}%`,
+            heapUsagePercentOfLimit: `${heapUsagePercentOfLimit.toFixed(1)}%`,
+            heapGrowthPotential: `${heapGrowthPotential} MB`
+          },
+          trends: {
+            growthRate: `${growthRateMBPerMin.toFixed(2)} MB/min`,
+            trend: growthTrend,
+            leakDetected: leakDetection.isLeakDetected,
+            samplesAnalyzed: memoryReport.leakDetection.samples.length
+          },
+          thresholds: {
+            warning: '512 MB',
+            critical: '1024 MB',
+            maxHeapUsagePercent: '95%',
+            leakThreshold: '5 MB/min growth'
+          },
+          recommendations: memoryReport.recommendations.length > 0 
+            ? memoryReport.recommendations 
+            : ['Memory usage is healthy. No action needed.'],
+          alerts: memoryReport.recentAlerts.map(alert => ({
+            level: alert.level,
+            message: alert.message,
+            currentUsage: alert.currentUsage,
+            threshold: alert.threshold,
+            timestamp: alert.timestamp,
+            suggestion: alert.suggestion
+          }))
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          error: 'Failed to get memory diagnostics',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Database index management endpoint (protected in production)
+    this.app.post('/health/indexes/create', 
+      metricsAuthMiddleware,
+      async (req, res) => {
+        try {
+          const { databaseOptimizationService } = await import('../../database/features/indexOptimization.service');
+          
+          logger.info('Creating missing database indexes...');
+          const result = await databaseOptimizationService.createMissingIndexes();
+          
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            summary: {
+              created: result.created,
+              failed: result.failed,
+              total: result.created + result.failed
+            },
+            details: result.details,
+            note: result.failed === 0 
+              ? 'All missing indexes created successfully' 
+              : `${result.failed} indexes failed to create. Check details for errors.`
+          });
+        } catch (error: any) {
+          logger.error('Failed to create indexes:', { error: error.message });
+          res.status(500).json({
+            success: false,
+            error: 'Failed to create indexes',
+            message: error.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    );
+
+    // Database index report endpoint
+    this.app.get('/health/indexes/report', async (req, res) => {
+      try {
+        const { databaseOptimizationService } = await import('../../database/features/indexOptimization.service');
+        
+        const report = await databaseOptimizationService.generateIndexReport();
+        const missingTotal = report.items.reduce((sum, item) => sum + item.missingIndexes.length, 0);
+        
+        res.json({
+          timestamp: new Date().toISOString(),
+          summary: {
+            totalMissing: missingTotal,
+            collectionsChecked: report.items.length,
+            collectionsWithMissingIndexes: report.items.filter(item => item.missingIndexes.length > 0).length
+          },
+          report: report.items.map(item => ({
+            collection: item.collection,
+            expected: item.expectedIndexes.length,
+            existing: item.existingIndexes.length,
+            missing: item.missingIndexes.length,
+            missingIndexes: item.missingIndexes,
+            existingIndexes: item.existingIndexes
+          }))
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          error: 'Failed to generate index report',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
   }
 
   /**
