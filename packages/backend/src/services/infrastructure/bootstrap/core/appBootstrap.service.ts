@@ -239,6 +239,83 @@ export class AppBootstrapService {
       res.status(200).end();
     });
 
+    // Sentry debug endpoint - for testing error tracking
+    // ⚠️ SECURITY: Only available in development/staging, or protected by auth in production
+    // This endpoint intentionally throws an error to verify Sentry is working
+    // Remove or disable this endpoint after verifying Sentry setup
+    const debugSentryHandler: RequestHandler = async (req, res, next) => {
+      // Only allow in development/staging, or if explicitly enabled in production
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      const isStaging = process.env.NODE_ENV === 'staging';
+      const allowInProduction = process.env.ALLOW_SENTRY_DEBUG === 'true';
+      
+      if (!isDevelopment && !isStaging && !allowInProduction) {
+        return res.status(404).json({
+          error: 'Not found',
+          message: 'Debug endpoint not available in production',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (!process.env.SENTRY_DSN) {
+        return res.status(503).json({
+          error: 'Sentry DSN not configured',
+          message: 'Set SENTRY_DSN environment variable to enable Sentry error tracking',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      try {
+        // Import Sentry to manually capture the error
+        const Sentry = await import('@sentry/node');
+        
+        // Create a test error
+        const testError = new Error('My first Sentry error!');
+        
+        // Manually capture the error to Sentry (ensures it's sent)
+        const eventId = Sentry.captureException(testError, {
+          tags: {
+            test: 'true',
+            endpoint: '/debug-sentry',
+            environment: process.env.NODE_ENV || 'unknown'
+          },
+          extra: {
+            requestPath: req.path,
+            requestMethod: req.method,
+            userAgent: req.headers['user-agent'],
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        // Also set status for error handler
+        (testError as any).status = 500;
+        
+        // Return response with event ID so user knows it was sent
+        res.status(500).json({
+          error: 'Test error sent to Sentry',
+          message: testError.message,
+          sentryEventId: eventId,
+          note: 'Check your Sentry dashboard to verify the error was received',
+          timestamp: new Date().toISOString()
+        });
+        
+        // Also pass to error handler (for logging, etc.)
+        next(testError);
+      } catch (error) {
+        // If Sentry import fails, just throw the error normally
+        const testError = new Error('My first Sentry error!');
+        (testError as any).status = 500;
+        next(testError);
+      }
+    };
+
+    // Apply authentication in production if explicitly enabled
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SENTRY_DEBUG === 'true') {
+      this.app.get('/debug-sentry', authenticateMiddleware, debugSentryHandler);
+    } else {
+      this.app.get('/debug-sentry', debugSentryHandler);
+    }
+
     // Health check endpoint
     this.app.get('/health', async (req, res) => {
       try {

@@ -52,8 +52,10 @@ export function configureSentryErrorHandler(app: Application): void {
     // Error handler must be before any other error middleware and after all controllers
     app.use(Sentry.Handlers.errorHandler({
       shouldHandleError: (error: any) => {
-        // Only capture 500+ errors
-        return Number(error.status) >= 500;
+        // Capture all errors (500+ status codes or errors without status)
+        // Errors without status are typically unhandled exceptions (500-level)
+        const status = Number(error.status) || 500;
+        return status >= 500;
       }
     }));
     logger.info('✅ Sentry error handler configured');
