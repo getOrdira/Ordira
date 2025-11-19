@@ -130,13 +130,24 @@ export class MemoryMonitorService {
 
       // Log heap size on first collection to help diagnose memory issues
       if (this.memoryHistory.length === 0) {
+        // Get actual heap limit from V8
+        const v8 = require('v8');
+        const heapStats = v8.getHeapStatistics();
+        const heapLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+        const heapUsagePercent = (stats.heapUsed / stats.heapTotal) * 100;
+        
         logger.info('📊 Initial memory state:', {
-          heapTotal: `${stats.heapTotal}MB`,
+          heapAllocated: `${stats.heapTotal}MB`, // Current allocated heap (grows as needed)
+          heapLimit: `${heapLimitMB}MB`, // Maximum heap limit (set by --max-old-space-size)
           heapUsed: `${stats.heapUsed}MB`,
-          heapUsagePercent: `${((stats.heapUsed / stats.heapTotal) * 100).toFixed(1)}%`,
+          heapUsagePercent: `${heapUsagePercent.toFixed(1)}%`,
           rss: `${stats.rss}MB`,
           external: `${stats.external}MB`,
-          note: stats.heapTotal < 200 ? 'Small heap detected - NODE_OPTIONS may not be set. For Standard plan (2GB), use NODE_OPTIONS="--max-old-space-size=1536"' : stats.heapTotal < 500 ? 'Heap size below recommended. For Standard plan (2GB), use NODE_OPTIONS="--max-old-space-size=1536"' : 'Heap size normal'
+          note: heapLimitMB < 200 
+            ? 'Heap limit is very small - --max-old-space-size may not be set correctly' 
+            : stats.heapTotal < 200 && heapLimitMB >= 500
+            ? `Heap will grow from ${stats.heapTotal}MB up to ${heapLimitMB}MB as needed (this is normal)`
+            : 'Heap size normal'
         });
       }
 
@@ -181,22 +192,39 @@ export class MemoryMonitorService {
         'Monitor application closely and consider optimization');
     }
 
+    // Get heap limit to determine if heap should grow instead of triggering GC
+    const v8 = require('v8');
+    const heapStats = v8.getHeapStatistics();
+    const heapLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+    const heapAllocatedMB = stats.heapTotal;
+    const heapGrowthPotential = heapLimitMB - heapAllocatedMB;
+    
     // Heap usage percentage check (only alert if above 95%)
-    // Also trigger GC if heap usage is persistently high
+    // Note: If heap is small (<200MB) but limit is high, Node.js will grow it automatically
+    // Only trigger GC if heap is already large or if usage is persistently very high
     if (heapUsagePercent > this.thresholds.maxHeapUsage) {
-      this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}%`, heapUsagePercent, this.thresholds.maxHeapUsage,
-        'Heap is nearly full, garbage collection may be frequent');
-      
-      // If GC is supported and heap usage is very high, try to force GC
-      if (this.gcSupported && heapUsagePercent > 92) {
-        this.forceGarbageCollection('high_heap_usage_alert');
+      if (heapGrowthPotential > 100 && heapAllocatedMB < 500) {
+        // Heap can grow significantly - let Node.js grow it instead of forcing GC
+        // Only create alert, don't force GC yet (Node.js will grow heap automatically)
+        this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}% (${heapAllocatedMB}MB allocated of ${heapLimitMB}MB limit)`, heapUsagePercent, this.thresholds.maxHeapUsage,
+          `Heap will grow automatically from ${heapAllocatedMB}MB toward ${heapLimitMB}MB limit. This is normal during startup.`);
+      } else {
+        // Heap is already large or can't grow much - trigger GC
+        this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}%`, heapUsagePercent, this.thresholds.maxHeapUsage,
+          'Heap is nearly full, garbage collection may be frequent');
+        
+        // If GC is supported and heap usage is very high, try to force GC
+        if (this.gcSupported && heapUsagePercent > 92) {
+          this.forceGarbageCollection('high_heap_usage_alert');
+        }
       }
-    } else if (heapUsagePercent > 90 && this.memoryHistory.length >= 12) {
-      // Check if heap usage has been >90% for the last minute (12 samples at 5s intervals)
+    } else if (heapUsagePercent > 90 && this.memoryHistory.length >= 12 && heapAllocatedMB > 500) {
+      // Only check for persistent high usage if heap is already large (>500MB)
+      // Small heaps should grow, not be GC'd repeatedly
       const recentSamples = this.memoryHistory.slice(-12);
       const allHigh = recentSamples.every(s => (s.heapUsed / s.heapTotal) * 100 > 90);
       if (allHigh && this.gcSupported) {
-        // Persistent high usage - try GC
+        // Persistent high usage on large heap - try GC
         this.forceGarbageCollection('persistent_high_usage');
       }
     }
@@ -290,10 +318,23 @@ export class MemoryMonitorService {
 
     const latest = this.memoryHistory[this.memoryHistory.length - 1];
     const heapUsagePercent = (latest.heapUsed / latest.heapTotal) * 100;
+    
+    // Get heap limit to determine if heap should grow instead
+    const v8 = require('v8');
+    const heapStats = v8.getHeapStatistics();
+    const heapLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+    const heapGrowthPotential = heapLimitMB - latest.heapTotal;
 
-    // Hint GC if memory usage is above threshold OR if heap usage is very high (>90%)
-    // This helps prevent memory pressure during high usage periods
-    if (latest.heapUsed > this.thresholds.gcHint || heapUsagePercent > 90) {
+    // Only trigger GC if:
+    // 1. Heap is already large (>500MB) OR
+    // 2. Heap can't grow much (<100MB potential) OR  
+    // 3. Memory usage is above absolute threshold (512MB) regardless of heap size
+    // This prevents unnecessary GC on small heaps that should just grow
+    const shouldTriggerGC = 
+      (latest.heapUsed > this.thresholds.gcHint) || // Absolute threshold (512MB)
+      (heapUsagePercent > 90 && (latest.heapTotal > 500 || heapGrowthPotential < 100)); // High usage on large heap or no growth potential
+
+    if (shouldTriggerGC) {
       this.forceGarbageCollection(heapUsagePercent > 90 ? 'high_heap_usage' : 'threshold_exceeded');
     }
   }
@@ -304,19 +345,40 @@ export class MemoryMonitorService {
   private forceGarbageCollection(reason: string): void {
     if (this.gcSupported && global.gc && typeof global.gc === 'function') {
       const beforeGC = process.memoryUsage();
+      const v8 = require('v8');
+      const heapStatsBefore = v8.getHeapStatistics();
+      const heapLimitMB = Math.round(heapStatsBefore.heap_size_limit / 1024 / 1024);
 
       try {
         global.gc();
 
         const afterGC = process.memoryUsage();
         const freed = Math.round((beforeGC.heapUsed - afterGC.heapUsed) / 1024 / 1024);
+        const heapUsageBefore = (beforeGC.heapUsed / beforeGC.heapTotal) * 100;
+        const heapUsageAfter = (afterGC.heapUsed / afterGC.heapTotal) * 100;
 
-        logger.info('🗑️ Garbage collection completed', {
-          reason,
-          freedMB: freed,
-          beforeMB: Math.round(beforeGC.heapUsed / 1024 / 1024),
-          afterMB: Math.round(afterGC.heapUsed / 1024 / 1024)
-        });
+        // Only log if significant memory was freed (>5MB) or if heap usage is very high
+        if (freed > 5 || heapUsageBefore > 90) {
+          logger.info('🗑️ Garbage collection completed', {
+            reason,
+            freedMB: freed,
+            beforeMB: Math.round(beforeGC.heapUsed / 1024 / 1024),
+            afterMB: Math.round(afterGC.heapUsed / 1024 / 1024),
+            heapAllocatedBefore: `${Math.round(beforeGC.heapTotal / 1024 / 1024)}MB`,
+            heapAllocatedAfter: `${Math.round(afterGC.heapTotal / 1024 / 1024)}MB`,
+            heapLimit: `${heapLimitMB}MB`,
+            heapUsageBefore: `${heapUsageBefore.toFixed(1)}%`,
+            heapUsageAfter: `${heapUsageAfter.toFixed(1)}%`,
+            note: freed < 5 && heapUsageAfter > 90 ? 'Little memory freed - heap may need to grow. Node.js will expand heap automatically.' : undefined
+          });
+        } else {
+          // Log at debug level for minor GC operations
+          logger.debug('🗑️ Garbage collection completed (minor)', {
+            reason,
+            freedMB: freed,
+            heapUsageAfter: `${heapUsageAfter.toFixed(1)}%`
+          });
+        }
 
         monitoringService.recordMetric({
           name: 'memory_gc_triggered',
