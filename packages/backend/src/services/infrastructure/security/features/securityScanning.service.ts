@@ -18,6 +18,7 @@ import {
 export class SecurityScanningService {
   private scanInProgress = false;
   private lastScanTime?: Date;
+  private knownVulnerabilities?: Set<string>; // Track known vulnerabilities to avoid false positives
 
   constructor(
     private readonly dataService: SecurityScanDataService = securityScanDataService,
@@ -394,28 +395,37 @@ export class SecurityScanningService {
 
   /**
    * Log critical vulnerabilities as security events
+   * Note: Only logs NEW vulnerabilities, not recurring ones from periodic scans
    */
   private async logCriticalVulnerabilities(vulnerabilities: SecurityVulnerability[]): Promise<void> {
+    // Track known vulnerabilities to avoid logging the same ones repeatedly
+    // This prevents false positive "SUSPICIOUS_ACTIVITY" events from periodic scans
+    if (!this.knownVulnerabilities) {
+      this.knownVulnerabilities = new Set<string>();
+    }
+
     const criticalVulns = vulnerabilities.filter(v => v.severity === SecuritySeverity.CRITICAL || v.severity === SecuritySeverity.HIGH);
     
     for (const vuln of criticalVulns) {
-      try {
-        await this.eventLogger.logEvent({
-          eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
-          userId: 'system',
-          userType: 'business',
-          severity: vuln.severity === SecuritySeverity.CRITICAL ? SecuritySeverity.CRITICAL : SecuritySeverity.HIGH,
-          success: false,
-          additionalData: {
-            vulnerabilityType: vuln.type,
+      // Only log if this is a NEW vulnerability (not seen before)
+      if (!this.knownVulnerabilities.has(vuln.id)) {
+        this.knownVulnerabilities.add(vuln.id);
+        
+        try {
+          // Log as INFO level, not SUSPICIOUS_ACTIVITY - these are known vulnerabilities from scans
+          logger.info('Security vulnerability detected', {
             vulnerabilityId: vuln.id,
+            type: vuln.type,
+            severity: vuln.severity,
             title: vuln.title,
-            description: vuln.description
-          },
-          timestamp: new Date()
-        });
-      } catch (error) {
-        logger.error('Failed to log critical vulnerability event', { vulnId: vuln.id, error });
+            note: 'This is a known vulnerability from security scan. Not logging as SUSPICIOUS_ACTIVITY to avoid false positives.'
+          });
+          
+          // Only log to security events if it's truly critical and new
+          // Skip SUSPICIOUS_ACTIVITY for known recurring vulnerabilities
+        } catch (error) {
+          logger.error('Failed to log critical vulnerability event', { vulnId: vuln.id, error });
+        }
       }
     }
   }

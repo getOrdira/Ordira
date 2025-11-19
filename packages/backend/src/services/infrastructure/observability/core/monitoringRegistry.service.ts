@@ -34,6 +34,50 @@ export class MonitoringService {
   constructor() {
     this.initializeDefaultAlertRules();
     this.initializeOpenTelemetry();
+    this.startAlertCleanup();
+  }
+
+  /**
+   * Start periodic alert cleanup to prevent accumulation
+   */
+  private startAlertCleanup(): void {
+    // Clean up old alerts every 5 minutes
+    setInterval(() => {
+      this.cleanupOldAlerts();
+    }, 5 * 60 * 1000);
+  }
+
+  /**
+   * Clean up old alerts that should have been resolved
+   */
+  private cleanupOldAlerts(): void {
+    const now = Date.now();
+    const alertsToResolve: string[] = [];
+
+    // Auto-resolve alerts older than:
+    // - Warning alerts: 10 minutes
+    // - High severity: 30 minutes
+    // - Critical: 1 hour
+    this.activeAlerts.forEach((alert, alertId) => {
+      const age = now - alert.timestamp.getTime();
+      const maxAge = 
+        alert.severity === 'critical' ? 60 * 60 * 1000 : // 1 hour
+        alert.severity === 'high' ? 30 * 60 * 1000 : // 30 minutes
+        10 * 60 * 1000; // 10 minutes for warning/low
+
+      if (age > maxAge) {
+        alertsToResolve.push(alertId);
+      }
+    });
+
+    // Resolve old alerts
+    alertsToResolve.forEach(alertId => {
+      this.resolveAlert(alertId);
+    });
+
+    if (alertsToResolve.length > 0) {
+      logger.debug(`Cleaned up ${alertsToResolve.length} expired alerts`);
+    }
   }
 
   /**
@@ -294,10 +338,17 @@ export class MonitoringService {
     // Determine overall health
     // Note: Memory usage alone shouldn't mark system as unhealthy if it's stable
     // High memory usage (90%+) is common in Node.js apps and GC handles it
+    // Also: Alert count alone shouldn't mark system as unhealthy - only recent critical alerts matter
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     
-    // Unhealthy: critical issues (errors, very slow response, CPU maxed out, or memory > 98%)
-    if (errorRate > 0.1 || responseTime > 5000 || cpu > 90 || memory > 98) {
+    // Get recent critical alerts (last 5 minutes) - these are the ones that matter
+    const recentCriticalAlerts = this.getActiveAlerts().filter(alert => {
+      const age = now.getTime() - alert.timestamp.getTime();
+      return alert.severity === 'critical' && age < 5 * 60 * 1000; // Last 5 minutes
+    });
+    
+    // Unhealthy: critical issues (errors, very slow response, CPU maxed out, memory > 98%, OR recent critical alerts)
+    if (errorRate > 0.1 || responseTime > 5000 || cpu > 90 || memory > 98 || recentCriticalAlerts.length > 0) {
       status = 'unhealthy';
     } 
     // Degraded: warning conditions (some errors, slow response, high CPU, or memory > 95%)
