@@ -37,10 +37,6 @@
   },
   "overrides": {
     "ethers": "6.15.0",
-    "viem": "2.37.3",
-    "react-helmet-async": {
-      "react": "$react",
-      "react-dom": "$react-dom"
-    }
+    "viem": "2.37.3"
   }
 }
