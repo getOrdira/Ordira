@@ -124,8 +124,7 @@ export class AppBootstrapService {
    */
   private async initializeOpenTelemetry(): Promise<void> {
     try {
-      logger.info('🔧 Initializing OpenTelemetry...');
-
+      // Logging is handled by initializeOpenTelemetry() function
       await initializeOpenTelemetry({
         serviceName: process.env.SERVICE_NAME || 'ordira-backend',
         serviceVersion: process.env.SERVICE_VERSION || '1.0.0',
@@ -435,9 +434,8 @@ export class AppBootstrapService {
    * Start queue health monitoring
    */
   private startQueueHealthMonitoring(): void {
-    logger.info('📊 Starting queue health monitoring...');
+    // Logging is handled by queueHealthService.start()
     queueHealthService.start();
-    logger.info('✅ Queue health monitoring started');
   }
 
 }

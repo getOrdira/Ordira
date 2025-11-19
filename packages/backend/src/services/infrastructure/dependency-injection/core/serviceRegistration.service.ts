@@ -42,7 +42,7 @@ import {
  * This must be called before modules are initialized
  */
 export function registerAllDIContainerServices(): void {
-  logger.info('📦 Registering services in DI container...');
+  // Logging is handled by the caller (appBootstrap.service.ts)
 
   try {
     // Register infrastructure services

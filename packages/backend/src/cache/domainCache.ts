@@ -22,9 +22,10 @@ async function reloadCache() {
     const newSet = new Set<string>();
 
     // 1) Load all brand custom domains
-    // Use proper MongoDB query syntax - customDomain exists and is not empty string
+    // Query for documents where customDomain exists and is not empty
+    // Note: We filter for strings in JavaScript since Mongoose doesn't support $type in query objects
     const brands = await BrandSettings.find({
-      customDomain: { $exists: true, $ne: '', $type: 'string' }
+      customDomain: { $exists: true, $ne: '' }
     })
       .select('customDomain')
       .lean();

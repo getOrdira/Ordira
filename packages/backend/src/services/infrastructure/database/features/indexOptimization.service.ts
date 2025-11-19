@@ -68,10 +68,30 @@ export class DatabaseOptimizationService {
       throw new Error('Database connection not available. Ensure MongoDB is connected before generating index report.');
     }
     
+    // Verify we're using the correct database (not defaulting to 'test')
+    const dbName = db.databaseName;
+    if (dbName === 'test' && process.env.MONGODB_URI && !process.env.MONGODB_URI.includes('/test')) {
+      logger.warn(`Index inspection using 'test' database, but MONGODB_URI doesn't specify 'test'. Current database: ${dbName}`);
+    }
+    
     const items: IndexReportItem[] = [];
 
     for (const [collectionName, expectedIndexes] of Object.entries(EXPECTED_INDEXES)) {
       try {
+        // Check if collection exists before trying to get indexes
+        const collections = await db.listCollections({ name: collectionName }).toArray();
+        if (collections.length === 0) {
+          // Collection doesn't exist yet - this is fine, just log and continue
+          logger.debug(`Collection ${collectionName} does not exist yet, skipping index inspection`);
+          items.push({
+            collection: collectionName,
+            expectedIndexes,
+            missingIndexes: expectedIndexes,
+            existingIndexes: []
+          });
+          continue;
+        }
+        
         const collection = db.collection(collectionName);
         const indexes = await collection.indexes();
         const existingNames = indexes.map((idx) => idx.name);
@@ -85,9 +105,13 @@ export class DatabaseOptimizationService {
           existingIndexes: existingNames
         });
       } catch (error) {
-        logger.warn(`Failed to inspect indexes for collection ${collectionName}`, {
-          error: error instanceof Error ? error.message : error
-        });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        // Only log as warning if it's not a "namespace doesn't exist" error (which is expected for new collections)
+        if (!errorMessage.includes('ns does not exist')) {
+          logger.warn(`Failed to inspect indexes for collection ${collectionName}`, {
+            error: errorMessage
+          });
+        }
 
         items.push({
           collection: collectionName,

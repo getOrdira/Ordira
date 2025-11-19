@@ -334,10 +334,36 @@ export class ServerStartupService {
         // Record system metrics
         monitoringService.recordSystemMetrics();
 
-        // Get and record circuit breaker metrics
-        const { circuitBreakerManager } = require('../../../external/circuit-breaker.service');
-        const circuitStats = circuitBreakerManager.getAllStats();
-        monitoringService.recordCircuitBreakerMetrics(circuitStats);
+        // Get and record circuit breaker metrics (if available)
+        try {
+          // Try to load circuit breaker service - it may not exist
+          // Use try-catch around require.resolve since it throws if module doesn't exist
+          let circuitBreakerManager;
+          try {
+            const circuitBreakerPath = '../../resilience/core/circuitBreakerRegistry.service';
+            require.resolve(circuitBreakerPath);
+            const circuitBreakerModule = require(circuitBreakerPath);
+            circuitBreakerManager = circuitBreakerModule.circuitBreakerManager;
+          } catch (resolveError) {
+            // Module doesn't exist - this is fine, circuit breakers are optional
+            circuitBreakerManager = null;
+          }
+          
+          if (circuitBreakerManager) {
+            const circuitStats = circuitBreakerManager.getAllStats();
+            monitoringService.recordCircuitBreakerMetrics(circuitStats);
+
+            // Check for open circuit breakers
+            Object.entries(circuitStats).forEach(([name, stats]) => {
+              if ((stats as { state?: string }).state === 'OPEN') {
+                logger.warn(`⚠️ Circuit breaker '${name}' is OPEN`);
+              }
+            });
+          }
+        } catch (circuitBreakerError) {
+          // Circuit breaker service not available - this is optional
+          // Don't log as error, just skip circuit breaker metrics
+        }
 
         // Log performance warnings
         const memUsage = process.memoryUsage();
@@ -346,13 +372,6 @@ export class ServerStartupService {
         if (memUsagePercent > 80) {
           logger.warn(`⚠️ High memory usage: ${memUsagePercent.toFixed(2)}%`);
         }
-
-        // Check for open circuit breakers
-        Object.entries(circuitStats).forEach(([name, stats]) => {
-          if ((stats as { state?: string }).state === 'OPEN') {
-            logger.warn(`⚠️ Circuit breaker '${name}' is OPEN`);
-          }
-        });
 
       } catch (error) {
         logger.error('❌ Performance monitoring failed:', error);

@@ -212,7 +212,16 @@ export class RedisClusterService {
       this.setupHealthMonitoring();
 
     } catch (error) {
-      logger.error('Failed to initialize Redis:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Only log as error if this is the initial connection attempt
+      // Background reconnection attempts should be logged at debug level
+      if (this.cluster || this.singleRedis) {
+        // Already have a connection, this is likely a reconnection attempt
+        logger.debug('Redis reconnection attempt failed:', { error: errorMessage });
+      } else {
+        // Initial connection failed
+        logger.error('Failed to initialize Redis:', { error: errorMessage });
+      }
     }
   }
 
