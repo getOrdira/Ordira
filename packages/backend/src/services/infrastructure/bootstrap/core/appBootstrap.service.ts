@@ -253,6 +253,7 @@ export class AppBootstrapService {
         return res.status(404).json({
           error: 'Not found',
           message: 'Debug endpoint not available in production',
+          hint: 'To enable this endpoint in production, set ALLOW_SENTRY_DEBUG=true in your Render environment variables',
           timestamp: new Date().toISOString()
         });
       }
@@ -309,12 +310,9 @@ export class AppBootstrapService {
       }
     };
 
-    // Apply authentication in production if explicitly enabled
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SENTRY_DEBUG === 'true') {
-      this.app.get('/debug-sentry', authenticateMiddleware, debugSentryHandler);
-    } else {
-      this.app.get('/debug-sentry', debugSentryHandler);
-    }
+    // Register debug endpoint (no auth required when ALLOW_SENTRY_DEBUG=true)
+    // This is a testing endpoint, so we allow it without auth when explicitly enabled
+    this.app.get('/debug-sentry', debugSentryHandler);
 
     // Health check endpoint
     this.app.get('/health', async (req, res) => {
