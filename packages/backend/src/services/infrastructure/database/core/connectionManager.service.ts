@@ -47,10 +47,24 @@ export class ConnectionManager {
       logger.info('✅ MongoDB connection established successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorCode = (error as any)?.code;
+      const errorCodeName = (error as any)?.codeName;
+      
+      // Provide helpful error messages for common issues
+      let helpfulMessage = errorMessage;
+      if (errorMessage.includes('bad auth') || errorMessage.includes('authentication failed')) {
+        helpfulMessage = `${errorMessage}. Check: 1) Username and password are correct, 2) Password is URL-encoded if it contains special characters, 3) Database user has proper permissions.`;
+      } else if (errorMessage.includes('IP') || errorMessage.includes('whitelist')) {
+        helpfulMessage = `${errorMessage}. Whitelist Render's IP addresses in MongoDB Atlas Network Access settings.`;
+      }
+      
       logger.error('❌ MongoDB connection failed:', {
-        error: errorMessage,
-        uri: config.uri ? `${config.uri.substring(0, 20)}...` : 'not configured',
-        hasTlsOptions: !!(connectOptions.tlsCAFile || connectOptions.tlsCertificateKeyFile)
+        error: helpfulMessage,
+        errorCode,
+        errorCodeName,
+        uri: config.uri ? `${config.uri.substring(0, 30)}...` : 'not configured',
+        hasTlsOptions: !!(connectOptions.tlsCAFile || connectOptions.tlsCertificateKeyFile),
+        hint: errorMessage.includes('bad auth') ? 'Verify MONGODB_URI credentials and ensure password is URL-encoded if it contains special characters' : undefined
       });
       throw error;
     }
