@@ -200,23 +200,24 @@ export class MemoryMonitorService {
     const heapGrowthPotential = heapLimitMB - heapAllocatedMB;
     
     // Heap usage percentage check (only alert if above 95%)
-    // Note: If heap is small (<200MB) but limit is high, Node.js will grow it automatically
-    // Only trigger GC if heap is already large or if usage is persistently very high
+    // Note: If heap is small (<500MB) but limit is high, Node.js will grow it automatically
+    // Suppress alerts for small heaps with high growth potential to avoid false positives
+    if (heapAllocatedMB < 500 && heapGrowthPotential > 200) {
+      // Small heap with room to grow - don't alert on percentage, only on absolute thresholds
+      // This prevents false positives during startup when heap is growing from ~100MB to 1560MB
+      // The percentage calculation (heapUsed/heapTotal) is misleading when heapTotal is small
+      return; // Skip percentage-based alerts for small growing heaps
+    }
+    
+    // For larger heaps or heaps with limited growth potential, check percentage
     if (heapUsagePercent > this.thresholds.maxHeapUsage) {
-      if (heapGrowthPotential > 100 && heapAllocatedMB < 500) {
-        // Heap can grow significantly - let Node.js grow it instead of forcing GC
-        // Only create alert, don't force GC yet (Node.js will grow heap automatically)
-        this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}% (${heapAllocatedMB}MB allocated of ${heapLimitMB}MB limit)`, heapUsagePercent, this.thresholds.maxHeapUsage,
-          `Heap will grow automatically from ${heapAllocatedMB}MB toward ${heapLimitMB}MB limit. This is normal during startup.`);
-      } else {
-        // Heap is already large or can't grow much - trigger GC
-        this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}%`, heapUsagePercent, this.thresholds.maxHeapUsage,
-          'Heap is nearly full, garbage collection may be frequent');
-        
-        // If GC is supported and heap usage is very high, try to force GC
-        if (this.gcSupported && heapUsagePercent > 92) {
-          this.forceGarbageCollection('high_heap_usage_alert');
-        }
+      // Heap is already large or can't grow much - this is a real concern
+      this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}% (${stats.heapUsed}MB used of ${heapAllocatedMB}MB allocated, ${heapLimitMB}MB limit)`, heapUsagePercent, this.thresholds.maxHeapUsage,
+        'Heap is nearly full, garbage collection may be frequent');
+      
+      // If GC is supported and heap usage is very high, try to force GC
+      if (this.gcSupported && heapUsagePercent > 92) {
+        this.forceGarbageCollection('high_heap_usage_alert');
       }
     } else if (heapUsagePercent > 90 && this.memoryHistory.length >= 12 && heapAllocatedMB > 500) {
       // Only check for persistent high usage if heap is already large (>500MB)

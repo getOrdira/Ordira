@@ -246,6 +246,13 @@ export class AppBootstrapService {
         const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
         
         const memUsage = process.memoryUsage();
+        // Get actual heap limit from V8 for accurate memory reporting
+        const v8 = require('v8');
+        const heapStats = v8.getHeapStatistics();
+        const heapLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
+        const heapAllocatedMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+        const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+        const heapUsagePercentOfLimit = (memUsage.heapUsed / heapStats.heap_size_limit) * 100;
         
         // Check Redis connection directly (not through job queue)
         let redisStatus = 'disconnected';
@@ -287,8 +294,10 @@ export class AppBootstrapService {
             redisLatency: redisLatency !== null && redisLatency > 0 ? `${redisLatency}ms` : null,
             jobQueue: queueHealth.healthy ? 'healthy' : 'unhealthy',
             memory: {
-              used: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',
-              total: Math.round(memUsage.heapTotal / 1024 / 1024) + ' MB'
+              used: `${heapUsedMB} MB`,
+              allocated: `${heapAllocatedMB} MB`,
+              limit: `${heapLimitMB} MB`,
+              usagePercentOfLimit: `${heapUsagePercentOfLimit.toFixed(1)}%`
             }
           },
           queue: queueMetrics ? {
