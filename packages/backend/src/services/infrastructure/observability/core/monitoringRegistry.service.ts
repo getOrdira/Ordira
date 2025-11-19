@@ -18,7 +18,7 @@ export class MonitoringService {
   private alertRules: Map<string, AlertRule> = new Map();
   private activeAlerts: Map<string, Alert> = new Map();
   private alertHistory: Alert[] = [];
-  private maxAlertHistory = 1000; // Keep last 1k alerts
+  private maxAlertHistory = 100; // Keep last 100 alerts (reduced from 1k for memory efficiency)
 
   // OpenTelemetry metrics
   private meter: Meter | null = null;
@@ -26,8 +26,9 @@ export class MonitoringService {
   private histograms: Map<string, Histogram> = new Map();
 
   // Legacy in-memory metrics (for backward compatibility during migration)
+  // Reduced from 10k to 1k to save memory - OpenTelemetry handles long-term storage
   private metrics: MetricData[] = [];
-  private maxMetricsHistory = 10000; // Keep last 10k metrics
+  private maxMetricsHistory = 1000; // Keep last 1k metrics (reduced from 10k for memory efficiency)
   private useOpenTelemetry = false;
 
   constructor() {

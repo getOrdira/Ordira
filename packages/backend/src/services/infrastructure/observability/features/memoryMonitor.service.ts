@@ -128,6 +128,18 @@ export class MemoryMonitorService {
         timestamp
       };
 
+      // Log heap size on first collection to help diagnose memory issues
+      if (this.memoryHistory.length === 0) {
+        logger.info('📊 Initial memory state:', {
+          heapTotal: `${stats.heapTotal}MB`,
+          heapUsed: `${stats.heapUsed}MB`,
+          heapUsagePercent: `${((stats.heapUsed / stats.heapTotal) * 100).toFixed(1)}%`,
+          rss: `${stats.rss}MB`,
+          external: `${stats.external}MB`,
+          note: stats.heapTotal < 200 ? 'Small heap detected - consider increasing with NODE_OPTIONS="--max-old-space-size=512"' : 'Heap size normal'
+        });
+      }
+
       // Add to history
       this.memoryHistory.push(stats);
 
