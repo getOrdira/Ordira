@@ -27,7 +27,7 @@ export class MemoryMonitorService {
   private thresholds: MemoryThresholds = {
     warning: 512,      // 512 MB warning
     critical: 1024,    // 1 GB critical
-    maxHeapUsage: 85,  // 85% max heap usage
+    maxHeapUsage: 95,  // 95% max heap usage (adjusted for production - 85% was too sensitive)
     gcHint: 256        // GC hint at 256 MB
   };
 
@@ -155,6 +155,9 @@ export class MemoryMonitorService {
   private checkThresholds(stats: MemoryStats): void {
     const heapUsagePercent = (stats.heapUsed / stats.heapTotal) * 100;
 
+    // Auto-resolve alerts when conditions improve
+    this.resolveAlertsWhenImproved(stats, heapUsagePercent);
+
     // Critical threshold check
     if (stats.heapUsed > this.thresholds.critical) {
       this.createAlert('critical', `Critical memory usage: ${stats.heapUsed}MB`, stats.heapUsed, this.thresholds.critical,
@@ -166,10 +169,41 @@ export class MemoryMonitorService {
         'Monitor application closely and consider optimization');
     }
 
-    // Heap usage percentage check
+    // Heap usage percentage check (only alert if above 95%)
     if (heapUsagePercent > this.thresholds.maxHeapUsage) {
       this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}%`, heapUsagePercent, this.thresholds.maxHeapUsage,
         'Heap is nearly full, garbage collection may be frequent');
+    }
+  }
+
+  /**
+   * Auto-resolve alerts when memory conditions improve
+   */
+  private resolveAlertsWhenImproved(stats: MemoryStats, heapUsagePercent: number): void {
+    // Resolve alerts that are no longer relevant
+    const alertsToResolve: string[] = [];
+    
+    this.alerts.forEach((alert, index) => {
+      // Resolve heap usage alerts if usage dropped below threshold
+      if (alert.message.includes('heap usage') && heapUsagePercent <= this.thresholds.maxHeapUsage - 5) {
+        alertsToResolve.push(`heap_usage_${index}`);
+      }
+      // Resolve memory usage alerts if usage dropped below threshold
+      else if (alert.message.includes('memory usage') && !alert.message.includes('heap')) {
+        if (stats.heapUsed <= this.thresholds.warning) {
+          alertsToResolve.push(`memory_usage_${index}`);
+        }
+      }
+    });
+
+    // Remove resolved alerts (keep only unresolved ones)
+    if (alertsToResolve.length > 0) {
+      const originalLength = this.alerts.length;
+      this.alerts = this.alerts.filter((_, index) => !alertsToResolve.includes(`heap_usage_${index}`) && !alertsToResolve.includes(`memory_usage_${index}`));
+      
+      if (this.alerts.length < originalLength) {
+        logger.debug(`Auto-resolved ${originalLength - this.alerts.length} memory alerts as conditions improved`);
+      }
     }
   }
 
@@ -410,9 +444,20 @@ export class MemoryMonitorService {
    */
   private cleanupOldData(): void {
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
 
-    // Clean old alerts
-    this.alerts = this.alerts.filter(alert => alert.timestamp.getTime() > oneHourAgo);
+    // Clean old alerts (keep only alerts from last hour)
+    // Also auto-expire alerts that are older than 5 minutes (conditions likely changed)
+    const beforeCleanup = this.alerts.length;
+    this.alerts = this.alerts.filter(alert => {
+      const alertAge = Date.now() - alert.timestamp.getTime();
+      // Keep recent alerts (< 5 minutes) or important alerts (< 1 hour)
+      return alertAge < (alert.level === 'critical' || alert.level === 'leak_detected' ? 60 * 60 * 1000 : 5 * 60 * 1000);
+    });
+    
+    if (this.alerts.length < beforeCleanup) {
+      logger.debug(`Cleaned up ${beforeCleanup - this.alerts.length} expired memory alerts`);
+    }
 
     // Memory history is already limited by MAX_HISTORY_SIZE
     logger.debug('Memory monitoring data cleanup completed', {

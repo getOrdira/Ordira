@@ -365,12 +365,13 @@ export class ServerStartupService {
           // Don't log as error, just skip circuit breaker metrics
         }
 
-        // Log performance warnings
+        // Memory monitoring is handled by memoryMonitorService
+        // Only log here if memory is critically high (>98%) to avoid duplicate warnings
         const memUsage = process.memoryUsage();
         const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
         
-        if (memUsagePercent > 80) {
-          logger.warn(`⚠️ High memory usage: ${memUsagePercent.toFixed(2)}%`);
+        if (memUsagePercent > 98) {
+          logger.warn(`⚠️ Critical memory usage: ${memUsagePercent.toFixed(2)}%`);
         }
 
       } catch (error) {

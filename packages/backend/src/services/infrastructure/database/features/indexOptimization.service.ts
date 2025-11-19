@@ -70,8 +70,20 @@ export class DatabaseOptimizationService {
     
     // Verify we're using the correct database (not defaulting to 'test')
     const dbName = db.databaseName;
-    if (dbName === 'test' && process.env.MONGODB_URI && !process.env.MONGODB_URI.includes('/test')) {
-      logger.warn(`Index inspection using 'test' database, but MONGODB_URI doesn't specify 'test'. Current database: ${dbName}`);
+    const mongoUri = process.env.MONGODB_URI || '';
+    
+    // Extract database name from URI if present
+    let expectedDbName: string | null = null;
+    if (mongoUri) {
+      // Try to extract database name from URI (format: mongodb://.../database? or mongodb+srv://.../database?)
+      const uriMatch = mongoUri.match(/\/([^\/\?]+)(\?|$)/);
+      if (uriMatch && uriMatch[1] && uriMatch[1] !== 'test') {
+        expectedDbName = uriMatch[1];
+      }
+    }
+    
+    if (dbName === 'test' && expectedDbName && expectedDbName !== 'test') {
+      logger.warn(`Index inspection using 'test' database, but MONGODB_URI specifies '${expectedDbName}'. This may indicate the database name is missing from the connection string. Current database: ${dbName}`);
     }
     
     const items: IndexReportItem[] = [];

@@ -291,11 +291,16 @@ export class MonitoringService {
     const disk = this.getAggregatedMetrics('disk_usage', last5Minutes, now, 'avg');
 
     // Determine overall health
+    // Note: Memory usage alone shouldn't mark system as unhealthy if it's stable
+    // High memory usage (90%+) is common in Node.js apps and GC handles it
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     
-    if (errorRate > 0.1 || responseTime > 5000 || cpu > 90 || memory > 90) {
+    // Unhealthy: critical issues (errors, very slow response, CPU maxed out, or memory > 98%)
+    if (errorRate > 0.1 || responseTime > 5000 || cpu > 90 || memory > 98) {
       status = 'unhealthy';
-    } else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 70) {
+    } 
+    // Degraded: warning conditions (some errors, slow response, high CPU, or memory > 95%)
+    else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 95) {
       status = 'degraded';
     }
 
