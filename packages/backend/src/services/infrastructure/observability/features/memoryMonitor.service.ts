@@ -70,10 +70,10 @@ export class MemoryMonitorService {
       logger.info('Manual GC hints disabled (start Node with --expose-gc to enable)');
     }
 
-    // Periodic cleanup of old data
+    // Periodic cleanup of old data (run more frequently to prevent alert accumulation)
     this.cleanupInterval = setInterval(() => {
       this.cleanupOldData();
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, 2 * 60 * 1000); // Every 2 minutes (reduced from 5 minutes)
 
     logger.info('✅ Memory monitoring started');
   }
@@ -196,9 +196,13 @@ export class MemoryMonitorService {
     const alertsToResolve: string[] = [];
     
     this.alerts.forEach((alert, index) => {
-      // Resolve heap usage alerts if usage dropped below threshold
-      if (alert.message.includes('heap usage') && heapUsagePercent <= this.thresholds.maxHeapUsage - 5) {
-        alertsToResolve.push(`heap_usage_${index}`);
+      // Resolve heap usage alerts if usage dropped below threshold (with hysteresis to prevent flapping)
+      if (alert.message.includes('heap usage')) {
+        // Only resolve if usage dropped significantly below threshold (90% instead of 95%)
+        // This prevents alerts from flapping when usage hovers around the threshold
+        if (heapUsagePercent <= this.thresholds.maxHeapUsage - 5) {
+          alertsToResolve.push(`heap_usage_${index}`);
+        }
       }
       // Resolve memory usage alerts if usage dropped below threshold
       else if (alert.message.includes('memory usage') && !alert.message.includes('heap')) {
@@ -321,15 +325,27 @@ export class MemoryMonitorService {
    * Create and store memory alert
    */
   private createAlert(level: MemoryAlert['level'], message: string, currentUsage: number, threshold: number, suggestion?: string): void {
-    // Prevent duplicate alerts (same level and similar usage)
-    const recentAlert = this.alerts.find(alert =>
-      alert.level === level &&
-      Math.abs(alert.currentUsage - currentUsage) < 10 &&
-      Date.now() - alert.timestamp.getTime() < 60000 // Within 1 minute
-    );
+    // Prevent duplicate alerts for the same condition within a short time window (30 seconds)
+    // This prevents alert spam during transient high memory usage (e.g., during startup)
+    // Check for exact message match first (most specific), then fall back to similar usage check
+    const recentAlert = this.alerts.find(alert => {
+      const timeSinceAlert = Date.now() - alert.timestamp.getTime();
+      // Exact message match within 30 seconds (prevents spam)
+      if (alert.message === message && timeSinceAlert < 30000) {
+        return true;
+      }
+      // Similar condition within 1 minute (prevents duplicates with slight variations)
+      if (alert.level === level && 
+          Math.abs(alert.currentUsage - currentUsage) < 10 && 
+          timeSinceAlert < 60000) {
+        return true;
+      }
+      return false;
+    });
 
     if (recentAlert) {
-      return; // Don't create duplicate alert
+      // Alert already exists for this condition - skip creating duplicate
+      return;
     }
 
     const alert: MemoryAlert = {
@@ -456,15 +472,17 @@ export class MemoryMonitorService {
    */
   private cleanupOldData(): void {
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
 
     // Clean old alerts (keep only alerts from last hour)
-    // Also auto-expire alerts that are older than 5 minutes (conditions likely changed)
+    // Also auto-expire duplicate/warning alerts that are older than 2 minutes (conditions likely changed)
+    // This prevents alert accumulation during transient high memory usage (e.g., during startup)
     const beforeCleanup = this.alerts.length;
     this.alerts = this.alerts.filter(alert => {
       const alertAge = Date.now() - alert.timestamp.getTime();
-      // Keep recent alerts (< 5 minutes) or important alerts (< 1 hour)
-      return alertAge < (alert.level === 'critical' || alert.level === 'leak_detected' ? 60 * 60 * 1000 : 5 * 60 * 1000);
+      // Keep recent alerts (< 2 minutes) or important alerts (< 1 hour)
+      // Warning alerts expire faster to prevent accumulation during startup spikes
+      return alertAge < (alert.level === 'critical' || alert.level === 'leak_detected' ? 60 * 60 * 1000 : 2 * 60 * 1000);
     });
     
     if (this.alerts.length < beforeCleanup) {
