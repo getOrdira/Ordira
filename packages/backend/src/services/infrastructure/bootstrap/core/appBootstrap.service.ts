@@ -18,6 +18,7 @@ import {
   setupPrometheusEndpoint 
 } from '../../observability';
 import { queueHealthService, jobQueueAdapter } from '../../resilience';
+import { redisClusterService } from '../../cache';
 
 // Middleware configuration modules
 import {
@@ -246,8 +247,28 @@ export class AppBootstrapService {
         
         const memUsage = process.memoryUsage();
         
-        // Check queue health
-        const queueHealth = await jobQueueAdapter.checkHealth();
+        // Check Redis connection directly (not through job queue)
+        let redisStatus = 'disconnected';
+        let redisLatency = 0;
+        try {
+          const redisHealth = await redisClusterService.healthCheck();
+          redisStatus = redisHealth.healthy ? 'connected' : 'disconnected';
+          redisLatency = redisHealth.latency;
+        } catch (error) {
+          // Redis check failed, status remains 'disconnected'
+          logger.debug('Redis health check failed in /health endpoint:', { error });
+        }
+        
+        // Check queue health (separate from Redis - requires bull package)
+        let queueHealth: { healthy: boolean; error?: string } = { healthy: false, error: 'Queue not initialized' };
+        try {
+          queueHealth = await jobQueueAdapter.checkHealth();
+        } catch (error) {
+          // Queue health check failed (bull not installed or other error)
+          logger.debug('Queue health check failed in /health endpoint:', { error });
+          queueHealth = { healthy: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+        
         const queueMetrics = queueHealthService.getMetrics();
         
         res.status(200).json({
@@ -257,7 +278,8 @@ export class AppBootstrapService {
           environment: process.env.NODE_ENV,
           services: {
             mongodb: mongoStatus,
-            redis: queueHealth.healthy ? 'connected' : 'disconnected',
+            redis: redisStatus,
+            redisLatency: redisLatency > 0 ? `${redisLatency}ms` : null,
             jobQueue: queueHealth.healthy ? 'healthy' : 'unhealthy',
             memory: {
               used: Math.round(memUsage.heapUsed / 1024 / 1024) + ' MB',

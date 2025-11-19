@@ -390,7 +390,10 @@ export class MonitoringService {
       status = 'unhealthy';
     } 
     // Degraded: warning conditions (some errors, slow response, high CPU, or memory > 95%)
-    else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 95 || recentHighAlerts.length > 5) {
+    // Note: High alerts alone don't cause degraded status - need actual performance issues
+    // Memory alerts are common in Node.js and don't indicate problems if error rate is low
+    else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 95 || 
+             (recentHighAlerts.length > 20 && (errorRate > 0.01 || responseTime > 1000 || cpu > 50))) {
       status = 'degraded';
     }
 
@@ -530,7 +533,7 @@ export class MonitoringService {
         name: 'High Memory Usage',
         metric: 'memory_usage',
         condition: 'gt',
-        threshold: 90,
+        threshold: 95, // Increased from 90% to 95% - 90% is too sensitive for Node.js apps
         duration: 300000, // 5 minutes
         severity: 'high',
         enabled: true
