@@ -182,9 +182,23 @@ export class MemoryMonitorService {
     }
 
     // Heap usage percentage check (only alert if above 95%)
+    // Also trigger GC if heap usage is persistently high
     if (heapUsagePercent > this.thresholds.maxHeapUsage) {
       this.createAlert('warning', `High heap usage: ${heapUsagePercent.toFixed(1)}%`, heapUsagePercent, this.thresholds.maxHeapUsage,
         'Heap is nearly full, garbage collection may be frequent');
+      
+      // If GC is supported and heap usage is very high, try to force GC
+      if (this.gcSupported && heapUsagePercent > 92) {
+        this.forceGarbageCollection('high_heap_usage_alert');
+      }
+    } else if (heapUsagePercent > 90 && this.memoryHistory.length >= 12) {
+      // Check if heap usage has been >90% for the last minute (12 samples at 5s intervals)
+      const recentSamples = this.memoryHistory.slice(-12);
+      const allHigh = recentSamples.every(s => (s.heapUsed / s.heapTotal) * 100 > 90);
+      if (allHigh && this.gcSupported) {
+        // Persistent high usage - try GC
+        this.forceGarbageCollection('persistent_high_usage');
+      }
     }
   }
 
@@ -275,10 +289,12 @@ export class MemoryMonitorService {
     if (!this.gcSupported || this.memoryHistory.length === 0) return;
 
     const latest = this.memoryHistory[this.memoryHistory.length - 1];
+    const heapUsagePercent = (latest.heapUsed / latest.heapTotal) * 100;
 
-    // Hint GC if memory usage is above threshold
-    if (latest.heapUsed > this.thresholds.gcHint) {
-      this.forceGarbageCollection('threshold_exceeded');
+    // Hint GC if memory usage is above threshold OR if heap usage is very high (>90%)
+    // This helps prevent memory pressure during high usage periods
+    if (latest.heapUsed > this.thresholds.gcHint || heapUsagePercent > 90) {
+      this.forceGarbageCollection(heapUsagePercent > 90 ? 'high_heap_usage' : 'threshold_exceeded');
     }
   }
 
