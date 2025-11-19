@@ -55,15 +55,15 @@ export class MonitoringService {
     const alertsToResolve: string[] = [];
 
     // Auto-resolve alerts older than:
-    // - Warning alerts: 10 minutes
-    // - High severity: 30 minutes
-    // - Critical: 1 hour
+    // - Warning/low alerts: 5 minutes (these are usually transient)
+    // - High severity: 15 minutes
+    // - Critical: 30 minutes
     this.activeAlerts.forEach((alert, alertId) => {
       const age = now - alert.timestamp.getTime();
       const maxAge = 
-        alert.severity === 'critical' ? 60 * 60 * 1000 : // 1 hour
-        alert.severity === 'high' ? 30 * 60 * 1000 : // 30 minutes
-        10 * 60 * 1000; // 10 minutes for warning/low
+        alert.severity === 'critical' ? 30 * 60 * 1000 : // 30 minutes
+        alert.severity === 'high' ? 15 * 60 * 1000 : // 15 minutes
+        5 * 60 * 1000; // 5 minutes for warning/low
 
       if (age > maxAge) {
         alertsToResolve.push(alertId);
@@ -76,7 +76,7 @@ export class MonitoringService {
     });
 
     if (alertsToResolve.length > 0) {
-      logger.debug(`Cleaned up ${alertsToResolve.length} expired alerts`);
+      logger.debug(`Cleaned up ${alertsToResolve.length} expired alerts (${this.activeAlerts.size} remaining)`);
     }
   }
 
@@ -340,6 +340,8 @@ export class MonitoringService {
     // High memory usage (90%+) is common in Node.js apps and GC handles it
     // Also: Alert count alone shouldn't mark system as unhealthy - only recent critical alerts matter
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+    const healthIssues: string[] = [];
+    const healthRecommendations: string[] = [];
     
     // Get recent critical alerts (last 5 minutes) - these are the ones that matter
     const recentCriticalAlerts = this.getActiveAlerts().filter(alert => {
@@ -347,14 +349,67 @@ export class MonitoringService {
       return alert.severity === 'critical' && age < 5 * 60 * 1000; // Last 5 minutes
     });
     
+    // Get recent high severity alerts (last 15 minutes)
+    const recentHighAlerts = this.getActiveAlerts().filter(alert => {
+      const age = now.getTime() - alert.timestamp.getTime();
+      return alert.severity === 'high' && age < 15 * 60 * 1000;
+    });
+    
+    // Analyze what's causing issues
+    if (errorRate > 0.1) {
+      healthIssues.push(`High error rate: ${(errorRate * 100).toFixed(2)}% (threshold: 10%)`);
+      healthRecommendations.push('Check application logs for errors, review recent deployments, verify database connectivity');
+    }
+    
+    if (responseTime > 5000) {
+      healthIssues.push(`Very slow response time: ${responseTime.toFixed(0)}ms (threshold: 5000ms)`);
+      healthRecommendations.push('Check database query performance, review slow endpoints, consider caching');
+    }
+    
+    if (cpu > 90) {
+      healthIssues.push(`High CPU usage: ${cpu.toFixed(1)}% (threshold: 90%)`);
+      healthRecommendations.push('Check for CPU-intensive operations, review background jobs, consider scaling');
+    }
+    
+    if (memory > 98) {
+      healthIssues.push(`Critical memory usage: ${memory.toFixed(1)}% (threshold: 98%)`);
+      healthRecommendations.push('Check for memory leaks, review heap dumps, consider restarting the application');
+    } else if (memory > 95) {
+      healthIssues.push(`High memory usage: ${memory.toFixed(1)}% (threshold: 95%)`);
+      healthRecommendations.push('Monitor memory trends - this may be normal for Node.js apps with GC');
+    }
+    
+    if (recentCriticalAlerts.length > 0) {
+      const alertTypes = new Set(recentCriticalAlerts.map(a => a.ruleId || a.message.split(':')[0]));
+      healthIssues.push(`Recent critical alerts: ${recentCriticalAlerts.length} (types: ${Array.from(alertTypes).join(', ')})`);
+      healthRecommendations.push('Review recent critical alerts in logs, check alert details for specific issues');
+    }
+    
     // Unhealthy: critical issues (errors, very slow response, CPU maxed out, memory > 98%, OR recent critical alerts)
     if (errorRate > 0.1 || responseTime > 5000 || cpu > 90 || memory > 98 || recentCriticalAlerts.length > 0) {
       status = 'unhealthy';
     } 
     // Degraded: warning conditions (some errors, slow response, high CPU, or memory > 95%)
-    else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 95) {
+    else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 95 || recentHighAlerts.length > 5) {
       status = 'degraded';
     }
+
+    // Get alert breakdown for diagnostics
+    const allAlerts = this.getActiveAlerts();
+    const alertBreakdown = {
+      total: allAlerts.length,
+      bySeverity: {
+        critical: allAlerts.filter(a => a.severity === 'critical').length,
+        high: allAlerts.filter(a => a.severity === 'high').length,
+        warning: allAlerts.filter(a => a.severity === 'low' || a.severity === 'medium' || !a.severity).length
+      },
+      byAge: {
+        recent: allAlerts.filter(a => (now.getTime() - a.timestamp.getTime()) < 5 * 60 * 1000).length,
+        old: allAlerts.filter(a => (now.getTime() - a.timestamp.getTime()) >= 5 * 60 * 1000).length
+      },
+      recentCritical: recentCriticalAlerts.length,
+      recentHigh: recentHighAlerts.length
+    };
 
     return {
       status,
@@ -372,7 +427,18 @@ export class MonitoringService {
         responseTime,
         errorRate
       },
-      alerts: this.getActiveAlerts()
+      alerts: this.getActiveAlerts(),
+      // Add diagnostic information
+      diagnostics: {
+        healthIssues: healthIssues.length > 0 ? healthIssues : ['No critical issues detected'],
+        recommendations: healthRecommendations.length > 0 ? healthRecommendations : ['System is operating normally'],
+        alertBreakdown,
+        statusReason: healthIssues.length > 0 
+          ? healthIssues.join('; ') 
+          : status === 'degraded' 
+            ? 'Minor performance degradation detected'
+            : 'All systems operating normally'
+      }
     };
   }
 

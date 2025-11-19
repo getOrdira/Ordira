@@ -65,6 +65,25 @@ export interface SystemHealth {
     errorRate: number;
   };
   alerts: Alert[];
+  diagnostics?: {
+    healthIssues: string[];
+    recommendations: string[];
+    alertBreakdown: {
+      total: number;
+      bySeverity: {
+        critical: number;
+        high: number;
+        warning: number;
+      };
+      byAge: {
+        recent: number;
+        old: number;
+      };
+      recentCritical: number;
+      recentHigh: number;
+    };
+    statusReason: string;
+  };
 }
 
 export interface MemoryStats {

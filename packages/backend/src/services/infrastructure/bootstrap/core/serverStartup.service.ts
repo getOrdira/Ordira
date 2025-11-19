@@ -269,6 +269,10 @@ export class ServerStartupService {
    * Start system health monitoring
    */
   private startSystemHealthMonitoring(): void {
+    let lastHealthStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+    let lastLogTime = 0;
+    const LOG_INTERVAL = 5 * 60 * 1000; // Log at most every 5 minutes
+
     // Monitor system health every 30 seconds
     setInterval(async () => {
       try {
@@ -308,12 +312,73 @@ export class ServerStartupService {
           }
         ]);
 
-        // Log health status if not healthy
-        if (health.status !== 'healthy') {
-          logger.warn(`⚠️ System health: ${health.status}`);
-          if (health.alerts.length > 0) {
-            logger.warn(`   Active alerts: ${health.alerts.length}`);
+        // Only log health status if:
+        // 1. Status changed (healthy -> degraded/unhealthy or vice versa)
+        // 2. Status is unhealthy AND it's been at least 5 minutes since last log
+        // 3. Status is degraded AND it's been at least 10 minutes since last log
+        const now = Date.now();
+        const statusChanged = health.status !== lastHealthStatus;
+        const shouldLog = statusChanged || 
+          (health.status === 'unhealthy' && (now - lastLogTime) >= LOG_INTERVAL) ||
+          (health.status === 'degraded' && (now - lastLogTime) >= LOG_INTERVAL * 2);
+
+        if (shouldLog && health.status !== 'healthy') {
+          // Get diagnostic information if available
+          const diagnostics = (health as any).diagnostics;
+          
+          if (statusChanged) {
+            logger.warn(`⚠️ System health changed: ${lastHealthStatus} → ${health.status}`, {
+              why: diagnostics?.statusReason || 'Unknown reason',
+              issues: diagnostics?.healthIssues || [],
+              recommendations: diagnostics?.recommendations || [],
+              metrics: {
+                cpu: health.metrics.cpu.toFixed(1) + '%',
+                memory: health.metrics.memory.toFixed(1) + '%',
+                errorRate: health.metrics.errorRate.toFixed(2) + '%',
+                responseTime: health.metrics.responseTime.toFixed(0) + 'ms'
+              },
+              alerts: diagnostics?.alertBreakdown || {
+                total: health.alerts.length,
+                recentCritical: 0,
+                recentHigh: 0
+              }
+            });
+          } else {
+            // Status hasn't changed, just periodic update
+            logger.warn(`⚠️ System health: ${health.status}`, {
+              why: diagnostics?.statusReason || 'Unknown reason',
+              issues: diagnostics?.healthIssues || [],
+              recommendations: diagnostics?.recommendations || [],
+              metrics: {
+                cpu: health.metrics.cpu.toFixed(1) + '%',
+                memory: health.metrics.memory.toFixed(1) + '%',
+                errorRate: health.metrics.errorRate.toFixed(2) + '%',
+                responseTime: health.metrics.responseTime.toFixed(0) + 'ms'
+              },
+              alerts: diagnostics?.alertBreakdown || {
+                total: health.alerts.length,
+                recentCritical: 0,
+                recentHigh: 0
+              },
+              note: diagnostics?.alertBreakdown?.recentCritical === 0 
+                ? 'No recent critical alerts - system is stable despite warning status. Old alerts will auto-expire.' 
+                : undefined
+            });
           }
+
+          lastLogTime = now;
+          lastHealthStatus = health.status;
+        } else if (statusChanged && health.status === 'healthy') {
+          // Always log when system becomes healthy
+          logger.info(`✅ System health: ${health.status}`, {
+            metrics: {
+              cpu: health.metrics.cpu.toFixed(1) + '%',
+              memory: health.metrics.memory.toFixed(1) + '%',
+              errorRate: health.metrics.errorRate.toFixed(2) + '%',
+              responseTime: health.metrics.responseTime.toFixed(0) + 'ms'
+            }
+          });
+          lastHealthStatus = health.status;
         }
 
       } catch (error) {
