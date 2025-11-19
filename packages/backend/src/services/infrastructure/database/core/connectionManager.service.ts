@@ -43,6 +43,16 @@ export class ConnectionManager {
     });
 
     try {
+      // Log connection attempt details (without exposing password)
+      const uriParts = config.uri ? config.uri.split('@') : [];
+      const userPart = uriParts.length > 1 ? uriParts[0].split('://')[1]?.split(':')[0] : 'unknown';
+      logger.debug('Attempting MongoDB connection', {
+        user: userPart,
+        host: uriParts.length > 1 ? uriParts[1].split('/')[0] : 'unknown',
+        database: config.uri?.split('/').pop()?.split('?')[0] || 'unknown',
+        hasAuthSource: !!connectOptions.authSource
+      });
+      
       await mongoose.connect(config.uri, connectOptions);
       logger.info('✅ MongoDB connection established successfully');
     } catch (error) {
@@ -52,8 +62,18 @@ export class ConnectionManager {
       
       // Provide helpful error messages for common issues
       let helpfulMessage = errorMessage;
+      let troubleshootingSteps: string[] = [];
+      
       if (errorMessage.includes('bad auth') || errorMessage.includes('authentication failed')) {
-        helpfulMessage = `${errorMessage}. Check: 1) Username and password are correct, 2) Password is URL-encoded if it contains special characters, 3) Database user has proper permissions.`;
+        troubleshootingSteps = [
+          '1. Verify username and password in MongoDB Atlas → Database Access',
+          '2. Check if password needs URL-encoding (special characters)',
+          '3. Ensure database user has proper permissions (at least readWrite on target database)',
+          '4. Try adding ?authSource=admin to your connection string if using admin user',
+          '5. Generate a new password in Atlas and update MONGODB_URI',
+          '6. Verify the connection string format: mongodb+srv://username:password@cluster.mongodb.net/database'
+        ];
+        helpfulMessage = `${errorMessage}. See troubleshooting steps in logs.`;
       } else if (errorMessage.includes('IP') || errorMessage.includes('whitelist')) {
         helpfulMessage = `${errorMessage}. Whitelist Render's IP addresses in MongoDB Atlas Network Access settings.`;
       }
@@ -64,7 +84,8 @@ export class ConnectionManager {
         errorCodeName,
         uri: config.uri ? `${config.uri.substring(0, 30)}...` : 'not configured',
         hasTlsOptions: !!(connectOptions.tlsCAFile || connectOptions.tlsCertificateKeyFile),
-        hint: errorMessage.includes('bad auth') ? 'Verify MONGODB_URI credentials and ensure password is URL-encoded if it contains special characters' : undefined
+        authSource: connectOptions.authSource || 'default',
+        troubleshootingSteps: troubleshootingSteps.length > 0 ? troubleshootingSteps : undefined
       });
       throw error;
     }

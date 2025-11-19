@@ -78,7 +78,9 @@ export class DatabasePlatformConfigService {
       },
       compressors: isProduction ? ['zstd', 'snappy'] : undefined,
       appName: this.resolveAppName(),
-      authSource: process.env.MONGODB_AUTH_SOURCE,
+      // authSource: Only set if explicitly provided, otherwise let MongoDB driver use default
+      // For Atlas, default is usually 'admin', but can be specified in connection string
+      ...(process.env.MONGODB_AUTH_SOURCE ? { authSource: process.env.MONGODB_AUTH_SOURCE } : {}),
       // TLS configuration - only force if not using mongodb+srv:// (which handles TLS automatically)
       // If using mongodb://, force TLS for security. If using mongodb+srv://, let the protocol handle it.
       ...(usesSrvProtocol ? {} : {
