@@ -270,33 +270,67 @@ export class AppBootstrapService {
         // Import Sentry to manually capture the error
         const Sentry = await import('@sentry/node');
         
+        // Check if Sentry is initialized
+        const isInitialized = Sentry.getCurrentHub().getClient() !== undefined;
+        
+        if (!isInitialized) {
+          return res.status(503).json({
+            error: 'Sentry not initialized',
+            message: 'Sentry client is not initialized. Check that SENTRY_DSN is correct and Sentry.init() was called.',
+            hint: 'Verify SENTRY_DSN environment variable is set correctly',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         // Create a test error
         const testError = new Error('My first Sentry error!');
         
-        // Manually capture the error to Sentry (ensures it's sent)
+        // Manually capture the error to Sentry with explicit error level
+        // Using captureMessage with level: 'error' to ensure it's not filtered
         const eventId = Sentry.captureException(testError, {
+          level: 'error', // Explicitly set level to ensure it's not filtered
           tags: {
             test: 'true',
             endpoint: '/debug-sentry',
-            environment: process.env.NODE_ENV || 'unknown'
+            environment: process.env.NODE_ENV || 'unknown',
+            debug: 'true'
           },
           extra: {
             requestPath: req.path,
             requestMethod: req.method,
             userAgent: req.headers['user-agent'],
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            note: 'This is a test error from the /debug-sentry endpoint'
           }
         });
         
+        // Flush Sentry to ensure the event is sent before responding
+        // This is important because Sentry sends events asynchronously
+        await Sentry.flush(2000); // Wait up to 2 seconds for events to be sent
+        
         // Also set status for error handler
         (testError as any).status = 500;
+        
+        // Log for debugging
+        logger.info('Sentry test error captured', {
+          eventId,
+          isInitialized,
+          sentryDsn: process.env.SENTRY_DSN ? `${process.env.SENTRY_DSN.substring(0, 30)}...` : 'not set',
+          environment: process.env.NODE_ENV
+        });
         
         // Return response with event ID so user knows it was sent
         res.status(500).json({
           error: 'Test error sent to Sentry',
           message: testError.message,
           sentryEventId: eventId,
-          note: 'Check your Sentry dashboard to verify the error was received',
+          sentryInitialized: isInitialized,
+          note: 'Check your Sentry dashboard to verify the error was received. It may take a few seconds to appear.',
+          troubleshooting: {
+            dsnConfigured: !!process.env.SENTRY_DSN,
+            environment: process.env.NODE_ENV || 'unknown',
+            hint: 'If the error does not appear in Sentry, check: 1) DSN is correct, 2) Project settings allow events, 3) Network connectivity'
+          },
           timestamp: new Date().toISOString()
         });
         
@@ -304,6 +338,7 @@ export class AppBootstrapService {
         next(testError);
       } catch (error) {
         // If Sentry import fails, just throw the error normally
+        logger.error('Failed to send test error to Sentry:', error);
         const testError = new Error('My first Sentry error!');
         (testError as any).status = 500;
         next(testError);

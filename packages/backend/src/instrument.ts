@@ -20,6 +20,8 @@ if (process.env.SENTRY_DSN) {
     // Lower trace sample rate since OpenTelemetry handles traces
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0.5,
     environment: process.env.NODE_ENV || 'development',
+    // Enable debug mode if SENTRY_DEBUG is set (helps troubleshoot issues)
+    debug: process.env.SENTRY_DEBUG === 'true',
     // Focus on error tracking, not tracing (OpenTelemetry handles that)
     integrations: [
       new Sentry.Integrations.Http({ tracing: false }), // Disable Sentry tracing, use OpenTelemetry
@@ -27,13 +29,33 @@ if (process.env.SENTRY_DSN) {
       new Sentry.Integrations.OnUnhandledRejection()
     ],
     // Only capture errors, not all traces
-    beforeSend(event) {
+    beforeSend(event, hint) {
       // Filter out non-error events - focus on actual errors
       if (event.level !== 'error' && event.level !== 'fatal') {
+        if (process.env.SENTRY_DEBUG === 'true') {
+          console.log('[Sentry Debug] Event filtered out (not error/fatal):', event.level);
+        }
         return null; // Don't send to Sentry, OpenTelemetry handles non-errors
       }
+      
+      // Log in debug mode
+      if (process.env.SENTRY_DEBUG === 'true') {
+        console.log('[Sentry Debug] Event being sent:', {
+          level: event.level,
+          message: event.message,
+          eventId: event.event_id,
+          tags: event.tags
+        });
+      }
+      
       return event;
     }
   });
+  
+  // Log initialization
+  if (process.env.SENTRY_DEBUG === 'true') {
+    console.log('[Sentry Debug] Sentry initialized with DSN:', 
+      process.env.SENTRY_DSN ? `${process.env.SENTRY_DSN.substring(0, 30)}...` : 'not set');
+  }
 }
 
