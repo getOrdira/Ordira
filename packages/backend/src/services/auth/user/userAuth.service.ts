@@ -213,10 +213,10 @@ export class UserAuthService extends AuthBaseService {
       const normalizedEmail = UtilsService.normalizeEmail(email);
 
       // Get user with password (bypassing cache for security)
+      // MongoDB will automatically use the best available index for email queries
       const user = await User.findOne({ email: normalizedEmail })
         .select('+password')
-        .lean()
-        .hint('email_1');
+        .lean();
 
       if (!user) {
         await this.logSecurityEvent('LOGIN_USER', normalizedEmail, false, {

@@ -209,6 +209,7 @@ export class BusinessAuthService extends AuthBaseService {
         : UtilsService.normalizePhone(emailOrPhone);
 
       // Find business by email or phone
+      // MongoDB will automatically use the best available index for email/phone queries
       const business = await Business.findOne({
         $or: [
           { email: normalizedInput },
@@ -216,8 +217,7 @@ export class BusinessAuthService extends AuthBaseService {
         ]
       })
         .select('+password')
-        .lean()
-        .hint('email_phone_composite_1');
+        .lean();
 
       if (!business) {
         await this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false, {

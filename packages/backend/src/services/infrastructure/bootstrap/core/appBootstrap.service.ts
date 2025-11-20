@@ -320,6 +320,7 @@ export class AppBootstrapService {
         });
         
         // Return response with event ID so user knows it was sent
+        // Don't call next() - we've already sent the response and captured the error
         res.status(500).json({
           error: 'Test error sent to Sentry',
           message: testError.message,
@@ -334,8 +335,7 @@ export class AppBootstrapService {
           timestamp: new Date().toISOString()
         });
         
-        // Also pass to error handler (for logging, etc.)
-        next(testError);
+        // Error already captured by Sentry and response sent - don't call next()
       } catch (error) {
         // If Sentry import fails, just throw the error normally
         logger.error('Failed to send test error to Sentry:', error);
@@ -493,13 +493,29 @@ export class AppBootstrapService {
           testId,
           logsSent,
           levels: logsSent,
-          note: 'Check your Sentry dashboard → Logs section to verify the logs were received',
+          note: 'Logs sent using multiple methods - check different sections in Sentry',
+          whereToCheck: {
+            issues: 'Issues tab - Look for messages with testId (captureMessage creates issues)',
+            discover: 'Discover tab - Filter by level:info, level:warning, or level:error, search for testId',
+            logs: 'Logs tab - Only available if Logs feature is enabled in your Sentry plan. Console logs from consoleIntegration may appear here.',
+            breadcrumbs: 'Error details → Breadcrumbs - Console logs may appear as breadcrumbs on error events'
+          },
+          methodsUsed: {
+            captureMessage: 'Explicit Sentry.captureMessage() - Creates issues/events',
+            structuredLogger: 'Structured logger (logger.info/warn/error) - Outputs to console, captured by consoleIntegration',
+            consoleMethods: 'Direct console.log/warn/error - Captured by consoleIntegration'
+          },
+          troubleshooting: {
+            ifNotInLogsTab: 'The Logs tab may require a specific Sentry plan feature. Check your plan or contact Sentry support.',
+            alternative: 'Logs from consoleIntegration may appear in Discover tab or as breadcrumbs on error events',
+            enableDebug: 'Set SENTRY_DEBUG=true to see detailed logs about what Sentry is sending'
+          },
           instructions: {
             step1: 'Go to your Sentry project dashboard',
-            step2: 'Navigate to "Logs" or "Log Stream" section',
-            step3: `Look for logs with testId: ${testId}`,
-            step4: 'Logs should appear within a few seconds',
-            hint: 'You can filter by level (info, warn, error) or search for the testId'
+            step2: 'Check Issues tab for captureMessage events',
+            step3: 'Check Discover tab and filter by level or search for testId',
+            step4: 'If Logs tab is available, check there for console logs',
+            step5: `Search for testId: ${testId} in any section`
           },
           queryParams: {
             level: 'Query parameter to filter log levels: "all" (default), "info", "warn", "error", or "console"',
@@ -856,6 +872,8 @@ export class AppBootstrapService {
     this.app.use(warmupMiddleware as RequestHandler);
 
     // Protected API routes with authentication and rate limiting
+    // Note: Auth middleware will return 401 for unauthenticated requests
+    // Invalid routes will be caught by the 404 handler after route registration
     this.app.use('/api', 
       authenticateMiddleware, 
       dynamicRateLimiter(),
