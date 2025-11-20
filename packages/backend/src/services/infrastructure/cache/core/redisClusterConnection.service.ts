@@ -612,16 +612,37 @@ export class RedisClusterService {
       await this.applyMemoryManagementPolicies();
 
     } catch (error) {
-      logger.warn('Failed to enforce Redis eviction policy', {
-        policy,
-        error: error instanceof Error ? error.message : error
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isPermissionError = errorMessage.includes('NOPERM') || 
+                                errorMessage.includes('no permissions') ||
+                                errorMessage.includes('permission denied') ||
+                                errorMessage.includes('not allowed');
 
-      monitoringService.recordMetric({
-        name: 'redis_eviction_policy_error',
-        value: 1,
-        tags: { policy, error: error instanceof Error ? error.message : 'unknown' }
-      });
+      // On managed Redis services (like Render), users often don't have CONFIG SET permissions
+      // This is expected and not a problem - the Redis service manages eviction policy
+      if (isPermissionError) {
+        logger.debug('Redis eviction policy cannot be set (permission denied - expected on managed Redis services)', {
+          policy,
+          error: errorMessage,
+          note: 'This is normal on managed Redis services. The eviction policy is managed by the Redis provider.'
+        });
+      } else {
+        // Other errors (network, connection, etc.) are logged as warnings
+        logger.warn('Failed to enforce Redis eviction policy', {
+          policy,
+          error: errorMessage,
+          hint: 'This is non-critical - Redis will use its default eviction policy'
+        });
+      }
+
+      // Record error metric (only for non-permission errors)
+      if (!isPermissionError) {
+        monitoringService.recordMetric({
+          name: 'redis_eviction_policy_error',
+          value: 1,
+          tags: { policy, error: errorMessage }
+        });
+      }
     }
   }
 
@@ -662,9 +683,24 @@ export class RedisClusterService {
       }
 
     } catch (error) {
-      logger.warn('Failed to apply memory management policies', {
-        error: error instanceof Error ? error.message : error
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isPermissionError = errorMessage.includes('NOPERM') || 
+                                errorMessage.includes('no permissions') ||
+                                errorMessage.includes('permission denied') ||
+                                errorMessage.includes('not allowed');
+
+      // On managed Redis services, users often don't have CONFIG SET permissions
+      // This is expected and not a problem
+      if (isPermissionError) {
+        logger.debug('Redis memory management policies cannot be set (permission denied - expected on managed Redis services)', {
+          error: errorMessage,
+          note: 'This is normal on managed Redis services. Memory policies are managed by the Redis provider.'
+        });
+      } else {
+        logger.warn('Failed to apply memory management policies', {
+          error: errorMessage
+        });
+      }
     }
   }
 
