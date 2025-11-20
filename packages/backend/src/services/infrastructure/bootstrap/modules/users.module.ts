@@ -9,7 +9,8 @@ import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
 import {
-  validateUploadOrigin
+  validateUploadOrigin,
+  authenticate
 } from '../../../../middleware';
 import { logger } from '../../logging';
 
@@ -40,8 +41,10 @@ export class UsersModule extends BaseFeatureModule {
     userRoutes.use('/', userRoutesModule.usersCacheRoutes);
     userRoutes.use('/', userRoutesModule.usersValidationRoutes);
 
-    // Public user routes with upload origin validation
+    // User routes with authentication and upload origin validation
+    // Note: Some routes may be public (handled by route-level config), but most require auth
     app.use('/api/users', 
+      authenticate,
       validateUploadOrigin,
       userRoutes
     );

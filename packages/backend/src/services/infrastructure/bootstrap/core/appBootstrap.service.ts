@@ -864,6 +864,7 @@ export class AppBootstrapService {
 
   /**
    * Setup global API middleware that applies to all API routes
+   * Note: Authentication is handled per-route-group for better 404 handling
    */
   private setupGlobalApiMiddleware(): void {
     // Plan cache warmup for authenticated users
@@ -871,14 +872,15 @@ export class AppBootstrapService {
     const warmupMiddleware = warmupPlanCache();
     this.app.use(warmupMiddleware as RequestHandler);
 
-    // Protected API routes with authentication and rate limiting
-    // Note: Auth middleware will return 401 for unauthenticated requests
-    // Invalid routes will be caught by the 404 handler after route registration
-    this.app.use('/api', 
-      authenticateMiddleware, 
-      dynamicRateLimiter(),
-      cleanupOnErrorMiddleware
-    );
+    // Global rate limiting for all API routes (applied before route-specific rate limiters)
+    // This provides a baseline rate limit, with stricter limits applied per-route-group
+    this.app.use('/api', dynamicRateLimiter());
+    
+    // Cleanup middleware for error handling
+    this.app.use('/api', cleanupOnErrorMiddleware);
+    
+    // Note: Authentication middleware is applied per-route-group (e.g., in individual modules)
+    // This allows non-existent routes to return 404 instead of 401
   }
 
   /**

@@ -9,7 +9,8 @@ import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
 import {
-  dynamicRateLimiter
+  dynamicRateLimiter,
+  authenticate
 } from '../../../../middleware';
 import { logger } from '../../logging';
 
@@ -39,8 +40,9 @@ export class NotificationsModule extends BaseFeatureModule {
     notificationRoutes.use('/analytics', notificationRoutesModule.notificationsAnalyticsRoutes);
     notificationRoutes.use('/maintenance', notificationRoutesModule.notificationsMaintenanceRoutes);
 
-    // Enhanced notification system
+    // Enhanced notification system with authentication
     app.use('/api/notifications', 
+      authenticate,
       dynamicRateLimiter(),
       notificationRoutes
     );

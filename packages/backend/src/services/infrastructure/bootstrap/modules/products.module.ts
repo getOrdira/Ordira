@@ -8,6 +8,7 @@ import { Application, Router } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
+import { authenticate } from '../../../../middleware';
 import { logger } from '../../logging';
 
 export class ProductsModule extends BaseFeatureModule {
@@ -35,8 +36,11 @@ export class ProductsModule extends BaseFeatureModule {
     productRoutes.use('/search', productRoutesModule.productsSearchRoutes);
     productRoutes.use('/validation', productRoutesModule.productsValidationRoutes);
 
-    // Product management
-    app.use('/api/products', productRoutes);
+    // Product management with authentication
+    app.use('/api/products', 
+      authenticate,
+      productRoutes
+    );
 
     logger.info(`✅ ${this.name} module routes registered`);
   }
