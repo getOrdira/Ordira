@@ -392,45 +392,91 @@ export class AppBootstrapService {
 
         const logsSent: string[] = [];
 
-        // Send test logs at different levels
-        // These will be captured by Sentry's consoleLoggingIntegration
+        // Send test logs using both methods:
+        // 1. Explicit captureMessage() - sends directly to Sentry Logs section
+        // 2. Console methods - captured by consoleIntegration (may go to breadcrumbs or events)
+        
         if (level === 'all' || level === 'info') {
-          logger.info('🧪 Sentry log test - INFO level', {
+          // Method 1: Explicit captureMessage (recommended for Logs section)
+          Sentry.captureMessage(`🧪 Sentry log test - INFO level [${testId}]`, {
+            level: 'info',
+            tags: {
+              testId,
+              test: 'true',
+              endpoint: '/debug-sentry-logs',
+              source: 'explicit-capture'
+            },
+            extra: {
+              message: 'This is a test INFO log message sent to Sentry',
+              timestamp: new Date().toISOString(),
+              note: 'This log should appear in Sentry Logs section'
+            }
+          });
+          
+          // Method 2: Structured logger (outputs to console, captured by consoleIntegration)
+          logger.info('🧪 Sentry log test - INFO level (via logger)', {
             testId,
             level: 'info',
-            message: 'This is a test INFO log message sent to Sentry',
+            message: 'This is a test INFO log via structured logger',
             timestamp: new Date().toISOString(),
-            endpoint: '/debug-sentry-logs',
-            note: 'This log should appear in Sentry Logs section'
+            endpoint: '/debug-sentry-logs'
           });
           logsSent.push('info');
         }
 
         if (level === 'all' || level === 'warn') {
-          logger.warn('🧪 Sentry log test - WARN level', {
+          Sentry.captureMessage(`🧪 Sentry log test - WARN level [${testId}]`, {
+            level: 'warning',
+            tags: {
+              testId,
+              test: 'true',
+              endpoint: '/debug-sentry-logs',
+              source: 'explicit-capture'
+            },
+            extra: {
+              message: 'This is a test WARN log message sent to Sentry',
+              timestamp: new Date().toISOString(),
+              note: 'This log should appear in Sentry Logs section'
+            }
+          });
+          
+          logger.warn('🧪 Sentry log test - WARN level (via logger)', {
             testId,
             level: 'warn',
-            message: 'This is a test WARN log message sent to Sentry',
+            message: 'This is a test WARN log via structured logger',
             timestamp: new Date().toISOString(),
-            endpoint: '/debug-sentry-logs',
-            note: 'This log should appear in Sentry Logs section'
+            endpoint: '/debug-sentry-logs'
           });
           logsSent.push('warn');
         }
 
         if (level === 'all' || level === 'error') {
-          logger.error('🧪 Sentry log test - ERROR level', {
+          Sentry.captureMessage(`🧪 Sentry log test - ERROR level [${testId}]`, {
+            level: 'error',
+            tags: {
+              testId,
+              test: 'true',
+              endpoint: '/debug-sentry-logs',
+              source: 'explicit-capture'
+            },
+            extra: {
+              message: 'This is a test ERROR log message sent to Sentry',
+              timestamp: new Date().toISOString(),
+              note: 'This log should appear in Sentry Logs section'
+            }
+          });
+          
+          logger.error('🧪 Sentry log test - ERROR level (via logger)', {
             testId,
             level: 'error',
-            message: 'This is a test ERROR log message sent to Sentry',
+            message: 'This is a test ERROR log via structured logger',
             timestamp: new Date().toISOString(),
-            endpoint: '/debug-sentry-logs',
-            note: 'This log should appear in Sentry Logs section'
+            endpoint: '/debug-sentry-logs'
           });
           logsSent.push('error');
         }
 
-        // Also test direct console methods (these are also captured by Sentry)
+        // Also test direct console methods (captured by consoleIntegration)
         if (level === 'all' || level === 'console') {
           console.log('[Sentry Test] Direct console.log message', { testId, type: 'console.log' });
           console.warn('[Sentry Test] Direct console.warn message', { testId, type: 'console.warn' });

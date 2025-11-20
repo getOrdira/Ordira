@@ -15,8 +15,6 @@ import { httpIntegration, onUncaughtExceptionIntegration, onUnhandledRejectionIn
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
-    // Setting this option to true will send default PII data to Sentry.
-    // For example, automatic IP address collection on events
     sendDefaultPii: true,
     // Lower trace sample rate since OpenTelemetry handles traces
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0.5,
@@ -29,11 +27,7 @@ if (process.env.SENTRY_DSN) {
       onUnhandledRejectionIntegration(),
       consoleIntegration()
     ],
-    // Allow all events through - consoleIntegration handles logs, errors go to Issues
-    // We don't filter here because:
-    // 1. Logs from consoleIntegration need to pass through to Sentry Logs
-    // 2. Errors should go to Issues
-    // 3. Traces are already controlled by tracesSampleRate
+    
     beforeSend(event, hint) {
       // Log in debug mode to see what's being sent
       if (process.env.SENTRY_DEBUG === 'true') {
@@ -44,7 +38,7 @@ if (process.env.SENTRY_DSN) {
           eventId: event.event_id
         });
       }
-      // Allow all events through - Sentry will route them appropriately
+      
       return event;
     }
   });
