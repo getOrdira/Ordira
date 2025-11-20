@@ -270,8 +270,8 @@ export class AppBootstrapService {
         // Import Sentry to manually capture the error
         const Sentry = await import('@sentry/node');
         
-        // Check if Sentry is initialized
-        const isInitialized = Sentry.getCurrentHub().getClient() !== undefined;
+        // Check if Sentry is initialized (v10+ API)
+        const isInitialized = !!process.env.SENTRY_DSN;
         
         if (!isInitialized) {
           return res.status(503).json({
@@ -348,6 +348,131 @@ export class AppBootstrapService {
     // Register debug endpoint (no auth required when ALLOW_SENTRY_DEBUG=true)
     // This is a testing endpoint, so we allow it without auth when explicitly enabled
     this.app.get('/debug-sentry', debugSentryHandler);
+
+    // Sentry logging test endpoint - for testing log streaming to Sentry
+    // This endpoint sends test logs at different levels to verify Sentry log integration
+    const debugSentryLogsHandler: RequestHandler = async (req, res) => {
+      // Only allow in development/staging, or if explicitly enabled in production
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      const isStaging = process.env.NODE_ENV === 'staging';
+      const allowInProduction = process.env.ALLOW_SENTRY_DEBUG === 'true';
+      
+      if (!isDevelopment && !isStaging && !allowInProduction) {
+        return res.status(404).json({
+          error: 'Not found',
+          message: 'Debug endpoint not available in production',
+          hint: 'To enable this endpoint in production, set ALLOW_SENTRY_DEBUG=true in your Render environment variables',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (!process.env.SENTRY_DSN) {
+        return res.status(503).json({
+          error: 'Sentry DSN not configured',
+          message: 'Set SENTRY_DSN environment variable to enable Sentry log streaming',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      try {
+        const Sentry = await import('@sentry/node');
+        const isInitialized = !!process.env.SENTRY_DSN;
+
+        if (!isInitialized) {
+          return res.status(503).json({
+            error: 'Sentry not initialized',
+            message: 'Sentry DSN not configured. Check that SENTRY_DSN environment variable is set.',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Get log level from query parameter (default: all)
+        const level = (req.query.level as string) || 'all';
+        const testId = `test-${Date.now()}`;
+
+        const logsSent: string[] = [];
+
+        // Send test logs at different levels
+        // These will be captured by Sentry's consoleLoggingIntegration
+        if (level === 'all' || level === 'info') {
+          logger.info('🧪 Sentry log test - INFO level', {
+            testId,
+            level: 'info',
+            message: 'This is a test INFO log message sent to Sentry',
+            timestamp: new Date().toISOString(),
+            endpoint: '/debug-sentry-logs',
+            note: 'This log should appear in Sentry Logs section'
+          });
+          logsSent.push('info');
+        }
+
+        if (level === 'all' || level === 'warn') {
+          logger.warn('🧪 Sentry log test - WARN level', {
+            testId,
+            level: 'warn',
+            message: 'This is a test WARN log message sent to Sentry',
+            timestamp: new Date().toISOString(),
+            endpoint: '/debug-sentry-logs',
+            note: 'This log should appear in Sentry Logs section'
+          });
+          logsSent.push('warn');
+        }
+
+        if (level === 'all' || level === 'error') {
+          logger.error('🧪 Sentry log test - ERROR level', {
+            testId,
+            level: 'error',
+            message: 'This is a test ERROR log message sent to Sentry',
+            timestamp: new Date().toISOString(),
+            endpoint: '/debug-sentry-logs',
+            note: 'This log should appear in Sentry Logs section'
+          });
+          logsSent.push('error');
+        }
+
+        // Also test direct console methods (these are also captured by Sentry)
+        if (level === 'all' || level === 'console') {
+          console.log('[Sentry Test] Direct console.log message', { testId, type: 'console.log' });
+          console.warn('[Sentry Test] Direct console.warn message', { testId, type: 'console.warn' });
+          console.error('[Sentry Test] Direct console.error message', { testId, type: 'console.error' });
+          logsSent.push('console.log', 'console.warn', 'console.error');
+        }
+
+        // Flush Sentry to ensure logs are sent before responding
+        await Sentry.flush(2000);
+
+        res.status(200).json({
+          success: true,
+          message: 'Test logs sent to Sentry',
+          testId,
+          logsSent,
+          levels: logsSent,
+          note: 'Check your Sentry dashboard → Logs section to verify the logs were received',
+          instructions: {
+            step1: 'Go to your Sentry project dashboard',
+            step2: 'Navigate to "Logs" or "Log Stream" section',
+            step3: `Look for logs with testId: ${testId}`,
+            step4: 'Logs should appear within a few seconds',
+            hint: 'You can filter by level (info, warn, error) or search for the testId'
+          },
+          queryParams: {
+            level: 'Query parameter to filter log levels: "all" (default), "info", "warn", "error", or "console"',
+            example: '/debug-sentry-logs?level=error'
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        logger.error('Failed to send test logs to Sentry:', error);
+        res.status(500).json({
+          error: 'Failed to send test logs',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        });
+      }
+    };
+
+    // Register logging test endpoint
+    this.app.get('/debug-sentry-logs', debugSentryLogsHandler);
 
     // Health check endpoint
     this.app.get('/health', async (req, res) => {

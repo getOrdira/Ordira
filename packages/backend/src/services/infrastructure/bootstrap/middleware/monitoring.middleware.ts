@@ -10,6 +10,7 @@
 
 import { Application } from 'express';
 import * as Sentry from '@sentry/node';
+import { setupExpressErrorHandler } from '@sentry/node';
 import { logger } from '../../logging';
 import { getOpenTelemetryService } from '../../observability';
 
@@ -31,10 +32,9 @@ export function configureMonitoringMiddleware(app: Application): void {
 
   // Sentry request handler (Sentry is initialized in instrument.ts)
   // This must be added before routes to capture request context
+  // In Sentry v10, request context is automatically captured via Express integration
   if (process.env.SENTRY_DSN) {
-    app.use(Sentry.Handlers.requestHandler());
-    // Don't use Sentry tracing handler - OpenTelemetry handles tracing
-    logger.info('✅ Sentry request handler configured (Sentry initialized in instrument.ts)');
+    logger.info('✅ Sentry request context will be captured automatically (Sentry initialized in instrument.ts)');
   } else {
     logger.warn('⚠️ Sentry DSN not configured, skipping Sentry request handler');
   }
@@ -50,14 +50,14 @@ export function configureMonitoringMiddleware(app: Application): void {
 export function configureSentryErrorHandler(app: Application): void {
   if (process.env.SENTRY_DSN) {
     // Error handler must be before any other error middleware and after all controllers
-    app.use(Sentry.Handlers.errorHandler({
+    setupExpressErrorHandler(app, {
       shouldHandleError: (error: any) => {
         // Capture all errors (500+ status codes or errors without status)
         // Errors without status are typically unhandled exceptions (500-level)
         const status = Number(error.status) || 500;
         return status >= 500;
       }
-    }));
+    });
     logger.info('✅ Sentry error handler configured');
   }
 }
