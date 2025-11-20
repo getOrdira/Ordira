@@ -42,7 +42,6 @@ export class BusinessAuthService extends AuthBaseService {
     } = input;
 
     const normalizedEmail = UtilsService.normalizeEmail(businessData.email);
-    const normalizedPhone = businessData.phone ? UtilsService.normalizePhone(businessData.phone) : undefined;
 
     try {
       // Check for existing business
@@ -57,13 +56,17 @@ export class BusinessAuthService extends AuthBaseService {
 
       // Create business account
       const business = new Business({
-        ...businessData,
+        firstName: businessData.firstName,
+        lastName: businessData.lastName,
         email: normalizedEmail,
-        phone: normalizedPhone,
         password: passwordHash,
+        businessName: businessData.businessName,
+        businessNumber: businessData.businessNumber,
+        website: businessData.website,
+        marketingConsent: businessData.marketingConsent,
+        platformUpdatesConsent: businessData.platformUpdatesConsent,
         emailCode,
         isEmailVerified: false,
-        isPhoneVerified: false,
         isActive: true,
         tokenVersion: 0
       });
@@ -93,10 +96,20 @@ export class BusinessAuthService extends AuthBaseService {
             reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
           });
           
-          business.isEmailVerified = true;
-          business.emailVerifiedAt = new Date();
-          business.emailCode = undefined;
-          await business.save();
+          // Update business verification status
+          await Business.findByIdAndUpdate(business._id, {
+            isEmailVerified: true,
+            emailVerifiedAt: new Date(),
+            emailCode: undefined
+          });
+          
+          // Reload business to get updated state
+          const updatedBusiness = await Business.findById(business._id).lean();
+          if (updatedBusiness) {
+            business.isEmailVerified = true;
+            business.emailVerifiedAt = updatedBusiness.emailVerifiedAt;
+            business.emailCode = undefined;
+          }
         }
       }
 
@@ -223,27 +236,20 @@ export class BusinessAuthService extends AuthBaseService {
    */
   async loginBusiness(input: LoginBusinessInput): Promise<BusinessAuthResponse> {
     const startTime = Date.now();
-    const { emailOrPhone, password, rememberMe, securityContext } = input;
+    const { email, password, rememberMe, securityContext } = input;
 
     try {
-      // Normalize input (email or phone)
-      const normalizedInput = UtilsService.isValidEmail(emailOrPhone)
-        ? UtilsService.normalizeEmail(emailOrPhone)
-        : UtilsService.normalizePhone(emailOrPhone);
+      // Normalize email
+      const normalizedEmail = UtilsService.normalizeEmail(email);
 
-      // Find business by email or phone
-      // MongoDB will automatically use the best available index for email/phone queries
-      const business = await Business.findOne({
-        $or: [
-          { email: normalizedInput },
-          { phone: normalizedInput }
-        ]
-      })
+      // Find business by email
+      // MongoDB will automatically use the best available index for email queries
+      const business = await Business.findOne({ email: normalizedEmail })
         .select('+password')
         .lean();
 
       if (!business) {
-        await this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false, {
+        await this.logSecurityEvent('LOGIN_BUSINESS', normalizedEmail, false, {
           reason: 'Business not found',
           securityContext
         });
@@ -252,7 +258,7 @@ export class BusinessAuthService extends AuthBaseService {
 
       // Check if email is verified
       if (!business.isEmailVerified) {
-        await this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false, {
+        await this.logSecurityEvent('LOGIN_BUSINESS', normalizedEmail, false, {
           reason: 'Account not verified',
           securityContext
         });
@@ -262,7 +268,7 @@ export class BusinessAuthService extends AuthBaseService {
       // Verify password
       const passwordValid = await bcrypt.compare(password, business.password);
       if (!passwordValid) {
-        await this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, false, {
+        await this.logSecurityEvent('LOGIN_BUSINESS', normalizedEmail, false, {
           reason: 'Invalid password',
           securityContext
         });
@@ -298,7 +304,7 @@ export class BusinessAuthService extends AuthBaseService {
 
       // Cache business data and log success asynchronously
       Promise.all([
-        this.logSecurityEvent('LOGIN_BUSINESS', normalizedInput, true, {
+        this.logSecurityEvent('LOGIN_BUSINESS', normalizedEmail, true, {
           businessId: business._id,
           securityContext
         }),
@@ -420,25 +426,29 @@ export class BusinessAuthService extends AuthBaseService {
    * Validate business-specific requirements
    */
   private validateBusinessData(data: RegisterBusinessInput): void {
+    // First name validation
+    if (!data.firstName || data.firstName.trim().length < 1) {
+      throw { statusCode: 400, message: 'First name is required' };
+    }
+
+    // Last name validation
+    if (!data.lastName || data.lastName.trim().length < 1) {
+      throw { statusCode: 400, message: 'Last name is required' };
+    }
+
     // Business name validation
     if (!data.businessName || data.businessName.trim().length < 2) {
       throw { statusCode: 400, message: 'Business name must be at least 2 characters long' };
     }
 
-    // Business type validation
-    if (!['brand', 'creator'].includes(data.businessType)) {
-      throw { statusCode: 400, message: 'Business type must be either "brand" or "creator"' };
+    // Marketing consent validation
+    if (data.marketingConsent === undefined || typeof data.marketingConsent !== 'boolean') {
+      throw { statusCode: 400, message: 'Marketing consent is required' };
     }
 
-    // Age validation for business registration
-    const age = Math.floor((Date.now() - new Date(data.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-    if (age < 18) {
-      throw { statusCode: 400, message: 'You must be at least 18 years old to register a business' };
-    }
-
-    // Address validation
-    if (!data.address || data.address.trim().length < 10) {
-      throw { statusCode: 400, message: 'Please provide a complete business address' };
+    // Platform updates consent validation
+    if (data.platformUpdatesConsent === undefined || typeof data.platformUpdatesConsent !== 'boolean') {
+      throw { statusCode: 400, message: 'Platform updates consent is required' };
     }
   }
 

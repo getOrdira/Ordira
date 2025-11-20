@@ -105,10 +105,22 @@ export class UserAuthService extends AuthBaseService {
             reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
           });
           
-          user.isEmailVerified = true;
-          user.emailVerifiedAt = new Date();
-          user.emailCode = undefined;
-          await user.save();
+          // Update user verification status
+          await User.findByIdAndUpdate(user._id, {
+            isEmailVerified: true,
+            emailVerifiedAt: new Date(),
+            emailCode: undefined
+          });
+          
+          // Reload user to get updated state for return value
+          const updatedUser = await User.findById(user._id).lean();
+          if (updatedUser) {
+            Object.assign(user, {
+              isEmailVerified: true,
+              emailVerifiedAt: updatedUser.emailVerifiedAt,
+              emailCode: undefined
+            });
+          }
         }
       }
 

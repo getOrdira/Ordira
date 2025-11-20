@@ -30,13 +30,66 @@ const loginSchema = Joi.object({
   rememberMe: Joi.boolean().optional()
 });
 
+// Unified registration schema that handles all account types
 const registerSchema = Joi.object({
+  accountType: Joi.string().valid('user', 'business', 'manufacturer').required(),
+  
+  // Common fields
   email: Joi.string().email().lowercase().required(),
   password: Joi.string().min(8).max(128).required(),
-  firstName: Joi.string().trim().max(100).optional(),
-  lastName: Joi.string().trim().max(100).optional(),
-  businessId: Joi.string().trim().optional(),
-  brandSlug: Joi.string().trim().optional()
+  
+  // User-specific fields (for frontend voting users)
+  brandSlug: Joi.string().trim().optional().when('accountType', {
+    is: 'user',
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
+  
+  // Business/Creator/Manufacturer fields
+  firstName: Joi.string().trim().min(1).max(100).optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  }),
+  lastName: Joi.string().trim().min(1).max(100).optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  }),
+  businessName: Joi.string().trim().min(2).max(200).optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  }),
+  businessNumber: Joi.string().trim().max(100).optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
+  website: Joi.string().uri().optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.optional(),
+    otherwise: Joi.forbidden()
+  }),
+  
+  // Manufacturer-specific
+  industry: Joi.string().trim().min(1).max(100).optional().when('accountType', {
+    is: 'manufacturer',
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  }),
+  
+  // Marketing consents (required for business and manufacturer)
+  marketingConsent: Joi.boolean().optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  }),
+  platformUpdatesConsent: Joi.boolean().optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  })
 });
 
 const verifySchema = Joi.object({

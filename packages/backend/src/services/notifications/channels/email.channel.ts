@@ -164,8 +164,14 @@ export class EmailChannel {
     result.isConfigured = true;
 
     try {
-      const verification = await transporter.verify();
-      result.canConnect = verification;
+      // Add timeout to prevent hanging (5 second timeout)
+      const verificationPromise = transporter.verify();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('SMTP verification timeout after 5 seconds')), 5000)
+      );
+      
+      const verification = await Promise.race([verificationPromise, timeoutPromise]);
+      result.canConnect = verification === true;
       
       result.serverInfo = {
         host: process.env.SMTP_HOST,
@@ -173,8 +179,9 @@ export class EmailChannel {
         secure: Number(process.env.SMTP_PORT) === 465
       };
 
-    } catch (error) {
-      result.errors.push(`SMTP connection failed: ${error.message}`);
+    } catch (error: any) {
+      result.errors.push(`SMTP connection failed: ${error.message || 'Unknown error'}`);
+      result.canConnect = false;
     }
 
     return result;

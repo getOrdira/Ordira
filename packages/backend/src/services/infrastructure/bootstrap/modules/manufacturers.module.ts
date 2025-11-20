@@ -47,6 +47,9 @@ export class ManufacturersModule extends BaseFeatureModule {
     manufacturerRoutes.use('/score', manufacturerRoutesModule.manufacturerScoreRoutes);
     manufacturerRoutes.use('/helpers', manufacturerRoutesModule.manufacturerHelpersRoutes);
 
+    // Note: Manufacturer authentication routes are now handled by AuthModule
+    // at /api/auth/manufacturer/* to maintain consistency with business auth routes
+
     // Enhanced manufacturer routes with upload origin validation
     app.use('/api/manufacturer', 
       validateUploadOrigin,

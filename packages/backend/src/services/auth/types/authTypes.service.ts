@@ -38,15 +38,13 @@ export interface Location {
 export type RegisterBusinessInput = {
   firstName: string;
   lastName: string;
-  dateOfBirth: Date;
   email: string;
-  phone: string;
-  businessName: string;
-  businessType: 'brand' | 'creator';
-  regNumber?: string;
-  taxId?: string;
-  address: string;
   password: string;
+  businessName: string;
+  businessNumber?: string;
+  website?: string;
+  marketingConsent: boolean;
+  platformUpdatesConsent: boolean;
   securityContext?: SecurityContext;
 };
 
@@ -57,7 +55,7 @@ export type VerifyBusinessInput = {
 };
 
 export type LoginBusinessInput = {
-  emailOrPhone: string;
+  email: string;
   password: string;
   rememberMe?: boolean;
   securityContext?: {
@@ -127,17 +125,16 @@ export interface UserAuthResponse {
 // ===== MANUFACTURER AUTHENTICATION TYPES =====
 
 export type RegisterManufacturerInput = {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
-  description?: string;
-  industry?: string;
-  servicesOffered?: string[];
-  minimumOrderQuantity?: number;
-  contactEmail?: string;
-  phone?: string;
+  businessName: string;
+  businessNumber?: string;
+  industry: string;
   website?: string;
-  location?: Location;
+  marketingConsent: boolean;
+  platformUpdatesConsent: boolean;
   securityContext?: SecurityContext;
 };
 

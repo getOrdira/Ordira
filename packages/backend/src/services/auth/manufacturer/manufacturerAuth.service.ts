@@ -38,8 +38,6 @@ export class ManufacturerAuthService extends AuthBaseService {
     const startTime = Date.now();
     const {
       securityContext,
-      location,
-      minimumOrderQuantity,
       ...manufacturerData
     } = input;
 
@@ -56,21 +54,19 @@ export class ManufacturerAuthService extends AuthBaseService {
       const passwordHash = await bcrypt.hash(manufacturerData.password, AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS);
       const verificationCode = UtilsService.generateNumericCode(AUTH_CONSTANTS.EMAIL_VERIFICATION_CODE_LENGTH);
 
-      // Create manufacturer account with location data
+      // Create manufacturer account
       const manufacturer = new Manufacturer({
-        ...manufacturerData,
+        firstName: manufacturerData.firstName,
+        lastName: manufacturerData.lastName,
         email: normalizedEmail,
         password: passwordHash,
-        moq: minimumOrderQuantity,
-        headquarters: {
-          country: location?.country,
-          city: location?.city,
-          address: location?.address,
-          coordinates: location?.coordinates ? {
-            latitude: location.coordinates.latitude,
-            longitude: location.coordinates.longitude
-          } : undefined
-        },
+        name: manufacturerData.businessName, // Keep 'name' field for backward compatibility
+        businessName: manufacturerData.businessName,
+        businessNumber: manufacturerData.businessNumber,
+        industry: manufacturerData.industry,
+        website: manufacturerData.website,
+        marketingConsent: manufacturerData.marketingConsent,
+        platformUpdatesConsent: manufacturerData.platformUpdatesConsent,
         isActive: true,
         isEmailVerified: false,
         verificationToken: verificationCode
@@ -107,17 +103,27 @@ export class ManufacturerAuthService extends AuthBaseService {
             reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
           });
           
-          manufacturer.isEmailVerified = true;
-          manufacturer.emailVerifiedAt = new Date();
-          manufacturer.verificationToken = undefined;
-          await manufacturer.save();
+          // Update manufacturer verification status
+          await Manufacturer.findByIdAndUpdate(manufacturer._id, {
+            isEmailVerified: true,
+            emailVerifiedAt: new Date(),
+            verificationToken: undefined
+          });
+          
+          // Reload manufacturer to get updated state
+          const updatedManufacturer = await Manufacturer.findById(manufacturer._id).lean();
+          if (updatedManufacturer) {
+            manufacturer.isEmailVerified = true;
+            manufacturer.emailVerifiedAt = updatedManufacturer.emailVerifiedAt;
+            manufacturer.verificationToken = undefined;
+          }
         }
       }
 
       // Send welcome email (async)
       this.notificationsService.sendWelcomeEmail(
         normalizedEmail,
-        manufacturerData.name,
+        manufacturerData.businessName,
         '/manufacturer/login'
       ).catch(notificationError => {
         logger.warn('Failed to send manufacturer welcome email', {
@@ -447,29 +453,34 @@ export class ManufacturerAuthService extends AuthBaseService {
    * Validate manufacturer-specific requirements
    */
   private validateManufacturerData(data: RegisterManufacturerInput): void {
-    // Manufacturer name validation
-    if (!data.name || data.name.trim().length < 2) {
-      throw { statusCode: 400, message: 'Manufacturer name must be at least 2 characters long' };
+    // First name validation
+    if (!data.firstName || data.firstName.trim().length < 1) {
+      throw { statusCode: 400, message: 'First name is required' };
     }
 
-    // Industry validation (if provided)
-    if (data.industry && data.industry.trim().length < 2) {
-      throw { statusCode: 400, message: 'Industry must be at least 2 characters long' };
+    // Last name validation
+    if (!data.lastName || data.lastName.trim().length < 1) {
+      throw { statusCode: 400, message: 'Last name is required' };
     }
 
-    // MOQ validation (if provided)
-    if (data.minimumOrderQuantity !== undefined && data.minimumOrderQuantity < 1) {
-      throw { statusCode: 400, message: 'Minimum order quantity must be at least 1' };
+    // Business name validation
+    if (!data.businessName || data.businessName.trim().length < 2) {
+      throw { statusCode: 400, message: 'Business name must be at least 2 characters long' };
     }
 
-    // Services validation (if provided)
-    if (data.servicesOffered && data.servicesOffered.length === 0) {
-      throw { statusCode: 400, message: 'At least one service must be offered' };
+    // Industry validation
+    if (!data.industry || data.industry.trim().length < 1) {
+      throw { statusCode: 400, message: 'Industry is required' };
     }
 
-    // Contact email validation (if provided)
-    if (data.contactEmail && !UtilsService.isValidEmail(data.contactEmail)) {
-      throw { statusCode: 400, message: 'Contact email must be a valid email address' };
+    // Marketing consent validation
+    if (data.marketingConsent === undefined || typeof data.marketingConsent !== 'boolean') {
+      throw { statusCode: 400, message: 'Marketing consent is required' };
+    }
+
+    // Platform updates consent validation
+    if (data.platformUpdatesConsent === undefined || typeof data.platformUpdatesConsent !== 'boolean') {
+      throw { statusCode: 400, message: 'Platform updates consent is required' };
     }
   }
 

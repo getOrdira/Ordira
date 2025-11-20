@@ -4,6 +4,8 @@
 import { Response, NextFunction } from 'express';
 import { BaseController, BaseRequest } from './base.controller';
 import { authService } from '../../services/auth';
+import { businessAuthService } from '../../services/auth/business/businessAuth.service';
+import { manufacturerAuthService } from '../../services/auth/manufacturer/manufacturerAuth.service';
 
 /**
  * Authentication request interfaces
@@ -18,12 +20,22 @@ interface LoginRequest extends BaseRequest {
 
 interface RegisterRequest extends BaseRequest {
   validatedBody: {
+    accountType: 'user' | 'business' | 'manufacturer';
     email: string;
     password: string;
+    // User-specific
+    brandSlug?: string;
+    // Business/Manufacturer fields
     firstName?: string;
     lastName?: string;
-    businessId?: string;
-    brandSlug?: string;
+    businessName?: string;
+    businessNumber?: string;
+    website?: string;
+    // Manufacturer-specific
+    industry?: string;
+    // Marketing consents
+    marketingConsent?: boolean;
+    platformUpdatesConsent?: boolean;
   };
 }
 
@@ -106,47 +118,133 @@ export class AuthController extends BaseController {
 
   /**
    * POST /api/auth/register
-   * User registration endpoint
+   * Unified registration endpoint for all account types (user, business, manufacturer)
    */
   async register(req: RegisterRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
+      const { accountType, email, password, brandSlug, firstName, lastName, businessName, businessNumber, website, industry, marketingConsent, platformUpdatesConsent } = req.validatedBody;
+
       // Log registration attempt without password
       this.logAction(req, 'REGISTER_ATTEMPT', {
-        email: req.validatedBody.email,
-        businessId: req.validatedBody.businessId,
-        brandSlug: req.validatedBody.brandSlug
-        // password, firstName, lastName are NOT logged
+        accountType,
+        email
+        // password is NEVER logged
       });
 
-      const result = await authService.registerUser({
-        email: req.validatedBody.email,
-        password: req.validatedBody.password,
-        firstName: req.validatedBody.firstName,
-        lastName: req.validatedBody.lastName,
-        businessId: req.validatedBody.businessId,
-        brandSlug: req.validatedBody.brandSlug,
-        securityContext: {
-          ipAddress: req.ip || 'unknown',
-          userAgent: req.headers['user-agent'] || 'unknown'
+      let result;
+      let responseData;
+
+      switch (accountType) {
+        case 'user': {
+          // Frontend user registration (for voting on brand domains)
+          result = await authService.registerUser({
+            email,
+            password,
+            brandSlug,
+            securityContext: {
+              ipAddress: req.ip || 'unknown',
+              userAgent: req.headers['user-agent'] || 'unknown'
+            }
+          });
+
+          responseData = {
+            accountType: 'user',
+            user: {
+              id: result.userId,
+              email: result.email
+            },
+            message: 'Registration successful. Please check your email for verification.',
+            verificationRequired: result.verificationRequired
+          };
+          break;
         }
-      });
+
+        case 'business': {
+          // Business/Creator registration
+          if (!firstName || !lastName || !businessName || marketingConsent === undefined || platformUpdatesConsent === undefined) {
+            throw { statusCode: 400, message: 'Missing required fields for business registration' };
+          }
+
+          result = await businessAuthService.registerBusiness({
+            email,
+            password,
+            firstName,
+            lastName,
+            businessName,
+            businessNumber,
+            website,
+            marketingConsent,
+            platformUpdatesConsent,
+            securityContext: {
+              ipAddress: req.ip || 'unknown',
+              userAgent: req.headers['user-agent'] || 'unknown'
+            }
+          });
+
+          responseData = {
+            accountType: 'business',
+            business: {
+              id: result.businessId,
+              email: result.email,
+              businessName
+            },
+            message: 'Business registration successful. Please check your email for verification.',
+            verificationRequired: result.verificationRequired
+          };
+          break;
+        }
+
+        case 'manufacturer': {
+          // Manufacturer registration
+          if (!firstName || !lastName || !businessName || !industry || marketingConsent === undefined || platformUpdatesConsent === undefined) {
+            throw { statusCode: 400, message: 'Missing required fields for manufacturer registration' };
+          }
+
+          result = await manufacturerAuthService.registerManufacturer({
+            email,
+            password,
+            firstName,
+            lastName,
+            businessName,
+            businessNumber,
+            industry,
+            website,
+            marketingConsent,
+            platformUpdatesConsent,
+            securityContext: {
+              ipAddress: req.ip || 'unknown',
+              userAgent: req.headers['user-agent'] || 'unknown'
+            }
+          });
+
+          responseData = {
+            accountType: 'manufacturer',
+            manufacturer: {
+              id: result.manufacturerId,
+              email: result.email,
+              businessName
+            },
+            message: 'Manufacturer registration successful. Please check your email for verification.',
+            verificationRequired: result.verificationRequired
+          };
+          break;
+        }
+
+        default:
+          throw { statusCode: 400, message: 'Invalid account type' };
+      }
 
       // Log success without exposing verification code
+      const accountId = result.userId || result.businessId || result.manufacturerId;
       this.logAction(req, 'REGISTER_SUCCESS', {
-        userId: result.userId,
+        accountType,
+        accountId,
         email: result.email,
         verificationRequired: result.verificationRequired
         // verificationCode is NEVER logged
       });
 
-      return {
-        user: {
-          id: result.userId,
-          email: result.email
-        },
-        message: 'Registration successful. Please check your email for verification.',
-        verificationRequired: result.verificationRequired
-      };
+      return responseData;
     }, res, 'Registration successful', this.getRequestMeta(req));
   }
 
