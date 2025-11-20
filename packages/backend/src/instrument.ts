@@ -29,43 +29,23 @@ if (process.env.SENTRY_DSN) {
       onUnhandledRejectionIntegration(),
       consoleIntegration()
     ],
-    // Handle errors and logs separately
+    // Allow all events through - consoleIntegration handles logs, errors go to Issues
+    // We don't filter here because:
+    // 1. Logs from consoleIntegration need to pass through to Sentry Logs
+    // 2. Errors should go to Issues
+    // 3. Traces are already controlled by tracesSampleRate
     beforeSend(event, hint) {
-      // Allow logs through (from consoleIntegration) - these should go to Sentry Logs
-      // Logs have type 'log' or come from console methods
-      const isLog = event.type === 'log' || 
-                   (event.logger && event.logger.includes('console')) ||
-                   event.tags?.source === 'console';
-      
-      // Allow errors, fatal events, and logs through
-      if (event.level === 'error' || event.level === 'fatal' || isLog) {
-        // Log in debug mode
-        if (process.env.SENTRY_DEBUG === 'true') {
-          console.log('[Sentry Debug] Event being sent:', {
-            level: event.level,
-            type: event.type,
-            message: event.message,
-            eventId: event.event_id,
-            tags: event.tags,
-            isLog
-          });
-        }
-        return event;
-      }
-      
-      // Filter out other non-error events (traces, etc.)
+      // Log in debug mode to see what's being sent
       if (process.env.SENTRY_DEBUG === 'true') {
-        console.log('[Sentry Debug] Event filtered out (not error/fatal/log):', event.level, event.type);
+        console.log('[Sentry Debug] Event being sent:', {
+          level: event.level,
+          type: event.type,
+          message: event.message,
+          eventId: event.event_id
+        });
       }
-      return null; // Don't send to Sentry, OpenTelemetry handles non-errors
-    },
-    // Handle logs separately (for consoleIntegration)
-    beforeSendLog(log) {
-      // Allow all logs through to Sentry Logs
-      if (process.env.SENTRY_DEBUG === 'true') {
-        console.log('[Sentry Debug] Log being sent to Sentry:', log);
-      }
-      return log;
+      // Allow all events through - Sentry will route them appropriately
+      return event;
     }
   });
   
