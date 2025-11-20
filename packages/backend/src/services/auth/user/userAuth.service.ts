@@ -83,13 +83,33 @@ export class UserAuthService extends AuthBaseService {
       ]);
 
       // Send verification email (async, don't block registration)
+      let emailSent = false;
       try {
         await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
+        emailSent = true;
       } catch (notificationError: any) {
         logger.warn('Failed to send user verification email', {
           email: UtilsService.maskEmail(normalizedEmail),
           error: notificationError?.message || notificationError
         });
+        
+        // Auto-verify email in development/test environments when email sending fails
+        // This allows testing without SMTP configuration
+        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+        const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+        
+        if (isDevelopment || skipEmailVerification) {
+          logger.info('Auto-verifying email due to email send failure in development/test environment', {
+            email: UtilsService.maskEmail(normalizedEmail),
+            userId: user._id.toString(),
+            reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
+          });
+          
+          user.isEmailVerified = true;
+          user.emailVerifiedAt = new Date();
+          user.emailCode = undefined;
+          await user.save();
+        }
       }
 
       // Log security event
@@ -105,11 +125,14 @@ export class UserAuthService extends AuthBaseService {
         processingTime
       });
 
+      // Check if email was auto-verified
+      const isAutoVerified = !emailSent && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || process.env.SKIP_EMAIL_VERIFICATION === 'true');
+      
       return {
         userId: user._id.toString(),
         email: normalizedEmail,
-        emailCode,
-        verificationRequired: true
+        emailCode: isAutoVerified ? undefined : emailCode,
+        verificationRequired: !isAutoVerified
       };
 
     } catch (error: any) {

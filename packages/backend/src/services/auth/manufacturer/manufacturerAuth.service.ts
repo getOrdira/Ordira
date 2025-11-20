@@ -85,13 +85,33 @@ export class ManufacturerAuthService extends AuthBaseService {
       ]);
 
       // Send verification email (async, don't block registration)
+      let emailSent = false;
       try {
         await this.notificationsService.sendEmailVerificationCode(normalizedEmail, verificationCode, '10 minutes');
+        emailSent = true;
       } catch (notificationError: any) {
         logger.warn('Failed to send manufacturer verification email', {
           email: UtilsService.maskEmail(normalizedEmail),
           error: notificationError?.message || notificationError
         });
+        
+        // Auto-verify email in development/test environments when email sending fails
+        // This allows testing without SMTP configuration
+        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+        const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+        
+        if (isDevelopment || skipEmailVerification) {
+          logger.info('Auto-verifying manufacturer email due to email send failure in development/test environment', {
+            email: UtilsService.maskEmail(normalizedEmail),
+            manufacturerId: manufacturer._id.toString(),
+            reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
+          });
+          
+          manufacturer.isEmailVerified = true;
+          manufacturer.emailVerifiedAt = new Date();
+          manufacturer.verificationToken = undefined;
+          await manufacturer.save();
+        }
       }
 
       // Send welcome email (async)
@@ -118,11 +138,14 @@ export class ManufacturerAuthService extends AuthBaseService {
         processingTime
       });
 
+      // Check if email was auto-verified
+      const isAutoVerified = !emailSent && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || process.env.SKIP_EMAIL_VERIFICATION === 'true');
+      
       return {
         manufacturerId: manufacturer._id.toString(),
         email: normalizedEmail,
-        verificationCode,
-        verificationRequired: true
+        verificationCode: isAutoVerified ? undefined : verificationCode,
+        verificationRequired: !isAutoVerified
       };
 
     } catch (error: any) {

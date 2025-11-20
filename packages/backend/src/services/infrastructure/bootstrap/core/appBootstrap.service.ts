@@ -788,6 +788,43 @@ export class AppBootstrapService {
     );
 
     // Database index report endpoint
+    // SMTP configuration health check endpoint
+    this.app.get('/health/smtp', async (req, res) => {
+      try {
+        const { emailChannel } = await import('../../../notifications/channels/email.channel');
+        const smtpTest = await emailChannel.testConfiguration();
+        
+        res.status(smtpTest.isConfigured && smtpTest.canConnect ? 200 : 503).json({
+          status: smtpTest.isConfigured && smtpTest.canConnect ? 'healthy' : 'unhealthy',
+          timestamp: new Date().toISOString(),
+          smtp: {
+            isConfigured: smtpTest.isConfigured,
+            canConnect: smtpTest.canConnect,
+            serverInfo: smtpTest.serverInfo,
+            errors: smtpTest.errors,
+            environment: {
+              hasHost: !!process.env.SMTP_HOST,
+              hasUser: !!process.env.SMTP_USER,
+              hasPass: !!process.env.SMTP_PASS,
+              port: process.env.SMTP_PORT || '587',
+              skipEmailVerification: process.env.SKIP_EMAIL_VERIFICATION === 'true'
+            }
+          },
+          recommendations: smtpTest.errors.length > 0 ? [
+            'Set SMTP_HOST, SMTP_USER, and SMTP_PASS environment variables',
+            'Or set SKIP_EMAIL_VERIFICATION=true for testing without SMTP',
+            'Check SMTP server credentials and network connectivity'
+          ] : []
+        });
+      } catch (error: any) {
+        res.status(503).json({
+          status: 'unhealthy',
+          error: error.message || 'Failed to test SMTP configuration',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
     this.app.get('/health/indexes/report', async (req, res) => {
       try {
         const { databaseOptimizationService } = await import('../../database/features/indexOptimization.service');
