@@ -355,6 +355,13 @@ export class MonitoringService {
       return alert.severity === 'high' && age < 15 * 60 * 1000;
     });
     
+    // CPU threshold: For multi-core systems, CPU can exceed 100%
+    // e.g., 400% on a 4-core system means all cores at 100%
+    // We'll use a threshold of 90% per core, so 90% * numCores
+    const os = require('os');
+    const numCores = os.cpus().length;
+    const cpuThreshold = 90 * numCores; // 90% per core
+    
     // Analyze what's causing issues
     if (errorRate > 0.1) {
       healthIssues.push(`High error rate: ${(errorRate * 100).toFixed(2)}% (threshold: 10%)`);
@@ -366,8 +373,9 @@ export class MonitoringService {
       healthRecommendations.push('Check database query performance, review slow endpoints, consider caching');
     }
     
-    if (cpu > 90) {
-      healthIssues.push(`High CPU usage: ${cpu.toFixed(1)}% (threshold: 90%)`);
+    if (cpu > cpuThreshold) {
+      const perCorePercent = (cpu / numCores).toFixed(1);
+      healthIssues.push(`High CPU usage: ${cpu.toFixed(1)}% (${perCorePercent}% per core, threshold: ${cpuThreshold}%)`);
       healthRecommendations.push('Check for CPU-intensive operations, review background jobs, consider scaling');
     }
     
@@ -385,15 +393,19 @@ export class MonitoringService {
       healthRecommendations.push('Review recent critical alerts in logs, check alert details for specific issues');
     }
     
+    // CPU threshold: For multi-core systems, adjust threshold based on number of cores
+    const cpuThresholdUnhealthy = 90 * numCores; // 90% per core = unhealthy
+    const cpuThresholdDegraded = 70 * numCores; // 70% per core = degraded
+    
     // Unhealthy: critical issues (errors, very slow response, CPU maxed out, memory > 98%, OR recent critical alerts)
-    if (errorRate > 0.1 || responseTime > 5000 || cpu > 90 || memory > 98 || recentCriticalAlerts.length > 0) {
+    if (errorRate > 0.1 || responseTime > 5000 || cpu > cpuThresholdUnhealthy || memory > 98 || recentCriticalAlerts.length > 0) {
       status = 'unhealthy';
     } 
     // Degraded: warning conditions (some errors, slow response, high CPU, or memory > 95%)
     // Note: High alerts alone don't cause degraded status - need actual performance issues
     // Memory alerts are common in Node.js and don't indicate problems if error rate is low
-    else if (errorRate > 0.05 || responseTime > 2000 || cpu > 70 || memory > 95 || 
-             (recentHighAlerts.length > 20 && (errorRate > 0.01 || responseTime > 1000 || cpu > 50))) {
+    else if (errorRate > 0.05 || responseTime > 2000 || cpu > cpuThresholdDegraded || memory > 95 || 
+             (recentHighAlerts.length > 20 && (errorRate > 0.01 || responseTime > 1000 || cpu > (50 * numCores)))) {
       status = 'degraded';
     }
 
@@ -553,12 +565,46 @@ export class MonitoringService {
     defaultRules.forEach(rule => this.addAlertRule(rule));
   }
 
+  private lastCpuUsage: NodeJS.CpuUsage | null = null;
+  private lastCpuCheckTime: number = 0;
+
   /**
    * Record system metrics
    */
   recordSystemMetrics(): void {
     const memUsage = process.memoryUsage();
-    const cpuUsage = process.cpuUsage();
+    const os = require('os');
+    const cpus = os.cpus();
+    const numCpus = cpus.length;
+    
+    // Calculate CPU percentage properly
+    // process.cpuUsage() returns cumulative CPU time, so we need to measure over an interval
+    const now = Date.now();
+    const currentCpuUsage = process.cpuUsage();
+    
+    let cpuPercent = 0;
+    if (this.lastCpuUsage && this.lastCpuCheckTime > 0) {
+      const timeDelta = (now - this.lastCpuCheckTime) / 1000; // Convert to seconds
+      const cpuDelta = {
+        user: (currentCpuUsage.user - this.lastCpuUsage.user) / 1000000, // Convert to seconds
+        system: (currentCpuUsage.system - this.lastCpuUsage.system) / 1000000
+      };
+      
+      // CPU percentage = (CPU time used / real time elapsed) * 100
+      // For multi-core systems, this can exceed 100% (e.g., 400% on 4 cores)
+      // We calculate per-core percentage: (cpuDelta / timeDelta) * 100 * numCpus
+      // But actually, the raw percentage already accounts for multi-core, so we just use it directly
+      const totalCpuTime = cpuDelta.user + cpuDelta.system;
+      if (timeDelta > 0) {
+        // This gives us the percentage of one core being used
+        // Multiply by numCpus to get total system CPU usage percentage
+        cpuPercent = (totalCpuTime / timeDelta) * 100;
+      }
+    }
+    
+    // Update for next calculation
+    this.lastCpuUsage = currentCpuUsage;
+    this.lastCpuCheckTime = now;
 
     this.recordMetrics([
       {
@@ -575,9 +621,9 @@ export class MonitoringService {
       },
       {
         name: 'cpu_usage',
-        value: (cpuUsage.user + cpuUsage.system) / 1000000, // Convert to seconds
-        unit: 'seconds',
-        tags: { type: 'process' }
+        value: cpuPercent,
+        unit: 'percent',
+        tags: { type: 'process', cores: numCpus.toString() }
       }
     ]);
   }
