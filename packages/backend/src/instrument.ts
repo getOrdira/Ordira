@@ -22,11 +22,19 @@ if (process.env.SENTRY_DSN) {
     environment: process.env.NODE_ENV || 'development',
     // Enable debug mode if SENTRY_DEBUG is set (helps troubleshoot issues)
     debug: process.env.SENTRY_DEBUG === 'true',
+    // Enable logs to be sent to Sentry (captures console.log, console.warn, console.error)
+    enableLogs: true,
     // Focus on error tracking, not tracing (OpenTelemetry handles that)
     integrations: [
       new Sentry.Integrations.Http({ tracing: false }), // Disable Sentry tracing, use OpenTelemetry
       new Sentry.Integrations.OnUncaughtException(),
-      new Sentry.Integrations.OnUnhandledRejection()
+      new Sentry.Integrations.OnUnhandledRejection(),
+      // Send console.log, console.warn, and console.error calls as logs to Sentry
+      // This captures structured logs from our logger service (which outputs JSON via console.log)
+      // This integration sends console output to Sentry's log stream
+      Sentry.consoleLoggingIntegration({ 
+        levels: ["log", "warn", "error"] 
+      })
     ],
     // Only capture errors, not all traces
     beforeSend(event, hint) {
