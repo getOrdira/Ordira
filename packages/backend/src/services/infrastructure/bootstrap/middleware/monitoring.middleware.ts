@@ -8,9 +8,8 @@
  * They work together - OpenTelemetry for observability, Sentry for error tracking.
  */
 
-import { Application } from 'express';
+import { Application, Request, Response, NextFunction } from 'express';
 import * as Sentry from '@sentry/node';
-import { setupExpressErrorHandler } from '@sentry/node';
 import { logger } from '../../logging';
 import { getOpenTelemetryService } from '../../observability';
 
@@ -50,13 +49,26 @@ export function configureMonitoringMiddleware(app: Application): void {
 export function configureSentryErrorHandler(app: Application): void {
   if (process.env.SENTRY_DSN) {
     // Error handler must be before any other error middleware and after all controllers
-    setupExpressErrorHandler(app, {
-      shouldHandleError: (error: any) => {
-        // Capture all errors (500+ status codes or errors without status)
-        // Errors without status are typically unhandled exceptions (500-level)
-        const status = Number(error.status) || 500;
-        return status >= 500;
+    // In Sentry v10, we manually capture errors in Express error handler
+    app.use((error: any, req: Request, res: Response, next: NextFunction) => {
+      // Capture all errors (500+ status codes or errors without status)
+      const status = Number(error.status) || 500;
+      if (status >= 500) {
+        Sentry.captureException(error, {
+          tags: {
+            endpoint: req.path,
+            method: req.method,
+            statusCode: status
+          },
+          extra: {
+            requestId: req.headers['x-request-id'],
+            userAgent: req.headers['user-agent'],
+            ip: req.ip
+          }
+        });
       }
+      // Continue to next error handler
+      next(error);
     });
     logger.info('✅ Sentry error handler configured');
   }
