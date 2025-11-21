@@ -14,7 +14,10 @@ interface RegisterBusinessRequest extends BaseRequest {
   validatedBody: {
     firstName: string;
     lastName: string;
+    dateOfBirth: string | Date;
     businessName: string;
+    businessType?: 'brand' | 'creator';
+    address: string;
     businessNumber?: string;
     email: string;
     password: string;
@@ -82,6 +85,11 @@ export class BusinessAuthController extends BaseController {
         businessName: req.validatedBody.businessName,
         firstName: req.validatedBody.firstName,
         lastName: req.validatedBody.lastName,
+        dateOfBirth: req.validatedBody.dateOfBirth instanceof Date 
+          ? req.validatedBody.dateOfBirth 
+          : new Date(req.validatedBody.dateOfBirth),
+        businessType: req.validatedBody.businessType || 'brand',
+        address: req.validatedBody.address,
         businessNumber: req.validatedBody.businessNumber,
         website: req.validatedBody.website,
         marketingConsent: req.validatedBody.marketingConsent,

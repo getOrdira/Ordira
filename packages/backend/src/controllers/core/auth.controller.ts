@@ -28,7 +28,10 @@ interface RegisterRequest extends BaseRequest {
     // Business/Manufacturer fields
     firstName?: string;
     lastName?: string;
+    dateOfBirth?: string | Date;
     businessName?: string;
+    businessType?: 'brand' | 'creator';
+    address?: string;
     businessNumber?: string;
     website?: string;
     // Manufacturer-specific
@@ -122,7 +125,7 @@ export class AuthController extends BaseController {
    */
   async register(req: RegisterRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      const { accountType, email, password, brandSlug, firstName, lastName, businessName, businessNumber, website, industry, marketingConsent, platformUpdatesConsent } = req.validatedBody;
+      const { accountType, email, password, brandSlug, firstName, lastName, businessName, businessType, dateOfBirth, address, businessNumber, website, industry, marketingConsent, platformUpdatesConsent } = req.validatedBody;
 
       // Log registration attempt without password
       this.logAction(req, 'REGISTER_ATTEMPT', {
@@ -161,7 +164,7 @@ export class AuthController extends BaseController {
 
         case 'business': {
           // Business/Creator registration
-          if (!firstName || !lastName || !businessName || marketingConsent === undefined || platformUpdatesConsent === undefined) {
+          if (!firstName || !lastName || !businessName || !dateOfBirth || !address || marketingConsent === undefined || platformUpdatesConsent === undefined) {
             throw { statusCode: 400, message: 'Missing required fields for business registration' };
           }
 
@@ -170,7 +173,10 @@ export class AuthController extends BaseController {
             password,
             firstName,
             lastName,
+            dateOfBirth: new Date(dateOfBirth),
             businessName,
+            businessType: businessType || 'brand',
+            address,
             businessNumber,
             website,
             marketingConsent,

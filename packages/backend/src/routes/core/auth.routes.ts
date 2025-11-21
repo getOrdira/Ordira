@@ -61,6 +61,28 @@ const registerSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.forbidden()
   }),
+  businessType: Joi.string().valid('brand', 'creator').optional().when('accountType', {
+    is: 'business',
+    then: Joi.optional(), // Defaults to 'brand' in model
+    otherwise: Joi.forbidden()
+  }),
+  dateOfBirth: Joi.alternatives()
+    .try(Joi.date().iso(), Joi.string().isoDate())
+    .optional()
+    .when('accountType', {
+      is: Joi.string().valid('business', 'manufacturer'),
+      then: Joi.required(),
+      otherwise: Joi.forbidden()
+    })
+    .messages({
+      'date.base': 'Date of birth must be a valid date',
+      'string.isoDate': 'Date of birth must be a valid ISO date string'
+    }),
+  address: Joi.string().trim().min(5).max(500).optional().when('accountType', {
+    is: Joi.string().valid('business', 'manufacturer'),
+    then: Joi.required(),
+    otherwise: Joi.forbidden()
+  }),
   businessNumber: Joi.string().trim().max(100).optional().when('accountType', {
     is: Joi.string().valid('business', 'manufacturer'),
     then: Joi.optional(),

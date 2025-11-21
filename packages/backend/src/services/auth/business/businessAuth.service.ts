@@ -58,7 +58,9 @@ export class BusinessAuthService extends AuthBaseService {
       const business = new Business({
         firstName: businessData.firstName,
         lastName: businessData.lastName,
-        dateOfBirth: businessData.dateOfBirth ? new Date(businessData.dateOfBirth) : undefined,
+        dateOfBirth: businessData.dateOfBirth instanceof Date 
+          ? businessData.dateOfBirth 
+          : new Date(businessData.dateOfBirth),
         email: normalizedEmail,
         password: passwordHash,
         businessName: businessData.businessName,
