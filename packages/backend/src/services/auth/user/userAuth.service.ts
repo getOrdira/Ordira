@@ -82,45 +82,48 @@ export class UserAuthService extends AuthBaseService {
         'user_analytics'
       ]);
 
-      // Send verification email (async, don't block registration)
+      // Check if we should skip email verification
+      const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+      const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+      const shouldAutoVerify = isDevelopment || skipEmailVerification;
+
+      // Send verification email (async, don't block registration) - skip if auto-verifying
       let emailSent = false;
-      try {
-        await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
-        emailSent = true;
-      } catch (notificationError: any) {
-        logger.warn('Failed to send user verification email', {
+      if (!shouldAutoVerify) {
+        try {
+          await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
+          emailSent = true;
+        } catch (notificationError: any) {
+          logger.warn('Failed to send user verification email', {
+            email: UtilsService.maskEmail(normalizedEmail),
+            error: notificationError?.message || notificationError
+          });
+        }
+      }
+
+      // Auto-verify email if SKIP_EMAIL_VERIFICATION is enabled or in development/test
+      if (shouldAutoVerify) {
+        logger.info('Auto-verifying email due to SKIP_EMAIL_VERIFICATION or development/test environment', {
           email: UtilsService.maskEmail(normalizedEmail),
-          error: notificationError?.message || notificationError
+          userId: user._id.toString(),
+          reason: skipEmailVerification ? 'SKIP_EMAIL_VERIFICATION is enabled' : 'Development/test environment'
         });
         
-        // Auto-verify email in development/test environments when email sending fails
-        // This allows testing without SMTP configuration
-        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-        const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+        // Update user verification status
+        await User.findByIdAndUpdate(user._id, {
+          isEmailVerified: true,
+          emailVerifiedAt: new Date(),
+          emailCode: undefined
+        });
         
-        if (isDevelopment || skipEmailVerification) {
-          logger.info('Auto-verifying email due to email send failure in development/test environment', {
-            email: UtilsService.maskEmail(normalizedEmail),
-            userId: user._id.toString(),
-            reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
-          });
-          
-          // Update user verification status
-          await User.findByIdAndUpdate(user._id, {
+        // Reload user to get updated state for return value
+        const updatedUser = await User.findById(user._id).lean();
+        if (updatedUser) {
+          Object.assign(user, {
             isEmailVerified: true,
-            emailVerifiedAt: new Date(),
+            emailVerifiedAt: updatedUser.emailVerifiedAt,
             emailCode: undefined
           });
-          
-          // Reload user to get updated state for return value
-          const updatedUser = await User.findById(user._id).lean();
-          if (updatedUser) {
-            Object.assign(user, {
-              isEmailVerified: true,
-              emailVerifiedAt: updatedUser.emailVerifiedAt,
-              emailCode: undefined
-            });
-          }
         }
       }
 
@@ -138,7 +141,7 @@ export class UserAuthService extends AuthBaseService {
       });
 
       // Check if email was auto-verified
-      const isAutoVerified = !emailSent && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || process.env.SKIP_EMAIL_VERIFICATION === 'true');
+      const isAutoVerified = shouldAutoVerify;
       
       return {
         userId: user._id.toString(),

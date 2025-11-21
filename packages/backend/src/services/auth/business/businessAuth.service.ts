@@ -78,43 +78,46 @@ export class BusinessAuthService extends AuthBaseService {
 
       await business.save();
 
-      // Send verification email (async, don't block registration)
+      // Check if we should skip email verification
+      const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+      const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+      const shouldAutoVerify = isDevelopment || skipEmailVerification;
+
+      // Send verification email (async, don't block registration) - skip if auto-verifying
       let emailSent = false;
-      try {
-        await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
-        emailSent = true;
-      } catch (notificationError: any) {
-        logger.warn('Failed to send business verification email', {
+      if (!shouldAutoVerify) {
+        try {
+          await this.notificationsService.sendEmailVerificationCode(normalizedEmail, emailCode, '10 minutes');
+          emailSent = true;
+        } catch (notificationError: any) {
+          logger.warn('Failed to send business verification email', {
+            email: UtilsService.maskEmail(normalizedEmail),
+            error: notificationError?.message || notificationError
+          });
+        }
+      }
+
+      // Auto-verify email if SKIP_EMAIL_VERIFICATION is enabled or in development/test
+      if (shouldAutoVerify) {
+        logger.info('Auto-verifying business email due to SKIP_EMAIL_VERIFICATION or development/test environment', {
           email: UtilsService.maskEmail(normalizedEmail),
-          error: notificationError?.message || notificationError
+          businessId: business._id.toString(),
+          reason: skipEmailVerification ? 'SKIP_EMAIL_VERIFICATION is enabled' : 'Development/test environment'
         });
         
-        // Auto-verify email in development/test environments when email sending fails
-        // This allows testing without SMTP configuration
-        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-        const skipEmailVerification = process.env.SKIP_EMAIL_VERIFICATION === 'true';
+        // Update business verification status
+        await Business.findByIdAndUpdate(business._id, {
+          isEmailVerified: true,
+          emailVerifiedAt: new Date(),
+          emailCode: undefined
+        });
         
-        if (isDevelopment || skipEmailVerification) {
-          logger.info('Auto-verifying business email due to email send failure in development/test environment', {
-            email: UtilsService.maskEmail(normalizedEmail),
-            businessId: business._id.toString(),
-            reason: 'Email sending failed and SKIP_EMAIL_VERIFICATION is enabled or in development mode'
-          });
-          
-          // Update business verification status
-          await Business.findByIdAndUpdate(business._id, {
-            isEmailVerified: true,
-            emailVerifiedAt: new Date(),
-            emailCode: undefined
-          });
-          
-          // Reload business to get updated state
-          const updatedBusiness = await Business.findById(business._id).lean();
-          if (updatedBusiness) {
-            business.isEmailVerified = true;
-            business.emailVerifiedAt = updatedBusiness.emailVerifiedAt;
-            business.emailCode = undefined;
-          }
+        // Reload business to get updated state
+        const updatedBusiness = await Business.findById(business._id).lean();
+        if (updatedBusiness) {
+          business.isEmailVerified = true;
+          business.emailVerifiedAt = updatedBusiness.emailVerifiedAt;
+          business.emailCode = undefined;
         }
       }
 
@@ -137,7 +140,7 @@ export class BusinessAuthService extends AuthBaseService {
       });
 
       // Check if email was auto-verified
-      const isAutoVerified = !emailSent && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || process.env.SKIP_EMAIL_VERIFICATION === 'true');
+      const isAutoVerified = shouldAutoVerify;
       
       return {
         businessId: business._id.toString(),
