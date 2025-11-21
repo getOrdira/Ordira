@@ -14,9 +14,11 @@ interface RegisterManufacturerRequest extends BaseRequest {
   validatedBody: {
     firstName: string;
     lastName: string;
+    dateOfBirth: string | Date;
     email: string;
     password: string;
     businessName: string;
+    address: string;
     businessNumber?: string;
     industry: string;
     website?: string;
@@ -83,7 +85,11 @@ export class ManufacturerAuthController extends BaseController {
         password: req.validatedBody.password,
         firstName: req.validatedBody.firstName,
         lastName: req.validatedBody.lastName,
+        dateOfBirth: req.validatedBody.dateOfBirth instanceof Date 
+          ? req.validatedBody.dateOfBirth 
+          : new Date(req.validatedBody.dateOfBirth),
         businessName: req.validatedBody.businessName,
+        address: req.validatedBody.address,
         businessNumber: req.validatedBody.businessNumber,
         industry: req.validatedBody.industry,
         website: req.validatedBody.website,

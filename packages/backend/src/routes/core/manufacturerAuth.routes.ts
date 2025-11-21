@@ -26,9 +26,17 @@ const router = Router();
 const registerManufacturerSchema = Joi.object({
   firstName: Joi.string().trim().min(1).max(100).required(),
   lastName: Joi.string().trim().min(1).max(100).required(),
+  dateOfBirth: Joi.alternatives()
+    .try(Joi.date().iso(), Joi.string().isoDate())
+    .required()
+    .messages({
+      'date.base': 'Date of birth must be a valid date',
+      'string.isoDate': 'Date of birth must be a valid ISO date string'
+    }),
   email: Joi.string().email().lowercase().required(),
   password: Joi.string().min(8).max(128).required(),
   businessName: Joi.string().trim().min(2).max(200).required(),
+  address: Joi.string().trim().min(5).max(500).required(),
   businessNumber: Joi.string().trim().max(100).optional(),
   industry: Joi.string().trim().min(1).max(100).required(),
   website: Joi.string().uri().optional(),
