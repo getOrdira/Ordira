@@ -58,10 +58,14 @@ export class ManufacturerAuthService extends AuthBaseService {
       const manufacturer = new Manufacturer({
         firstName: manufacturerData.firstName,
         lastName: manufacturerData.lastName,
+        dateOfBirth: manufacturerData.dateOfBirth instanceof Date 
+          ? manufacturerData.dateOfBirth 
+          : new Date(manufacturerData.dateOfBirth),
         email: normalizedEmail,
         password: passwordHash,
         name: manufacturerData.businessName, // Keep 'name' field for backward compatibility
         businessName: manufacturerData.businessName,
+        address: manufacturerData.address,
         businessNumber: manufacturerData.businessNumber,
         industry: manufacturerData.industry,
         website: manufacturerData.website,

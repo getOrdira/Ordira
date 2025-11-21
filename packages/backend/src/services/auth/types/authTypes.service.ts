@@ -130,9 +130,11 @@ export interface UserAuthResponse {
 export type RegisterManufacturerInput = {
   firstName: string;
   lastName: string;
+  dateOfBirth: Date;
   email: string;
   password: string;
   businessName: string;
+  address: string;
   businessNumber?: string;
   industry: string;
   website?: string;

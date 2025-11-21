@@ -202,7 +202,7 @@ export class AuthController extends BaseController {
 
         case 'manufacturer': {
           // Manufacturer registration
-          if (!firstName || !lastName || !businessName || !industry || marketingConsent === undefined || platformUpdatesConsent === undefined) {
+          if (!firstName || !lastName || !businessName || !dateOfBirth || !address || !industry || marketingConsent === undefined || platformUpdatesConsent === undefined) {
             throw { statusCode: 400, message: 'Missing required fields for manufacturer registration' };
           }
 
@@ -211,7 +211,9 @@ export class AuthController extends BaseController {
             password,
             firstName,
             lastName,
+            dateOfBirth: new Date(dateOfBirth),
             businessName,
+            address,
             businessNumber,
             industry,
             website,
