@@ -8,11 +8,20 @@ import { UtilsService } from '../../infrastructure/shared';
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
+  secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
-  }
-});
+  },
+  tls: {
+    // Do not fail on invalid certs (useful for some SMTP servers)
+    rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false'
+  },
+  // Connection timeout settings (in milliseconds)
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000, // 10 seconds
+  socketTimeout: 10000 // 10 seconds
+} as any);
 
 export interface EmailOptions {
   priority?: 'low' | 'normal' | 'high';
@@ -164,10 +173,10 @@ export class EmailChannel {
     result.isConfigured = true;
 
     try {
-      // Add timeout to prevent hanging (5 second timeout)
+      // Add timeout to prevent hanging (15 second timeout for SMTP AUTH propagation)
       const verificationPromise = transporter.verify();
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('SMTP verification timeout after 5 seconds')), 5000)
+        setTimeout(() => reject(new Error('SMTP verification timeout after 15 seconds. This may indicate: 1) SMTP AUTH changes not yet propagated (wait 15-60 min), 2) Firewall blocking port 587, 3) Incorrect SMTP_HOST (should be smtp.office365.com for Microsoft 365)')), 15000)
       );
       
       const verification = await Promise.race([verificationPromise, timeoutPromise]);
