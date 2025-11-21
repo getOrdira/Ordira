@@ -38,9 +38,12 @@ export interface Location {
 export type RegisterBusinessInput = {
   firstName: string;
   lastName: string;
+  dateOfBirth: Date;
   email: string;
   password: string;
   businessName: string;
+  businessType: 'brand' | 'creator';
+  address: string;
   businessNumber?: string;
   website?: string;
   marketingConsent: boolean;
