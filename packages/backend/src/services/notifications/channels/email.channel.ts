@@ -97,6 +97,11 @@ export class EmailChannel {
       }
     };
 
+    // Add Postmark Message Stream header if configured
+    if (process.env.SMTP_MESSAGE_STREAM) {
+      emailPayload.headers['X-PM-Message-Stream'] = process.env.SMTP_MESSAGE_STREAM;
+    }
+
     // Add attachments if provided
     if (options.attachments && options.attachments.length > 0) {
       emailPayload.attachments = options.attachments.map(att => ({
@@ -189,7 +194,18 @@ export class EmailChannel {
       };
 
     } catch (error: any) {
-      result.errors.push(`SMTP connection failed: ${error.message || 'Unknown error'}`);
+      let errorMessage = error.message || 'Unknown error';
+      
+      // Provide specific guidance for common Microsoft 365 errors
+      if (errorMessage.includes('security defaults policy') || errorMessage.includes('locked by your organization')) {
+        errorMessage += '. This means Microsoft 365 Security Defaults is blocking SMTP authentication. Solutions: 1) Disable Security Defaults in Azure AD (requires admin), 2) Create a Conditional Access policy to allow SMTP AUTH, 3) Use a service account excluded from Security Defaults. See RENDER_ENV_SETUP.md for detailed steps.';
+      } else if (errorMessage.includes('SmtpClientAuthentication is disabled')) {
+        errorMessage += '. Enable SMTP AUTH in Exchange Admin Center → Settings → Security (uncheck "Turn off SMTP AUTH protocol") and for your mailbox using PowerShell: Set-CASMailbox -Identity "your-email@domain.com" -SmtpClientAuthenticationDisabled $false';
+      } else if (errorMessage.includes('Invalid login') || errorMessage.includes('Authentication unsuccessful')) {
+        errorMessage += '. Verify: 1) SMTP_USER is your full email address, 2) SMTP_PASS is correct (use App Password if MFA is enabled), 3) SMTP AUTH is enabled for your mailbox, 4) Security Defaults is not blocking the account.';
+      }
+      
+      result.errors.push(`SMTP connection failed: ${errorMessage}`);
       result.canConnect = false;
     }
 

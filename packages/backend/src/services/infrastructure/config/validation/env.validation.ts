@@ -45,6 +45,7 @@ const schema = Joi.object({
   SMTP_PORT: Joi.number().optional(),
   SMTP_USER: Joi.string().optional(),
   SMTP_PASS: Joi.string().optional(),
+  SMTP_MESSAGE_STREAM: Joi.string().optional(), // Postmark Message Stream header
   
   
   // File upload configuration

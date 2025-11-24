@@ -92,11 +92,7 @@ export class ConfigService {
       SMTP_PORT: Joi.number().optional(),
       SMTP_USER: Joi.string().optional(),
       SMTP_PASS: Joi.string().optional(),
-      
-      // SMS services
-      TWILIO_SID: Joi.string().optional(),
-      TWILIO_TOKEN: Joi.string().optional(),
-      TWILIO_FROM: Joi.string().optional(),
+      SMTP_MESSAGE_STREAM: Joi.string().optional(), // Postmark Message Stream header
       
       // Monitoring and services
       SENTRY_DSN: Joi.string().uri().optional(),  
