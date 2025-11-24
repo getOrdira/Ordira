@@ -27,6 +27,8 @@ export interface UnifiedAuthRequest extends BaseRequest {
 export interface JWTPayload {
   sub: string;
   userType: 'business' | 'manufacturer' | 'user';
+  type?: string; // Legacy field
+  userId?: string; // Legacy field
   sessionId?: string;
   permissions?: string[];
   iat: number;
@@ -110,7 +112,7 @@ export async function authenticate(
       throw createAppError(validationResult.error || 'Invalid token', 401, 'UNAUTHORIZED');
     }
 
-    const payload = validationResult.payload;
+    const payload = normalizePayload(validationResult.payload);
 
     // Enhanced payload validation
     if (!payload.sub) {
@@ -231,6 +233,28 @@ function validateToken(token: string): TokenValidationResult {
       errorCode
     };
   }
+}
+
+/**
+ * Normalize legacy token payloads to the current schema
+ */
+function normalizePayload(payload: JWTPayload): JWTPayload {
+  const normalized: JWTPayload = { ...payload };
+
+  // Backfill subject from legacy userId
+  if (!normalized.sub && (payload as any).userId) {
+    normalized.sub = String((payload as any).userId);
+  }
+
+  // Map legacy "type" to userType
+  if (!normalized.userType && payload.type) {
+    const mapped = payload.type.replace('_remember', '');
+    if (['business', 'manufacturer', 'user'].includes(mapped)) {
+      normalized.userType = mapped as JWTPayload['userType'];
+    }
+  }
+
+  return normalized;
 }
 
 /**

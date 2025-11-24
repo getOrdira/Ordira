@@ -55,7 +55,15 @@ export class AuthBaseService {
     type: 'business' | 'user' | 'manufacturer';
     email: string;
   }): string {
-    return jwt.sign(payload, this.JWT_SECRET, { expiresIn: this.JWT_EXPIRES_IN });
+    const userType = payload.type;
+    const tokenPayload = {
+      ...payload,
+      userType,
+      type: payload.type,
+      userId: payload.sub
+    };
+
+    return jwt.sign(tokenPayload, this.JWT_SECRET, { expiresIn: this.JWT_EXPIRES_IN });
   }
 
   /**
@@ -66,7 +74,14 @@ export class AuthBaseService {
     type: 'business_remember' | 'user_remember' | 'manufacturer_remember';
     email: string;
   }): string {
-    return jwt.sign(payload, this.JWT_SECRET, { expiresIn: AUTH_CONSTANTS.REMEMBER_TOKEN_EXPIRES_IN });
+    const baseType = payload.type.replace('_remember', '') as 'business' | 'user' | 'manufacturer';
+    const tokenPayload = {
+      ...payload,
+      userType: baseType,
+      userId: payload.sub
+    };
+
+    return jwt.sign(tokenPayload, this.JWT_SECRET, { expiresIn: AUTH_CONSTANTS.REMEMBER_TOKEN_EXPIRES_IN });
   }
 
   /**

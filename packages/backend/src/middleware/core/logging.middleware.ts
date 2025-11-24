@@ -9,7 +9,6 @@
  * - Security-aware logging
  * - High-performance optimizations for production
  * 
- * Follows 2025 best practices for enterprise application logging
  */
 
 import { Request, Response, NextFunction } from 'express';

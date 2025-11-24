@@ -91,8 +91,10 @@ export class UserAuthService {
 
     const token = jwt.sign({
       userId: user._id,
+      sub: user._id,
       email: user.email,
-      type: 'user'
+      type: 'user',
+      userType: 'user'
     }, JWT_SECRET, { expiresIn: '7d' });
 
     await Promise.all([

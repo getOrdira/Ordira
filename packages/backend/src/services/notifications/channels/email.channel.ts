@@ -187,10 +187,18 @@ export class EmailChannel {
       const verification = await Promise.race([verificationPromise, timeoutPromise]);
       result.canConnect = verification === true;
       
+      const port = Number(process.env.SMTP_PORT || 587);
+      const isImplicitSSL = port === 465;
+      
       result.serverInfo = {
         host: process.env.SMTP_HOST,
         port: process.env.SMTP_PORT,
-        secure: Number(process.env.SMTP_PORT) === 465
+        secure: isImplicitSSL, // true for port 465 (implicit SSL), false for port 587 (STARTTLS)
+        encryptionMethod: isImplicitSSL ? 'SSL/TLS (Implicit)' : 'STARTTLS',
+        isEncrypted: true, // Both methods provide encrypted connections
+        note: isImplicitSSL 
+          ? 'Using implicit SSL/TLS encryption (port 465)' 
+          : 'Using STARTTLS encryption (port 587) - connection is secure'
       };
 
     } catch (error: any) {
