@@ -3,19 +3,37 @@
  * 
  * Handles all S3 operations for file storage.
  * Moved from external/s3.service.ts to media/core/ for better organization.
+ * Migrated to AWS SDK v3 for better performance and tree-shaking.
  */
 
-import AWS from 'aws-sdk';
+import { 
+  S3Client, 
+  PutObjectCommand, 
+  DeleteObjectCommand, 
+  DeleteObjectsCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  CopyObjectCommand,
+  GetObjectCommand,
+  type PutObjectCommandInput,
+  type DeleteObjectsCommandInput,
+  type ListObjectsV2CommandInput,
+  type CopyObjectCommandInput
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Upload } from '@aws-sdk/lib-storage';
 import { logger } from '../../../utils/logger'; 
 import { Readable } from 'stream';
 import path from 'path';
 import crypto from 'crypto';
 
-// Configure AWS SDK
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || 'us-east-2'
+// Configure AWS SDK v3 S3 Client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+  }
 });
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET!;
@@ -83,7 +101,7 @@ export class S3Service {
     try {
       const key = this.buildS3Key(options.businessId, options.resourceId, options.filename);
       
-      const uploadParams: AWS.S3.PutObjectRequest = {
+      const uploadParams: PutObjectCommandInput = {
         Bucket: BUCKET_NAME,
         Key: key,
         Body: fileBuffer,
@@ -97,14 +115,19 @@ export class S3Service {
         uploadParams.ACL = 'public-read';
       }
 
-      const result = await s3.upload(uploadParams).promise();
+      const command = new PutObjectCommand(uploadParams);
+      const result = await s3Client.send(command);
+
+      // Build URL manually since v3 doesn't return Location
+      const region = process.env.AWS_REGION || 'us-east-2';
+      const location = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 
       return {
         key,
-        url: result.Location,
-        etag: result.ETag,
-        location: result.Location,
-        bucket: result.Bucket,
+        url: location,
+        etag: result.ETag?.replace(/"/g, '') || '',
+        location,
+        bucket: BUCKET_NAME,
         size: fileBuffer.length
       };
     } catch (error: any) {
@@ -113,7 +136,7 @@ export class S3Service {
         businessId: options.businessId,
         filename: options.filename,
         error: error.message,
-        code: error.code
+        code: error.name || error.Code
       });
       
       // Return generic error message to prevent configuration exposure
@@ -131,7 +154,7 @@ export class S3Service {
     try {
       const key = this.buildS3Key(options.businessId, options.resourceId, options.filename);
       
-      const uploadParams: AWS.S3.PutObjectRequest = {
+      const uploadParams: PutObjectCommandInput = {
         Bucket: BUCKET_NAME,
         Key: key,
         Body: stream,
@@ -144,14 +167,23 @@ export class S3Service {
         uploadParams.ACL = 'public-read';
       }
 
-      const result = await s3.upload(uploadParams).promise();
+      // Use Upload class for streaming uploads
+      const upload = new Upload({
+        client: s3Client,
+        params: uploadParams
+      });
+
+      const result = await upload.done();
+
+      const region = process.env.AWS_REGION || 'us-east-2';
+      const location = `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 
       return {
         key,
-        url: result.Location,
-        etag: result.ETag,
-        location: result.Location,
-        bucket: result.Bucket
+        url: location,
+        etag: result.ETag?.replace(/"/g, '') || '',
+        location,
+        bucket: BUCKET_NAME
       };
     } catch (error: any) {
       // Log detailed error for debugging but don't expose sensitive info
@@ -159,7 +191,7 @@ export class S3Service {
         businessId: options.businessId,
         filename: options.filename,
         error: error.message,
-        code: error.code
+        code: error.name || error.Code
       });
       
       // Return generic error message to prevent configuration exposure
@@ -172,10 +204,11 @@ export class S3Service {
    */
   static async deleteFile(key: string): Promise<void> {
     try {
-      await s3.deleteObject({
+      const command = new DeleteObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key
-      }).promise();
+      });
+      await s3Client.send(command);
     } catch (error: any) {
       throw new Error(`S3 delete failed: ${error.message}`);
     }
@@ -193,7 +226,7 @@ export class S3Service {
     }
 
     try {
-      const deleteParams: AWS.S3.DeleteObjectsRequest = {
+      const deleteParams: DeleteObjectsCommandInput = {
         Bucket: BUCKET_NAME,
         Delete: {
           Objects: keys.map(key => ({ Key: key })),
@@ -201,9 +234,10 @@ export class S3Service {
         }
       };
 
-      const result = await s3.deleteObjects(deleteParams).promise();
+      const command = new DeleteObjectsCommand(deleteParams);
+      const result = await s3Client.send(command);
 
-      const deleted = result.Deleted?.map(obj => obj.Key!) || [];
+      const deleted = result.Deleted?.map(obj => obj.Key!).filter(Boolean) || [];
       const errors = result.Errors?.map(err => ({
         key: err.Key!,
         error: `${err.Code}: ${err.Message}`
@@ -220,13 +254,15 @@ export class S3Service {
    */
   static async fileExists(key: string): Promise<boolean> {
     try {
-      await s3.headObject({
+      const command = new HeadObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key
-      }).promise();
+      });
+      await s3Client.send(command);
       return true;
     } catch (error: any) {
-      if (error.code === 'NotFound') {
+      // In v3, NotFound is indicated by name === 'NotFound' or statusCode === 404
+      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
         return false;
       }
       throw new Error(`S3 file check failed: ${error.message}`);
@@ -238,17 +274,18 @@ export class S3Service {
    */
   static async getFileInfo(key: string): Promise<S3FileInfo> {
     try {
-      const result = await s3.headObject({
+      const command = new HeadObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key
-      }).promise();
+      });
+      const result = await s3Client.send(command);
 
       return {
         key,
         url: this.getPublicUrl(key),
         size: result.ContentLength || 0,
         lastModified: result.LastModified || new Date(),
-        etag: result.ETag || '',
+        etag: result.ETag?.replace(/"/g, '') || '',
         metadata: result.Metadata
       };
     } catch (error: any) {
@@ -261,7 +298,7 @@ export class S3Service {
    */
   static async listFiles(options: S3ListOptions = {}): Promise<S3ListResult> {
     try {
-      const listParams: AWS.S3.ListObjectsV2Request = {
+      const listParams: ListObjectsV2CommandInput = {
         Bucket: BUCKET_NAME,
         Prefix: options.prefix,
         MaxKeys: options.maxKeys || 1000,
@@ -269,14 +306,15 @@ export class S3Service {
         ContinuationToken: options.continuationToken
       };
 
-      const result = await s3.listObjectsV2(listParams).promise();
+      const command = new ListObjectsV2Command(listParams);
+      const result = await s3Client.send(command);
 
       const files: S3FileInfo[] = (result.Contents || []).map(obj => ({
         key: obj.Key!,
         url: this.getPublicUrl(obj.Key!),
         size: obj.Size || 0,
         lastModified: obj.LastModified || new Date(),
-        etag: obj.ETag || ''
+        etag: obj.ETag?.replace(/"/g, '') || ''
       }));
 
       const totalSize = files.reduce((sum, file) => sum + file.size, 0);
@@ -302,11 +340,21 @@ export class S3Service {
     expiresIn: number = 3600 // 1 hour default
   ): Promise<string> {
     try {
-      return await s3.getSignedUrlPromise(operation, {
+      const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
-        Expires: expiresIn
+        Key: key
       });
+
+      // For putObject, use PutObjectCommand
+      if (operation === 'putObject') {
+        const putCommand = new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key
+        });
+        return await getSignedUrl(s3Client, putCommand, { expiresIn });
+      }
+
+      return await getSignedUrl(s3Client, command, { expiresIn });
     } catch (error: any) {
       throw new Error(`S3 signed URL generation failed: ${error.message}`);
     }
@@ -317,11 +365,13 @@ export class S3Service {
    */
   static async copyFile(sourceKey: string, destinationKey: string): Promise<void> {
     try {
-      await s3.copyObject({
+      const copyParams: CopyObjectCommandInput = {
         Bucket: BUCKET_NAME,
         CopySource: `${BUCKET_NAME}/${sourceKey}`,
         Key: destinationKey
-      }).promise();
+      };
+      const command = new CopyObjectCommand(copyParams);
+      await s3Client.send(command);
     } catch (error: any) {
       throw new Error(`S3 copy failed: ${error.message}`);
     }
@@ -332,12 +382,25 @@ export class S3Service {
    */
   static async getFileBuffer(key: string): Promise<Buffer> {
     try {
-      const result = await s3.getObject({
+      const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key
-      }).promise();
+      });
+      const result = await s3Client.send(command);
 
-      return result.Body as Buffer;
+      // In v3, Body is a Readable stream, need to convert to Buffer
+      if (result.Body) {
+        const chunks: Uint8Array[] = [];
+        const stream = result.Body as Readable;
+        
+        for await (const chunk of stream) {
+          chunks.push(chunk);
+        }
+        
+        return Buffer.concat(chunks);
+      }
+      
+      throw new Error('No body returned from S3');
     } catch (error: any) {
       throw new Error(`S3 file download failed: ${error.message}`);
     }
@@ -345,12 +408,25 @@ export class S3Service {
 
   /**
    * Get file as stream
+   * Note: This is now async in v3. For synchronous stream access, 
+   * use getFileBuffer() or make this method async.
    */
-  static getFileStream(key: string): Readable {
-    return s3.getObject({
-      Bucket: BUCKET_NAME,
-      Key: key
-    }).createReadStream();
+  static async getFileStream(key: string): Promise<Readable> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+      const result = await s3Client.send(command);
+      
+      if (!result.Body) {
+        throw new Error('No body returned from S3');
+      }
+      
+      return result.Body as Readable;
+    } catch (error: any) {
+      throw new Error(`S3 file stream failed: ${error.message}`);
+    }
   }
 
   /**
@@ -362,20 +438,23 @@ export class S3Service {
   ): Promise<void> {
     try {
       // Get current object to preserve other properties
-      const currentObject = await s3.headObject({
+      const headCommand = new HeadObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key
-      }).promise();
+      });
+      const currentObject = await s3Client.send(headCommand);
 
       // Copy object with new metadata
-      await s3.copyObject({
+      const copyParams: CopyObjectCommandInput = {
         Bucket: BUCKET_NAME,
         CopySource: `${BUCKET_NAME}/${key}`,
         Key: key,
         Metadata: metadata,
         MetadataDirective: 'REPLACE',
         ContentType: currentObject.ContentType
-      }).promise();
+      };
+      const copyCommand = new CopyObjectCommand(copyParams);
+      await s3Client.send(copyCommand);
     } catch (error: any) {
       throw new Error(`S3 metadata update failed: ${error.message}`);
     }
@@ -488,23 +567,29 @@ export class S3Service {
 
     try {
       // Test connection
-      await s3.listObjectsV2({ Bucket: BUCKET_NAME, MaxKeys: 1 }).promise();
+      const listCommand = new ListObjectsV2Command({ 
+        Bucket: BUCKET_NAME, 
+        MaxKeys: 1 
+      });
+      await s3Client.send(listCommand);
       result.canConnect = true;
       result.bucketExists = true;
 
       // Test upload permission
       const testKey = `test-permissions-${Date.now()}.txt`;
-      await s3.putObject({
+      const putCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: testKey,
         Body: 'test'
-      }).promise();
+      });
+      await s3Client.send(putCommand);
 
       // Test delete permission
-      await s3.deleteObject({
+      const deleteCommand = new DeleteObjectCommand({
         Bucket: BUCKET_NAME,
         Key: testKey
-      }).promise();
+      });
+      await s3Client.send(deleteCommand);
 
       result.hasPermissions = true;
 
@@ -512,8 +597,8 @@ export class S3Service {
       // Log detailed error for debugging
       logger.error('S3 validation failed:', {
         error: error.message,
-        code: error.code,
-        statusCode: error.statusCode
+        code: error.name || error.Code,
+        statusCode: error.$metadata?.httpStatusCode
       });
       
       // Return generic error message
@@ -523,4 +608,3 @@ export class S3Service {
     return result;
   }
 }
-
