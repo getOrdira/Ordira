@@ -26,17 +26,32 @@
     "cron": "^4.3.3",
     "ioredis": "^5.7.0",
     "mongodb": "^6.19.0",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "resend": "^6.5.2"
   },
   "devDependencies": {
     "@types/ioredis": "^5.0.0",
     "@types/jest": "^30.0.0",
     "hardhat": "^3.0.4",
-    "lerna": "^8.2.3",
+    "lerna": "^8.2.4",
     "typechain": "^8.3.2"
   },
   "overrides": {
+    "@octokit/core": "5.2.0",
+    "@octokit/plugin-paginate-rest": "9.2.2",
+    "@octokit/request": "8.4.1",
+    "@octokit/request-error": "5.1.1",
+    "@octokit/rest": "20.1.2",
+    "@sentry/node": "10.27.0",
+    "@sentry/node-core": "10.27.0",
+    "@opentelemetry/semantic-conventions": "1.37.0",
     "ethers": "6.15.0",
+    "axios": "^1.12.0",
+    "glob": "^10.5.0",
+    "js-yaml": "4.1.1",
+    "semver": "7.6.3",
+    "tar": "6.2.1",
+    "tmp": "0.2.4",
     "viem": "2.37.3"
   }
 }
