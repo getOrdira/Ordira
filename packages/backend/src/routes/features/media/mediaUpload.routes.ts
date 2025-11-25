@@ -17,7 +17,8 @@ const uploadMediaBodySchema = Joi.object({
   maxFileSize: Joi.number().integer().min(1).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Upload single media file
 builder.post(
