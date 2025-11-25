@@ -56,6 +56,26 @@ export class OpenTelemetryService {
     try {
       logger.info('🔧 Initializing OpenTelemetry...');
 
+      // Check if OpenTelemetry APIs are already registered (prevent duplicate registration)
+      try {
+        // Try to get existing providers - if they exist, OpenTelemetry was already initialized
+        const existingMeterProvider = metrics.getMeterProvider();
+        const existingTracerProvider = trace.getTracerProvider();
+        
+        // Check if these are the default no-op providers or actual implementations
+        const hasMeterProvider = existingMeterProvider && existingMeterProvider.constructor.name !== 'NoopMeterProvider';
+        const hasTracerProvider = existingTracerProvider && existingTracerProvider.constructor.name !== 'NoopTracerProvider';
+        
+        if (hasMeterProvider || hasTracerProvider) {
+          logger.warn('⚠️ OpenTelemetry APIs already registered - skipping initialization to prevent duplicate registration');
+          this.initialized = true;
+          return;
+        }
+      } catch (checkError) {
+        // If check fails, continue with initialization
+        logger.debug('Checking OpenTelemetry registration status...');
+      }
+
       // Create resource with service information
       const resource = new Resource({
         'service.name': this.config.serviceName,
@@ -85,8 +105,17 @@ export class OpenTelemetryService {
       // Initialize SDK
       this.sdk = new NodeSDK(sdkConfig);
 
-      // Start SDK
-      await this.sdk.start();
+      // Start SDK with error handling for duplicate registration
+      try {
+        await this.sdk.start();
+      } catch (startError: any) {
+        if (startError.message && startError.message.includes('duplicate registration')) {
+          logger.warn('⚠️ OpenTelemetry SDK already started - this is safe to ignore');
+          this.initialized = true;
+          return;
+        }
+        throw startError;
+      }
 
       // Get meter and tracer
       if (this.config.enableMetrics) {

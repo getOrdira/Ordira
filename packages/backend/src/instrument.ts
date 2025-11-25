@@ -19,6 +19,7 @@ if (process.env.SENTRY_DSN) {
     // Lower trace sample rate since OpenTelemetry handles traces
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0.5,
     environment: process.env.NODE_ENV || 'development',
+    // Only enable debug mode if explicitly requested (suppresses verbose logs when false)
     debug: process.env.SENTRY_DEBUG === 'true',
     // Focus on error tracking, not tracing (OpenTelemetry handles that)
     integrations: [
