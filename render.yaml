@@ -3,7 +3,7 @@ services:
     name: ordira-backend
     env: node
     plan: starter
-    buildCommand: cd packages/backend && npm install && npm run build
+    buildCommand: npm install && cd packages/backend && npm install --include=optional --legacy-peer-deps && npm run build
     startCommand: cd packages/backend && npm start
     envVars:
       - key: NODE_VERSION
