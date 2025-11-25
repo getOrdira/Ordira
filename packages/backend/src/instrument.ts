@@ -11,25 +11,25 @@
 import * as Sentry from '@sentry/node';
 import { httpIntegration, onUncaughtExceptionIntegration, onUnhandledRejectionIntegration, consoleIntegration } from '@sentry/node';
 
-// Suppress verbose Sentry logger messages (client reports, flushing, etc.)
+// Suppress verbose Sentry logger messages (client reports, flushing, instrumentation, etc.)
 // These are informational and clutter logs in production
 if (process.env.SENTRY_DSN && process.env.SENTRY_DEBUG !== 'true') {
   const originalLog = console.log;
   console.log = (...args: any[]) => {
     const message = args.join(' ');
-    // Filter out verbose Sentry logger messages
+    // Filter out all verbose Sentry logger messages unless in debug mode
+    if (message.includes('Sentry Logger [log]')) {
+      // Suppress all Sentry Logger [log] messages (they're all verbose)
+      return;
+    }
+    // Also filter OpenTelemetry instrumentation messages from Sentry
     if (
-      message.includes('Sentry Logger [log]') &&
-      (message.includes('Flushing') || 
-       message.includes('No outcomes to send') ||
-       message.includes('client reports') ||
-       message.includes('Integration installed') ||
-       message.includes('SDK initialized') ||
-       message.includes('Registered a global') ||
-       message.includes('Applying instrumentation patch') ||
-       message.includes('Discarding transaction') ||
-       message.includes('Recording outcome') ||
-       message.includes('Recording is off'))
+      message.includes('@opentelemetry_sentry-patched') ||
+      message.includes('@sentry/instrumentation-http') ||
+      message.includes('Instrumentation suppressed') ||
+      message.includes('[Tracing] Not injecting trace data') ||
+      message.includes('Sending request session aggregate') ||
+      message.includes('Sending outcomes:')
     ) {
       return; // Suppress these messages
     }

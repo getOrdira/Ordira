@@ -24,11 +24,14 @@ export interface IBusiness extends Document {
   contactEmail?: string;
   socialUrls?: string[];
   walletAddress?: string;
-  certificateWallet: string;
+  certificateWallet?: string;
   plan?: string;
   emailVerifiedAt?: Date;
   phoneVerifiedAt?: Date;
   isActive?: boolean;
+  businessNumber?: string;
+  marketingConsent?: boolean;
+  platformUpdatesConsent?: boolean;
   
   securityPreferences?: {
     twoFactorEnabled?: boolean;
@@ -218,8 +221,14 @@ const BusinessSchema = new Schema<IBusiness>(
         message: 'Social URLs must be valid HTTP/HTTPS URLs'
       }
     }],
-    walletAddress: { 
-      type: String, 
+    walletAddress: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      match: [/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum wallet address format']
+    },
+    certificateWallet: {
+      type: String,
       lowercase: true,
       trim: true,
       match: [/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum wallet address format']
@@ -251,10 +260,26 @@ const BusinessSchema = new Schema<IBusiness>(
       max: [new Date().getFullYear(), 'Year established cannot be in the future']
     },
     
+    // Business registration fields
+    businessNumber: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Business number cannot exceed 100 characters']
+    },
+    marketingConsent: {
+      type: Boolean,
+      default: false
+    },
+    platformUpdatesConsent: {
+      type: Boolean,
+      default: false
+    },
+
     // Security fields
     lastLoginAt: { type: Date },
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date },
+    tokenVersion: { type: Number, default: 0 },
     
     // Password reset fields
     passwordResetCode: { 

@@ -50,19 +50,18 @@ export class BusinessAuthService extends AuthBaseService {
         throw { statusCode: 409, message: 'Email is already registered for a business account.' };
       }
 
-      // Hash password and generate verification code
-      const passwordHash = await bcrypt.hash(businessData.password, AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS);
+      // Generate verification code (password will be hashed by pre-save hook)
       const emailCode = UtilsService.generateNumericCode(AUTH_CONSTANTS.EMAIL_VERIFICATION_CODE_LENGTH);
 
       // Create business account
       const business = new Business({
         firstName: businessData.firstName,
         lastName: businessData.lastName,
-        dateOfBirth: businessData.dateOfBirth instanceof Date 
-          ? businessData.dateOfBirth 
+        dateOfBirth: businessData.dateOfBirth instanceof Date
+          ? businessData.dateOfBirth
           : new Date(businessData.dateOfBirth),
         email: normalizedEmail,
-        password: passwordHash,
+        password: businessData.password, // Pre-save hook will hash this
         businessName: businessData.businessName,
         businessType: businessData.businessType || 'brand',
         address: businessData.address,
