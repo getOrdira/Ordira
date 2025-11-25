@@ -38,7 +38,8 @@ const recentMediaQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(50).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Get media by ID
 builder.get(

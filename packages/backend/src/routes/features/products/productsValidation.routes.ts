@@ -77,7 +77,8 @@ const sanitizeBodySchema = Joi.object({
   }).optional()
 }).min(1);
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Validate create product
 builder.post(

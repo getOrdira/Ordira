@@ -27,7 +27,8 @@ const recordAccessBodySchema = Joi.object({
   visitorIdentifier: Joi.string().trim().max(128).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.get(
   '/:domainId',

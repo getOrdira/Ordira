@@ -91,7 +91,8 @@ const limitedQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).default(10)
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.get(
   '/',

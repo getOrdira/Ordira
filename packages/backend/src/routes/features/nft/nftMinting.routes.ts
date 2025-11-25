@@ -27,7 +27,8 @@ const mintNftBodySchema = Joi.object({
   customMessage: Joi.string().trim().max(500).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Mint an NFT (certificate)
 builder.post(

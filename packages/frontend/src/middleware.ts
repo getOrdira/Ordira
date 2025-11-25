@@ -13,7 +13,7 @@ import type { UserRole } from '@/lib/types/features/users';
 import { sanitizeSensitiveObject } from '@/lib/security/sensitiveData';
 
 const encoder = new TextEncoder();
-const rawSecrets = [process.env.JWT_SECRET, process.env.MFG_JWT_SECRET].filter(
+const rawSecrets = [process.env.JWT_SECRET].filter(
   (value): value is string => typeof value === 'string' && value.length > 0
 );
 if (!rawSecrets.length && appConfig.environment.isDevelopment) {
@@ -40,7 +40,7 @@ const INTERNAL_HOSTNAMES = Array.from(
       '127.0.0.1',
       SITE_HOSTNAME,
       API_HOSTNAME,
-      'ordira.com',
+      'ordira.xyz',
       'vercel.app'
     ].filter((value): value is string => typeof value === 'string' && value.length > 0)
   )
@@ -225,7 +225,19 @@ function createSecurityHeaders(): Record<string, string> {
     'Referrer-Policy': 'strict-origin-when-cross-origin'
   };
 
-  const scriptSrc = ["'self'", "'unsafe-eval'", "'unsafe-inline'", 'https://www.google-analytics.com'];
+  // CSP Configuration - Security Hardened
+  // Note: Next.js automatically generates nonces for inline scripts in production
+  // We use 'unsafe-inline' as fallback for development, but production should use nonces
+  const isProduction = appConfig.environment.isProduction;
+  
+  // In production, Next.js provides nonces via __webpack_nonce__ and __nextjs_original_script_name__
+  // We still need 'unsafe-inline' for some Next.js internal scripts, but we can be more restrictive
+  const scriptSrc = isProduction
+    ? ["'self'", "'unsafe-inline'", 'https://www.google-analytics.com'] // Production: Next.js handles nonces
+    : ["'self'", "'unsafe-eval'", "'unsafe-inline'", 'https://www.google-analytics.com']; // Dev: Allow eval for hot reload
+  
+  // Styles: Allow unsafe-inline for Tailwind and component styles (unavoidable with current setup)
+  // Consider using nonces or hashes for critical inline styles in future
   const styleSrc = ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'];
   const fontSrc = ["'self'", 'https://fonts.gstatic.com'];
   const imgSrc = ["'self'", 'data:', 'https:'];
@@ -236,14 +248,27 @@ function createSecurityHeaders(): Record<string, string> {
   }
   connectSrc.add('https://www.google-analytics.com');
 
-  headers['Content-Security-Policy'] = [
+  // Build CSP with report-uri for violation monitoring (optional)
+  const cspDirectives = [
     `default-src 'self'`,
     `script-src ${scriptSrc.join(' ')}`,
     `style-src ${styleSrc.join(' ')}`,
     `font-src ${fontSrc.join(' ')}`,
     `img-src ${imgSrc.join(' ')}`,
-    `connect-src ${Array.from(connectSrc).join(' ')}`
-  ].join('; ');
+    `connect-src ${Array.from(connectSrc).join(' ')}`,
+    `object-src 'none'`, // Prevent plugins
+    `base-uri 'self'`, // Restrict base tag
+    `form-action 'self'`, // Restrict form submissions
+    `frame-ancestors 'none'`, // Prevent embedding (X-Frame-Options alternative)
+    `upgrade-insecure-requests` // Upgrade HTTP to HTTPS
+  ];
+
+  // Add report-uri in production if configured (for CSP violation monitoring)
+  if (isProduction && process.env.CSP_REPORT_URI) {
+    cspDirectives.push(`report-uri ${process.env.CSP_REPORT_URI}`);
+  }
+
+  headers['Content-Security-Policy'] = cspDirectives.join('; ');
 
   return headers;
 }

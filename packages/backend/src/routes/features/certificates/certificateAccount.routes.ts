@@ -45,7 +45,8 @@ const transferStatisticsQuerySchema = Joi.object({
   includeAverageTime: Joi.boolean().optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.get(
   '/stats',

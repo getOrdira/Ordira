@@ -7,7 +7,8 @@ import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base
 import { brandAccountController } from '../../../controllers/features/brands/brandAccount.controller';
 import { uploadMiddleware } from '../../../middleware/upload/upload.middleware';
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 const profileQuerySchema = Joi.object({
   includeAnalytics: Joi.boolean().optional(),

@@ -16,7 +16,8 @@ const deployContractBodySchema = Joi.object({
   enablePublicMint: Joi.boolean().optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Deploy a new NFT contract
 builder.post(

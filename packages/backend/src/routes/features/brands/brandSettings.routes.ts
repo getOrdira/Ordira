@@ -5,7 +5,8 @@ import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { brandSettingsController } from '../../../controllers/features/brands/brandSettings.controller';
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 const updateBrandSettingsSchema = Joi.object({
   themeColor: Joi.string().pattern(/^#([0-9A-F]{3}){1,2}$/i).optional(),

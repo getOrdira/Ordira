@@ -41,7 +41,8 @@ const scheduleRecheckQuerySchema = Joi.object({
   method: Joi.string().valid('dns', 'http', 'manual').optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.post(
   '/:domainId/initiate',

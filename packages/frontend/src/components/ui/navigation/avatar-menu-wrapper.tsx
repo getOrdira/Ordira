@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils/utils';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 
 // Import our hook and existing UI components
-import { useAvatarMenu } from '@/hooks/use-avatar-menu';
+import { useAvatarMenu } from '@/hooks/deprecated/use-avatar-menu';
 import { UserProfileDropdown } from './use-avatar-menu';
 
 interface AvatarMenuWrapperProps {

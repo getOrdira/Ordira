@@ -291,7 +291,7 @@ if ($env:BUSINESS_TOKEN) {
 
     # Test 3.2: Calculate pricing summary
     Write-Host "3.2. Testing Calculate Pricing Summary..." -ForegroundColor $YELLOW
-    $pricingQuery = "plan=growth&couponCode="
+    $pricingQuery = "plan=growth"  # Omit couponCode if empty
     $pricingSummary = Test-Endpoint -Name "Calculate Pricing" `
         -Method "GET" `
         -Uri "$BASE_URL/api/billing/billing/calculate-pricing?$pricingQuery" `
@@ -302,7 +302,7 @@ if ($env:BUSINESS_TOKEN) {
     Write-Host "3.3. Testing Create Checkout Session (Stripe)..." -ForegroundColor $YELLOW
     $checkoutBody = @{
         plan = "growth"
-        couponCode = $null
+        # couponCode omitted (optional field)
         addons = @()
         metadata = @{
             test = $true

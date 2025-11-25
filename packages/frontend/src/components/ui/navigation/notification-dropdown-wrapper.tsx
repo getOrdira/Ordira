@@ -3,12 +3,12 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useNotifications as useUtilitiesNotifications } from '@/hooks/use-utilities';
+import { useNotifications as useUtilitiesNotifications } from '@/hooks/deprecated/use-utilities';
 
 // Import our aligned components and hooks
 import { NotificationDropdown, type Notification as DropdownNotification } from './notifications-dropdown';
-import { useNotifications } from '@/hooks/use-notifications';
-import type { NotificationAction } from '@/hooks/use-notifications';
+import { useNotifications } from '@/hooks/deprecated/use-notifications';
+import type { NotificationAction } from '@/hooks/deprecated/use-notifications';
 
 interface NotificationDropdownWrapperProps {
   className?: string;

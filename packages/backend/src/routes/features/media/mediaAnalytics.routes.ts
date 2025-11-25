@@ -13,7 +13,8 @@ const usageTrendsQuerySchema = Joi.object({
   days: Joi.number().integer().min(1).max(365).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Get comprehensive storage statistics
 builder.get(

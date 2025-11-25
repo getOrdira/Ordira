@@ -61,7 +61,8 @@ const listProposalsQuerySchema = Joi.object({
   offset: Joi.number().integer().min(0).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Create proposal
 builder.post(

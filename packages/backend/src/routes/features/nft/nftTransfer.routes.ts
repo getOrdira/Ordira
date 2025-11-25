@@ -15,7 +15,8 @@ const transferNftBodySchema = Joi.object({
   contractAddress: ethereumAddressSchema.required()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Transfer an NFT
 builder.post(

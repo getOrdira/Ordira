@@ -49,7 +49,8 @@ const validateBatchInputsBodySchema = Joi.object({
   inputs: Joi.array().items(batchInputSchema).min(1).max(500).required()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.post(
   '/check-duplicate',

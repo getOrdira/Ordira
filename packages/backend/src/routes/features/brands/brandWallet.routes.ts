@@ -5,7 +5,8 @@ import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { brandWalletController } from '../../../controllers/features/brands/brandWallet.controller';
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.post(
   '/validate',

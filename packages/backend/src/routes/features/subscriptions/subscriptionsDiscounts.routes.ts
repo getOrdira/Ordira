@@ -24,7 +24,8 @@ const removeDiscountBodySchema = Joi.object({
   subscriptionId: Joi.string().trim().max(200).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Get wallet balance
 builder.get(

@@ -19,7 +19,8 @@ const deleteByCategoryQuerySchema = Joi.object({
   category: Joi.string().valid('profile', 'product', 'banner', 'certificate', 'document').required()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Delete a single media file
 builder.delete(

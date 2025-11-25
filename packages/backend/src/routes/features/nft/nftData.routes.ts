@@ -32,7 +32,8 @@ const tokenParamsSchema = Joi.object({
   tokenId: tokenIdSchema.required()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // List certificates (NFTs) for a business
 builder.get(

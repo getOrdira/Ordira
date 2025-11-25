@@ -20,7 +20,8 @@ const analyzeChangeBodySchema = Joi.object({
   status: Joi.string().valid('active', 'inactive', 'past_due', 'canceled', 'paused').optional()
 }).min(1);
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Get available tiers
 builder.get(

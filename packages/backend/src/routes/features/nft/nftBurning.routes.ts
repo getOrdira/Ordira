@@ -14,7 +14,8 @@ const burnNftBodySchema = Joi.object({
   reason: Joi.string().trim().max(500).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Burn an NFT
 builder.post(

@@ -5,7 +5,8 @@ import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { brandRecommendationController } from '../../../controllers/features/brands/brandRecommendation.controller';
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 const recommendationQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(50).optional(),

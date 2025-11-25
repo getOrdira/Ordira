@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { LoadingSpinner } from '@/components/ui/feedback/loading-spinner';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/deprecated/use-auth';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

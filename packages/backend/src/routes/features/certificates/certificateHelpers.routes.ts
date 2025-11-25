@@ -60,7 +60,8 @@ const web3RecommendationsBodySchema = web3InsightsBodySchema.keys({
   plan: Joi.string().trim().max(50).required()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.post(
   '/validate-recipient',

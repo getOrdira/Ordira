@@ -47,7 +47,8 @@ const domainLookupQuerySchema = Joi.object({
 
 const countAllBodySchema = Joi.object().unknown(true);
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+// Use authenticated config for direct API access without tenant resolution
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 builder.post(
   '/',

@@ -19,8 +19,8 @@ import {
   Plus
 } from 'lucide-react';
 import { VerificationBadge } from '@/components/ui/data-display/status-badge';
-import { useNotifications } from '@/hooks/use-notifications';
-import { useAvatarMenu } from '@/hooks/use-avatar-menu';
+import { useNotifications } from '@/hooks/deprecated/use-notifications';
+import { useAvatarMenu } from '@/hooks/deprecated/use-avatar-menu';
 import { AnyUser } from '@/lib/typessss/user';
 import { cn } from '@/lib/utils/utils';
 
