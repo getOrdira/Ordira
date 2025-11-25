@@ -4,6 +4,7 @@
 import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { votesProposalManagementController } from '../../../controllers/features/votes/votesProposalManagement.controller';
+import { enforcePlanLimits } from '../../../middleware/limits/planLimits.middleware';
 
 const objectIdSchema = Joi.string().hex().length(24);
 
@@ -64,12 +65,13 @@ const listProposalsQuerySchema = Joi.object({
 // Use authenticated config for direct API access without tenant resolution
 const builder = createRouteBuilder(RouteConfigs.authenticated);
 
-// Create proposal
+// Create proposal - enforces vote/proposal limits based on plan
 builder.post(
   '/',
   createHandler(votesProposalManagementController, 'createProposal'),
   {
-    validateBody: createProposalBodySchema
+    validateBody: createProposalBodySchema,
+    middleware: [enforcePlanLimits('votes')]
   }
 );
 

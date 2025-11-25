@@ -5,6 +5,7 @@ import Joi from 'joi';
 import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base.routes';
 import { certificateMintingController } from '../../../controllers/features/certificates/certificateMinting.controller';
 import { safeUploadMiddleware, uploadRateLimit } from '../../../middleware/upload/upload.middleware';
+import { enforcePlanLimits } from '../../../middleware/limits/planLimits.middleware';
 
 const objectIdSchema = Joi.string().hex().length(24);
 
@@ -68,7 +69,8 @@ builder.post(
   '/create',
   createHandler(certificateMintingController, 'createCertificate'),
   {
-    validateBody: createCertificateBodySchema
+    validateBody: createCertificateBodySchema,
+    middleware: [enforcePlanLimits('certificates')]
   }
 );
 
@@ -76,7 +78,8 @@ builder.post(
   '/batch-create',
   createHandler(certificateMintingController, 'createBatchCertificates'),
   {
-    validateBody: batchCreateBodySchema
+    validateBody: batchCreateBodySchema,
+    middleware: [enforcePlanLimits('certificates')]
   }
 );
 

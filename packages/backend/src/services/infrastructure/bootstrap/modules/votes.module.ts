@@ -38,7 +38,7 @@ export class VotesModule extends BaseFeatureModule {
     votesRoutes.use('/proposals/management', voteRoutesModule.votesProposalManagementRoutes);
     votesRoutes.use('/deployment', voteRoutesModule.votesDeploymentRoutes);
 
-    // Voting system - routes handle their own middleware
+    // Voting system - all plans have access, quantity limits enforced by enforcePlanLimits middleware
     app.use('/api/votes', votesRoutes);
 
     logger.info(`✅ ${this.name} module routes registered`);

@@ -6,6 +6,7 @@ import { createRouteBuilder, RouteConfigs, createHandler } from '../../core/base
 import { mediaUploadController } from '../../../controllers/features/media/mediaUpload.controller';
 import { uploadMiddleware } from '../../../middleware/upload/upload.middleware';
 import { validateBody } from '../../../middleware/validation/validation.middleware';
+import { enforcePlanLimits } from '../../../middleware/limits/planLimits.middleware';
 
 const uploadMediaBodySchema = Joi.object({
   category: Joi.string().valid('profile', 'product', 'banner', 'certificate', 'document').optional(),
@@ -20,24 +21,26 @@ const uploadMediaBodySchema = Joi.object({
 // Use authenticated config for direct API access without tenant resolution
 const builder = createRouteBuilder(RouteConfigs.authenticated);
 
-// Upload single media file
+// Upload single media file - enforces storage limits based on plan
 builder.post(
   '/upload',
   createHandler(mediaUploadController, 'uploadMedia'),
   {
     middleware: [
+      enforcePlanLimits('storage'),
       ...(uploadMiddleware.singleImage as any),
       validateBody(uploadMediaBodySchema)
     ]
   }
 );
 
-// Upload multiple media files (batch)
+// Upload multiple media files (batch) - enforces storage limits based on plan
 builder.post(
   '/upload/batch',
   createHandler(mediaUploadController, 'uploadBatchMedia'),
   {
     middleware: [
+      enforcePlanLimits('storage'),
       ...(uploadMiddleware.multipleImages as any),
       validateBody(uploadMediaBodySchema)
     ]

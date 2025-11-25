@@ -8,10 +8,7 @@ import { Application, Router } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import {
-  authenticate,
-  requireTenantPlan
-} from '../../../../middleware';
+import { requirePlanFeature } from '../../../../middleware/auth/unifiedAuth.middleware';
 import { logger } from '../../logging';
 
 export class DomainsModule extends BaseFeatureModule {
@@ -41,10 +38,9 @@ export class DomainsModule extends BaseFeatureModule {
     domainMappingRoutes.use('/storage', domainRoutesModule.domainStorageRoutes);
     domainMappingRoutes.use('/analytics', domainRoutesModule.domainAnalyticsRoutes);
 
-    // Domain mapping with custom domain support
+    // Domain mapping - requires custom domains feature (Growth+)
     app.use('/api/domain-mappings',
-      authenticate,
-      requireTenantPlan(['premium', 'enterprise']),
+      requirePlanFeature('customDomains'),
       domainMappingRoutes
     );
 

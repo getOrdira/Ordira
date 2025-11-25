@@ -281,6 +281,103 @@ export function requireUserType(allowedTypes: BaseRequest['userType'][]) {
 }
 
 /**
+ * Middleware to require specific business plan tier
+ * Works with JWT authentication - no tenant resolution needed
+ * Use for features that are only available on certain plan tiers
+ */
+export function requireBusinessPlan(allowedPlans: ('foundation' | 'growth' | 'premium' | 'enterprise')[]) {
+  return (req: UnifiedAuthRequest, res: Response, next: NextFunction): void | Response => {
+    try {
+      // Ensure user is authenticated
+      if (!req.userType || !req.business) {
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+      }
+
+      // Only applicable to business users
+      if (req.userType !== 'business') {
+        throw createAppError('This feature is only available to business accounts', 403, 'BUSINESS_ONLY');
+      }
+
+      // Get business plan (default to 'foundation' if not set)
+      const currentPlan = (req.business as any).plan || 'foundation';
+
+      // Check if business has required plan
+      if (!allowedPlans.includes(currentPlan)) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'PLAN_UPGRADE_REQUIRED',
+            message: `This feature requires one of the following plans: ${allowedPlans.join(', ')}`,
+            currentPlan,
+            requiredPlans: allowedPlans
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+/**
+ * Middleware to require specific plan feature
+ * Works with JWT authentication - validates against PLAN_DEFINITIONS
+ * Use for feature flags like Web3, custom domains, etc.
+ */
+export function requirePlanFeature(feature: 'hasWeb3' | 'allowOverage' | 'customDomains') {
+  return async (req: UnifiedAuthRequest, res: Response, next: NextFunction): Promise<void | Response> => {
+    try {
+      // Ensure user is authenticated
+      if (!req.userType || !req.business) {
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+      }
+
+      // Only applicable to business users
+      if (req.userType !== 'business') {
+        throw createAppError('This feature is only available to business accounts', 403, 'BUSINESS_ONLY');
+      }
+
+      // Get business plan
+      const currentPlan = (req.business as any).plan || 'foundation';
+
+      // Dynamically import plan definitions to check feature availability
+      const { PLAN_DEFINITIONS } = await import('../../constants/plans');
+      const planFeatures = PLAN_DEFINITIONS[currentPlan as keyof typeof PLAN_DEFINITIONS]?.features;
+
+      // Check feature availability
+      let hasFeature = false;
+
+      if (feature === 'customDomains') {
+        // Custom domains available on growth and above
+        hasFeature = ['growth', 'premium', 'enterprise'].includes(currentPlan);
+      } else if (planFeatures && feature in planFeatures) {
+        hasFeature = (planFeatures as any)[feature] === true;
+      }
+
+      if (!hasFeature) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'FEATURE_NOT_AVAILABLE',
+            message: `This feature (${feature}) is not available on your current plan`,
+            currentPlan,
+            feature
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+/**
  * Middleware to require specific permissions
  */
 export function requirePermission(permission: string) {
@@ -291,7 +388,7 @@ export function requirePermission(permission: string) {
       }
 
       const userPermissions = req.tokenPayload.permissions || [];
-      
+
       if (!userPermissions.includes(permission) && !userPermissions.includes('*')) {
         throw createAppError(`Insufficient permissions. Required: ${permission}`);
       }

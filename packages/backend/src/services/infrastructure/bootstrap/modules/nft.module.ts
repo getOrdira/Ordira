@@ -8,9 +8,7 @@ import { Application, Router } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import {
-  requireTenantPlan
-} from '../../../../middleware';
+import { requirePlanFeature } from '../../../../middleware/auth/unifiedAuth.middleware';
 import { logger } from '../../logging';
 
 export class NftModule extends BaseFeatureModule {
@@ -38,9 +36,9 @@ export class NftModule extends BaseFeatureModule {
     nftsRoutes.use('/', nftRoutesModule.nftAnalyticsRoutes);
     nftsRoutes.use('/', nftRoutesModule.nftBurningRoutes);
 
-    // NFT functionality with premium plan requirement
+    // NFT functionality - requires Web3 feature (Growth+)
     app.use('/api/nfts',
-      requireTenantPlan(['premium', 'enterprise']),
+      requirePlanFeature('hasWeb3'),
       nftsRoutes
     );
 
