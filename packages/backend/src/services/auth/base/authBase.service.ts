@@ -63,7 +63,11 @@ export class AuthBaseService {
       userId: payload.sub
     };
 
-    return jwt.sign(tokenPayload, this.JWT_SECRET, { expiresIn: this.JWT_EXPIRES_IN });
+    return jwt.sign(tokenPayload, this.JWT_SECRET, {
+      expiresIn: this.JWT_EXPIRES_IN,
+      issuer: process.env.JWT_ISSUER || 'Ordira-api',
+      audience: process.env.JWT_AUDIENCE || 'ordira-app'
+    });
   }
 
   /**
@@ -81,7 +85,11 @@ export class AuthBaseService {
       userId: payload.sub
     };
 
-    return jwt.sign(tokenPayload, this.JWT_SECRET, { expiresIn: AUTH_CONSTANTS.REMEMBER_TOKEN_EXPIRES_IN });
+    return jwt.sign(tokenPayload, this.JWT_SECRET, {
+      expiresIn: AUTH_CONSTANTS.REMEMBER_TOKEN_EXPIRES_IN,
+      issuer: process.env.JWT_ISSUER || 'Ordira-api',
+      audience: process.env.JWT_AUDIENCE || 'ordira-app'
+    });
   }
 
   /**

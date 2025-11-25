@@ -55,12 +55,14 @@ const certificateIdParamsSchema = Joi.object({
   certificateId: objectIdSchema.required()
 });
 
-const strictTenantConfig = {
-  ...RouteConfigs.tenant,
+// Use authenticated config instead of tenant for API access
+// Tenant resolution is only needed for custom domain access
+const strictAuthConfig = {
+  ...RouteConfigs.authenticated,
   rateLimit: 'strict' as const
 };
 
-const builder = createRouteBuilder(strictTenantConfig);
+const builder = createRouteBuilder(strictAuthConfig);
 
 builder.post(
   '/create',
