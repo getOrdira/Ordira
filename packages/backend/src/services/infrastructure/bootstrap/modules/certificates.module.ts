@@ -8,9 +8,6 @@ import { Application, Router } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import {
-  requireTenantSetup
-} from '../../../../middleware';
 import { logger } from '../../logging';
 
 export class CertificatesModule extends BaseFeatureModule {
@@ -39,11 +36,8 @@ export class CertificatesModule extends BaseFeatureModule {
     certificateRoutes.use('/helpers', certificateRoutesModule.certificateHelpersRoutes);
     certificateRoutes.use('/validation', certificateRoutesModule.certificateValidationRoutes);
 
-    // Certificate management
-    app.use('/api/certificates',
-      requireTenantSetup,
-      certificateRoutes
-    );
+    // Certificate management - routes handle their own middleware
+    app.use('/api/certificates', certificateRoutes);
 
     logger.info(`✅ ${this.name} module routes registered`);
   }

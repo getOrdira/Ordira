@@ -8,9 +8,6 @@ import { Application, Router } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import {
-  requireTenantPlan
-} from '../../../../middleware';
 import { logger } from '../../logging';
 
 export class VotesModule extends BaseFeatureModule {
@@ -41,11 +38,8 @@ export class VotesModule extends BaseFeatureModule {
     votesRoutes.use('/proposals/management', voteRoutesModule.votesProposalManagementRoutes);
     votesRoutes.use('/deployment', voteRoutesModule.votesDeploymentRoutes);
 
-    // Voting system with comprehensive governance validation
-    app.use('/api/votes',
-      requireTenantPlan(['growth', 'premium', 'enterprise']),
-      votesRoutes
-    );
+    // Voting system - routes handle their own middleware
+    app.use('/api/votes', votesRoutes);
 
     logger.info(`✅ ${this.name} module routes registered`);
   }

@@ -173,8 +173,10 @@ export async function authenticate(
     // For backward compatibility and type-specific access
     if (payload.userType === 'manufacturer') {
       req.manufacturer = userDocument;
+      req.manufacturerId = userDocument._id.toString();
     } else if (payload.userType === 'business') {
       req.business = userDocument;
+      req.businessId = userDocument._id.toString();
     }
 
     // Add security headers
