@@ -64,7 +64,7 @@ export class VotingService {
    */
   private static async getVotingFactoryContract() {
     // Get factory address from database (deployed once by relayer)
-    const { FactorySettings } = require('../../models/factorySettings.model');
+    const { FactorySettings } = require('../../models/infrastructure/factorySettings.model');
     const factorySettings = await FactorySettings.findOne({ type: 'voting' });
     
     if (!factorySettings?.address) {
