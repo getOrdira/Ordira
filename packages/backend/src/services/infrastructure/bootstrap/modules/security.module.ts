@@ -8,10 +8,7 @@ import { Application } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import {
-  authenticate,
-  requireTenantPlan
-} from '../../../../middleware';
+import { requireBusinessPlan } from '../../../../middleware/auth/unifiedAuth.middleware';
 import { logger } from '../../logging';
 
 export class SecurityModule extends BaseFeatureModule {
@@ -30,10 +27,9 @@ export class SecurityModule extends BaseFeatureModule {
     // Import security route modules
     const securityRoutesModule = await import('../../../../routes/features/security');
 
-    // API key management with enterprise features
-    app.use('/api/brand/api-keys', 
-      authenticate,
-      requireTenantPlan(['premium', 'enterprise']),
+    // API key management - requires Premium or Enterprise plan
+    app.use('/api/brand/api-keys',
+      requireBusinessPlan(['premium', 'enterprise']),
       securityRoutesModule.securityTokensRoutes
     );
 

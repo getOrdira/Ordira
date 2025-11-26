@@ -10,10 +10,7 @@ import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
 import {
   resolveTenant,
-  tenantCorsMiddleware,
-  requireTenantSetup,
-  requireTenantPlan,
-  authenticate
+  tenantCorsMiddleware
 } from '../../../../middleware';
 import { logger } from '../../logging';
 
@@ -34,27 +31,31 @@ export class BrandsModule extends BaseFeatureModule {
     // Import brand route modules
     const brandRoutesModule = await import('../../../../routes/features/brands');
 
-    // Tenant resolution middleware for brand context
+    // ============================================
+    // CUSTOMER STOREFRONT ROUTES (Tenant-based)
+    // Accessed via custom domain: mybrand.com/api/brand/*
+    // ============================================
     app.use('/api/brand', resolveTenant, tenantCorsMiddleware);
     app.use('/api/tenant', resolveTenant, tenantCorsMiddleware);
 
-    // Enhanced brand settings with plan-based features
+    // ============================================
+    // BUSINESS MANAGEMENT ROUTES (JWT-based)
+    // Accessed via API: api.ordira.com/api/brands/*
+    // Routes already have authenticated config
+    // ============================================
+
+    // Brand settings management (JWT authentication in routes)
     app.use('/api/brand-settings',
-      requireTenantSetup,
       brandRoutesModule.brandSettingsRoutes
     );
 
-    // Enhanced brand profile management
-    app.use('/api/brands', 
-      authenticate, 
-      requireTenantSetup,
+    // Brand profile management (JWT authentication in routes)
+    app.use('/api/brands',
       brandRoutesModule.brandProfileRoutes
     );
 
-    // Brand account management
+    // Brand account management (JWT authentication in routes)
     app.use('/api/brand/account',
-      authenticate,
-      requireTenantSetup,
       brandRoutesModule.brandAccountRoutes
     );
 

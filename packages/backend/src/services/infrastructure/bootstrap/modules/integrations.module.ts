@@ -8,9 +8,7 @@ import { Application, Router } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import {
-  requireTenantPlan
-} from '../../../../middleware';
+import { requireBusinessPlan } from '../../../../middleware/auth/unifiedAuth.middleware';
 import { logger } from '../../logging';
 
 export class IntegrationsModule extends BaseFeatureModule {
@@ -47,9 +45,9 @@ export class IntegrationsModule extends BaseFeatureModule {
     integrationsRouter.use('/blockchain', integrationRoutesModule.blockchainIntegrationRoutes);
     integrationsRouter.use('/domains', integrationRoutesModule.domainIntegrationRoutes);
 
-    // Enhanced integrations with plan-based access
+    // Integrations - requires Growth plan or higher
     app.use('/api/integrations',
-      requireTenantPlan(['growth', 'premium', 'enterprise']),
+      requireBusinessPlan(['growth', 'premium', 'enterprise']),
       integrationsRouter
     );
 
