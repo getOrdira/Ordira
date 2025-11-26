@@ -59,6 +59,11 @@ export class BrandsModule extends BaseFeatureModule {
       brandRoutesModule.brandAccountRoutes
     );
 
+    // Brand customer access / email gating (JWT authentication in routes)
+    app.use('/api/brand-customer-access',
+      brandRoutesModule.brandCustomerAccessRoutes
+    );
+
     logger.info(`✅ ${this.name} module routes registered`);
   }
 }

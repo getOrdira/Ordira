@@ -214,10 +214,10 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       maxlength: [300, 'Help text cannot exceed 300 characters']
     },
 
-    // Ordering
+    // Ordering (default to 0, pre-save hook will auto-increment for new questions)
     order: {
       type: Number,
-      required: [true, 'Order is required'],
+      default: 0,
       min: [0, 'Order cannot be negative'],
       index: true
     },
@@ -838,8 +838,8 @@ VotingQuestionSchema.statics.reorderQuestions = function(platformId: string, que
 // ====================
 
 VotingQuestionSchema.pre('save', async function(next) {
-  // Auto-assign order if new question
-  if (this.isNew && !this.order) {
+  // Auto-assign order if new question and order not explicitly set
+  if (this.isNew && (this.order === undefined || this.order === null || this.order === 0)) {
     // Use this.constructor to get the model in pre-save hooks
     const VotingQuestionModel = this.constructor as Model<IVotingQuestion>;
     const maxOrder = await VotingQuestionModel
