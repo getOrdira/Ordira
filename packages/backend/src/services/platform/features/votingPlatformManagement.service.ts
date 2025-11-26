@@ -533,31 +533,51 @@ export class VotingPlatformManagementService {
           ));
 
         if (questionsWithProducts.length > 0) {
-          // Extract product IDs from questions
+          // Extract product IDs from questions and convert to strings
           const productIds = new Set<string>();
           questionsWithProducts.forEach((q: any) => {
-            q.productVotingConfig.products.forEach((pid: any) => {
-              productIds.add(pid.toString());
-            });
-          });
-
-          const proposal = await votingProposalManagementService.createProposal(
-            validatedBusinessId,
-            {
-              title: platform.title,
-              description: platform.description || `Blockchain voting for ${platform.title}`,
-              productIds: Array.from(productIds),
-              duration: 604800 // Default 7 days
+            if (q.productVotingConfig?.products) {
+              q.productVotingConfig.products.forEach((pid: any) => {
+                let productIdString: string;
+                if (pid instanceof Types.ObjectId) {
+                  productIdString = pid.toString();
+                } else if (typeof pid === 'string') {
+                  productIdString = pid;
+                } else {
+                  productIdString = String(pid);
+                }
+                
+                // Only add valid ObjectId strings
+                if (Types.ObjectId.isValid(productIdString)) {
+                  productIds.add(productIdString);
+                }
+              });
             }
-          );
-
-          platform.blockchainIntegration.proposalId = proposal.proposalId;
-
-          logger.info('Created blockchain proposal for platform', {
-            platformId: platform._id.toString(),
-            proposalId: proposal.proposalId,
-            productCount: productIds.size
           });
+
+          if (productIds.size === 0) {
+            logger.warn('No valid product IDs found in questions, skipping proposal creation', {
+              platformId: validatedPlatformId
+            });
+          } else {
+            const proposal = await votingProposalManagementService.createProposal(
+              validatedBusinessId,
+              {
+                title: platform.title,
+                description: platform.description || `Blockchain voting for ${platform.title}`,
+                productIds: Array.from(productIds),
+                duration: 604800 // Default 7 days
+              }
+            );
+
+            platform.blockchainIntegration.proposalId = proposal.proposalId;
+
+            logger.info('Created blockchain proposal for platform', {
+              platformId: platform._id.toString(),
+              proposalId: proposal.proposalId,
+              productCount: productIds.size
+            });
+          }
         } else {
           logger.info('Proposal creation deferred - no products found in questions yet', {
             platformId: platform._id.toString()
@@ -745,12 +765,29 @@ export class VotingPlatformManagementService {
         try {
           const { votingProposalManagementService } = await import('../../votes/features/votingProposalManagement.service');
           
+          // Convert ObjectIds to strings, ensuring they're valid
+          const productIdStrings = productVotingConfig.products
+            .map((pid: any) => {
+              if (pid instanceof Types.ObjectId) {
+                return pid.toString();
+              } else if (typeof pid === 'string') {
+                return pid;
+              } else {
+                return String(pid);
+              }
+            })
+            .filter((id: string) => Types.ObjectId.isValid(id));
+          
+          if (productIdStrings.length === 0) {
+            throw new Error('No valid product IDs found in productVotingConfig');
+          }
+          
           const proposal = await votingProposalManagementService.createProposal(
             validatedBusinessId,
             {
               title: platform.title,
               description: platform.description || `Blockchain voting for ${platform.title}`,
-              productIds: productVotingConfig.products.map((pid: any) => pid.toString()),
+              productIds: productIdStrings,
               duration: 604800, // Default 7 days
               priority: 'medium'
             }
