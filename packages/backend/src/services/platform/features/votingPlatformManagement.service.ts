@@ -653,52 +653,89 @@ export class VotingPlatformManagementService {
     // Prepare productVotingConfig with ObjectId conversion if needed
     let productVotingConfig;
     if (input.productVotingConfig) {
-      productVotingConfig = {
-        ...input.productVotingConfig,
-        // Convert string product IDs to ObjectIds
-        products: input.productVotingConfig.products?.map(id => new Types.ObjectId(id)) || []
-      };
+      try {
+        productVotingConfig = {
+          ...input.productVotingConfig,
+          // Convert string product IDs to ObjectIds, filter out invalid ones
+          products: input.productVotingConfig.products
+            ?.filter(id => id && Types.ObjectId.isValid(id))
+            .map(id => new Types.ObjectId(id)) || []
+        };
+      } catch (error: any) {
+        throw createAppError(
+          `Invalid product IDs in productVotingConfig: ${error.message}`,
+          400,
+          'INVALID_PRODUCT_IDS'
+        );
+      }
     }
 
     // Create question
-    const question = new VotingQuestion({
-      platformId: validatedPlatformId,
-      businessId: validatedBusinessId,
-      questionText: input.questionText.trim(),
-      questionType,
-      description: input.description?.trim(),
-      helpText: input.helpText?.trim(),
-      isRequired: input.isRequired !== false,
-      order: input.order,
+    try {
+      const question = new VotingQuestion({
+        platformId: validatedPlatformId,
+        businessId: validatedBusinessId,
+        questionText: input.questionText.trim(),
+        questionType,
+        description: input.description?.trim(),
+        helpText: input.helpText?.trim(),
+        isRequired: input.isRequired !== false,
+        order: input.order,
 
-      // Type-specific config
-      textConfig: input.textConfig,
-      textareaConfig: input.textareaConfig,
-      multipleChoiceConfig: input.multipleChoiceConfig,
-      imageSelectionConfig: input.imageSelectionConfig,
-      ratingConfig: input.ratingConfig,
-      scaleConfig: input.scaleConfig,
-      rankingConfig: input.rankingConfig,
-      dateConfig: input.dateConfig,
-      fileUploadConfig: input.fileUploadConfig,
+        // Type-specific config (only include if provided to avoid validation issues)
+        ...(input.textConfig && { textConfig: input.textConfig }),
+        ...(input.textareaConfig && { textareaConfig: input.textareaConfig }),
+        ...(input.multipleChoiceConfig && { multipleChoiceConfig: input.multipleChoiceConfig }),
+        ...(input.imageSelectionConfig && { imageSelectionConfig: input.imageSelectionConfig }),
+        ...(input.ratingConfig && { ratingConfig: input.ratingConfig }),
+        ...(input.scaleConfig && { scaleConfig: input.scaleConfig }),
+        ...(input.rankingConfig && { rankingConfig: input.rankingConfig }),
+        ...(input.dateConfig && { dateConfig: input.dateConfig }),
+        ...(input.fileUploadConfig && { fileUploadConfig: input.fileUploadConfig }),
 
-      // Product voting config (for blockchain)
-      productVotingConfig,
+        // Product voting config (for blockchain)
+        ...(productVotingConfig && { productVotingConfig }),
 
-      imageUrl: input.imageUrl?.trim(),
-      videoUrl: input.videoUrl?.trim()
-    });
+        ...(input.imageUrl && { imageUrl: input.imageUrl.trim() }),
+        ...(input.videoUrl && { videoUrl: input.videoUrl.trim() })
+      });
 
-    await question.save();
+      await question.save();
 
-    logger.info('Question added to platform', {
-      businessId: validatedBusinessId,
-      platformId: validatedPlatformId,
-      questionId: question._id.toString(),
-      questionType
-    });
+      logger.info('Question added to platform', {
+        businessId: validatedBusinessId,
+        platformId: validatedPlatformId,
+        questionId: question._id.toString(),
+        questionType
+      });
 
-    return question;
+      return question;
+    } catch (error: any) {
+      logger.error('Failed to create question', {
+        businessId: validatedBusinessId,
+        platformId: validatedPlatformId,
+        questionType,
+        error: error.message,
+        stack: error.stack
+      });
+
+      // If it's a validation error, provide more details
+      if (error.name === 'ValidationError') {
+        const validationErrors = Object.values(error.errors || {}).map((e: any) => e.message).join(', ');
+        throw createAppError(
+          `Question validation failed: ${validationErrors}`,
+          400,
+          'QUESTION_VALIDATION_ERROR'
+        );
+      }
+
+      // Re-throw with more context
+      throw createAppError(
+        `Failed to create question: ${error.message}`,
+        500,
+        'QUESTION_CREATION_ERROR'
+      );
+    }
   }
 
   /**
