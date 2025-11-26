@@ -284,38 +284,16 @@ export class VotingPlatformManagementService {
     await platform.save();
 
     // Auto-create proposal for on-chain mode if requested
+    // Note: Proposal creation requires at least one product, so we skip it here
+    // and create it later when questions with productVotingConfig are added
     if (input.blockchainEnabled &&
         input.blockchainMode === 'on-chain' &&
         input.createProposal) {
 
-      try {
-        const { votingProposalManagementService } = await import('../../votes/features/votingProposalManagement.service');
-
-        const proposal = await votingProposalManagementService.createProposal(
-          validatedBusinessId,
-          {
-            title: platform.title,
-            description: platform.description || `Blockchain voting for ${platform.title}`,
-            productIds: [], // Will be populated when questions are added
-            duration: input.proposalDuration || 604800, // Default 7 days
-            priority: 'medium'
-          }
-        );
-
-        platform.blockchainIntegration.proposalId = proposal.proposalId;
-        await platform.save();
-
-        logger.info('Created blockchain proposal for platform', {
-          platformId: platform._id.toString(),
-          proposalId: proposal.proposalId
-        });
-      } catch (error: any) {
-        logger.error('Failed to create proposal for platform', {
-          error: error.message,
-          platformId: platform._id.toString()
-        });
-        // Don't fail platform creation if proposal creation fails
-      }
+      logger.info('Proposal creation deferred - will be created when products are added via questions', {
+        platformId: platform._id.toString()
+      });
+      // Proposal will be created automatically when the first question with productVotingConfig is added
     }
 
     logger.info('Voting platform created', {
@@ -546,22 +524,46 @@ export class VotingPlatformManagementService {
       try {
         const { votingProposalManagementService } = await import('../../votes/features/votingProposalManagement.service');
 
-        const proposal = await votingProposalManagementService.createProposal(
-          validatedBusinessId,
-          {
-            title: platform.title,
-            description: platform.description || `Blockchain voting for ${platform.title}`,
-            productIds: [],
-            duration: 604800 // Default 7 days
-          }
-        );
+        // Check if platform has questions with products before creating proposal
+        const questionsWithProducts = await this.dataService.getQuestionsByPlatform(validatedPlatformId, true)
+          .then(questions => questions.filter((q: any) => 
+            q.productVotingConfig?.enabled && 
+            q.productVotingConfig?.products && 
+            q.productVotingConfig.products.length > 0
+          ));
 
-        platform.blockchainIntegration.proposalId = proposal.proposalId;
+        if (questionsWithProducts.length > 0) {
+          // Extract product IDs from questions
+          const productIds = new Set<string>();
+          questionsWithProducts.forEach((q: any) => {
+            q.productVotingConfig.products.forEach((pid: any) => {
+              productIds.add(pid.toString());
+            });
+          });
 
-        logger.info('Created blockchain proposal for platform', {
-          platformId: platform._id.toString(),
-          proposalId: proposal.proposalId
-        });
+          const proposal = await votingProposalManagementService.createProposal(
+            validatedBusinessId,
+            {
+              title: platform.title,
+              description: platform.description || `Blockchain voting for ${platform.title}`,
+              productIds: Array.from(productIds),
+              duration: 604800 // Default 7 days
+            }
+          );
+
+          platform.blockchainIntegration.proposalId = proposal.proposalId;
+
+          logger.info('Created blockchain proposal for platform', {
+            platformId: platform._id.toString(),
+            proposalId: proposal.proposalId,
+            productCount: productIds.size
+          });
+        } else {
+          logger.info('Proposal creation deferred - no products found in questions yet', {
+            platformId: platform._id.toString()
+          });
+          // Proposal will be created when questions with products are added
+        }
       } catch (error: any) {
         logger.error('Failed to create proposal for platform', {
           error: error.message,
@@ -672,41 +674,113 @@ export class VotingPlatformManagementService {
 
     // Create question
     try {
-      const question = new VotingQuestion({
-        platformId: validatedPlatformId,
-        businessId: validatedBusinessId,
+      // Convert string IDs to ObjectIds explicitly
+      const platformObjectId = new Types.ObjectId(validatedPlatformId);
+      const businessObjectId = new Types.ObjectId(validatedBusinessId);
+
+      // Build question data object
+      const questionData: any = {
+        platformId: platformObjectId,
+        businessId: businessObjectId,
         questionText: input.questionText.trim(),
         questionType,
         description: input.description?.trim(),
         helpText: input.helpText?.trim(),
         isRequired: input.isRequired !== false,
-        order: input.order,
+        order: input.order || 0
+      };
 
-        // Type-specific config (only include if provided to avoid validation issues)
-        ...(input.textConfig && { textConfig: input.textConfig }),
-        ...(input.textareaConfig && { textareaConfig: input.textareaConfig }),
-        ...(input.multipleChoiceConfig && { multipleChoiceConfig: input.multipleChoiceConfig }),
-        ...(input.imageSelectionConfig && { imageSelectionConfig: input.imageSelectionConfig }),
-        ...(input.ratingConfig && { ratingConfig: input.ratingConfig }),
-        ...(input.scaleConfig && { scaleConfig: input.scaleConfig }),
-        ...(input.rankingConfig && { rankingConfig: input.rankingConfig }),
-        ...(input.dateConfig && { dateConfig: input.dateConfig }),
-        ...(input.fileUploadConfig && { fileUploadConfig: input.fileUploadConfig }),
+      // Add type-specific configs only if they exist and have content
+      if (input.textConfig && Object.keys(input.textConfig).length > 0) {
+        questionData.textConfig = input.textConfig;
+      }
+      if (input.textareaConfig && Object.keys(input.textareaConfig).length > 0) {
+        questionData.textareaConfig = input.textareaConfig;
+      }
+      if (input.multipleChoiceConfig && Object.keys(input.multipleChoiceConfig).length > 0) {
+        questionData.multipleChoiceConfig = input.multipleChoiceConfig;
+      }
+      if (input.imageSelectionConfig && Object.keys(input.imageSelectionConfig).length > 0) {
+        questionData.imageSelectionConfig = input.imageSelectionConfig;
+      }
+      if (input.ratingConfig && Object.keys(input.ratingConfig).length > 0) {
+        questionData.ratingConfig = input.ratingConfig;
+      }
+      if (input.scaleConfig && Object.keys(input.scaleConfig).length > 0) {
+        questionData.scaleConfig = input.scaleConfig;
+      }
+      if (input.rankingConfig && Object.keys(input.rankingConfig).length > 0) {
+        questionData.rankingConfig = input.rankingConfig;
+      }
+      if (input.dateConfig && Object.keys(input.dateConfig).length > 0) {
+        questionData.dateConfig = input.dateConfig;
+      }
+      if (input.fileUploadConfig && Object.keys(input.fileUploadConfig).length > 0) {
+        questionData.fileUploadConfig = input.fileUploadConfig;
+      }
 
-        // Product voting config (for blockchain)
-        ...(productVotingConfig && { productVotingConfig }),
+      // Product voting config (for blockchain)
+      if (productVotingConfig && Object.keys(productVotingConfig).length > 0) {
+        questionData.productVotingConfig = productVotingConfig;
+      }
 
-        ...(input.imageUrl && { imageUrl: input.imageUrl.trim() }),
-        ...(input.videoUrl && { videoUrl: input.videoUrl.trim() })
-      });
+      if (input.imageUrl?.trim()) {
+        questionData.imageUrl = input.imageUrl.trim();
+      }
+      if (input.videoUrl?.trim()) {
+        questionData.videoUrl = input.videoUrl.trim();
+      }
 
+      const question = new VotingQuestion(questionData);
       await question.save();
+
+      // If this is an on-chain platform with productVotingConfig and no proposal exists, create one
+      if (productVotingConfig?.enabled && 
+          productVotingConfig.products && 
+          productVotingConfig.products.length > 0 &&
+          platform.blockchainIntegration?.enabled &&
+          platform.blockchainIntegration?.mode === 'on-chain' &&
+          !platform.blockchainIntegration.proposalId) {
+        
+        try {
+          const { votingProposalManagementService } = await import('../../votes/features/votingProposalManagement.service');
+          
+          const proposal = await votingProposalManagementService.createProposal(
+            validatedBusinessId,
+            {
+              title: platform.title,
+              description: platform.description || `Blockchain voting for ${platform.title}`,
+              productIds: productVotingConfig.products.map((pid: any) => pid.toString()),
+              duration: 604800, // Default 7 days
+              priority: 'medium'
+            }
+          );
+
+          platform.blockchainIntegration.proposalId = proposal.proposalId;
+          await platform.save();
+
+          logger.info('Auto-created blockchain proposal from question with products', {
+            platformId: validatedPlatformId,
+            questionId: question._id.toString(),
+            proposalId: proposal.proposalId,
+            productCount: productVotingConfig.products.length
+          });
+        } catch (error: any) {
+          logger.error('Failed to auto-create proposal from question', {
+            error: error.message,
+            platformId: validatedPlatformId,
+            questionId: question._id.toString()
+          });
+          // Don't fail question creation if proposal creation fails
+        }
+      }
 
       logger.info('Question added to platform', {
         businessId: validatedBusinessId,
         platformId: validatedPlatformId,
         questionId: question._id.toString(),
-        questionType
+        questionType,
+        hasProductVotingConfig: !!productVotingConfig?.enabled
       });
 
       return question;
