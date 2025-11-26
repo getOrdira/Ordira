@@ -10,6 +10,7 @@ import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
 import { logger } from '../../logging';
+import { authenticate } from '../../../../middleware';
 
 export class PlatformModule extends BaseFeatureModule {
   readonly name = 'platform';
@@ -37,7 +38,7 @@ export class PlatformModule extends BaseFeatureModule {
     customerVotingRoutes.use('/', platformRoutesModule.customerVotingRoutes);
 
     // Platform management routes - requires authentication
-    app.use('/api/voting-platforms', platformManagementRoutes);
+    app.use('/api/voting-platforms', authenticate, platformManagementRoutes);
 
     // Customer voting routes - public access (rate limited)
     app.use('/api/vote', customerVotingRoutes);
