@@ -63,6 +63,7 @@ export interface CustomerFilters {
   engagementLevel?: 'none' | 'low' | 'medium' | 'high';
   tags?: string[];
   search?: string;
+  status?: 'pending' | 'active' | 'revoked' | 'deleted';
   limit?: number;
   offset?: number;
   sortBy?: 'createdAt' | 'lastVotingAccess' | 'totalVotes' | 'email';
@@ -868,6 +869,26 @@ async restoreCustomerAccess(businessId: string, customerId: string): Promise<Cus
 
     if (filters.tags && filters.tags.length > 0) {
       query.tags = { $in: filters.tags };
+    }
+
+    // Handle status filter
+    if (filters.status) {
+      switch (filters.status) {
+        case 'pending':
+          query.isActive = true;
+          query.hasAccess = false;
+          break;
+        case 'active':
+          query.isActive = true;
+          query.hasAccess = true;
+          break;
+        case 'revoked':
+          query.hasAccess = false;
+          break;
+        case 'deleted':
+          query.isActive = false;
+          break;
+      }
     }
 
     if (filters.search) {

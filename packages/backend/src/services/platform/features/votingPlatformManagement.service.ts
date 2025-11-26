@@ -755,12 +755,15 @@ export class VotingPlatformManagementService {
       await question.save();
 
       // If this is an on-chain platform with productVotingConfig and no proposal exists, create one
+      // Refresh platform to ensure we have latest blockchainIntegration state
+      const freshPlatform = await this.dataService.getPlatformById(validatedPlatformId, validatedBusinessId);
+      
       if (productVotingConfig?.enabled && 
           productVotingConfig.products && 
           productVotingConfig.products.length > 0 &&
-          platform.blockchainIntegration?.enabled &&
-          platform.blockchainIntegration?.mode === 'on-chain' &&
-          !platform.blockchainIntegration.proposalId) {
+          freshPlatform.blockchainIntegration?.enabled &&
+          freshPlatform.blockchainIntegration?.mode === 'on-chain' &&
+          !freshPlatform.blockchainIntegration.proposalId) {
         
         try {
           const { votingProposalManagementService } = await import('../../votes/features/votingProposalManagement.service');
@@ -785,16 +788,16 @@ export class VotingPlatformManagementService {
           const proposal = await votingProposalManagementService.createProposal(
             validatedBusinessId,
             {
-              title: platform.title,
-              description: platform.description || `Blockchain voting for ${platform.title}`,
+              title: freshPlatform.title,
+              description: freshPlatform.description || `Blockchain voting for ${freshPlatform.title}`,
               productIds: productIdStrings,
               duration: 604800, // Default 7 days
               priority: 'medium'
             }
           );
 
-          platform.blockchainIntegration.proposalId = proposal.proposalId;
-          await platform.save();
+          freshPlatform.blockchainIntegration.proposalId = proposal.proposalId;
+          await freshPlatform.save();
 
           logger.info('Auto-created blockchain proposal from question with products', {
             platformId: validatedPlatformId,

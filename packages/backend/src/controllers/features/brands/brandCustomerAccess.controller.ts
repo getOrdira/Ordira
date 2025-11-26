@@ -213,11 +213,15 @@ export class BrandCustomerAccessController extends BaseController {
       this.validateBusinessUser(req, res, async () => {
         this.recordPerformance(req, 'GET_CUSTOMERS');
 
+        const page = req.validatedQuery?.page || 1;
+        const limit = req.validatedQuery?.limit || 20;
+        const offset = (page - 1) * limit;
+
         const filters = {
-          page: req.validatedQuery?.page || 1,
-          limit: req.validatedQuery?.limit || 20,
+          offset,
+          limit,
           search: req.validatedQuery?.search,
-          status: req.validatedQuery?.status,
+          status: req.validatedQuery?.status as 'pending' | 'active' | 'revoked' | 'deleted' | undefined,
           sortBy: (req.validatedQuery?.sortBy as 'createdAt' | 'lastVotingAccess' | 'totalVotes' | 'email') || 'createdAt',
           sortOrder: req.validatedQuery?.sortOrder || 'desc'
         };
@@ -227,7 +231,7 @@ export class BrandCustomerAccessController extends BaseController {
         this.logAction(req, 'GET_CUSTOMERS_SUCCESS', {
           businessId: req.businessId,
           total: result.total,
-          page: filters.page,
+          page: result.page,
           limit: filters.limit
         });
 
