@@ -158,7 +158,23 @@ export class VotingPlatformCustomerService {
       } : undefined
     });
 
-    await response.save();
+    try {
+      await response.save();
+    } catch (error: any) {
+      logger.error('Failed to save voting response', {
+        platformId: validatedPlatformId,
+        error: error.message,
+        validationErrors: error.errors ? Object.keys(error.errors).map((key) => ({
+          field: key,
+          message: error.errors[key].message
+        })) : undefined
+      });
+      throw createAppError(
+        `Failed to start response: ${error.message}`,
+        500,
+        'RESPONSE_CREATION_ERROR'
+      );
+    }
 
     // Increment platform views
     await platform.incrementViews();

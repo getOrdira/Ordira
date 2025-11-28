@@ -274,7 +274,14 @@ const VotingResponseSchema = new Schema<IVotingResponse>(
       ipAddress: {
         type: String,
         trim: true,
-        match: [/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^(?:[a-fA-F0-9:]+)$/, 'Invalid IP address format']
+        validate: {
+          validator: function(v: string) {
+            if (!v) return true; // Allow empty/undefined
+            // IPv4 or IPv6 format
+            return /^(?:(?:[0-9]{1,3}\.){3}[0-9]{1,3}|(?:[a-fA-F0-9:]+))$/.test(v);
+          },
+          message: 'Invalid IP address format'
+        }
       },
       userAgent: {
         type: String,
