@@ -131,7 +131,7 @@ export class QuestionManagementController extends BaseController {
         hasProductVotingConfig: !!input.productVotingConfig?.enabled
       });
 
-      return { question };
+      return { question: question.toJSON() };
     }, res, 'Question added successfully');
   }
 

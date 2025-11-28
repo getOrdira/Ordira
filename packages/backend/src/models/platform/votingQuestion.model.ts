@@ -648,7 +648,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       transform: function(doc, ret) {
         delete ret.__v;
         // Convert Map to object for JSON serialization
-        if (ret.analytics?.responseDistribution) {
+        if (ret.analytics?.responseDistribution instanceof Map) {
           ret.analytics.responseDistribution = Object.fromEntries(ret.analytics.responseDistribution);
         }
         return ret;
@@ -679,15 +679,17 @@ VotingQuestionSchema.index({ platformId: 1, 'productVotingConfig.enabled': 1 });
 // ====================
 
 VotingQuestionSchema.virtual('responseRate').get(function() {
-  const total = this.analytics.totalResponses + this.analytics.totalSkips;
+  if (!this.analytics) return 0;
+  const total = (this.analytics.totalResponses || 0) + (this.analytics.totalSkips || 0);
   if (total === 0) return 0;
-  return (this.analytics.totalResponses / total) * 100;
+  return ((this.analytics.totalResponses || 0) / total) * 100;
 });
 
 VotingQuestionSchema.virtual('skipRate').get(function() {
-  const total = this.analytics.totalResponses + this.analytics.totalSkips;
+  if (!this.analytics) return 0;
+  const total = (this.analytics.totalResponses || 0) + (this.analytics.totalSkips || 0);
   if (total === 0) return 0;
-  return (this.analytics.totalSkips / total) * 100;
+  return ((this.analytics.totalSkips || 0) / total) * 100;
 });
 
 // ====================
