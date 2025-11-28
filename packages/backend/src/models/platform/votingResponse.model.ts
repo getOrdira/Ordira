@@ -376,12 +376,10 @@ const VotingResponseSchema = new Schema<IVotingResponse>(
     // Quality metrics
     qualityMetrics: {
       isValid: {
-        type: Boolean,
-        default: true
+        type: Boolean
       },
       isSuspicious: {
         type: Boolean,
-        default: false,
         index: true
       },
       suspiciousReasons: [{
@@ -390,18 +388,15 @@ const VotingResponseSchema = new Schema<IVotingResponse>(
       }],
       validationScore: {
         type: Number,
-        default: 100,
         min: [0, 'Validation score cannot be negative'],
         max: [100, 'Validation score cannot exceed 100']
       },
       hasDuplicateAnswers: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       completionSpeed: {
         type: String,
-        enum: ['too_fast', 'normal', 'slow'],
-        default: 'normal'
+        enum: ['too_fast', 'normal', 'slow']
       }
     },
 
@@ -773,8 +768,26 @@ VotingResponseSchema.statics.createResponseHash = function(
 // ====================
 
 VotingResponseSchema.pre('save', function(next) {
+  // Ensure qualityMetrics exists with defaults
+  if (!this.qualityMetrics) {
+    this.qualityMetrics = {
+      isValid: true,
+      isSuspicious: false,
+      validationScore: 100,
+      hasDuplicateAnswers: false,
+      completionSpeed: 'normal'
+    };
+  } else {
+    // Apply defaults to existing qualityMetrics
+    this.qualityMetrics.isValid = this.qualityMetrics.isValid !== undefined ? this.qualityMetrics.isValid : true;
+    this.qualityMetrics.isSuspicious = this.qualityMetrics.isSuspicious !== undefined ? this.qualityMetrics.isSuspicious : false;
+    this.qualityMetrics.validationScore = this.qualityMetrics.validationScore !== undefined ? this.qualityMetrics.validationScore : 100;
+    this.qualityMetrics.hasDuplicateAnswers = this.qualityMetrics.hasDuplicateAnswers !== undefined ? this.qualityMetrics.hasDuplicateAnswers : false;
+    this.qualityMetrics.completionSpeed = this.qualityMetrics.completionSpeed || 'normal';
+  }
+
   // Generate fingerprint if context is available
-  if (!this.fingerprint && this.userContext.ipAddress) {
+  if (!this.fingerprint && this.userContext?.ipAddress) {
     this.fingerprint = this.generateFingerprint();
   }
 
@@ -790,7 +803,7 @@ VotingResponseSchema.pre('save', function(next) {
   }
 
   // Check for duplicate answers (all answers are the same)
-  if (this.answers.length > 3) {
+  if (this.answers && this.answers.length > 3) {
     const uniqueValues = new Set(this.answers.map(a => JSON.stringify(a.value)));
     if (uniqueValues.size === 1) {
       this.qualityMetrics.hasDuplicateAnswers = true;
