@@ -254,8 +254,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       },
       inputType: {
         type: String,
-        enum: ['text', 'email', 'url', 'number', 'tel'],
-        default: 'text'
+        enum: ['text', 'email', 'url', 'number', 'tel']
       }
     },
 
@@ -278,8 +277,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       rows: {
         type: Number,
         min: [2, 'Rows must be at least 2'],
-        max: [20, 'Rows cannot exceed 20'],
-        default: 4
+        max: [20, 'Rows cannot exceed 20']
       }
     },
 
@@ -313,8 +311,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
         }
       }],
       allowMultipleSelection: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       minSelections: {
         type: Number,
@@ -325,12 +322,10 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
         min: [1, 'Max selections must be at least 1']
       },
       randomizeOrder: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       showOtherOption: {
-        type: Boolean,
-        default: false
+        type: Boolean
       }
     },
 
@@ -364,8 +359,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
         }
       }],
       allowMultipleSelection: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       minSelections: {
         type: Number,
@@ -377,13 +371,11 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       },
       imageSize: {
         type: String,
-        enum: ['small', 'medium', 'large'],
-        default: 'medium'
+        enum: ['small', 'medium', 'large']
       },
       displayLayout: {
         type: String,
-        enum: ['grid', 'carousel', 'list'],
-        default: 'grid'
+        enum: ['grid', 'carousel', 'list']
       }
     },
 
@@ -391,23 +383,19 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
     ratingConfig: {
       ratingType: {
         type: String,
-        enum: ['stars', 'numeric', 'emoji', 'hearts'],
-        default: 'stars'
+        enum: ['stars', 'numeric', 'emoji', 'hearts']
       },
       minValue: {
         type: Number,
-        default: 1,
         min: [0, 'Min value cannot be negative']
       },
       maxValue: {
         type: Number,
-        default: 5,
         min: [1, 'Max value must be at least 1'],
         max: [10, 'Max value cannot exceed 10']
       },
       step: {
         type: Number,
-        default: 1,
         min: [0.1, 'Step must be at least 0.1']
       },
       labels: {
@@ -428,17 +416,14 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
     scaleConfig: {
       minValue: {
         type: Number,
-        default: 1,
         min: [0, 'Min value cannot be negative']
       },
       maxValue: {
         type: Number,
-        default: 10,
         min: [1, 'Max value must be at least 1']
       },
       step: {
         type: Number,
-        default: 1,
         min: [0.1, 'Step must be at least 0.1']
       },
       minLabel: {
@@ -452,8 +437,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
         maxlength: [50, 'Label cannot exceed 50 characters']
       },
       showValues: {
-        type: Boolean,
-        default: true
+        type: Boolean
       }
     },
 
@@ -494,12 +478,10 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
     // Date configuration
     dateConfig: {
       allowPastDates: {
-        type: Boolean,
-        default: true
+        type: Boolean
       },
       allowFutureDates: {
-        type: Boolean,
-        default: true
+        type: Boolean
       },
       minDate: {
         type: Date
@@ -508,8 +490,7 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
         type: Date
       },
       includeTime: {
-        type: Boolean,
-        default: false
+        type: Boolean
       }
     },
 
@@ -522,30 +503,26 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       maxFileSize: {
         type: Number,
         min: [1024, 'Max file size must be at least 1KB'],
-        max: [104857600, 'Max file size cannot exceed 100MB'],
-        default: 5242880 // 5MB
+        max: [104857600, 'Max file size cannot exceed 100MB']
       },
       maxFiles: {
         type: Number,
         min: [1, 'Max files must be at least 1'],
-        max: [10, 'Max files cannot exceed 10'],
-        default: 1
+        max: [10, 'Max files cannot exceed 10']
       }
     },
 
     // Product voting configuration (for blockchain product selection)
     productVotingConfig: {
       enabled: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       products: [{
         type: Schema.Types.ObjectId,
         ref: 'Product'
       }],
       allowMultipleSelection: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       maxSelections: {
         type: Number,
@@ -554,30 +531,24 @@ const VotingQuestionSchema = new Schema<IVotingQuestion>(
       },
       minSelections: {
         type: Number,
-        default: 1,
         min: [1, 'Min selections must be at least 1']
       },
       showProductDetails: {
-        type: Boolean,
-        default: true
+        type: Boolean
       },
       showProductImages: {
-        type: Boolean,
-        default: true
+        type: Boolean
       },
       showProductPrices: {
-        type: Boolean,
-        default: false
+        type: Boolean
       },
       sortOrder: {
         type: String,
-        enum: ['manual', 'popular', 'recent', 'price-asc', 'price-desc'],
-        default: 'manual'
+        enum: ['manual', 'popular', 'recent', 'price-asc', 'price-desc']
       },
       displayStyle: {
         type: String,
-        enum: ['grid', 'list', 'carousel'],
-        default: 'grid'
+        enum: ['grid', 'list', 'carousel']
       }
     },
 
@@ -849,6 +820,64 @@ VotingQuestionSchema.pre('save', async function(next) {
       .lean();
 
     this.order = maxOrder && maxOrder.order !== undefined ? maxOrder.order + 1 : 0;
+  }
+
+  // Apply defaults for nested config objects
+  // Mongoose doesn't apply defaults to nested objects if the parent object is defined
+  if (this.ratingConfig) {
+    this.ratingConfig.ratingType = this.ratingConfig.ratingType || 'stars';
+    this.ratingConfig.minValue = this.ratingConfig.minValue !== undefined ? this.ratingConfig.minValue : 1;
+    this.ratingConfig.maxValue = this.ratingConfig.maxValue !== undefined ? this.ratingConfig.maxValue : 5;
+    this.ratingConfig.step = this.ratingConfig.step !== undefined ? this.ratingConfig.step : 1;
+  }
+
+  if (this.textareaConfig) {
+    this.textareaConfig.rows = this.textareaConfig.rows !== undefined ? this.textareaConfig.rows : 4;
+  }
+
+  if (this.textConfig) {
+    this.textConfig.inputType = this.textConfig.inputType || 'text';
+  }
+
+  if (this.scaleConfig) {
+    this.scaleConfig.minValue = this.scaleConfig.minValue !== undefined ? this.scaleConfig.minValue : 1;
+    this.scaleConfig.maxValue = this.scaleConfig.maxValue !== undefined ? this.scaleConfig.maxValue : 10;
+    this.scaleConfig.step = this.scaleConfig.step !== undefined ? this.scaleConfig.step : 1;
+    this.scaleConfig.showValues = this.scaleConfig.showValues !== undefined ? this.scaleConfig.showValues : true;
+  }
+
+  if (this.multipleChoiceConfig) {
+    this.multipleChoiceConfig.allowMultipleSelection = this.multipleChoiceConfig.allowMultipleSelection !== undefined ? this.multipleChoiceConfig.allowMultipleSelection : false;
+    this.multipleChoiceConfig.randomizeOrder = this.multipleChoiceConfig.randomizeOrder !== undefined ? this.multipleChoiceConfig.randomizeOrder : false;
+    this.multipleChoiceConfig.showOtherOption = this.multipleChoiceConfig.showOtherOption !== undefined ? this.multipleChoiceConfig.showOtherOption : false;
+  }
+
+  if (this.imageSelectionConfig) {
+    this.imageSelectionConfig.allowMultipleSelection = this.imageSelectionConfig.allowMultipleSelection !== undefined ? this.imageSelectionConfig.allowMultipleSelection : false;
+    this.imageSelectionConfig.imageSize = this.imageSelectionConfig.imageSize || 'medium';
+    this.imageSelectionConfig.displayLayout = this.imageSelectionConfig.displayLayout || 'grid';
+  }
+
+  if (this.fileUploadConfig) {
+    this.fileUploadConfig.maxFileSize = this.fileUploadConfig.maxFileSize !== undefined ? this.fileUploadConfig.maxFileSize : 5242880; // 5MB
+    this.fileUploadConfig.maxFiles = this.fileUploadConfig.maxFiles !== undefined ? this.fileUploadConfig.maxFiles : 1;
+  }
+
+  if (this.dateConfig) {
+    this.dateConfig.allowPastDates = this.dateConfig.allowPastDates !== undefined ? this.dateConfig.allowPastDates : true;
+    this.dateConfig.allowFutureDates = this.dateConfig.allowFutureDates !== undefined ? this.dateConfig.allowFutureDates : true;
+    this.dateConfig.includeTime = this.dateConfig.includeTime !== undefined ? this.dateConfig.includeTime : false;
+  }
+
+  if (this.productVotingConfig) {
+    this.productVotingConfig.enabled = this.productVotingConfig.enabled !== undefined ? this.productVotingConfig.enabled : false;
+    this.productVotingConfig.allowMultipleSelection = this.productVotingConfig.allowMultipleSelection !== undefined ? this.productVotingConfig.allowMultipleSelection : false;
+    this.productVotingConfig.minSelections = this.productVotingConfig.minSelections !== undefined ? this.productVotingConfig.minSelections : 1;
+    this.productVotingConfig.showProductDetails = this.productVotingConfig.showProductDetails !== undefined ? this.productVotingConfig.showProductDetails : true;
+    this.productVotingConfig.showProductImages = this.productVotingConfig.showProductImages !== undefined ? this.productVotingConfig.showProductImages : true;
+    this.productVotingConfig.showProductPrices = this.productVotingConfig.showProductPrices !== undefined ? this.productVotingConfig.showProductPrices : false;
+    this.productVotingConfig.sortOrder = this.productVotingConfig.sortOrder || 'manual';
+    this.productVotingConfig.displayStyle = this.productVotingConfig.displayStyle || 'grid';
   }
 
   next();
