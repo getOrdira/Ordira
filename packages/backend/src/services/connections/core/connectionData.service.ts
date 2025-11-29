@@ -4,6 +4,7 @@ import { BrandSettings } from '../../../models/brands/brandSettings.model';
 import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
+import { brandSettingsCoreService } from '../../brands/core/brandSettings.service';
 
 /**
  * Core data access service for Connection management
@@ -17,14 +18,9 @@ export class ConnectionDataService {
    */
   async createConnection(brandId: string, manufacturerId: string): Promise<void> {
     try {
-      // Find BrandSettings for the business to update manufacturers array
+      // Get or create BrandSettings for the business (handles case where it doesn't exist yet)
       // Manufacturer.brands now references Business directly for consistency
-      const brandSettings = await BrandSettings.findOne({ business: brandId }).select('_id').lean();
-      
-      if (!brandSettings) {
-        throw new Error(`BrandSettings not found for business ${brandId}`);
-      }
-
+      const brandSettings = await brandSettingsCoreService.getSettings(brandId);
       const brandSettingsId = brandSettings._id.toString();
 
       // Update both BrandSettings and Manufacturer to establish connection
@@ -59,14 +55,9 @@ export class ConnectionDataService {
    */
   async removeConnection(brandId: string, manufacturerId: string): Promise<void> {
     try {
-      // Find BrandSettings for the business to update manufacturers array
+      // Get or create BrandSettings for the business (handles case where it doesn't exist yet)
       // Manufacturer.brands now references Business directly for consistency
-      const brandSettings = await BrandSettings.findOne({ business: brandId }).select('_id').lean();
-      
-      if (!brandSettings) {
-        throw new Error(`BrandSettings not found for business ${brandId}`);
-      }
-
+      const brandSettings = await brandSettingsCoreService.getSettings(brandId);
       const brandSettingsId = brandSettings._id.toString();
 
       await Promise.all([

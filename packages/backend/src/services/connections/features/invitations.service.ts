@@ -210,7 +210,12 @@ export class InvitationsService {
   async getPendingInvitesForManufacturer(manufacturerId: string): Promise<InvitationSummary[]> {
     try {
       const invites = await invitationDataService.findByManufacturer(manufacturerId, { status: 'pending' });
-      return invites
+      
+      if (!invites || invites.length === 0) {
+        return [];
+      }
+
+      const summaries = invites
         .map(invite => {
           try {
             return this.mapToSummary(invite);
@@ -221,10 +226,18 @@ export class InvitationsService {
               error: mapError
             });
             // Return a minimal summary to prevent breaking the entire list
+            const getEntityId = (entity: any): string => {
+              if (!entity) return '';
+              if (entity instanceof Types.ObjectId) return entity.toString();
+              if (entity._id) return entity._id.toString(); // Populated document
+              if (typeof entity === 'string') return entity;
+              return '';
+            };
+            
             return {
               id: invite?._id?.toString() || 'unknown',
-              brandId: invite?.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '',
-              manufacturerId: invite?.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '',
+              brandId: getEntityId(invite?.brand),
+              manufacturerId: getEntityId(invite?.manufacturer),
               status: invite?.status || 'unknown',
               invitationType: invite?.invitationType || 'custom',
               createdAt: invite?.createdAt || new Date(),
@@ -236,6 +249,14 @@ export class InvitationsService {
           }
         })
         .filter(summary => summary.brandId && summary.manufacturerId); // Filter out invalid summaries
+
+      logger.debug('Pending invitations for manufacturer', {
+        manufacturerId,
+        totalInvites: invites.length,
+        validSummaries: summaries.length
+      });
+
+      return summaries;
     } catch (error) {
       logger.error('Failed to get pending invitations for manufacturer', { manufacturerId }, error as Error);
       throw error;
