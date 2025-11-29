@@ -69,44 +69,50 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async sendInvitation(req: SendInvitationRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
-        const brandId = this.resolveBrandId(req);
-        const { manufacturerId, invitationType, message, terms } = req.validatedBody;
+      // Validate business user first
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
+      if (req.userType !== 'business' || !req.businessId) {
+        throw { statusCode: 403, message: 'Business user access required' };
+      }
 
-        const validation = this.connectionsServices.validation.invitation.validateCreateInvitation({
-          brandId,
-          manufacturerId,
-          invitationType,
-          message,
-          terms,
-        });
+      const brandId = this.resolveBrandId(req);
+      const { manufacturerId, invitationType, message, terms } = req.validatedBody;
 
-        if (!validation.isValid) {
-          throw {
-            statusCode: 400,
-            message: 'Invalid invitation payload',
-            details: validation.errors,
-          };
-        }
-
-        this.recordPerformance(req, 'SEND_INVITATION');
-
-        const invite = await this.connectionsServices.features.invitations.sendInvite(
-          brandId,
-          manufacturerId,
-          { invitationType, message, terms },
-        );
-
-        const summary = this.connectionsServices.utils.helpers.mapInvitationToSummary(invite as any);
-
-        this.logAction(req, 'SEND_INVITATION_SUCCESS', {
-          brandId,
-          manufacturerId,
-          invitationId: summary.id,
-        });
-
-        return { invitation: summary };
+      const validation = this.connectionsServices.validation.invitation.validateCreateInvitation({
+        brandId,
+        manufacturerId,
+        invitationType,
+        message,
+        terms,
       });
+
+      if (!validation.isValid) {
+        throw {
+          statusCode: 400,
+          message: 'Invalid invitation payload',
+          details: validation.errors,
+        };
+      }
+
+      this.recordPerformance(req, 'SEND_INVITATION');
+
+      const invite = await this.connectionsServices.features.invitations.sendInvite(
+        brandId,
+        manufacturerId,
+        { invitationType, message, terms },
+      );
+
+      const summary = this.connectionsServices.utils.helpers.mapInvitationToSummary(invite as any);
+
+      this.logAction(req, 'SEND_INVITATION_SUCCESS', {
+        brandId,
+        manufacturerId,
+        invitationId: summary.id,
+      });
+
+      return { invitation: summary };
     }, res, 'Invitation sent successfully', this.getRequestMeta(req));
   }
 
@@ -158,44 +164,50 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async respondInvitation(req: RespondInvitationRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateManufacturerUser(req, res, async () => {
-        const manufacturerId = this.resolveManufacturerId(req);
-        const { inviteId, accept, message } = req.validatedBody;
+      // Validate manufacturer user first
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
+      if (req.userType !== 'manufacturer' || !req.manufacturerId) {
+        throw { statusCode: 403, message: 'Manufacturer user access required' };
+      }
 
-        const validation = this.connectionsServices.validation.invitation.validateInvitationResponse({
-          inviteId,
-          accept,
-          manufacturerId,
-          message,
-        });
+      const manufacturerId = this.resolveManufacturerId(req);
+      const { inviteId, accept, message } = req.validatedBody;
 
-        if (!validation.isValid) {
-          throw {
-            statusCode: 400,
-            message: 'Invalid invitation response',
-            details: validation.errors,
-          };
-        }
-
-        this.recordPerformance(req, 'RESPOND_INVITATION');
-
-        const invite = await this.connectionsServices.features.invitations.respondInvite(
-          inviteId,
-          accept,
-          manufacturerId,
-          message,
-        );
-
-        const summary = this.connectionsServices.utils.helpers.mapInvitationToSummary(invite as any);
-
-        this.logAction(req, 'RESPOND_INVITATION_SUCCESS', {
-          inviteId,
-          accept,
-          manufacturerId,
-        });
-
-        return { invitation: summary };
+      const validation = this.connectionsServices.validation.invitation.validateInvitationResponse({
+        inviteId,
+        accept,
+        manufacturerId,
+        message,
       });
+
+      if (!validation.isValid) {
+        throw {
+          statusCode: 400,
+          message: 'Invalid invitation response',
+          details: validation.errors,
+        };
+      }
+
+      this.recordPerformance(req, 'RESPOND_INVITATION');
+
+      const invite = await this.connectionsServices.features.invitations.respondInvite(
+        inviteId,
+        accept,
+        manufacturerId,
+        message,
+      );
+
+      const summary = this.connectionsServices.utils.helpers.mapInvitationToSummary(invite as any);
+
+      this.logAction(req, 'RESPOND_INVITATION_SUCCESS', {
+        inviteId,
+        accept,
+        manufacturerId,
+      });
+
+      return { invitation: summary };
     }, res, 'Invitation response recorded', this.getRequestMeta(req));
   }
 
@@ -204,21 +216,27 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async cancelInvitation(req: CancelInvitationRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
-        const brandId = this.resolveBrandId(req);
-        const { inviteId } = req.validatedParams;
+      // Validate business user first
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
+      if (req.userType !== 'business' || !req.businessId) {
+        throw { statusCode: 403, message: 'Business user access required' };
+      }
 
-        this.recordPerformance(req, 'CANCEL_INVITATION');
+      const brandId = this.resolveBrandId(req);
+      const { inviteId } = req.validatedParams;
 
-        await this.connectionsServices.features.invitations.cancelInvite(inviteId, brandId);
+      this.recordPerformance(req, 'CANCEL_INVITATION');
 
-        this.logAction(req, 'CANCEL_INVITATION_SUCCESS', {
-          brandId,
-          inviteId,
-        });
+      await this.connectionsServices.features.invitations.cancelInvite(inviteId, brandId);
 
-        return { cancelled: true };
+      this.logAction(req, 'CANCEL_INVITATION_SUCCESS', {
+        brandId,
+        inviteId,
       });
+
+      return { cancelled: true };
     }, res, 'Invitation cancelled', this.getRequestMeta(req));
   }
 

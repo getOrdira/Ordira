@@ -277,22 +277,40 @@ export abstract class BaseController {
   protected validateBusinessUser(
     req: BaseRequest,
     res: Response,
-    next: NextFunction
-  ): void {
-    this.validateAuth(req, res, (err) => {
-      if (err) return;
+    next: NextFunction | (() => Promise<any>)
+  ): void | Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.validateAuth(req, res, async (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
 
-      if (req.userType !== 'business') {
-        ResponseHelpers.forbidden(res, 'Business user access required');
-        return;
-      }
+        if (req.userType !== 'business') {
+          ResponseHelpers.forbidden(res, 'Business user access required');
+          reject({ statusCode: 403, message: 'Business user access required' });
+          return;
+        }
 
-      if (!req.businessId) {
-        ResponseHelpers.validationError(res, 'Business ID required for business user');
-        return;
-      }
+        if (!req.businessId) {
+          ResponseHelpers.validationError(res, 'Business ID required for business user');
+          reject({ statusCode: 400, message: 'Business ID required for business user' });
+          return;
+        }
 
-      next();
+        try {
+          const result = next();
+          // If next is async, await it and catch errors
+          if (result && typeof result === 'object' && 'then' in result) {
+            const awaitedResult = await result;
+            resolve(awaitedResult);
+          } else {
+            resolve(result);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
   }
 
@@ -302,22 +320,40 @@ export abstract class BaseController {
   protected validateManufacturerUser(
     req: BaseRequest,
     res: Response,
-    next: NextFunction
-  ): void {
-    this.validateAuth(req, res, (err) => {
-      if (err) return;
+    next: NextFunction | (() => Promise<any>)
+  ): void | Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.validateAuth(req, res, async (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
 
-      if (req.userType !== 'manufacturer') {
-        ResponseHelpers.forbidden(res, 'Manufacturer user access required');
-        return;
-      }
+        if (req.userType !== 'manufacturer') {
+          ResponseHelpers.forbidden(res, 'Manufacturer user access required');
+          reject({ statusCode: 403, message: 'Manufacturer user access required' });
+          return;
+        }
 
-      if (!req.manufacturerId) {
-        ResponseHelpers.validationError(res, 'Manufacturer ID required for manufacturer user');
-        return;
-      }
+        if (!req.manufacturerId) {
+          ResponseHelpers.validationError(res, 'Manufacturer ID required for manufacturer user');
+          reject({ statusCode: 400, message: 'Manufacturer ID required for manufacturer user' });
+          return;
+        }
 
-      next();
+        try {
+          const result = next();
+          // If next is async, await it and catch errors
+          if (result && typeof result === 'object' && 'then' in result) {
+            const awaitedResult = await result;
+            resolve(awaitedResult);
+          } else {
+            resolve(result);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
   }
 
