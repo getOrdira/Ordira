@@ -12,65 +12,86 @@ import { logger } from '../../../utils/logger';
 export class ConnectionDataService {
   /**
    * Create bidirectional connection between brand (business) and manufacturer
-   * @param brandBusinessId - The Business ID (not BrandSettings ID)
+   * @param brandId - The Business ID (brandId)
    * @param manufacturerId - The Manufacturer ID
    */
-  async createConnection(brandBusinessId: string, manufacturerId: string): Promise<void> {
+  async createConnection(brandId: string, manufacturerId: string): Promise<void> {
     try {
+      // Find BrandSettings for the business to update manufacturers array
+      // Manufacturer.brands now references Business directly for consistency
+      const brandSettings = await BrandSettings.findOne({ business: brandId }).select('_id').lean();
+      
+      if (!brandSettings) {
+        throw new Error(`BrandSettings not found for business ${brandId}`);
+      }
+
+      const brandSettingsId = brandSettings._id.toString();
+
       // Update both BrandSettings and Manufacturer to establish connection
-      // BrandSettings stores the connection via the business field
+      // BrandSettings.manufacturers stores manufacturer IDs
+      // Manufacturer.brands stores Business IDs (brandId) for consistency
       await Promise.all([
-        BrandSettings.findOneAndUpdate(
-          { business: brandBusinessId },
+        BrandSettings.findByIdAndUpdate(
+          brandSettingsId,
           { $addToSet: { manufacturers: manufacturerId } }
         ),
         Manufacturer.findByIdAndUpdate(
           manufacturerId,
-          { $addToSet: { brands: brandBusinessId } }
+          { $addToSet: { brands: brandId } } // Use Business ID directly
         )
       ]);
 
       logger.info('Connection created', {
-        brandBusinessId,
+        brandId,
         manufacturerId
       });
     } catch (error) {
       logger.error('Failed to create connection',
-        { brandBusinessId, manufacturerId }, error as Error);
+        { brandId, manufacturerId }, error as Error);
       throw error;
     }
   }
 
   /**
    * Remove bidirectional connection between brand and manufacturer
-   * @param brandBusinessId - The Business ID (not BrandSettings ID)
+   * @param brandId - The Business ID (brandId)
    * @param manufacturerId - The Manufacturer ID
    */
-  async removeConnection(brandBusinessId: string, manufacturerId: string): Promise<void> {
+  async removeConnection(brandId: string, manufacturerId: string): Promise<void> {
     try {
+      // Find BrandSettings for the business to update manufacturers array
+      // Manufacturer.brands now references Business directly for consistency
+      const brandSettings = await BrandSettings.findOne({ business: brandId }).select('_id').lean();
+      
+      if (!brandSettings) {
+        throw new Error(`BrandSettings not found for business ${brandId}`);
+      }
+
+      const brandSettingsId = brandSettings._id.toString();
+
       await Promise.all([
-        BrandSettings.findOneAndUpdate(
-          { business: brandBusinessId },
+        BrandSettings.findByIdAndUpdate(
+          brandSettingsId,
           { $pull: { manufacturers: manufacturerId } }
         ),
         Manufacturer.findByIdAndUpdate(
           manufacturerId,
-          { $pull: { brands: brandBusinessId } }
+          { $pull: { brands: brandId } } // Use Business ID directly
         ),
         // Update invitation status to disconnected
         Invitation.findOneAndUpdate(
-          { brand: brandBusinessId, manufacturer: manufacturerId, status: 'accepted' },
+          { brand: brandId, manufacturer: manufacturerId, status: 'accepted' },
           { status: 'disconnected', respondedAt: new Date() }
         )
       ]);
 
       logger.info('Connection removed', {
-        brandBusinessId,
+        brandId,
         manufacturerId
       });
     } catch (error) {
       logger.error('Failed to remove connection',
-        { brandBusinessId, manufacturerId }, error as Error);
+        { brandId, manufacturerId }, error as Error);
       throw error;
     }
   }

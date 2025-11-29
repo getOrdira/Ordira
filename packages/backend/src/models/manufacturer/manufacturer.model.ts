@@ -7,7 +7,7 @@ export interface IManufacturer extends Document {
   name: string;
   email: string;
   password: string;
-  brands: Types.ObjectId[]; // References to BrandSettings
+  brands: Types.ObjectId[]; // References to Business (brandId)
   createdAt: Date;
   updatedAt: Date;
   
@@ -248,7 +248,7 @@ const ManufacturerSchema = new Schema<IManufacturer>({
   },
   brands: [{ 
     type: Types.ObjectId, 
-    ref: 'BrandSettings', // Properly aligned with service references
+    ref: 'Business', // References Business ID for consistency with connections
     validate: {
       validator: function(brands: Types.ObjectId[]) {
         return brands.length <= 100;
