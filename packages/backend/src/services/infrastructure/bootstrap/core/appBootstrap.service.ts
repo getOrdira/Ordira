@@ -49,7 +49,8 @@ import {
   DomainsModule,
   MediaModule,
   NftModule,
-  PlatformModule
+  PlatformModule,
+  ConnectionsModule
 } from '../modules';
 
 // Core middleware (still needed for routes)
@@ -894,7 +895,8 @@ export class AppBootstrapService {
       new DomainsModule(),
       new MediaModule(),
       new NftModule(),
-      new PlatformModule()
+      new PlatformModule(),
+      new ConnectionsModule()
     ]);
 
     // Initialize all modules (validates dependencies, registers routes)

@@ -884,8 +884,8 @@ ManufacturerSchema.methods.updateConnectionStats = function(action: 'sent' | 're
 
 // Pre-save middleware (aligned with service validation)
 ManufacturerSchema.pre('save', async function(next) {
-  // Hash password if modified (aligned with auth service)
-  if (this.isModified('password')) {
+  // Hash password if modified and not already hashed (aligned with auth service)
+  if (this.isModified('password') && !this.password.startsWith('$2b$') && !this.password.startsWith('$2a$')) {
     try {
       const salt = await bcrypt.genSalt(12);
       this.password = await bcrypt.hash(this.password, salt);
