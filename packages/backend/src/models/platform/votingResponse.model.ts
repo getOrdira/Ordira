@@ -290,7 +290,11 @@ const VotingResponseSchema = new Schema<IVotingResponse>(
       },
       deviceType: {
         type: String,
-        enum: ['desktop', 'mobile', 'tablet']
+        enum: {
+          values: ['desktop', 'mobile', 'tablet'],
+          message: 'Device type must be desktop, mobile, or tablet'
+        },
+        required: false
       },
       browser: {
         type: String,
@@ -403,7 +407,11 @@ const VotingResponseSchema = new Schema<IVotingResponse>(
       },
       completionSpeed: {
         type: String,
-        enum: ['too_fast', 'normal', 'slow']
+        enum: {
+          values: ['too_fast', 'normal', 'slow'],
+          message: 'Completion speed must be too_fast, normal, or slow'
+        },
+        required: false
       }
     },
 
