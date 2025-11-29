@@ -17,29 +17,36 @@ if (process.env.SENTRY_DSN && process.env.SENTRY_DEBUG !== 'true') {
   const originalLog = console.log;
   console.log = (...args: any[]) => {
     const message = args.join(' ');
-    // Filter out all verbose Sentry logger messages unless in debug mode
+
+    // CRITICAL: Filter ALL Sentry Logger output (this is the primary pattern)
+    if (message.startsWith('Sentry Logger [')) {
+      return; // Suppress all Sentry Logger messages completely
+    }
+
+    // Additional filters for any other Sentry/tracing messages that slip through
     if (
-      message.includes('Sentry Logger') ||
       message.includes('Recording is off') ||
       message.includes('propagating context') ||
-      message.includes('[Tracing] Inheriting') ||
+      message.includes('[Tracing]') ||
       message.includes('sampled decision') ||
-      message.includes('non-recording span')
+      message.includes('non-recording span') ||
+      message.includes('Recorded request session') ||
+      message.includes('Recording outcome:')
     ) {
-      // Suppress all Sentry Logger and tracing debug messages
-      return;
+      return; // Suppress all tracing debug messages
     }
-    // Also filter OpenTelemetry instrumentation messages from Sentry
+
+    // Filter OpenTelemetry instrumentation messages
     if (
       message.includes('@opentelemetry_sentry-patched') ||
       message.includes('@sentry/instrumentation-http') ||
       message.includes('Instrumentation suppressed') ||
-      message.includes('[Tracing] Not injecting trace data') ||
       message.includes('Sending request session aggregate') ||
       message.includes('Sending outcomes:')
     ) {
       return; // Suppress these messages
     }
+
     originalLog.apply(console, args);
   };
 }
