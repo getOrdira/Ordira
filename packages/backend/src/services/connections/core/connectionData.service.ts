@@ -5,6 +5,7 @@ import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
 import { brandSettingsCoreService } from '../../brands/core/brandSettings.service';
+import { Types } from 'mongoose';
 
 /**
  * Core data access service for Connection management
@@ -18,6 +19,18 @@ export class ConnectionDataService {
    */
   async createConnection(brandId: string, manufacturerId: string): Promise<void> {
     try {
+      // Validate ObjectIds before proceeding
+      if (!Types.ObjectId.isValid(brandId)) {
+        throw new Error(`Invalid brandId: ${brandId}`);
+      }
+      if (!Types.ObjectId.isValid(manufacturerId)) {
+        throw new Error(`Invalid manufacturerId: ${manufacturerId}`);
+      }
+
+      // Convert to ObjectId to ensure proper format
+      const brandObjectId = new Types.ObjectId(brandId);
+      const manufacturerObjectId = new Types.ObjectId(manufacturerId);
+
       // Get or create BrandSettings for the business (handles case where it doesn't exist yet)
       // Manufacturer.brands now references Business directly for consistency
       const brandSettings = await brandSettingsCoreService.getSettings(brandId);
@@ -26,14 +39,17 @@ export class ConnectionDataService {
       // Update both BrandSettings and Manufacturer to establish connection
       // BrandSettings.manufacturers stores manufacturer IDs
       // Manufacturer.brands stores Business IDs (brandId) for consistency
+      // Use runValidators: false to avoid validation issues during update (validation runs on fetch)
       await Promise.all([
         BrandSettings.findByIdAndUpdate(
           brandSettingsId,
-          { $addToSet: { manufacturers: manufacturerId } }
+          { $addToSet: { manufacturers: manufacturerObjectId } },
+          { runValidators: false }
         ),
         Manufacturer.findByIdAndUpdate(
-          manufacturerId,
-          { $addToSet: { brands: brandId } } // Use Business ID directly
+          manufacturerObjectId,
+          { $addToSet: { brands: brandObjectId } }, // Use Business ID directly as ObjectId
+          { runValidators: false } // Skip validation during update to avoid issues with existing invalid data
         )
       ]);
 
@@ -55,6 +71,18 @@ export class ConnectionDataService {
    */
   async removeConnection(brandId: string, manufacturerId: string): Promise<void> {
     try {
+      // Validate ObjectIds before proceeding
+      if (!Types.ObjectId.isValid(brandId)) {
+        throw new Error(`Invalid brandId: ${brandId}`);
+      }
+      if (!Types.ObjectId.isValid(manufacturerId)) {
+        throw new Error(`Invalid manufacturerId: ${manufacturerId}`);
+      }
+
+      // Convert to ObjectId to ensure proper format
+      const brandObjectId = new Types.ObjectId(brandId);
+      const manufacturerObjectId = new Types.ObjectId(manufacturerId);
+
       // Get or create BrandSettings for the business (handles case where it doesn't exist yet)
       // Manufacturer.brands now references Business directly for consistency
       const brandSettings = await brandSettingsCoreService.getSettings(brandId);
@@ -63,15 +91,17 @@ export class ConnectionDataService {
       await Promise.all([
         BrandSettings.findByIdAndUpdate(
           brandSettingsId,
-          { $pull: { manufacturers: manufacturerId } }
+          { $pull: { manufacturers: manufacturerObjectId } },
+          { runValidators: false }
         ),
         Manufacturer.findByIdAndUpdate(
-          manufacturerId,
-          { $pull: { brands: brandId } } // Use Business ID directly
+          manufacturerObjectId,
+          { $pull: { brands: brandObjectId } }, // Use Business ID directly as ObjectId
+          { runValidators: false } // Skip validation during update
         ),
         // Update invitation status to disconnected
         Invitation.findOneAndUpdate(
-          { brand: brandId, manufacturer: manufacturerId, status: 'accepted' },
+          { brand: brandObjectId, manufacturer: manufacturerObjectId, status: 'accepted' },
           { status: 'disconnected', respondedAt: new Date() }
         )
       ]);

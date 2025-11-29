@@ -72,9 +72,10 @@ export class ResponseHelpers {
     meta?: ResponseMeta,
     statusCode: number = 200
   ): void {
+    // Ensure data is always included (use null if undefined to maintain structure)
     const response: ApiResponse<T> = {
       success: true,
-      data,
+      data: data !== undefined ? data : (null as any), // Explicitly include data even if undefined
       message,
       meta: {
         ...meta,

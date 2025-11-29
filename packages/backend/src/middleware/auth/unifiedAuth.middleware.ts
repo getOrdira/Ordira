@@ -135,7 +135,9 @@ export async function authenticate(
     try {
       switch (payload.userType) {
         case 'manufacturer':
-          userDocument = await Manufacturer.findById(payload.sub);
+          // Exclude brands field during auth to avoid validation errors from invalid data
+          // Brands array validation errors shouldn't block authentication
+          userDocument = await Manufacturer.findById(payload.sub).select('-brands');
           if (userDocument && !userDocument.isAccountActive()) {
             throw createAppError('Account is deactivated', 401, 'UNAUTHORIZED');
           }
