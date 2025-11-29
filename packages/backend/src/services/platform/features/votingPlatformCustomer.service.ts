@@ -164,10 +164,23 @@ export class VotingPlatformCustomerService {
       logger.error('Failed to save voting response', {
         platformId: validatedPlatformId,
         error: error.message,
+        errorName: error.name,
+        errorStack: error.stack,
         validationErrors: error.errors ? Object.keys(error.errors).map((key) => ({
           field: key,
-          message: error.errors[key].message
-        })) : undefined
+          message: error.errors[key].message,
+          value: error.errors[key].value,
+          kind: error.errors[key].kind
+        })) : undefined,
+        responseData: {
+          platformId: validatedPlatformId,
+          businessId: platform.businessId?.toString(),
+          userId: input.userId,
+          sessionId: input.sessionId,
+          userContext: response.userContext,
+          referralData: response.referralData,
+          emailVerification: response.emailVerification
+        }
       });
       throw createAppError(
         `Failed to start response: ${error.message}`,
