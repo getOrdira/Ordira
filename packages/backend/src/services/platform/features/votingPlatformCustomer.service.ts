@@ -119,8 +119,8 @@ export class VotingPlatformCustomerService {
       validatedPlatformId
     );
 
-    // Create new response
-    const response = new VotingResponse({
+    // Create new response - build object dynamically to avoid undefined nested objects
+    const responseData: any = {
       platformId: validatedPlatformId,
       businessId: platform.businessId,
       userId: input.userId ? new Types.ObjectId(input.userId) : undefined,
@@ -149,14 +149,19 @@ export class VotingPlatformCustomerService {
         campaign: input.referralCampaign,
         referrerUrl: input.referrerUrl,
         utmParams: input.utmParams
-      },
+      }
+    };
 
-      emailVerification: input.email ? {
+    // Only add emailVerification if email is provided (avoid setting to undefined which triggers validation)
+    if (input.email) {
+      responseData.emailVerification = {
         email: this.validation.validateEmail(input.email),
         isVerified: !platform.emailGating.requireEmailVerification,
         verificationSentAt: platform.emailGating.requireEmailVerification ? new Date() : undefined
-      } : undefined
-    });
+      };
+    }
+
+    const response = new VotingResponse(responseData);
 
     try {
       await response.save();
