@@ -74,15 +74,28 @@ export class ConnectionHelpersService {
     const urgencyLevel = this.determineUrgency(invite.status, timeRemaining);
 
     // Handle null/undefined brand and manufacturer references
-    const brandId = invite.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '';
-    const manufacturerId = invite.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '';
+    // Support both ObjectId and populated documents
+    const getEntityId = (entity: any): string => {
+      if (!entity) return '';
+      if (entity instanceof Types.ObjectId) return entity.toString();
+      if (entity._id) return entity._id.toString(); // Populated document
+      if (typeof entity === 'string') return entity;
+      return '';
+    };
+
+    const brandId = getEntityId(invite.brand);
+    const manufacturerId = getEntityId(invite.manufacturer);
+
+    // Extract names from populated documents
+    const brandName = (invite as any)?.brand?.businessName || (invite as any)?.brand?.business?.businessName;
+    const manufacturerName = (invite as any)?.manufacturer?.name;
 
     return {
       id: invite._id.toString(),
       brandId,
       manufacturerId,
-      brandName: (invite as any)?.brand?.business?.businessName,
-      manufacturerName: (invite as any)?.manufacturer?.name,
+      brandName,
+      manufacturerName,
       status: invite.status,
       invitationType: invite.invitationType,
       createdAt: invite.createdAt,
@@ -180,8 +193,17 @@ export class ConnectionHelpersService {
    */
   buildNotificationContext(invite: IInvitation, metadata?: Record<string, unknown>): NotificationContext {
     // Handle null/undefined brand and manufacturer references
-    const brandId = invite.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '';
-    const manufacturerId = invite.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '';
+    // Support both ObjectId and populated documents
+    const getEntityId = (entity: any): string => {
+      if (!entity) return '';
+      if (entity instanceof Types.ObjectId) return entity.toString();
+      if (entity._id) return entity._id.toString(); // Populated document
+      if (typeof entity === 'string') return entity;
+      return '';
+    };
+
+    const brandId = getEntityId(invite.brand);
+    const manufacturerId = getEntityId(invite.manufacturer);
 
     return {
       invitationId: invite._id.toString(),

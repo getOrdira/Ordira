@@ -258,7 +258,17 @@ export class InvitationsService {
         throw { statusCode: 404, message: 'Invitation not found.' };
       }
 
-      if (invite.manufacturer.toString() !== manufacturerId) {
+      // Helper to extract ID from ObjectId or populated document
+      const getEntityId = (entity: any): string => {
+        if (!entity) return '';
+        if (entity instanceof Types.ObjectId) return entity.toString();
+        if (entity._id) return entity._id.toString(); // Populated document
+        if (typeof entity === 'string') return entity;
+        return '';
+      };
+
+      const inviteManufacturerId = getEntityId(invite.manufacturer);
+      if (inviteManufacturerId !== manufacturerId) {
         throw { statusCode: 403, message: 'Not authorized to respond to this invite.' };
       }
 
@@ -278,19 +288,22 @@ export class InvitationsService {
       }
 
       if (accept) {
+        // Extract brand ID safely
+        const brandId = getEntityId(invite.brand);
+        
         // Create bidirectional connection
         await connectionDataService.createConnection(
-          invite.brand.toString(),
+          brandId,
           manufacturerId
         );
 
         // Notify the brand that their invite was accepted
         await eventHandlerService.handle({
           type: NotificationEventType.ConnectionAccepted,
-          recipient: { businessId: invite.brand.toString() },
+          recipient: { businessId: brandId },
           payload: {
             manufacturerId,
-            brandId: invite.brand.toString(),
+            brandId,
             invitationId: invite._id.toString(),
             responseMessage: message,
           },
@@ -304,12 +317,13 @@ export class InvitationsService {
         });
       }
       else {
+        const brandId = getEntityId(invite.brand);
         await eventHandlerService.handle({
           type: NotificationEventType.ConnectionDeclined,
-          recipient: { businessId: invite.brand.toString() },
+          recipient: { businessId: brandId },
           payload: {
             manufacturerId,
-            brandId: invite.brand.toString(),
+            brandId,
             invitationId: invite._id.toString(),
             responseMessage: message,
           },
