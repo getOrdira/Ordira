@@ -9,7 +9,7 @@
  */
 
 import * as Sentry from '@sentry/node';
-import { httpIntegration, onUncaughtExceptionIntegration, onUnhandledRejectionIntegration, consoleIntegration } from '@sentry/node';
+import { onUncaughtExceptionIntegration, onUnhandledRejectionIntegration } from '@sentry/node';
 
 // Suppress verbose Sentry logger messages (client reports, flushing, instrumentation, etc.)
 // These are informational and clutter logs in production
@@ -56,17 +56,17 @@ if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     sendDefaultPii: true,
-    // Lower trace sample rate since OpenTelemetry handles traces
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0.5,
+    // DISABLE TRACING COMPLETELY - Set to 0 to eliminate all tracing logs
+    tracesSampleRate: 0,
     environment: process.env.NODE_ENV || 'development',
-    // Only enable debug mode if explicitly requested (suppresses verbose logs when false)
-    debug: process.env.SENTRY_DEBUG === 'true',
-    // Focus on error tracking, not tracing (OpenTelemetry handles that)
+    // CRITICAL: Set debug to false to suppress ALL Sentry Logger messages
+    debug: false,
+    // Minimal integrations - ONLY error tracking, NO tracing instrumentation
     integrations: [
-      httpIntegration(), 
       onUncaughtExceptionIntegration(),
-      onUnhandledRejectionIntegration(),
-      consoleIntegration()
+      onUnhandledRejectionIntegration()
+      // Removed: httpIntegration() - this causes all the tracing spam
+      // Removed: consoleIntegration() - not needed for error tracking
     ],
     
     beforeSend(event, hint) {
