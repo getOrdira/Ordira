@@ -124,7 +124,7 @@ export class InvitationDataService {
       }
 
       let dbQuery = Invitation.find(query)
-        .populate('brand', 'businessName email')  // Now populates Business directly
+        .populate('brand', '_id businessName email')  // Include _id for ID extraction in mapping
         .sort({ createdAt: -1 });
 
       if (filters?.limit) {

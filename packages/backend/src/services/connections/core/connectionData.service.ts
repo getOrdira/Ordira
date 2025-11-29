@@ -141,8 +141,11 @@ export class ConnectionDataService {
    */
   async getConnectedManufacturers(brandId: string): Promise<string[]> {
     try {
+      // Convert brandId to ObjectId for proper querying
+      const brandObjectId = Types.ObjectId.isValid(brandId) ? new Types.ObjectId(brandId) : brandId;
+      
       const acceptedInvitations = await Invitation.find({
-        brand: brandId,
+        brand: brandObjectId,
         status: 'accepted'
       }).select('manufacturer');
 
@@ -159,8 +162,11 @@ export class ConnectionDataService {
    */
   async getConnectedBrands(manufacturerId: string): Promise<string[]> {
     try {
+      // Convert manufacturerId to ObjectId for proper querying
+      const manufacturerObjectId = Types.ObjectId.isValid(manufacturerId) ? new Types.ObjectId(manufacturerId) : manufacturerId;
+      
       const acceptedInvitations = await Invitation.find({
-        manufacturer: manufacturerId,
+        manufacturer: manufacturerObjectId,
         status: 'accepted'
       }).select('brand');
 

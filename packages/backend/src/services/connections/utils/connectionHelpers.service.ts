@@ -78,7 +78,14 @@ export class ConnectionHelpersService {
     const getEntityId = (entity: any): string => {
       if (!entity) return '';
       if (entity instanceof Types.ObjectId) return entity.toString();
-      if (entity._id) return entity._id.toString(); // Populated document
+      // Check for populated document with _id
+      if (entity._id) {
+        return entity._id instanceof Types.ObjectId ? entity._id.toString() : String(entity._id);
+      }
+      // Check if entity itself is an object with toString method (ObjectId-like)
+      if (typeof entity.toString === 'function' && entity.toString().match(/^[0-9a-fA-F]{24}$/)) {
+        return entity.toString();
+      }
       if (typeof entity === 'string') return entity;
       return '';
     };
@@ -197,7 +204,14 @@ export class ConnectionHelpersService {
     const getEntityId = (entity: any): string => {
       if (!entity) return '';
       if (entity instanceof Types.ObjectId) return entity.toString();
-      if (entity._id) return entity._id.toString(); // Populated document
+      // Check for populated document with _id
+      if (entity._id) {
+        return entity._id instanceof Types.ObjectId ? entity._id.toString() : String(entity._id);
+      }
+      // Check if entity itself is an object with toString method (ObjectId-like)
+      if (typeof entity.toString === 'function' && entity.toString().match(/^[0-9a-fA-F]{24}$/)) {
+        return entity.toString();
+      }
       if (typeof entity === 'string') return entity;
       return '';
     };
