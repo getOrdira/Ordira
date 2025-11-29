@@ -60,13 +60,7 @@ export class InvitationDataService {
       if (populate) {
         query = query
           .populate('manufacturer', 'name email')
-          .populate({
-            path: 'brand',
-            populate: {
-              path: 'business',
-              select: 'businessName'
-            }
-          });
+          .populate('brand', 'businessName email');  // Now populates Business directly
       }
 
       return await query.exec() as IInvitation;
@@ -130,13 +124,7 @@ export class InvitationDataService {
       }
 
       let dbQuery = Invitation.find(query)
-        .populate({
-          path: 'brand',
-          populate: {
-            path: 'business',
-            select: 'businessName'
-          }
-        })
+        .populate('brand', 'businessName email')  // Now populates Business directly
         .sort({ createdAt: -1 });
 
       if (filters?.limit) {

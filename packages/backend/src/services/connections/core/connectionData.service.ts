@@ -11,60 +11,66 @@ import { logger } from '../../../utils/logger';
  */
 export class ConnectionDataService {
   /**
-   * Create bidirectional connection between brand and manufacturer
+   * Create bidirectional connection between brand (business) and manufacturer
+   * @param brandBusinessId - The Business ID (not BrandSettings ID)
+   * @param manufacturerId - The Manufacturer ID
    */
-  async createConnection(brandId: string, manufacturerId: string): Promise<void> {
+  async createConnection(brandBusinessId: string, manufacturerId: string): Promise<void> {
     try {
+      // Update both BrandSettings and Manufacturer to establish connection
+      // BrandSettings stores the connection via the business field
       await Promise.all([
         BrandSettings.findOneAndUpdate(
-          { business: brandId },
+          { business: brandBusinessId },
           { $addToSet: { manufacturers: manufacturerId } }
         ),
         Manufacturer.findByIdAndUpdate(
           manufacturerId,
-          { $addToSet: { brands: brandId } }
+          { $addToSet: { brands: brandBusinessId } }
         )
       ]);
 
       logger.info('Connection created', {
-        brandId,
+        brandBusinessId,
         manufacturerId
       });
     } catch (error) {
       logger.error('Failed to create connection',
-        { brandId, manufacturerId }, error as Error);
+        { brandBusinessId, manufacturerId }, error as Error);
       throw error;
     }
   }
 
   /**
    * Remove bidirectional connection between brand and manufacturer
+   * @param brandBusinessId - The Business ID (not BrandSettings ID)
+   * @param manufacturerId - The Manufacturer ID
    */
-  async removeConnection(brandId: string, manufacturerId: string): Promise<void> {
+  async removeConnection(brandBusinessId: string, manufacturerId: string): Promise<void> {
     try {
       await Promise.all([
         BrandSettings.findOneAndUpdate(
-          { business: brandId },
+          { business: brandBusinessId },
           { $pull: { manufacturers: manufacturerId } }
         ),
         Manufacturer.findByIdAndUpdate(
           manufacturerId,
-          { $pull: { brands: brandId } }
+          { $pull: { brands: brandBusinessId } }
         ),
         // Update invitation status to disconnected
         Invitation.findOneAndUpdate(
-          { brand: brandId, manufacturer: manufacturerId, status: 'accepted' },
+          { brand: brandBusinessId, manufacturer: manufacturerId, status: 'accepted' },
           { status: 'disconnected', respondedAt: new Date() }
         )
       ]);
 
       logger.info('Connection removed', {
-        brandId,
+        brandBusinessId,
         manufacturerId
       });
     } catch (error) {
       logger.error('Failed to remove connection',
-        { brandId, manufacturerId }, error as Error);
+        { brandBusinessId, manufacturerId }, error as Error);
       throw error;
     }
   }
@@ -158,13 +164,7 @@ export class ConnectionDataService {
         manufacturer: manufacturerId,
         status: 'accepted'
       })
-        .populate({
-          path: 'brand',
-          populate: {
-            path: 'business',
-            select: 'businessName industry email'
-          }
-        })
+        .populate('brand', 'businessName industry email')  // Now populates Business directly
         .sort({ respondedAt: -1 });
 
       return acceptedInvitations.map(inv => ({

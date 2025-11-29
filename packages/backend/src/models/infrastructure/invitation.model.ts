@@ -64,15 +64,15 @@ export interface IInvitation extends Document {
 }
 
 const InvitationSchema = new Schema<IInvitation>({
-  brand: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'BrandSettings', 
+  brand: {
+    type: Schema.Types.ObjectId,
+    ref: 'Business',  // Changed from 'BrandSettings' to 'Business' for direct business ID reference
     required: [true, 'Brand reference is required'],
     index: true
   },
-  manufacturer: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Manufacturer', 
+  manufacturer: {
+    type: Schema.Types.ObjectId,
+    ref: 'Manufacturer',
     required: [true, 'Manufacturer reference is required'],
     index: true
   },
@@ -351,17 +351,11 @@ InvitationSchema.statics.findPendingForBrand = function(brandId: string) {
  * Find pending invitations for a manufacturer
  */
 InvitationSchema.statics.findPendingForManufacturer = function(manufacturerId: string) {
-  return this.find({ 
-    manufacturer: manufacturerId, 
+  return this.find({
+    manufacturer: manufacturerId,
     status: 'pending',
     expiresAt: { $gt: new Date() }
-  }).populate({
-    path: 'brand',
-    populate: {
-      path: 'business',
-      select: 'businessName'
-    }
-  });
+  }).populate('brand', 'businessName email');  // Now populates Business directly
 };
 
 /**
