@@ -73,10 +73,14 @@ export class ConnectionHelpersService {
     const timeRemaining = this.calculateTimeRemaining(invite.expiresAt, invite.status);
     const urgencyLevel = this.determineUrgency(invite.status, timeRemaining);
 
+    // Handle null/undefined brand and manufacturer references
+    const brandId = invite.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '';
+    const manufacturerId = invite.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '';
+
     return {
       id: invite._id.toString(),
-      brandId: invite.brand.toString(),
-      manufacturerId: invite.manufacturer.toString(),
+      brandId,
+      manufacturerId,
       brandName: (invite as any)?.brand?.business?.businessName,
       manufacturerName: (invite as any)?.manufacturer?.name,
       status: invite.status,
@@ -175,10 +179,14 @@ export class ConnectionHelpersService {
    * Build notification payload used by the notification service.
    */
   buildNotificationContext(invite: IInvitation, metadata?: Record<string, unknown>): NotificationContext {
+    // Handle null/undefined brand and manufacturer references
+    const brandId = invite.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '';
+    const manufacturerId = invite.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '';
+
     return {
       invitationId: invite._id.toString(),
-      brandId: invite.brand.toString(),
-      manufacturerId: invite.manufacturer.toString(),
+      brandId,
+      manufacturerId,
       status: invite.status,
       invitationType: invite.invitationType,
       expiresAt: invite.expiresAt,

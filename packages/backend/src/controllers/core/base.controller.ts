@@ -108,7 +108,7 @@ export abstract class BaseController {
    */
   protected sendError(
     res: Response,
-    error: AppError | Error | string,
+    error: AppError | Error | string | { statusCode?: number; message?: string; code?: string; details?: any },
     statusCode?: number
   ): void {
     if (typeof error === 'string') {
@@ -116,17 +116,17 @@ export abstract class BaseController {
         code: 'CONTROLLER_ERROR',
         message: error
       }, statusCode || 400);
-    } else if ('code' in error || 'statusCode' in error) {
-      // AppError case
-      const appError = error as AppError;
+    } else if (error && typeof error === 'object' && ('code' in error || 'statusCode' in error)) {
+      // AppError or plain error object case
+      const appError = error as AppError | { statusCode?: number; message?: string; code?: string; details?: any };
       ResponseHelpers.error(res, {
         code: appError.code || 'CONTROLLER_ERROR',
-        message: appError.message,
-        details: appError.details
+        message: appError.message || 'An error occurred',
+        details: (appError as AppError).details
       }, statusCode || appError.statusCode || 400);
     } else {
       // Regular Error case
-      ErrorHelpers.handleServiceError(error, res);
+      ErrorHelpers.handleServiceError(error as Error, res);
     }
   }
 

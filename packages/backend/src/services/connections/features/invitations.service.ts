@@ -1,4 +1,5 @@
 ﻿// src/services/connections/features/invitations.service.ts
+import { Types } from 'mongoose';
 import { NotificationCategory, NotificationEventType, NotificationPriority, eventHandlerService } from '../../notifications';
 
 import { invitationDataService } from '../core/invitationData.service';
@@ -78,8 +79,8 @@ export class InvitationsService {
         terms: connectionHelpersService.normalizeTerms(options?.terms)
       });
 
-      // Notify the manufacturer
-      await eventHandlerService.handle({
+      // Notify the manufacturer (don't block on notification failure)
+      eventHandlerService.handle({
         type: NotificationEventType.ConnectionRequested,
         recipient: { manufacturerId },
         payload: {
@@ -95,6 +96,13 @@ export class InvitationsService {
           message: options?.message ?? 'A brand invited you to connect.',
           actionUrl: `/manufacturer/connections/${brandId}`,
         },
+      }).catch((notificationError) => {
+        logger.warn('Failed to send connection invitation notification', {
+          brandId,
+          manufacturerId,
+          invitationId: invite._id.toString(),
+          error: notificationError
+        });
       });
       return invite;
     } catch (error) {
@@ -111,7 +119,20 @@ export class InvitationsService {
     try {
       const invites = await invitationDataService.findByBrand(brandId);
 
-      return invites.map(invite => this.mapToSummary(invite));
+      return invites
+        .map(invite => {
+          try {
+            return this.mapToSummary(invite);
+          } catch (mapError) {
+            logger.error('Failed to map invitation to summary', {
+              invitationId: invite?._id?.toString(),
+              brandId,
+              error: mapError
+            });
+            return null; // Will be filtered out
+          }
+        })
+        .filter((summary): summary is InvitationSummary => summary !== null);
     } catch (error) {
       logger.error('Failed to list invitations for brand', { brandId }, error as Error);
       throw error;
@@ -125,7 +146,20 @@ export class InvitationsService {
     try {
       const invites = await invitationDataService.findByManufacturer(manufacturerId);
 
-      return invites.map(invite => this.mapToSummary(invite));
+      return invites
+        .map(invite => {
+          try {
+            return this.mapToSummary(invite);
+          } catch (mapError) {
+            logger.error('Failed to map invitation to summary', {
+              invitationId: invite?._id?.toString(),
+              manufacturerId,
+              error: mapError
+            });
+            return null; // Will be filtered out
+          }
+        })
+        .filter((summary): summary is InvitationSummary => summary !== null);
     } catch (error) {
       logger.error('Failed to list invitations for manufacturer', { manufacturerId }, error as Error);
       throw error;
@@ -138,7 +172,32 @@ export class InvitationsService {
   async getPendingInvitesForBrand(brandId: string): Promise<InvitationSummary[]> {
     try {
       const invites = await invitationDataService.findByBrand(brandId, { status: 'pending' });
-      return invites.map(invite => this.mapToSummary(invite));
+      return invites
+        .map(invite => {
+          try {
+            return this.mapToSummary(invite);
+          } catch (mapError) {
+            logger.error('Failed to map invitation to summary', {
+              invitationId: invite?._id?.toString(),
+              brandId,
+              error: mapError
+            });
+            // Return a minimal summary to prevent breaking the entire list
+            return {
+              id: invite?._id?.toString() || 'unknown',
+              brandId: invite?.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '',
+              manufacturerId: invite?.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '',
+              status: invite?.status || 'unknown',
+              invitationType: invite?.invitationType || 'custom',
+              createdAt: invite?.createdAt || new Date(),
+              respondedAt: invite?.respondedAt,
+              expiresAt: invite?.expiresAt,
+              timeRemaining: null,
+              urgencyLevel: 'none' as const
+            } as InvitationSummary;
+          }
+        })
+        .filter(summary => summary.brandId && summary.manufacturerId); // Filter out invalid summaries
     } catch (error) {
       logger.error('Failed to get pending invitations for brand', { brandId }, error as Error);
       throw error;
@@ -151,7 +210,32 @@ export class InvitationsService {
   async getPendingInvitesForManufacturer(manufacturerId: string): Promise<InvitationSummary[]> {
     try {
       const invites = await invitationDataService.findByManufacturer(manufacturerId, { status: 'pending' });
-      return invites.map(invite => this.mapToSummary(invite));
+      return invites
+        .map(invite => {
+          try {
+            return this.mapToSummary(invite);
+          } catch (mapError) {
+            logger.error('Failed to map invitation to summary', {
+              invitationId: invite?._id?.toString(),
+              manufacturerId,
+              error: mapError
+            });
+            // Return a minimal summary to prevent breaking the entire list
+            return {
+              id: invite?._id?.toString() || 'unknown',
+              brandId: invite?.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : '',
+              manufacturerId: invite?.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : '',
+              status: invite?.status || 'unknown',
+              invitationType: invite?.invitationType || 'custom',
+              createdAt: invite?.createdAt || new Date(),
+              respondedAt: invite?.respondedAt,
+              expiresAt: invite?.expiresAt,
+              timeRemaining: null,
+              urgencyLevel: 'none' as const
+            } as InvitationSummary;
+          }
+        })
+        .filter(summary => summary.brandId && summary.manufacturerId); // Filter out invalid summaries
     } catch (error) {
       logger.error('Failed to get pending invitations for manufacturer', { manufacturerId }, error as Error);
       throw error;
