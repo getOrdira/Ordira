@@ -18,8 +18,15 @@ if (process.env.SENTRY_DSN && process.env.SENTRY_DEBUG !== 'true') {
   console.log = (...args: any[]) => {
     const message = args.join(' ');
     // Filter out all verbose Sentry logger messages unless in debug mode
-    if (message.includes('Sentry Logger [log]')) {
-      // Suppress all Sentry Logger [log] messages (they're all verbose)
+    if (
+      message.includes('Sentry Logger') ||
+      message.includes('Recording is off') ||
+      message.includes('propagating context') ||
+      message.includes('[Tracing] Inheriting') ||
+      message.includes('sampled decision') ||
+      message.includes('non-recording span')
+    ) {
+      // Suppress all Sentry Logger and tracing debug messages
       return;
     }
     // Also filter OpenTelemetry instrumentation messages from Sentry
