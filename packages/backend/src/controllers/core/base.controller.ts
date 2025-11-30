@@ -301,7 +301,12 @@ export abstract class BaseController {
         try {
           const result = next();
           // If next is async, await it and catch errors
-          if (result && typeof result === 'object' && 'then' in result) {
+          // Check if result is a Promise (has then method) or is a thenable
+          if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+            const awaitedResult = await result;
+            resolve(awaitedResult);
+          } else if (result instanceof Promise) {
+            // Explicit Promise check
             const awaitedResult = await result;
             resolve(awaitedResult);
           } else {
@@ -344,7 +349,12 @@ export abstract class BaseController {
         try {
           const result = next();
           // If next is async, await it and catch errors
-          if (result && typeof result === 'object' && 'then' in result) {
+          // Check if result is a Promise (has then method) or is a thenable
+          if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+            const awaitedResult = await result;
+            resolve(awaitedResult);
+          } else if (result instanceof Promise) {
+            // Explicit Promise check
             const awaitedResult = await result;
             resolve(awaitedResult);
           } else {
