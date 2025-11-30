@@ -76,17 +76,36 @@ export class ConnectionHelpersService {
     // Handle null/undefined brand and manufacturer references
     // Support both ObjectId and populated documents
     const getEntityId = (entity: any): string => {
-      if (!entity) return '';
-      if (entity instanceof Types.ObjectId) return entity.toString();
-      // Check for populated document with _id
-      if (entity._id) {
-        return entity._id instanceof Types.ObjectId ? entity._id.toString() : String(entity._id);
+      if (!entity) {
+        return '';
       }
-      // Check if entity itself is an object with toString method (ObjectId-like)
-      if (typeof entity.toString === 'function' && entity.toString().match(/^[0-9a-fA-F]{24}$/)) {
+      if (entity instanceof Types.ObjectId) {
         return entity.toString();
       }
-      if (typeof entity === 'string') return entity;
+      // Check for populated Mongoose document - _id is usually accessible directly
+      if ((entity as any)?._id) {
+        const id = (entity as any)._id instanceof Types.ObjectId ? (entity as any)._id.toString() : String((entity as any)._id);
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+          return id;
+        }
+      }
+      // For Mongoose documents, try accessing id directly (Mongoose provides this)
+      if ((entity as any)?.id) {
+        const id = String((entity as any).id);
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+          return id;
+        }
+      }
+      // Check if entity itself is an object with toString method (ObjectId-like)
+      if (typeof entity.toString === 'function') {
+        const id = entity.toString();
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+          return id;
+        }
+      }
+      if (typeof entity === 'string' && entity.match(/^[0-9a-fA-F]{24}$/)) {
+        return entity;
+      }
       return '';
     };
 

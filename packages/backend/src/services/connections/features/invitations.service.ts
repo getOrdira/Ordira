@@ -257,10 +257,24 @@ export class InvitationsService {
         })
         .filter(summary => summary.brandId && summary.manufacturerId); // Filter out invalid summaries
 
+      const getEntityIdForLog = (entity: any): string => {
+        if (!entity) return 'null';
+        if (entity instanceof Types.ObjectId) return entity.toString();
+        if ((entity as any)?._id) return (entity as any)._id.toString();
+        return String(entity);
+      };
+
       logger.debug('Pending invitations for manufacturer', {
         manufacturerId,
         totalInvites: invites.length,
-        validSummaries: summaries.length
+        validSummaries: summaries.length,
+        sampleInvite: invites.length > 0 ? {
+          id: invites[0]?._id?.toString(),
+          brandType: typeof invites[0]?.brand,
+          brandValue: getEntityIdForLog(invites[0]?.brand),
+          manufacturerType: typeof invites[0]?.manufacturer,
+          manufacturerValue: getEntityIdForLog(invites[0]?.manufacturer)
+        } : null
       });
 
       return summaries;

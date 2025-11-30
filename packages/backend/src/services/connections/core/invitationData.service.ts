@@ -195,11 +195,18 @@ export class InvitationDataService {
 
       await invitation.save();
 
+      const getEntityIdForLog = (entity: any): string => {
+        if (!entity) return 'null';
+        if (entity instanceof Types.ObjectId) return entity.toString();
+        if ((entity as any)?._id) return (entity as any)._id.toString();
+        return String(entity);
+      };
+
       logger.info('Invitation status updated', {
         invitationId,
         newStatus: status,
-        brandId: invitation.brand,
-        manufacturerId: invitation.manufacturer
+        brandId: getEntityIdForLog(invitation.brand),
+        manufacturerId: getEntityIdForLog(invitation.manufacturer)
       });
 
       return invitation;
