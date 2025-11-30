@@ -489,7 +489,7 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async removeConnection(req: ConnectionTargetRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      return await this.validateBusinessUser(req, res, async () => {
         const brandId = this.resolveBrandId(req);
         const manufacturerId =
           req.validatedParams?.manufacturerId || req.validatedBody?.manufacturerId || this.resolveManufacturerId(req);

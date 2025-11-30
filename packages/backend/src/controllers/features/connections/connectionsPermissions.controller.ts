@@ -27,19 +27,25 @@ export class ConnectionsPermissionsController extends ConnectionsBaseController 
    */
   async getFeatureAccess(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const { brandId, manufacturerId } = this.resolveConnectionPair(req);
 
-        this.recordPerformance(req, 'CONNECTION_GET_FEATURE_ACCESS');
+            this.recordPerformance(req, 'CONNECTION_GET_FEATURE_ACCESS');
 
-        const access = await this.connectionsServices.features.permissions.getFeatureAccess(brandId, manufacturerId);
+            const access = await this.connectionsServices.features.permissions.getFeatureAccess(brandId, manufacturerId);
 
-        this.logAction(req, 'CONNECTION_GET_FEATURE_ACCESS_SUCCESS', {
-          brandId,
-          manufacturerId,
+            this.logAction(req, 'CONNECTION_GET_FEATURE_ACCESS_SUCCESS', {
+              brandId,
+              manufacturerId,
+            });
+
+            resolve({ access });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        return { access };
       });
     }, res, 'Connection feature access retrieved', this.getRequestMeta(req));
   }
@@ -49,41 +55,47 @@ export class ConnectionsPermissionsController extends ConnectionsBaseController 
    */
   async canUseFeature(req: FeatureRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const feature = this.extractFeatureKey(req);
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req, this.extractOverrides(req));
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const feature = this.extractFeatureKey(req);
+            const { brandId, manufacturerId } = this.resolveConnectionPair(req, this.extractOverrides(req));
 
-        const validation = await this.connectionsServices.validation.permission.validateFeatureRequest({
-          brandId,
-          manufacturerId,
-          feature,
+            const validation = await this.connectionsServices.validation.permission.validateFeatureRequest({
+              brandId,
+              manufacturerId,
+              feature,
+            });
+
+            if (!validation.isValid) {
+              throw {
+                statusCode: 403,
+                message: 'Feature access denied',
+                details: validation.errors,
+              };
+            }
+
+            this.recordPerformance(req, 'CONNECTION_CAN_USE_FEATURE');
+
+            const allowed = await this.connectionsServices.features.permissions.canUseFeature(
+              brandId,
+              manufacturerId,
+              feature,
+              false,
+            );
+
+            this.logAction(req, 'CONNECTION_CAN_USE_FEATURE_SUCCESS', {
+              brandId,
+              manufacturerId,
+              feature,
+              allowed,
+            });
+
+            resolve({ allowed });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        if (!validation.isValid) {
-          throw {
-            statusCode: 403,
-            message: 'Feature access denied',
-            details: validation.errors,
-          };
-        }
-
-        this.recordPerformance(req, 'CONNECTION_CAN_USE_FEATURE');
-
-        const allowed = await this.connectionsServices.features.permissions.canUseFeature(
-          brandId,
-          manufacturerId,
-          feature,
-          false,
-        );
-
-        this.logAction(req, 'CONNECTION_CAN_USE_FEATURE_SUCCESS', {
-          brandId,
-          manufacturerId,
-          feature,
-          allowed,
-        });
-
-        return { allowed };
       });
     }, res, 'Feature access evaluated', this.getRequestMeta(req));
   }
@@ -93,26 +105,32 @@ export class ConnectionsPermissionsController extends ConnectionsBaseController 
    */
   async explainFeatureAccess(req: FeatureRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const feature = this.extractFeatureKey(req);
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req, this.extractOverrides(req));
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const feature = this.extractFeatureKey(req);
+            const { brandId, manufacturerId } = this.resolveConnectionPair(req, this.extractOverrides(req));
 
-        this.recordPerformance(req, 'CONNECTION_EXPLAIN_FEATURE_ACCESS');
+            this.recordPerformance(req, 'CONNECTION_EXPLAIN_FEATURE_ACCESS');
 
-        const explanation = await this.connectionsServices.features.permissions.explainFeatureAccess(
-          brandId,
-          manufacturerId,
-          feature,
-        );
+            const explanation = await this.connectionsServices.features.permissions.explainFeatureAccess(
+              brandId,
+              manufacturerId,
+              feature,
+            );
 
-        this.logAction(req, 'CONNECTION_EXPLAIN_FEATURE_ACCESS_SUCCESS', {
-          brandId,
-          manufacturerId,
-          feature,
-          allowed: explanation.allowed,
+            this.logAction(req, 'CONNECTION_EXPLAIN_FEATURE_ACCESS_SUCCESS', {
+              brandId,
+              manufacturerId,
+              feature,
+              allowed: explanation.allowed,
+            });
+
+            resolve({ explanation });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        return { explanation };
       });
     }, res, 'Feature access explanation generated', this.getRequestMeta(req));
   }
@@ -122,36 +140,42 @@ export class ConnectionsPermissionsController extends ConnectionsBaseController 
    */
   async validateFeatureTogglePayload(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const rawPayload = req.validatedBody ?? {};
-        const togglePayload = Object.entries(rawPayload).reduce<Partial<Record<ConnectionFeature, boolean>>>(
-          (acc, [key, value]) => {
-            if (['analytics', 'supplyChain', 'productData', 'messaging', 'fileSharing', 'recommendations'].includes(key)) {
-              acc[key as ConnectionFeature] = Boolean(value);
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const rawPayload = req.validatedBody ?? {};
+            const togglePayload = Object.entries(rawPayload).reduce<Partial<Record<ConnectionFeature, boolean>>>(
+              (acc, [key, value]) => {
+                if (['analytics', 'supplyChain', 'productData', 'messaging', 'fileSharing', 'recommendations'].includes(key)) {
+                  acc[key as ConnectionFeature] = Boolean(value);
+                }
+                return acc;
+              },
+              {},
+            );
+
+            this.recordPerformance(req, 'CONNECTION_VALIDATE_FEATURE_TOGGLE');
+
+            const validation = this.connectionsServices.validation.permission.validateFeatureTogglePayload(togglePayload);
+
+            if (!validation.isValid) {
+              throw {
+                statusCode: 400,
+                message: 'Invalid feature toggle payload',
+                details: validation.errors,
+              };
             }
-            return acc;
-          },
-          {},
-        );
 
-        this.recordPerformance(req, 'CONNECTION_VALIDATE_FEATURE_TOGGLE');
+            this.logAction(req, 'CONNECTION_VALIDATE_FEATURE_TOGGLE_SUCCESS', {
+              brandId: rawPayload?.brandId,
+              manufacturerId: rawPayload?.manufacturerId,
+            });
 
-        const validation = this.connectionsServices.validation.permission.validateFeatureTogglePayload(togglePayload);
-
-        if (!validation.isValid) {
-          throw {
-            statusCode: 400,
-            message: 'Invalid feature toggle payload',
-            details: validation.errors,
-          };
-        }
-
-        this.logAction(req, 'CONNECTION_VALIDATE_FEATURE_TOGGLE_SUCCESS', {
-          brandId: rawPayload?.brandId,
-          manufacturerId: rawPayload?.manufacturerId,
+            resolve({ valid: true });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        return { valid: true };
       });
     }, res, 'Feature toggle payload validated', this.getRequestMeta(req));
   }
