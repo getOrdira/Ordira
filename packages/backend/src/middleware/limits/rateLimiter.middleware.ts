@@ -276,6 +276,34 @@ export function strictRateLimiter(): RateLimitRequestHandler {
     max: 5, // 5 attempts per window
     keyGenerator: (req) => generateRateLimitKey(req as unknown as Request),
     
+    // Skip rate limiting only in safe scenarios:
+    // 1. Test/development environments (NOT staging or production)
+    // 2. When explicitly disabled via environment variable
+    // 3. For test scripts (PowerShell user agent) - only in non-production
+    skip: (req) => {
+      const env = process.env.NODE_ENV || 'development';
+      const isTestEnv = env === 'test' || env === 'development';
+      const isProduction = env === 'production';
+      const isStaging = env === 'staging';
+      const isDisabled = process.env.DISABLE_RATE_LIMIT === 'true';
+      
+      // Never skip in production or staging unless explicitly disabled
+      if (isProduction || isStaging) {
+        return isDisabled;
+      }
+      
+      // In test/development, also skip for test script user agents
+      if (isTestEnv) {
+        const userAgent = req.headers['user-agent'] || '';
+        const isTestUserAgent = userAgent.includes('WindowsPowerShell') || 
+                                userAgent.includes('test') ||
+                                userAgent.includes('Test');
+        return isDisabled || isTestUserAgent;
+      }
+      
+      return isDisabled;
+    },
+    
     handler: (req, res) => {
       const key = generateRateLimitKey(req as unknown as Request);
       logger.warn('Strict rate limit exceeded for ${key} on ${req.method} ${req.path}');
