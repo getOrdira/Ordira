@@ -79,19 +79,21 @@ export class ConnectionHelpersService {
       if (!entity) {
         return '';
       }
+      // First check if it's an ObjectId directly
       if (entity instanceof Types.ObjectId) {
         return entity.toString();
       }
-      // Check for populated Mongoose document - _id is usually accessible directly
-      if ((entity as any)?._id) {
-        const id = (entity as any)._id instanceof Types.ObjectId ? (entity as any)._id.toString() : String((entity as any)._id);
+      // For Mongoose documents, try accessing id first (Mongoose provides this as a getter)
+      // This works for both populated and non-populated documents
+      if ((entity as any)?.id) {
+        const id = String((entity as any).id);
         if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
           return id;
         }
       }
-      // For Mongoose documents, try accessing id directly (Mongoose provides this)
-      if ((entity as any)?.id) {
-        const id = String((entity as any).id);
+      // Check for populated Mongoose document - _id is usually accessible directly
+      if ((entity as any)?._id) {
+        const id = (entity as any)._id instanceof Types.ObjectId ? (entity as any)._id.toString() : String((entity as any)._id);
         if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
           return id;
         }
