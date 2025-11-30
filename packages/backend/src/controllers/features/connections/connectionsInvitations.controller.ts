@@ -351,6 +351,18 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
           total: invitations.length,
         });
 
+        // Log what we're about to return
+        this.logger.info('Controller returning pending invitations', {
+          manufacturerId,
+          invitationsCount: invitations.length,
+          invitationsType: Array.isArray(invitations) ? 'array' : typeof invitations,
+          firstInvitation: invitations.length > 0 ? {
+            id: invitations[0]?.id,
+            brandId: invitations[0]?.brandId,
+            manufacturerId: invitations[0]?.manufacturerId
+          } : null
+        });
+
         return { invitations };
       });
     }, res, 'Pending manufacturer invitations retrieved', this.getRequestMeta(req));

@@ -73,6 +73,17 @@ export class ResponseHelpers {
     statusCode: number = 200
   ): void {
     // Ensure data is always included (use null if undefined to maintain structure)
+    // Log if data is null/undefined to help debug
+    if (data === null || data === undefined) {
+      const logger = require('../../services/infrastructure/logging').logger;
+      logger.warn('ResponseHelper.success: data is null/undefined', {
+        dataType: typeof data,
+        dataIsNull: data === null,
+        dataIsUndefined: data === undefined,
+        message
+      });
+    }
+    
     const response: ApiResponse<T> = {
       success: true,
       data: data !== undefined ? data : (null as any), // Explicitly include data even if undefined
