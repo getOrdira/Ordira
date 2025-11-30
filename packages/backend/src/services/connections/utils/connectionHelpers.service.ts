@@ -80,34 +80,44 @@ export class ConnectionHelpersService {
       if (!entity) {
         return '';
       }
-      // First check if it's an ObjectId directly
+      // First check if it's an ObjectId directly (most common case for non-populated refs)
       if (entity instanceof Types.ObjectId) {
         return entity.toString();
       }
+      // If it's already a string and valid ObjectId format, return it
+      if (typeof entity === 'string' && entity.match(/^[0-9a-fA-F]{24}$/)) {
+        return entity;
+      }
       // For Mongoose documents, try accessing id first (Mongoose provides this as a getter)
       // This works for both populated and non-populated documents
-      if ((entity as any)?.id) {
-        const id = String((entity as any).id);
-        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
-          return id;
+      try {
+        if ((entity as any)?.id !== undefined) {
+          const id = String((entity as any).id);
+          if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+            return id;
+          }
         }
+      } catch (e) {
+        // id getter might throw, continue to next check
       }
       // Check for populated Mongoose document - _id is usually accessible directly
       if ((entity as any)?._id) {
-        const id = (entity as any)._id instanceof Types.ObjectId ? (entity as any)._id.toString() : String((entity as any)._id);
+        const idValue = (entity as any)._id;
+        const id = idValue instanceof Types.ObjectId ? idValue.toString() : String(idValue);
         if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
           return id;
         }
       }
       // Check if entity itself is an object with toString method (ObjectId-like)
-      if (typeof entity.toString === 'function') {
-        const id = entity.toString();
-        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
-          return id;
+      if (typeof entity.toString === 'function' && entity.toString !== Object.prototype.toString) {
+        try {
+          const id = entity.toString();
+          if (id && typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+            return id;
+          }
+        } catch (e) {
+          // toString might throw, continue
         }
-      }
-      if (typeof entity === 'string' && entity.match(/^[0-9a-fA-F]{24}$/)) {
-        return entity;
       }
       return '';
     };
