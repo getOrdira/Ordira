@@ -141,6 +141,14 @@ export abstract class BaseController {
   ): Promise<void> {
     try {
       const result = await operation();
+      logger.info('handleAsync: received result from operation', {
+        resultType: typeof result,
+        isNull: result === null,
+        isUndefined: result === undefined,
+        isObject: typeof result === 'object',
+        keys: result && typeof result === 'object' ? Object.keys(result) : null,
+        resultString: result ? JSON.stringify(result).substring(0, 200) : null
+      });
       this.sendSuccess(res, result, successMessage, meta);
     } catch (error) {
       this.sendError(res, error as Error);
@@ -350,14 +358,40 @@ export abstract class BaseController {
           const result = next();
           // If next is async, await it and catch errors
           // Check if result is a Promise (has then method) or is a thenable
-          if (result && typeof result === 'object' && typeof (result as any).then === 'function') {
+          const logger = require('../../services/infrastructure/logging').logger;
+          logger.info('validateManufacturerUser: checking result', {
+            resultType: typeof result,
+            isObject: result !== undefined && result !== null && typeof result === 'object',
+            isNull: result === null,
+            isUndefined: result === undefined,
+            hasThen: result !== undefined && result !== null && typeof (result as any)?.then === 'function',
+            isPromise: result instanceof Promise,
+            resultConstructor: result !== undefined && result !== null && (result as any)?.constructor?.name
+          });
+          
+          if (result !== undefined && result !== null && typeof result === 'object' && typeof (result as any).then === 'function') {
             const awaitedResult = await result;
+            logger.info('validateManufacturerUser: awaited Promise result', {
+              awaitedResultType: typeof awaitedResult,
+              isObject: typeof awaitedResult === 'object',
+              keys: awaitedResult && typeof awaitedResult === 'object' ? Object.keys(awaitedResult) : null
+            });
             resolve(awaitedResult);
           } else if (result instanceof Promise) {
             // Explicit Promise check
             const awaitedResult = await result;
+            logger.info('validateManufacturerUser: awaited Promise (instanceof)', {
+              awaitedResultType: typeof awaitedResult,
+              isObject: typeof awaitedResult === 'object',
+              keys: awaitedResult && typeof awaitedResult === 'object' ? Object.keys(awaitedResult) : null
+            });
             resolve(awaitedResult);
           } else {
+            logger.info('validateManufacturerUser: resolving non-Promise result', {
+              resultType: typeof result,
+              isObject: result !== undefined && result !== null && typeof result === 'object',
+              keys: result !== undefined && result !== null && typeof result === 'object' ? Object.keys(result) : null
+            });
             resolve(result);
           }
         } catch (error) {
