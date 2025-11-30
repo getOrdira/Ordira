@@ -337,7 +337,7 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async listPendingManufacturerInvitations(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateManufacturerUser(req, res, async () => {
+      return await this.validateManufacturerUser(req, res, async () => {
         const manufacturerId = this.resolveManufacturerId(req);
 
         this.recordPerformance(req, 'LIST_PENDING_MANUFACTURER_INVITATIONS');
@@ -407,7 +407,7 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async getConnectedManufacturers(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      return await this.validateBusinessUser(req, res, async () => {
         const brandId = this.resolveBrandId(req);
 
         this.recordPerformance(req, 'GET_CONNECTED_MANUFACTURERS');
@@ -429,7 +429,7 @@ export class ConnectionsInvitationsController extends ConnectionsBaseController 
    */
   async getConnectedBrands(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateManufacturerUser(req, res, async () => {
+      return await this.validateManufacturerUser(req, res, async () => {
         const manufacturerId = this.resolveManufacturerId(req);
 
         this.recordPerformance(req, 'GET_CONNECTED_BRANDS');
