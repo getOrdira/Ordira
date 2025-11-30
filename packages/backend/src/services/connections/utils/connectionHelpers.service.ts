@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto';
 import { Types } from 'mongoose';
 import type { IInvitation } from '../../../models/infrastructure/invitation.model';
 import type { InvitationSummary } from '../features/invitations.service';
+import { logger } from '../../../utils/logger';
 
 export type InvitationStatus = IInvitation['status'];
 
@@ -113,6 +114,25 @@ export class ConnectionHelpersService {
 
     const brandId = getEntityId(invite.brand);
     const manufacturerId = getEntityId(invite.manufacturer);
+
+    // Log if IDs are empty to help debug
+    if (!brandId || !manufacturerId) {
+      logger.warn('mapInvitationToSummary: Empty IDs extracted', {
+        invitationId: invite._id?.toString(),
+        brandId,
+        manufacturerId,
+        brandType: typeof invite.brand,
+        brandIsObjectId: invite.brand instanceof Types.ObjectId,
+        manufacturerType: typeof invite.manufacturer,
+        manufacturerIsObjectId: invite.manufacturer instanceof Types.ObjectId,
+        brandValue: invite.brand ? (invite.brand instanceof Types.ObjectId ? invite.brand.toString() : String(invite.brand)) : 'null',
+        manufacturerValue: invite.manufacturer ? (invite.manufacturer instanceof Types.ObjectId ? invite.manufacturer.toString() : String(invite.manufacturer)) : 'null',
+        brandHasId: !!(invite.brand as any)?.id,
+        brandHas_id: !!(invite.brand as any)?._id,
+        manufacturerHasId: !!(invite.manufacturer as any)?.id,
+        manufacturerHas_id: !!(invite.manufacturer as any)?._id
+      });
+    }
 
     // Extract names from populated documents
     const brandName = (invite as any)?.brand?.businessName || (invite as any)?.brand?.business?.businessName;

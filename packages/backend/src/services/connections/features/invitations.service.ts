@@ -218,7 +218,24 @@ export class InvitationsService {
       const summaries = invites
         .map(invite => {
           try {
-            return this.mapToSummary(invite);
+            const summary = this.mapToSummary(invite);
+            // Log if IDs are missing to help debug
+            if (!summary.brandId || !summary.manufacturerId) {
+              logger.warn('Summary has missing IDs', {
+                invitationId: invite?._id?.toString(),
+                brandId: summary.brandId,
+                manufacturerId: summary.manufacturerId,
+                brandType: typeof invite?.brand,
+                brandIsObjectId: invite?.brand instanceof Types.ObjectId,
+                manufacturerType: typeof invite?.manufacturer,
+                manufacturerIsObjectId: invite?.manufacturer instanceof Types.ObjectId,
+                brandHasId: !!(invite?.brand as any)?.id,
+                brandHas_id: !!(invite?.brand as any)?._id,
+                manufacturerHasId: !!(invite?.manufacturer as any)?.id,
+                manufacturerHas_id: !!(invite?.manufacturer as any)?._id
+              });
+            }
+            return summary;
           } catch (mapError) {
             logger.error('Failed to map invitation to summary', {
               invitationId: invite?._id?.toString(),
@@ -270,7 +287,17 @@ export class InvitationsService {
             } as InvitationSummary;
           }
         })
-        .filter(summary => summary.brandId && summary.manufacturerId); // Filter out invalid summaries
+        .filter(summary => {
+          const isValid = !!(summary.brandId && summary.manufacturerId);
+          if (!isValid) {
+            logger.warn('Filtering out summary with missing IDs', {
+              summaryId: summary.id,
+              brandId: summary.brandId,
+              manufacturerId: summary.manufacturerId
+            });
+          }
+          return isValid;
+        }); // Filter out invalid summaries
 
       const getEntityIdForLog = (entity: any): string => {
         if (!entity) return 'null';
