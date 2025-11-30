@@ -4,6 +4,7 @@
 import { Response, NextFunction } from 'express';
 import { BaseRequest } from '../../core/base.controller';
 import { ConnectionsBaseController } from './connectionsBase.controller';
+import { proposalSharingService } from '../../../services/connections/features/proposalSharing.service';
 
 interface SharedAnalyticsQuery {
   brandId?: string;
@@ -88,6 +89,62 @@ export class ConnectionsAnalyticsController extends ConnectionsBaseController {
       });
     }, res, 'Shared analytics retrieved', this.getRequestMeta(req));
   }
+
+  /**
+ * Get shared proposals for connected manufacturer
+ */
+async getSharedProposals(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
+  await this.handleAsync(async () => {
+    this.validateAuth(req, res, async () => {
+      const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+      const { includeCompleted, includeDraft, limit } = req.validatedQuery || {};
+
+      this.recordPerformance(req, 'CONNECTION_GET_SHARED_PROPOSALS');
+
+      const proposals = await proposalSharingService.getSharedProposals(
+        brandId,
+        manufacturerId,
+        { includeCompleted, includeDraft, limit }
+      );
+
+      this.logAction(req, 'CONNECTION_GET_SHARED_PROPOSALS_SUCCESS', {
+        brandId,
+        manufacturerId,
+        proposalCount: proposals.proposals.length
+      });
+
+      return { proposals };
+    });
+  }, res, 'Shared proposals retrieved', this.getRequestMeta(req));
+}
+
+/**
+ * Get live proposal data
+ */
+async getLiveProposalData(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
+  await this.handleAsync(async () => {
+    this.validateAuth(req, res, async () => {
+      const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+      const { proposalId } = req.params;
+
+      this.recordPerformance(req, 'CONNECTION_GET_LIVE_PROPOSAL');
+
+      const proposal = await proposalSharingService.getLiveProposalData(
+        brandId,
+        manufacturerId,
+        proposalId
+      );
+
+      this.logAction(req, 'CONNECTION_GET_LIVE_PROPOSAL_SUCCESS', {
+        brandId,
+        manufacturerId,
+        proposalId
+      });
+
+      return { proposal };
+    });
+  }, res, 'Live proposal data retrieved', this.getRequestMeta(req));
+}
 
   /**
    * Retrieve shared KPI snapshot for dashboards.

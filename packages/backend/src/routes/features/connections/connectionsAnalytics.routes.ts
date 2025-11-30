@@ -71,4 +71,34 @@ builder.get(
   }
 );
 
+// Get shared proposals
+builder.get(
+  '/proposals',
+  createHandler(connectionsAnalyticsController, 'getSharedProposals'),
+  {
+    validateQuery: Joi.object({
+      brandId: objectIdSchema.optional(),
+      manufacturerId: objectIdSchema.optional(),
+      includeCompleted: Joi.boolean().optional(),
+      includeDraft: Joi.boolean().optional(),
+      limit: Joi.number().integer().min(1).max(100).optional()
+    })
+  }
+);
+
+// Get live proposal data
+builder.get(
+  '/proposals/:proposalId',
+  createHandler(connectionsAnalyticsController, 'getLiveProposalData'),
+  {
+    validateParams: Joi.object({
+      proposalId: Joi.string().required()
+    }),
+    validateQuery: Joi.object({
+      brandId: objectIdSchema.optional(),
+      manufacturerId: objectIdSchema.optional()
+    })
+  }
+);
+
 export default builder.getRouter();

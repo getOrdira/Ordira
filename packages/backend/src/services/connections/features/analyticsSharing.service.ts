@@ -6,16 +6,22 @@ import { permissionsService } from './permissions.service';
 import { connectionDataService } from '../core/connectionData.service';
 import { Invitation } from '../../../models/infrastructure/invitation.model';
 import { logger } from '../../../utils/logger';
+import { proposalSharingService, SharedProposalsResult } from './proposalSharing.service';
 
 export interface SharedAnalyticsOptions {
   timeRange?: { start: Date; end: Date };
   includeBrand?: boolean;
   includeManufacturer?: boolean;
+  includeProposals?: boolean;
 }
 
 export interface SharedAnalyticsResult {
   brand?: any | null;
   manufacturer?: any | null;
+
+  // Proposal voting data
+  proposals?: SharedProposalsResult | null;
+
   connection: {
     connected: boolean;
     since?: Date | null;
@@ -47,12 +53,13 @@ export class AnalyticsSharingService {
   ): Promise<SharedAnalyticsResult> {
     const includeBrand = options.includeBrand ?? true;
     const includeManufacturer = options.includeManufacturer ?? true;
+    const includeProposals = options.includeProposals ?? true;
 
     await permissionsService.assertFeatureAccess(brandId, manufacturerId, 'analytics');
 
     const connectionMeta = await this.getConnectionMetadata(brandId, manufacturerId);
 
-    const [brandAnalytics, manufacturerAnalytics] = await Promise.all([
+    const [brandAnalytics, manufacturerAnalytics, proposalsData] = await Promise.all([
       includeBrand
         ? this.getBrandAnalyticsForManufacturer(brandId, manufacturerId, options.timeRange).catch(error => {
             logger.warn('Failed to load brand analytics for sharing', {
@@ -72,12 +79,26 @@ export class AnalyticsSharingService {
             });
             return null;
           })
+        : Promise.resolve(null),
+      includeProposals
+        ? proposalSharingService.getSharedProposals(brandId, manufacturerId, {
+            includeCompleted: true,
+            includeDraft: false
+          }).catch(error => {
+            logger.warn('Failed to load proposal data for sharing', {
+              brandId,
+              manufacturerId,
+              error
+            });
+            return null;
+          })
         : Promise.resolve(null)
     ]);
 
     return {
       brand: brandAnalytics,
       manufacturer: manufacturerAnalytics,
+      proposals: proposalsData,
       connection: connectionMeta
     };
   }
