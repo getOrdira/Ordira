@@ -219,9 +219,9 @@ export class InvitationsService {
         .map(invite => {
           try {
             const summary = this.mapToSummary(invite);
-            // Log if IDs are missing to help debug
+            // Log if IDs are missing to help debug - use info level to ensure it shows up
             if (!summary.brandId || !summary.manufacturerId) {
-              logger.warn('Summary has missing IDs', {
+              logger.info('Summary has missing IDs - DEBUG', {
                 invitationId: invite?._id?.toString(),
                 brandId: summary.brandId,
                 manufacturerId: summary.manufacturerId,
@@ -290,7 +290,7 @@ export class InvitationsService {
         .filter(summary => {
           const isValid = !!(summary.brandId && summary.manufacturerId);
           if (!isValid) {
-            logger.warn('Filtering out summary with missing IDs', {
+            logger.info('Filtering out summary with missing IDs - DEBUG', {
               summaryId: summary.id,
               brandId: summary.brandId,
               manufacturerId: summary.manufacturerId
@@ -306,16 +306,25 @@ export class InvitationsService {
         return String(entity);
       };
 
-      logger.debug('Pending invitations for manufacturer', {
+      // Use info level to ensure it shows up in production logs
+      logger.info('Pending invitations for manufacturer - DEBUG', {
         manufacturerId,
         totalInvites: invites.length,
         validSummaries: summaries.length,
         sampleInvite: invites.length > 0 ? {
           id: invites[0]?._id?.toString(),
           brandType: typeof invites[0]?.brand,
+          brandIsObjectId: invites[0]?.brand instanceof Types.ObjectId,
           brandValue: getEntityIdForLog(invites[0]?.brand),
+          brandHasId: !!(invites[0]?.brand as any)?.id,
+          brandHas_id: !!(invites[0]?.brand as any)?._id,
           manufacturerType: typeof invites[0]?.manufacturer,
-          manufacturerValue: getEntityIdForLog(invites[0]?.manufacturer)
+          manufacturerIsObjectId: invites[0]?.manufacturer instanceof Types.ObjectId,
+          manufacturerValue: getEntityIdForLog(invites[0]?.manufacturer),
+          manufacturerHasId: !!(invites[0]?.manufacturer as any)?.id,
+          manufacturerHas_id: !!(invites[0]?.manufacturer as any)?._id,
+          brandConstructor: invites[0]?.brand?.constructor?.name,
+          manufacturerConstructor: invites[0]?.manufacturer?.constructor?.name
         } : null
       });
 

@@ -125,9 +125,9 @@ export class ConnectionHelpersService {
     const brandId = getEntityId(invite.brand);
     const manufacturerId = getEntityId(invite.manufacturer);
 
-    // Log if IDs are empty to help debug
+    // Log if IDs are empty to help debug - use info level to ensure it shows up
     if (!brandId || !manufacturerId) {
-      logger.warn('mapInvitationToSummary: Empty IDs extracted', {
+      logger.info('mapInvitationToSummary: Empty IDs extracted - DEBUG', {
         invitationId: invite._id?.toString(),
         brandId,
         manufacturerId,
