@@ -29,20 +29,26 @@ export class ConnectionsAnalyticsController extends ConnectionsBaseController {
    */
   async canShareAnalytics(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const { brandId, manufacturerId } = this.resolveConnectionPair(req);
 
-        this.recordPerformance(req, 'CONNECTION_CAN_SHARE_ANALYTICS');
+            this.recordPerformance(req, 'CONNECTION_CAN_SHARE_ANALYTICS');
 
-        const allowed = await this.connectionsServices.features.analytics.canShare(brandId, manufacturerId);
+            const allowed = await this.connectionsServices.features.analytics.canShare(brandId, manufacturerId);
 
-        this.logAction(req, 'CONNECTION_CAN_SHARE_ANALYTICS_SUCCESS', {
-          brandId,
-          manufacturerId,
-          allowed,
+            this.logAction(req, 'CONNECTION_CAN_SHARE_ANALYTICS_SUCCESS', {
+              brandId,
+              manufacturerId,
+              allowed,
+            });
+
+            resolve({ allowed });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        return { allowed };
       });
     }, res, 'Analytics sharing capability retrieved', this.getRequestMeta(req));
   }
@@ -52,40 +58,46 @@ export class ConnectionsAnalyticsController extends ConnectionsBaseController {
    */
   async getSharedAnalytics(req: SharedAnalyticsRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const overrides = this.extractOverrides(req);
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req, overrides);
-        const { includeBrand = true, includeManufacturer = true, start, end } = {
-          includeBrand: overrides.includeBrand ?? true,
-          includeManufacturer: overrides.includeManufacturer ?? true,
-          start: overrides.start,
-          end: overrides.end,
-        };
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const overrides = this.extractOverrides(req);
+            const { brandId, manufacturerId } = this.resolveConnectionPair(req, overrides);
+            const { includeBrand = true, includeManufacturer = true, start, end } = {
+              includeBrand: overrides.includeBrand ?? true,
+              includeManufacturer: overrides.includeManufacturer ?? true,
+              start: overrides.start,
+              end: overrides.end,
+            };
 
-        const timeRange = this.buildTimeRange(start, end);
+            const timeRange = this.buildTimeRange(start, end);
 
-        this.recordPerformance(req, 'CONNECTION_GET_SHARED_ANALYTICS');
+            this.recordPerformance(req, 'CONNECTION_GET_SHARED_ANALYTICS');
 
-        const analytics = await this.connectionsServices.features.analytics.getSharedAnalytics(
-          brandId,
-          manufacturerId,
-          {
-            includeBrand,
-            includeManufacturer,
-            timeRange: timeRange ?? undefined,
-          },
-        );
+            const analytics = await this.connectionsServices.features.analytics.getSharedAnalytics(
+              brandId,
+              manufacturerId,
+              {
+                includeBrand,
+                includeManufacturer,
+                timeRange: timeRange ?? undefined,
+              },
+            );
 
-        this.logAction(req, 'CONNECTION_GET_SHARED_ANALYTICS_SUCCESS', {
-          brandId,
-          manufacturerId,
-          includeBrand,
-          includeManufacturer,
-          hasBrand: !!analytics.brand,
-          hasManufacturer: !!analytics.manufacturer,
+            this.logAction(req, 'CONNECTION_GET_SHARED_ANALYTICS_SUCCESS', {
+              brandId,
+              manufacturerId,
+              includeBrand,
+              includeManufacturer,
+              hasBrand: !!analytics.brand,
+              hasManufacturer: !!analytics.manufacturer,
+            });
+
+            resolve({ analytics });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        return { analytics };
       });
     }, res, 'Shared analytics retrieved', this.getRequestMeta(req));
   }
@@ -95,25 +107,31 @@ export class ConnectionsAnalyticsController extends ConnectionsBaseController {
  */
 async getSharedProposals(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
   await this.handleAsync(async () => {
-    this.validateAuth(req, res, async () => {
-      const { brandId, manufacturerId } = this.resolveConnectionPair(req);
-      const { includeCompleted, includeDraft, limit } = req.validatedQuery || {};
+    return await new Promise((resolve, reject) => {
+      this.validateAuth(req, res, async () => {
+        try {
+          const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+          const { includeCompleted, includeDraft, limit } = req.validatedQuery || {};
 
-      this.recordPerformance(req, 'CONNECTION_GET_SHARED_PROPOSALS');
+          this.recordPerformance(req, 'CONNECTION_GET_SHARED_PROPOSALS');
 
-      const proposals = await proposalSharingService.getSharedProposals(
-        brandId,
-        manufacturerId,
-        { includeCompleted, includeDraft, limit }
-      );
+          const proposals = await proposalSharingService.getSharedProposals(
+            brandId,
+            manufacturerId,
+            { includeCompleted, includeDraft, limit }
+          );
 
-      this.logAction(req, 'CONNECTION_GET_SHARED_PROPOSALS_SUCCESS', {
-        brandId,
-        manufacturerId,
-        proposalCount: proposals.proposals.length
+          this.logAction(req, 'CONNECTION_GET_SHARED_PROPOSALS_SUCCESS', {
+            brandId,
+            manufacturerId,
+            proposalCount: proposals.proposals.length
+          });
+
+          resolve({ proposals });
+        } catch (error) {
+          reject(error);
+        }
       });
-
-      return { proposals };
     });
   }, res, 'Shared proposals retrieved', this.getRequestMeta(req));
 }
@@ -123,25 +141,31 @@ async getSharedProposals(req: BaseRequest, res: Response, next: NextFunction): P
  */
 async getLiveProposalData(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
   await this.handleAsync(async () => {
-    this.validateAuth(req, res, async () => {
-      const { brandId, manufacturerId } = this.resolveConnectionPair(req);
-      const { proposalId } = req.params;
+    return await new Promise((resolve, reject) => {
+      this.validateAuth(req, res, async () => {
+        try {
+          const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+          const { proposalId } = req.params;
 
-      this.recordPerformance(req, 'CONNECTION_GET_LIVE_PROPOSAL');
+          this.recordPerformance(req, 'CONNECTION_GET_LIVE_PROPOSAL');
 
-      const proposal = await proposalSharingService.getLiveProposalData(
-        brandId,
-        manufacturerId,
-        proposalId
-      );
+          const proposal = await proposalSharingService.getLiveProposalData(
+            brandId,
+            manufacturerId,
+            proposalId
+          );
 
-      this.logAction(req, 'CONNECTION_GET_LIVE_PROPOSAL_SUCCESS', {
-        brandId,
-        manufacturerId,
-        proposalId
+          this.logAction(req, 'CONNECTION_GET_LIVE_PROPOSAL_SUCCESS', {
+            brandId,
+            manufacturerId,
+            proposalId
+          });
+
+          resolve({ proposal });
+        } catch (error) {
+          reject(error);
+        }
       });
-
-      return { proposal };
     });
   }, res, 'Live proposal data retrieved', this.getRequestMeta(req));
 }
@@ -151,19 +175,25 @@ async getLiveProposalData(req: BaseRequest, res: Response, next: NextFunction): 
    */
   async getSharedKpis(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateAuth(req, res, async () => {
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+      return await new Promise((resolve, reject) => {
+        this.validateAuth(req, res, async () => {
+          try {
+            const { brandId, manufacturerId } = this.resolveConnectionPair(req);
 
-        this.recordPerformance(req, 'CONNECTION_GET_SHARED_KPIS');
+            this.recordPerformance(req, 'CONNECTION_GET_SHARED_KPIS');
 
-        const kpis = await this.connectionsServices.features.analytics.getSharedKpis(brandId, manufacturerId);
+            const kpis = await this.connectionsServices.features.analytics.getSharedKpis(brandId, manufacturerId);
 
-        this.logAction(req, 'CONNECTION_GET_SHARED_KPIS_SUCCESS', {
-          brandId,
-          manufacturerId,
+            this.logAction(req, 'CONNECTION_GET_SHARED_KPIS_SUCCESS', {
+              brandId,
+              manufacturerId,
+            });
+
+            resolve({ kpis });
+          } catch (error) {
+            reject(error);
+          }
         });
-
-        return { kpis };
       });
     }, res, 'Shared KPIs retrieved', this.getRequestMeta(req));
   }
@@ -173,7 +203,7 @@ async getLiveProposalData(req: BaseRequest, res: Response, next: NextFunction): 
    */
   async getBrandAnalytics(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      return await this.validateBusinessUser(req, res, async () => {
         const brandId = this.resolveBrandId(req);
         const manufacturerId = this.resolveManufacturerId(req);
 
@@ -199,7 +229,7 @@ async getLiveProposalData(req: BaseRequest, res: Response, next: NextFunction): 
    */
   async getManufacturerAnalytics(req: BaseRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateManufacturerUser(req, res, async () => {
+      return await this.validateManufacturerUser(req, res, async () => {
         const manufacturerId = this.resolveManufacturerId(req);
         const brandId = this.resolveBrandId(req);
 
