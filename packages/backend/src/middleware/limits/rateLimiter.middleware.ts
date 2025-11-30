@@ -277,9 +277,9 @@ export function strictRateLimiter(): RateLimitRequestHandler {
     keyGenerator: (req) => generateRateLimitKey(req as unknown as Request),
     
     // Skip rate limiting only in safe scenarios:
-    // 1. Test/development environments (NOT staging or production)
+    // 1. Test/development/staging environments (staging is for testing)
     // 2. When explicitly disabled via environment variable
-    // 3. For test scripts (PowerShell user agent) - only in non-production
+    // 3. For test scripts (PowerShell user agent) - in non-production environments
     skip: (req) => {
       const env = process.env.NODE_ENV || 'development';
       const isTestEnv = env === 'test' || env === 'development';
@@ -287,21 +287,33 @@ export function strictRateLimiter(): RateLimitRequestHandler {
       const isStaging = env === 'staging';
       const isDisabled = process.env.DISABLE_RATE_LIMIT === 'true';
       
-      // Never skip in production or staging unless explicitly disabled
-      if (isProduction || isStaging) {
-        return isDisabled;
+      // Check if this is a staging URL (Render staging services often use production NODE_ENV)
+      const host = req.headers.host || '';
+      const isStagingUrl = host.includes('staging') || host.includes('-staging.');
+      
+      const userAgent = req.headers['user-agent'] || '';
+      const isTestUserAgent = userAgent.includes('WindowsPowerShell') || 
+                              userAgent.includes('test') ||
+                              userAgent.includes('Test');
+      
+      // Always skip if explicitly disabled
+      if (isDisabled) {
+        return true;
       }
       
-      // In test/development, also skip for test script user agents
-      if (isTestEnv) {
-        const userAgent = req.headers['user-agent'] || '';
-        const isTestUserAgent = userAgent.includes('WindowsPowerShell') || 
-                                userAgent.includes('test') ||
-                                userAgent.includes('Test');
-        return isDisabled || isTestUserAgent;
+      // Never skip in production (unless explicitly disabled above) unless it's a staging URL
+      if (isProduction && !isStagingUrl) {
+        return false;
       }
       
-      return isDisabled;
+      // In staging (by env or URL), test, and development: skip for test script user agents
+      // Staging is used for testing, so we allow test scripts there
+      if (isStaging || isStagingUrl || isTestEnv) {
+        return isTestUserAgent;
+      }
+      
+      // Default: don't skip
+      return false;
     },
     
     handler: (req, res) => {
