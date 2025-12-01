@@ -15,6 +15,10 @@ export interface ICollaborationRequest extends Request {
     userType: 'brand' | 'manufacturer';
     workspaceId?: Types.ObjectId;
   };
+  params: {
+    workspaceId?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 /**
