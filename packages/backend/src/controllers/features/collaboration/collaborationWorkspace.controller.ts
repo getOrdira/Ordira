@@ -31,45 +31,48 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
    */
   async createWorkspace(req: WorkspaceRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'CREATE_WORKSPACE');
+      // Validate auth - if fails, it will send response and return early
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        // Use body values if provided, otherwise resolve from connection context
-        const bodyBrandId = req.validatedBody?.brandId;
-        const bodyManufacturerId = req.validatedBody?.manufacturerId;
-        const { brandId, manufacturerId } = bodyBrandId && bodyManufacturerId
-          ? { brandId: bodyBrandId, manufacturerId: bodyManufacturerId }
-          : this.resolveConnectionPair(req);
+      this.recordPerformance(req, 'CREATE_WORKSPACE');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      // Use body values if provided, otherwise resolve from connection context
+      const bodyBrandId = req.validatedBody?.brandId;
+      const bodyManufacturerId = req.validatedBody?.manufacturerId;
+      const { brandId, manufacturerId } = bodyBrandId && bodyManufacturerId
+        ? { brandId: bodyBrandId, manufacturerId: bodyManufacturerId }
+        : this.resolveConnectionPair(req);
 
-        if (!req.validatedBody?.name) {
-          throw { statusCode: 400, message: 'Workspace name is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const input = {
-          brandId,
-          manufacturerId,
-          name: req.validatedBody.name,
-          description: req.validatedBody?.description,
-          type: req.validatedBody?.type || 'general',
-          createdBy: userId,
-          productionDetails: req.validatedBody?.productionDetails,
-          brandMembers: req.validatedBody?.brandMembers,
-          manufacturerMembers: req.validatedBody?.manufacturerMembers,
-        };
+      if (!req.validatedBody?.name) {
+        throw { statusCode: 400, message: 'Workspace name is required' };
+      }
 
-        const workspace = await this.collaborationServices.core.workspaceManagement.createWorkspace(input);
+      const input = {
+        brandId,
+        manufacturerId,
+        name: req.validatedBody.name,
+        description: req.validatedBody?.description,
+        type: req.validatedBody?.type || 'general',
+        createdBy: userId,
+        productionDetails: req.validatedBody?.productionDetails,
+        brandMembers: req.validatedBody?.brandMembers,
+        manufacturerMembers: req.validatedBody?.manufacturerMembers,
+      };
 
-        this.logAction(req, 'CREATE_WORKSPACE_SUCCESS', {
-          workspaceId: workspace.workspaceId,
-          brandId,
-          manufacturerId,
-        });
+      const workspace = await this.collaborationServices.core.workspaceManagement.createWorkspace(input);
 
-        return { workspace };
+      this.logAction(req, 'CREATE_WORKSPACE_SUCCESS', {
+        workspaceId: workspace.workspaceId,
+        brandId,
+        manufacturerId,
       });
+
+      return { workspace };
     }, res, 'Workspace created successfully', this.getRequestMeta(req));
   }
 
@@ -108,54 +111,57 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
    */
   async getWorkspaces(req: WorkspaceRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_WORKSPACES');
+      // Validate auth - if fails, it will send response and return early
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const query = req.validatedQuery || {};
-        
-        // Use query params if provided, otherwise resolve from connection context
-        const queryBrandId = query.brandId;
-        const queryManufacturerId = query.manufacturerId;
-        const { brandId, manufacturerId } = queryBrandId && queryManufacturerId
-          ? { brandId: queryBrandId, manufacturerId: queryManufacturerId }
-          : this.resolveConnectionPair(req);
+      this.recordPerformance(req, 'GET_WORKSPACES');
 
-        const filter = {
-          brandId,
-          manufacturerId,
-          status: query.status as 'active' | 'archived' | 'completed' | 'cancelled' | undefined,
-          type: query.type as 'general' | 'production_run' | 'design_collaboration' | undefined,
-          page: query.page || 1,
-          limit: query.limit || 20,
-          sortBy: query.sortBy || 'lastActivity',
-          sortOrder: query.sortOrder || 'desc',
-          searchQuery: query.searchQuery,
-        };
+      const query = req.validatedQuery || {};
+      
+      // Use query params if provided, otherwise resolve from connection context
+      const queryBrandId = query.brandId;
+      const queryManufacturerId = query.manufacturerId;
+      const { brandId, manufacturerId } = queryBrandId && queryManufacturerId
+        ? { brandId: queryBrandId, manufacturerId: queryManufacturerId }
+        : this.resolveConnectionPair(req);
 
-        const result = await this.collaborationServices.core.workspaceManagement.getWorkspaces(filter);
+      const filter = {
+        brandId,
+        manufacturerId,
+        status: query.status as 'active' | 'archived' | 'completed' | 'cancelled' | undefined,
+        type: query.type as 'general' | 'production_run' | 'design_collaboration' | undefined,
+        page: query.page || 1,
+        limit: query.limit || 20,
+        sortBy: query.sortBy || 'lastActivity',
+        sortOrder: query.sortOrder || 'desc',
+        searchQuery: query.searchQuery,
+      };
 
-        if (!result) {
-          throw { statusCode: 500, message: 'Failed to retrieve workspaces' };
-        }
+      const result = await this.collaborationServices.core.workspaceManagement.getWorkspaces(filter);
 
-        this.logAction(req, 'GET_WORKSPACES_SUCCESS', {
-          brandId,
-          manufacturerId,
-          count: result.data?.length || 0,
-        });
+      if (!result) {
+        throw { statusCode: 500, message: 'Failed to retrieve workspaces' };
+      }
 
-        return {
-          workspaces: result.data || [],
-          pagination: result.pagination || {
-            page: filter.page,
-            limit: filter.limit,
-            total: 0,
-            totalPages: 0,
-            hasNext: false,
-            hasPrev: false
-          },
-        };
+      this.logAction(req, 'GET_WORKSPACES_SUCCESS', {
+        brandId,
+        manufacturerId,
+        count: result.data?.length || 0,
       });
+
+      return {
+        workspaces: result.data || [],
+        pagination: result.pagination || {
+          page: filter.page,
+          limit: filter.limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        },
+      };
     }, res, 'Workspaces retrieved successfully', this.getRequestMeta(req));
   }
 
