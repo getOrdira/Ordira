@@ -22,6 +22,8 @@ export { Workspace } from './workspace.model';
 export { ProductionUpdate } from './productionUpdate.model';
 export { FileAttachment } from './fileAttachment.model';
 export { TaskThread } from './taskThread.model';
+export { Conversation } from './conversation.model';
+export { Message } from './message.model';
 
 // ====================
 // MODEL INTERFACES
@@ -65,6 +67,27 @@ export type {
   ITaskDetails,
   ITaskThreadModel
 } from './taskThread.model';
+
+export type {
+  IConversation,
+  IConversationParticipant,
+  ILastMessagePreview,
+  IUnreadCount,
+  IConversationSettings,
+  IConversationModel
+} from './conversation.model';
+
+export type {
+  IMessage,
+  IMessageSender,
+  IMessageContent,
+  IMessageFileAttachment,
+  ISharedEntity,
+  IMessageReaction,
+  IReadReceipt,
+  IReplyReference,
+  IMessageModel
+} from './message.model';
 
 // ====================
 // TYPES & INTERFACES
@@ -132,3 +155,7 @@ export type {
   IFileAttachment as FileAttachmentDocument,
   ITaskThread as TaskThreadDocument
 } from './types';
+
+// Re-export messaging interfaces
+export type { IConversation as ConversationDocument } from './conversation.model';
+export type { IMessage as MessageDocument } from './message.model';

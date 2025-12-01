@@ -622,6 +622,363 @@ export class CollaborationEventEmitterService {
       });
     }
   }
+
+  // ==================
+  // MESSAGING EVENTS
+  // ==================
+
+  /**
+   * Emit message sent event
+   */
+  public emitMessageSent(
+    conversationId: string,
+    message: any,
+    excludeSenderId?: string
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastMessage(
+        conversationId,
+        message,
+        excludeSenderId
+      );
+
+      logger.info('Message sent event emitted', {
+        messageId: message.messageId,
+        conversationId
+      });
+    } catch (error) {
+      logger.error('Failed to emit message sent event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit message edited event
+   */
+  public emitMessageEdited(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    userType: 'brand' | 'manufacturer',
+    newText: string
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.MESSAGE_EDITED,
+        {
+          messageId,
+          userId,
+          userType,
+          newText,
+          editedAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit message edited event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit message deleted event
+   */
+  public emitMessageDeleted(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    userType: 'brand' | 'manufacturer'
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.MESSAGE_DELETED,
+        {
+          messageId,
+          userId,
+          userType,
+          deletedAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit message deleted event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit message read event
+   */
+  public emitMessageRead(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    userType: 'brand' | 'manufacturer'
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.MESSAGE_READ,
+        {
+          messageId,
+          userId,
+          userType,
+          readAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit message read event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit message reaction added event
+   */
+  public emitMessageReactionAdded(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    userType: 'brand' | 'manufacturer',
+    emoji: string
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.MESSAGE_REACTION_ADDED,
+        {
+          messageId,
+          userId,
+          userType,
+          emoji,
+          createdAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit message reaction added event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit message reaction removed event
+   */
+  public emitMessageReactionRemoved(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    userType: 'brand' | 'manufacturer',
+    emoji: string
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.MESSAGE_REACTION_REMOVED,
+        {
+          messageId,
+          userId,
+          userType,
+          emoji,
+          removedAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit message reaction removed event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit conversation created event
+   */
+  public emitConversationCreated(
+    conversationId: string,
+    conversation: any,
+    createdBy: string,
+    userType: 'brand' | 'manufacturer'
+  ): void {
+    try {
+      // Notify the creator
+      realTimeCollaborationService.broadcastToUser(
+        createdBy,
+        CollaborationEventType.CONVERSATION_CREATED,
+        {
+          conversationId,
+          conversation,
+          userId: createdBy,
+          userType,
+          createdAt: new Date()
+        }
+      );
+
+      // Notify other participants
+      for (const participant of conversation.participants || []) {
+        if (participant.userId.toString() !== createdBy) {
+          realTimeCollaborationService.broadcastToUser(
+            participant.userId.toString(),
+            CollaborationEventType.CONVERSATION_CREATED,
+            {
+              conversationId,
+              conversation,
+              userId: createdBy,
+              userType,
+              createdAt: new Date()
+            }
+          );
+        }
+      }
+
+      logger.info('Conversation created event emitted', {
+        conversationId
+      });
+    } catch (error) {
+      logger.error('Failed to emit conversation created event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit conversation updated event
+   */
+  public emitConversationUpdated(
+    conversationId: string,
+    updates: any,
+    updatedBy: string,
+    userType: 'brand' | 'manufacturer'
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.CONVERSATION_UPDATED,
+        {
+          updates,
+          userId: updatedBy,
+          userType,
+          updatedAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit conversation updated event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit conversation participant added event
+   */
+  public emitConversationParticipantAdded(
+    conversationId: string,
+    participantId: string,
+    participantType: 'brand' | 'manufacturer',
+    addedBy: string,
+    addedByType: 'brand' | 'manufacturer'
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.CONVERSATION_PARTICIPANT_ADDED,
+        {
+          participantId,
+          participantType,
+          userId: addedBy,
+          userType: addedByType,
+          addedAt: new Date()
+        }
+      );
+
+      // Also notify the new participant
+      realTimeCollaborationService.broadcastToUser(
+        participantId,
+        CollaborationEventType.CONVERSATION_PARTICIPANT_ADDED,
+        {
+          conversationId,
+          participantId,
+          participantType,
+          userId: addedBy,
+          userType: addedByType,
+          addedAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit conversation participant added event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit conversation participant removed event
+   */
+  public emitConversationParticipantRemoved(
+    conversationId: string,
+    participantId: string,
+    removedBy: string,
+    removedByType: 'brand' | 'manufacturer'
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.CONVERSATION_PARTICIPANT_REMOVED,
+        {
+          participantId,
+          userId: removedBy,
+          userType: removedByType,
+          removedAt: new Date()
+        }
+      );
+
+      // Also notify the removed participant
+      realTimeCollaborationService.broadcastToUser(
+        participantId,
+        CollaborationEventType.CONVERSATION_PARTICIPANT_REMOVED,
+        {
+          conversationId,
+          participantId,
+          userId: removedBy,
+          userType: removedByType,
+          removedAt: new Date()
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit conversation participant removed event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * Emit typing indicator for messaging
+   */
+  public emitMessageTyping(
+    conversationId: string,
+    userId: string,
+    userType: 'brand' | 'manufacturer',
+    isTyping: boolean
+  ): void {
+    try {
+      realTimeCollaborationService.broadcastToConversation(
+        conversationId,
+        CollaborationEventType.MESSAGE_TYPING,
+        {
+          userId,
+          userType,
+          isTyping
+        }
+      );
+    } catch (error) {
+      logger.error('Failed to emit message typing event', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 }
 
 // Export singleton instance

@@ -27,3 +27,4 @@ export { MediaModule } from './media.module';
 export { NftModule } from './nft.module';
 export { PlatformModule } from './platform.module';
 export { ConnectionsModule } from './connections.module';
+export { CollaborationModule } from './collaboration.module';

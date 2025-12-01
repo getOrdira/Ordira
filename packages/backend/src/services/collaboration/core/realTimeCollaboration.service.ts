@@ -44,7 +44,24 @@ export enum CollaborationEventType {
   USER_ONLINE = 'user:online',
   USER_OFFLINE = 'user:offline',
   USER_TYPING = 'user:typing',
-  USER_VIEWING = 'user:viewing'
+  USER_VIEWING = 'user:viewing',
+
+  // Messaging Events
+  MESSAGE_SENT = 'message:sent',
+  MESSAGE_DELIVERED = 'message:delivered',
+  MESSAGE_READ = 'message:read',
+  MESSAGE_EDITED = 'message:edited',
+  MESSAGE_DELETED = 'message:deleted',
+  MESSAGE_REACTION_ADDED = 'message:reaction:added',
+  MESSAGE_REACTION_REMOVED = 'message:reaction:removed',
+  MESSAGE_TYPING = 'message:typing',
+
+  // Conversation Events
+  CONVERSATION_CREATED = 'conversation:created',
+  CONVERSATION_UPDATED = 'conversation:updated',
+  CONVERSATION_ARCHIVED = 'conversation:archived',
+  CONVERSATION_PARTICIPANT_ADDED = 'conversation:participant:added',
+  CONVERSATION_PARTICIPANT_REMOVED = 'conversation:participant:removed'
 }
 
 /**
@@ -80,11 +97,21 @@ interface IWorkspaceRoom {
 }
 
 /**
+ * Conversation Room Data
+ */
+interface IConversationRoom {
+  conversationId: string;
+  connectedUsers: Map<string, ISocketAuthData>;
+  lastActivity: Date;
+}
+
+/**
  * Real-Time Collaboration Service
  * Handles WebSocket connections and real-time event broadcasting
  */
 export class RealTimeCollaborationService {
   private io: SocketIOServer | null = null;
+  private conversationRooms: Map<string, IConversationRoom> = new Map();
   private workspaceRooms: Map<string, IWorkspaceRoom> = new Map();
   private userSockets: Map<string, Set<string>> = new Map(); // userId -> Set of socket IDs
 
@@ -208,6 +235,35 @@ export class RealTimeCollaborationService {
         }, socket.id);
       });
 
+      // Handle conversation join
+      socket.on('conversation:join', async (conversationId: string) => {
+        await this.handleConversationJoin(socket, conversationId);
+      });
+
+      // Handle conversation leave
+      socket.on('conversation:leave', async (conversationId: string) => {
+        await this.handleConversationLeave(socket, conversationId);
+      });
+
+      // Handle message typing indicator
+      socket.on('message:typing', (data: { conversationId: string; isTyping: boolean }) => {
+        this.broadcastToConversation(data.conversationId, CollaborationEventType.MESSAGE_TYPING, {
+          userId: authData.userId,
+          userType: authData.userType,
+          isTyping: data.isTyping
+        }, socket.id);
+      });
+
+      // Handle message read acknowledgment
+      socket.on('message:read', (data: { conversationId: string; messageId: string }) => {
+        this.broadcastToConversation(data.conversationId, CollaborationEventType.MESSAGE_READ, {
+          userId: authData.userId,
+          userType: authData.userType,
+          messageId: data.messageId,
+          readAt: new Date()
+        }, socket.id);
+      });
+
       // Handle disconnection
       socket.on('disconnect', () => {
         this.handleDisconnect(socket);
@@ -322,6 +378,96 @@ export class RealTimeCollaborationService {
   }
 
   /**
+   * Handle conversation join
+   */
+  private async handleConversationJoin(socket: Socket, conversationId: string): Promise<void> {
+    try {
+      const authData: ISocketAuthData = socket.data.auth;
+
+      // Join socket room for conversation
+      const roomName = `conversation:${conversationId}`;
+      await socket.join(roomName);
+
+      // Track conversation room
+      if (!this.conversationRooms.has(conversationId)) {
+        this.conversationRooms.set(conversationId, {
+          conversationId,
+          connectedUsers: new Map(),
+          lastActivity: new Date()
+        });
+      }
+
+      const room = this.conversationRooms.get(conversationId)!;
+      room.connectedUsers.set(authData.userId, authData);
+      room.lastActivity = new Date();
+
+      // Notify other users in conversation
+      this.broadcastToConversation(conversationId, CollaborationEventType.USER_ONLINE, {
+        userId: authData.userId,
+        userType: authData.userType
+      }, socket.id);
+
+      // Send current online users to the joining user
+      const onlineUsers = Array.from(room.connectedUsers.values());
+      socket.emit('conversation:users:online', { conversationId, users: onlineUsers });
+
+      logger.info('User joined conversation', {
+        socketId: socket.id,
+        conversationId,
+        userId: authData.userId,
+        onlineCount: room.connectedUsers.size
+      });
+    } catch (error) {
+      logger.error('Failed to join conversation', {
+        socketId: socket.id,
+        conversationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      socket.emit('error', { message: 'Failed to join conversation' });
+    }
+  }
+
+  /**
+   * Handle conversation leave
+   */
+  private async handleConversationLeave(socket: Socket, conversationId: string): Promise<void> {
+    try {
+      const authData: ISocketAuthData = socket.data.auth;
+      const roomName = `conversation:${conversationId}`;
+
+      await socket.leave(roomName);
+
+      const room = this.conversationRooms.get(conversationId);
+      if (room) {
+        room.connectedUsers.delete(authData.userId);
+
+        // Notify other users
+        this.broadcastToConversation(conversationId, CollaborationEventType.USER_OFFLINE, {
+          userId: authData.userId,
+          userType: authData.userType
+        }, socket.id);
+
+        // Clean up empty room
+        if (room.connectedUsers.size === 0) {
+          this.conversationRooms.delete(conversationId);
+        }
+      }
+
+      logger.info('User left conversation', {
+        socketId: socket.id,
+        conversationId,
+        userId: authData.userId
+      });
+    } catch (error) {
+      logger.error('Failed to leave conversation', {
+        socketId: socket.id,
+        conversationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * Handle socket disconnect
    */
   private handleDisconnect(socket: Socket): void {
@@ -349,6 +495,24 @@ export class RealTimeCollaborationService {
         // Clean up empty room
         if (room.connectedUsers.size === 0) {
           this.workspaceRooms.delete(workspaceId);
+        }
+      }
+    }
+
+    // Remove from all conversation rooms
+    for (const [conversationId, room] of this.conversationRooms.entries()) {
+      if (room.connectedUsers.has(authData.userId)) {
+        room.connectedUsers.delete(authData.userId);
+
+        // Notify other users
+        this.broadcastToConversation(conversationId, CollaborationEventType.USER_OFFLINE, {
+          userId: authData.userId,
+          userType: authData.userType
+        }, socket.id);
+
+        // Clean up empty room
+        if (room.connectedUsers.size === 0) {
+          this.conversationRooms.delete(conversationId);
         }
       }
     }
@@ -421,6 +585,40 @@ export class RealTimeCollaborationService {
 
     logger.debug('Event broadcasted to workspace', {
       workspaceId,
+      eventType,
+      excludeSocketId: excludeSocketId || 'none'
+    });
+  }
+
+  /**
+   * Broadcast event to conversation room
+   */
+  public broadcastToConversation(
+    conversationId: string,
+    eventType: CollaborationEventType,
+    data: any,
+    excludeSocketId?: string
+  ): void {
+    if (!this.io) return;
+
+    const roomName = `conversation:${conversationId}`;
+    const event = {
+      type: eventType,
+      conversationId,
+      userId: data.userId || 'system',
+      userType: data.userType || 'brand',
+      data,
+      timestamp: new Date()
+    };
+
+    if (excludeSocketId) {
+      this.io.to(roomName).except(excludeSocketId).emit('message:event', event);
+    } else {
+      this.io.to(roomName).emit('message:event', event);
+    }
+
+    logger.debug('Event broadcasted to conversation', {
+      conversationId,
       eventType,
       excludeSocketId: excludeSocketId || 'none'
     });
@@ -509,6 +707,7 @@ export class RealTimeCollaborationService {
   public cleanupInactiveRooms(inactiveThresholdMinutes: number = 60): void {
     const threshold = new Date(Date.now() - inactiveThresholdMinutes * 60 * 1000);
 
+    // Clean up workspace rooms
     for (const [workspaceId, room] of this.workspaceRooms.entries()) {
       if (room.connectedUsers.size === 0 || room.lastActivity < threshold) {
         this.workspaceRooms.delete(workspaceId);
@@ -518,6 +717,99 @@ export class RealTimeCollaborationService {
         });
       }
     }
+
+    // Clean up conversation rooms
+    for (const [conversationId, room] of this.conversationRooms.entries()) {
+      if (room.connectedUsers.size === 0 || room.lastActivity < threshold) {
+        this.conversationRooms.delete(conversationId);
+        logger.info('Cleaned up inactive conversation room', {
+          conversationId,
+          lastActivity: room.lastActivity
+        });
+      }
+    }
+  }
+
+  /**
+   * Get online users in conversation
+   */
+  public getConversationOnlineUsers(conversationId: string): ISocketAuthData[] {
+    const room = this.conversationRooms.get(conversationId);
+    if (!room) return [];
+
+    return Array.from(room.connectedUsers.values());
+  }
+
+  /**
+   * Get conversation room statistics
+   */
+  public getConversationStats(conversationId: string): any {
+    const room = this.conversationRooms.get(conversationId);
+    if (!room) {
+      return {
+        conversationId,
+        isActive: false,
+        onlineCount: 0,
+        lastActivity: null
+      };
+    }
+
+    return {
+      conversationId,
+      isActive: true,
+      onlineCount: room.connectedUsers.size,
+      onlineUsers: Array.from(room.connectedUsers.keys()),
+      lastActivity: room.lastActivity
+    };
+  }
+
+  /**
+   * Get all active conversations
+   */
+  public getActiveConversations(): string[] {
+    return Array.from(this.conversationRooms.keys());
+  }
+
+  /**
+   * Broadcast message to conversation participants
+   */
+  public broadcastMessage(
+    conversationId: string,
+    message: any,
+    excludeUserId?: string
+  ): void {
+    if (!this.io) return;
+
+    const roomName = `conversation:${conversationId}`;
+    const event = {
+      type: CollaborationEventType.MESSAGE_SENT,
+      conversationId,
+      userId: message.sender?.userId || 'system',
+      userType: message.sender?.userType || 'brand',
+      data: message,
+      timestamp: new Date()
+    };
+
+    if (excludeUserId) {
+      // Get socket IDs for the excluded user and exclude them
+      const excludedSockets = this.userSockets.get(excludeUserId);
+      if (excludedSockets && excludedSockets.size > 0) {
+        let broadcast = this.io.to(roomName);
+        for (const socketId of excludedSockets) {
+          broadcast = broadcast.except(socketId);
+        }
+        broadcast.emit('message:event', event);
+      } else {
+        this.io.to(roomName).emit('message:event', event);
+      }
+    } else {
+      this.io.to(roomName).emit('message:event', event);
+    }
+
+    logger.debug('Message broadcasted to conversation', {
+      conversationId,
+      messageId: message.messageId
+    });
   }
 }
 
