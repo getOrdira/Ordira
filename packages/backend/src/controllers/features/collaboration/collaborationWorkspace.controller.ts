@@ -34,14 +34,24 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
       await this.validateAuth(req, res, async () => {
         this.recordPerformance(req, 'CREATE_WORKSPACE');
 
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+        // Use body values if provided, otherwise resolve from connection context
+        const bodyBrandId = req.validatedBody?.brandId;
+        const bodyManufacturerId = req.validatedBody?.manufacturerId;
+        const { brandId, manufacturerId } = bodyBrandId && bodyManufacturerId
+          ? { brandId: bodyBrandId, manufacturerId: bodyManufacturerId }
+          : this.resolveConnectionPair(req);
+
         const userId = this.resolveUserId(req);
         const userType = this.resolveUserType(req);
+
+        if (!req.validatedBody?.name) {
+          throw { statusCode: 400, message: 'Workspace name is required' };
+        }
 
         const input = {
           brandId,
           manufacturerId,
-          name: req.validatedBody?.name,
+          name: req.validatedBody.name,
           description: req.validatedBody?.description,
           type: req.validatedBody?.type || 'general',
           createdBy: userId,
@@ -102,7 +112,13 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
         this.recordPerformance(req, 'GET_WORKSPACES');
 
         const query = req.validatedQuery || {};
-        const { brandId, manufacturerId } = this.resolveConnectionPair(req);
+        
+        // Use query params if provided, otherwise resolve from connection context
+        const queryBrandId = query.brandId;
+        const queryManufacturerId = query.manufacturerId;
+        const { brandId, manufacturerId } = queryBrandId && queryManufacturerId
+          ? { brandId: queryBrandId, manufacturerId: queryManufacturerId }
+          : this.resolveConnectionPair(req);
 
         const filter = {
           brandId,
@@ -118,15 +134,26 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
 
         const result = await this.collaborationServices.core.workspaceManagement.getWorkspaces(filter);
 
+        if (!result) {
+          throw { statusCode: 500, message: 'Failed to retrieve workspaces' };
+        }
+
         this.logAction(req, 'GET_WORKSPACES_SUCCESS', {
           brandId,
           manufacturerId,
-          count: result.data.length,
+          count: result.data?.length || 0,
         });
 
         return {
-          workspaces: result.data,
-          pagination: result.pagination,
+          workspaces: result.data || [],
+          pagination: result.pagination || {
+            page: filter.page,
+            limit: filter.limit,
+            total: 0,
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false
+          },
         };
       });
     }, res, 'Workspaces retrieved successfully', this.getRequestMeta(req));
