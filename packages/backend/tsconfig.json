@@ -54,7 +54,7 @@
     "emitDecoratorMetadata": true,
     
     // Type acquisition
-    "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
+    "typeRoots": ["./node_modules/@types", "../../node_modules/@types", "./src/types"]
   },
   "include": [
     "src/**/*",
