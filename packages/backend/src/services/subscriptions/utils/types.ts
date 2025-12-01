@@ -74,6 +74,15 @@ export interface SubscriptionOverageSummary {
 
 export interface SubscriptionSummary {
   id: string;
+  /**
+   * The entity ID (business or manufacturer) that owns this subscription.
+   * Use this field instead of businessId for clarity.
+   */
+  entityId: string;
+  /**
+   * @deprecated Use entityId instead. This field represents both business and manufacturer IDs.
+   * Will be removed in a future version. Kept for backward compatibility.
+   */
   businessId: string;
   planType: SubscriptionPlanType;
   tier: BrandPlanKey | ManufacturerPlanKey | string;

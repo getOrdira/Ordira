@@ -59,6 +59,63 @@ export abstract class SubscriptionsBaseController extends BaseController {
   }
 
   /**
+   * Resolve the active manufacturer identifier for the current request.
+   */
+  protected resolveManufacturerId(req: BaseRequest, allowFallback: boolean = true): string | undefined {
+    if (req.manufacturerId) {
+      return req.manufacturerId;
+    }
+
+    if (allowFallback) {
+      const candidate =
+        req.validatedBody?.manufacturerId ??
+        req.validatedParams?.manufacturerId ??
+        req.validatedQuery?.manufacturerId ??
+        req.body?.manufacturerId ??
+        req.query?.manufacturerId;
+
+      if (candidate && typeof candidate === 'string') {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Resolve entity ID (business or manufacturer) based on user type.
+   */
+  protected resolveEntityId(req: BaseRequest, allowFallback: boolean = true): { entityId: string; planType: 'brand' | 'manufacturer' } | undefined {
+    const userType = req.userType;
+    
+    if (userType === 'business') {
+      const businessId = this.resolveBusinessId(req, allowFallback);
+      if (businessId) {
+        return { entityId: businessId, planType: 'brand' };
+      }
+    } else if (userType === 'manufacturer') {
+      const manufacturerId = this.resolveManufacturerId(req, allowFallback);
+      if (manufacturerId) {
+        return { entityId: manufacturerId, planType: 'manufacturer' };
+      }
+    }
+
+    // Fallback: try both if userType not set
+    if (!userType && allowFallback) {
+      const businessId = this.resolveBusinessId(req, false);
+      if (businessId) {
+        return { entityId: businessId, planType: 'brand' };
+      }
+      const manufacturerId = this.resolveManufacturerId(req, false);
+      if (manufacturerId) {
+        return { entityId: manufacturerId, planType: 'manufacturer' };
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
    * Retrieve a subscription summary for the provided business.
    */
   protected async getSubscriptionSummary(businessId: string): Promise<SubscriptionSummary> {

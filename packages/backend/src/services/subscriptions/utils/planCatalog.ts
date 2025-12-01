@@ -39,6 +39,13 @@ export const BRAND_PLAN_ORDER: BrandPlanKey[] = [
   'enterprise'
 ];
 
+export const MANUFACTURER_PLAN_ORDER: ManufacturerPlanKey[] = [
+  'starter',
+  'professional',
+  'enterprise',
+  'unlimited'
+];
+
 const BRAND_FEATURE_MATRIX: Record<BrandPlanKey, SubscriptionFeatureFlags> = {
   foundation: {
     analytics: true,
@@ -123,6 +130,90 @@ export const getBrandAllowOverage = (tier: BrandPlanKey): boolean => {
 
 export const getBrandPlanPriceId = (tier: BrandPlanKey): string | undefined => {
   return PLAN_DEFINITIONS[tier].stripePriceId;
+};
+
+/**
+ * Get manufacturer plan usage limits (mapped to subscription model fields).
+ * Manufacturer plans use different metrics, so we map them appropriately.
+ */
+export const getManufacturerUsageLimits = (tier: ManufacturerPlanKey): SubscriptionUsageMetrics => {
+  const plan = MANUFACTURER_PLAN_DEFINITIONS[tier];
+  // Map manufacturer-specific limits to subscription model fields
+  // This allows the subscription model to work with manufacturer plans
+  return {
+    votes: normalizeLimit(plan.brandConnections), // Map brandConnections to votes field
+    nfts: normalizeLimit(plan.supplyChainProducts), // Map supplyChainProducts to nfts field
+    api: normalizeLimit(plan.supplyChainEndpoints), // Map supplyChainEndpoints to api field
+    storage: normalizeStorage(plan.storage) // Use explicit storage field
+  };
+};
+
+/**
+ * Feature mapping configuration for manufacturer plans.
+ * This provides a clear, maintainable mapping of features for each tier.
+ */
+const MANUFACTURER_FEATURE_MAPPING: Record<ManufacturerPlanKey, SubscriptionFeatureFlags> = {
+  starter: {
+    analytics: true,
+    apiAccess: true,
+    customBranding: false,
+    prioritySupport: false,
+    webhooks: false,
+    customDomain: false,
+    whiteLabel: false,
+    sla: false
+  },
+  professional: {
+    analytics: true,
+    apiAccess: true,
+    customBranding: true,
+    prioritySupport: true,
+    webhooks: true,
+    customDomain: false,
+    whiteLabel: false,
+    sla: false
+  },
+  enterprise: {
+    analytics: true,
+    apiAccess: true,
+    customBranding: true,
+    prioritySupport: true,
+    webhooks: true,
+    customDomain: true,
+    whiteLabel: true,
+    sla: true
+  },
+  unlimited: {
+    analytics: true,
+    apiAccess: true,
+    customBranding: true,
+    prioritySupport: true,
+    webhooks: true,
+    customDomain: true,
+    whiteLabel: true,
+    sla: true
+  }
+};
+
+/**
+ * Get manufacturer plan feature flags.
+ */
+export const getManufacturerFeatureFlags = (tier: ManufacturerPlanKey): SubscriptionFeatureFlags => {
+  return MANUFACTURER_FEATURE_MAPPING[tier];
+};
+
+/**
+ * Get manufacturer plan overage allowance.
+ */
+export const getManufacturerAllowOverage = (tier: ManufacturerPlanKey): boolean => {
+  return Boolean(MANUFACTURER_PLAN_DEFINITIONS[tier].features.allowOverage);
+};
+
+/**
+ * Get manufacturer plan Stripe price ID.
+ */
+export const getManufacturerPlanPriceId = (tier: ManufacturerPlanKey): string | undefined => {
+  return MANUFACTURER_PLAN_DEFINITIONS[tier].stripePriceId;
 };
 
 export const getPlanKeys = <T extends SubscriptionPlanType>(

@@ -1,5 +1,6 @@
 ﻿import { Subscription, ISubscription } from '../../../models/subscription/subscription.model';
 import { Business } from '../../../models/core/business.model';
+import { Manufacturer } from '../../../models/manufacturer/manufacturer.model';
 import {
   SubscriptionSummary,
   SubscriptionUsageMetrics,
@@ -11,6 +12,9 @@ import {
   getBrandAllowOverage,
   getBrandFeatureFlags,
   getBrandUsageLimits,
+  getManufacturerAllowOverage,
+  getManufacturerFeatureFlags,
+  getManufacturerUsageLimits,
   isBrandPlan,
   isManufacturerPlan
 } from '../utils/planCatalog';
@@ -32,10 +36,46 @@ export class SubscriptionDataService {
   }
 
   /**
-   * Retrieve a subscription or throw if it does not exist.
+   * Find a subscription by manufacturer identifier.
    */
-    async requireByBusiness(businessId: string): Promise<ISubscription> {
+  async findByManufacturer(manufacturerId: string): Promise<ISubscription | null> {
+    return Subscription.findByManufacturer(manufacturerId);
+  }
+
+  /**
+   * Find a subscription by entity (business or manufacturer) and plan type.
+   */
+  async findByEntity(entityId: string, planType: 'brand' | 'manufacturer'): Promise<ISubscription | null> {
+    return Subscription.findByEntity(entityId, planType);
+  }
+
+  /**
+   * Retrieve a subscription by business or throw if it does not exist.
+   */
+  async requireByBusiness(businessId: string): Promise<ISubscription> {
     const subscription = await this.findByBusiness(businessId);
+    if (!subscription) {
+      throw new SubscriptionError('Subscription not found', 404);
+    }
+    return subscription;
+  }
+
+  /**
+   * Retrieve a subscription by manufacturer or throw if it does not exist.
+   */
+  async requireByManufacturer(manufacturerId: string): Promise<ISubscription> {
+    const subscription = await this.findByManufacturer(manufacturerId);
+    if (!subscription) {
+      throw new SubscriptionError('Subscription not found', 404);
+    }
+    return subscription;
+  }
+
+  /**
+   * Retrieve a subscription by entity or throw if it does not exist.
+   */
+  async requireByEntity(entityId: string, planType: 'brand' | 'manufacturer'): Promise<ISubscription> {
+    const subscription = await this.findByEntity(entityId, planType);
     if (!subscription) {
       throw new SubscriptionError('Subscription not found', 404);
     }
@@ -60,11 +100,29 @@ export class SubscriptionDataService {
   }
 
   /**
+   * Resolve basic manufacturer contact metadata to power notifications.
+   */
+  async getManufacturerContact(
+    manufacturerId: string
+  ): Promise<{ id: string; email?: string } | null> {
+    const manufacturer = await Manufacturer.findById(manufacturerId).select('_id email');
+    if (!manufacturer) {
+      return null;
+    }
+
+    return {
+      id: manufacturer._id.toString(),
+      email: manufacturer.email ?? undefined
+    };
+  }
+
+  /**
    * Convert a subscription document into a typed summary enriched with plan data.
    */
   async toSummary(subscription: SubscriptionDocument): Promise<SubscriptionSummary> {
     const tier = subscription.tier;
-    let planType: SubscriptionPlanType = 'brand';
+    const planType = subscription.planType || (isBrandPlan(tier) ? 'brand' : 'manufacturer');
+    
     let limits: SubscriptionUsageMetrics = {
       votes: subscription.voteLimit,
       nfts: subscription.nftLimit,
@@ -74,8 +132,7 @@ export class SubscriptionDataService {
     let features: SubscriptionFeatureFlags = subscription.features as SubscriptionFeatureFlags;
     let allowOverage = subscription.allowOverage;
 
-    if (isBrandPlan(tier)) {
-      planType = 'brand';
+    if (planType === 'brand' && isBrandPlan(tier)) {
       limits = getBrandUsageLimits(tier);
       const planFeatures = getBrandFeatureFlags(tier);
       features = {
@@ -83,16 +140,28 @@ export class SubscriptionDataService {
         ...subscription.features
       } as SubscriptionFeatureFlags;
       allowOverage = getBrandAllowOverage(tier);
-    } else if (isManufacturerPlan(tier)) {
-      planType = 'manufacturer';
+    } else if (planType === 'manufacturer' && isManufacturerPlan(tier)) {
+      limits = getManufacturerUsageLimits(tier);
+      const planFeatures = getManufacturerFeatureFlags(tier);
+      features = {
+        ...planFeatures,
+        ...subscription.features
+      } as SubscriptionFeatureFlags;
+      allowOverage = getManufacturerAllowOverage(tier);
     }
 
     const usage = toUsageMetrics(subscription);
     const usagePercentages = subscription.getUsagePercentages();
 
+    // Get entity ID (business or manufacturer)
+    const entityId = planType === 'brand'
+      ? subscription.business?.toString() || ''
+      : subscription.manufacturer?.toString() || '';
+
     return {
       id: subscription._id.toString(),
-      businessId: subscription.business.toString(),
+      entityId, // NEW: Clear entity ID field
+      businessId: entityId, // DEPRECATED: Keep for backward compatibility
       planType,
       tier,
       status: subscription.status,

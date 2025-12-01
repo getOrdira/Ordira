@@ -8,8 +8,13 @@ import { subscriptionsLifecycleController } from '../../../controllers/features/
 const objectIdSchema = Joi.string().hex().length(24);
 
 const createSubscriptionBodySchema = Joi.object({
-  businessId: objectIdSchema.required(),
-  tier: Joi.string().trim().max(100).required(),
+  businessId: objectIdSchema.required(), // Can be businessId or manufacturerId depending on planType
+  tier: Joi.string().valid(
+    // Brand tiers
+    'foundation', 'growth', 'premium', 'enterprise',
+    // Manufacturer tiers
+    'starter', 'professional', 'enterprise', 'unlimited'
+  ).required(),
   billingCycle: Joi.string().valid('monthly', 'yearly').optional(),
   stripeSubscriptionId: Joi.string().trim().max(200).optional(),
   isTrialPeriod: Joi.boolean().optional(),
@@ -17,8 +22,13 @@ const createSubscriptionBodySchema = Joi.object({
 });
 
 const updateSubscriptionBodySchema = Joi.object({
-  businessId: objectIdSchema.optional(),
-  tier: Joi.string().trim().max(100).optional(),
+  businessId: objectIdSchema.optional(), // Can be businessId or manufacturerId depending on user type
+  tier: Joi.string().valid(
+    // Brand tiers
+    'foundation', 'growth', 'premium', 'enterprise',
+    // Manufacturer tiers
+    'starter', 'professional', 'enterprise', 'unlimited'
+  ).optional(),
   status: Joi.string().valid('active', 'inactive', 'past_due', 'canceled', 'paused').optional(),
   billingCycle: Joi.string().valid('monthly', 'yearly').optional(),
   cancelAtPeriodEnd: Joi.boolean().optional()

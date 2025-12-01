@@ -111,6 +111,19 @@ export abstract class BaseController {
     error: AppError | Error | string | { statusCode?: number; message?: string; code?: string; details?: any },
     statusCode?: number
   ): void {
+    // Check if response has already been sent (e.g., by validateBusinessUser)
+    if (res.headersSent) {
+      // Log the error but don't try to send another response
+      if (error instanceof Error) {
+        logger.error('Error after response sent', { error: error.message, stack: error.stack });
+      } else if (typeof error === 'object' && error !== null) {
+        logger.error('Error after response sent', { error: (error as any).message || error });
+      } else {
+        logger.error('Error after response sent', { error });
+      }
+      return;
+    }
+
     if (typeof error === 'string') {
       ResponseHelpers.error(res, {
         code: 'CONTROLLER_ERROR',

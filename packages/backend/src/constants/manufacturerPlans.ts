@@ -9,6 +9,7 @@ export const MANUFACTURER_PLAN_DEFINITIONS = {
     supplyChainEndpoints: 3,
     supplyChainEvents: 100, // per month
     profileViews: 50, // per month
+    storage: 1024, // MB (1 GB)
     
     // Profile features
     profilePicture: true,
@@ -80,6 +81,7 @@ export const MANUFACTURER_PLAN_DEFINITIONS = {
     supplyChainEndpoints: 10,
     supplyChainEvents: 500, // per month
     profileViews: 200, // per month
+    storage: 5120, // MB (5 GB)
     
     // Profile features
     profilePicture: true,
@@ -151,6 +153,7 @@ export const MANUFACTURER_PLAN_DEFINITIONS = {
     supplyChainEndpoints: 25,
     supplyChainEvents: 2000, // per month
     profileViews: 1000, // per month
+    storage: 20480, // MB (20 GB)
     
     // Profile features
     profilePicture: true,
@@ -222,6 +225,7 @@ export const MANUFACTURER_PLAN_DEFINITIONS = {
     supplyChainEndpoints: Infinity,
     supplyChainEvents: Infinity,
     profileViews: Infinity,
+    storage: Infinity, // Unlimited storage
     
     // Profile features
     profilePicture: true,

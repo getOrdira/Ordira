@@ -1,12 +1,17 @@
 import {
   BrandPlanKey,
+  ManufacturerPlanKey,
   SubscriptionDocument,
   TierComparison
 } from '../utils/types';
 import {
   BRAND_PLAN_ORDER,
+  MANUFACTURER_PLAN_ORDER,
   getBrandUsageLimits,
-  isBrandPlan
+  getManufacturerUsageLimits,
+  isBrandPlan,
+  isManufacturerPlan,
+  listManufacturerPlans
 } from '../utils/planCatalog';
 
 export interface TierValidationResult {
@@ -18,30 +23,53 @@ export class SubscriptionPlanValidationService {
   /**
    * Validate whether a subscription can move to the supplied tier.
    * Downgrades ensure current usage fits within the target tier limits.
+   * Supports both brand and manufacturer plans.
    */
   validateTierChange(
     subscription: SubscriptionDocument,
     targetTier: string
   ): TierValidationResult {
-    if (!isBrandPlan(targetTier)) {
+    const planType = subscription.planType || (isBrandPlan(subscription.tier) ? 'brand' : 'manufacturer');
+    
+    // Validate tier matches plan type
+    if (planType === 'brand' && !isBrandPlan(targetTier)) {
       return {
         allowed: false,
-        reasons: [`Unknown subscription tier: ${targetTier}`]
+        reasons: [`Tier ${targetTier} is not a valid brand plan tier.`]
+      };
+    }
+    
+    if (planType === 'manufacturer' && !isManufacturerPlan(targetTier)) {
+      return {
+        allowed: false,
+        reasons: [`Tier ${targetTier} is not a valid manufacturer plan tier.`]
       };
     }
 
-    const currentTier = subscription.tier as BrandPlanKey;
+    const currentTier = subscription.tier;
     if (currentTier === targetTier) {
       return { allowed: true };
     }
 
-    const currentIndex = BRAND_PLAN_ORDER.indexOf(currentTier);
-    const targetIndex = BRAND_PLAN_ORDER.indexOf(targetTier);
+    // Get plan order based on plan type
+    let currentIndex: number;
+    let targetIndex: number;
+    let planOrder: string[];
+    
+    if (planType === 'brand') {
+      planOrder = BRAND_PLAN_ORDER;
+      currentIndex = planOrder.indexOf(currentTier);
+      targetIndex = planOrder.indexOf(targetTier);
+    } else {
+      planOrder = listManufacturerPlans();
+      currentIndex = planOrder.indexOf(currentTier);
+      targetIndex = planOrder.indexOf(targetTier);
+    }
 
     if (targetIndex === -1) {
       return {
         allowed: false,
-        reasons: [`Tier ${targetTier} is not part of the managed brand plan catalogue.`]
+        reasons: [`Tier ${targetTier} is not part of the managed ${planType} plan catalogue.`]
       };
     }
 
@@ -50,24 +78,31 @@ export class SubscriptionPlanValidationService {
       return { allowed: true };
     }
 
-    const targetLimits = getBrandUsageLimits(targetTier);
+    // For downgrades, check usage limits
+    const targetLimits = planType === 'brand' 
+      ? getBrandUsageLimits(targetTier as BrandPlanKey)
+      : getManufacturerUsageLimits(targetTier as ManufacturerPlanKey);
+    
     const reasons: string[] = [];
 
     if (targetLimits.votes !== -1 && subscription.currentVoteUsage > targetLimits.votes) {
+      const limitName = planType === 'brand' ? 'vote' : 'connection';
       reasons.push(
-        `Current vote usage (${subscription.currentVoteUsage}) exceeds ${targetTier} limit (${targetLimits.votes}).`
+        `Current ${limitName} usage (${subscription.currentVoteUsage}) exceeds ${targetTier} limit (${targetLimits.votes}).`
       );
     }
 
     if (targetLimits.nfts !== -1 && subscription.currentNftUsage > targetLimits.nfts) {
+      const limitName = planType === 'brand' ? 'NFT' : 'product';
       reasons.push(
-        `Current NFT usage (${subscription.currentNftUsage}) exceeds ${targetTier} limit (${targetLimits.nfts}).`
+        `Current ${limitName} usage (${subscription.currentNftUsage}) exceeds ${targetTier} limit (${targetLimits.nfts}).`
       );
     }
 
     if (targetLimits.api !== -1 && subscription.currentApiUsage > targetLimits.api) {
+      const limitName = planType === 'brand' ? 'API' : 'endpoint';
       reasons.push(
-        `Current API usage (${subscription.currentApiUsage}) exceeds ${targetTier} limit (${targetLimits.api}).`
+        `Current ${limitName} usage (${subscription.currentApiUsage}) exceeds ${targetTier} limit (${targetLimits.api}).`
       );
     }
 
@@ -79,18 +114,26 @@ export class SubscriptionPlanValidationService {
 
   /**
    * Generate an overview of upgrade/downgrade options for UI decisions.
+   * Supports both brand and manufacturer plan types.
+   *
+   * @param currentTier - The current tier
+   * @param planType - The plan type (defaults to 'brand' for backward compatibility)
    */
-  getTierComparison(currentTier: BrandPlanKey): TierComparison {
-    const index = BRAND_PLAN_ORDER.indexOf(currentTier);
-    const upgradeOptions = BRAND_PLAN_ORDER.slice(index + 1);
-    const downgradeOptions = index === -1 ? [] : BRAND_PLAN_ORDER.slice(0, index);
+  getTierComparison(
+    currentTier: BrandPlanKey | ManufacturerPlanKey,
+    planType: 'brand' | 'manufacturer' = 'brand'
+  ): TierComparison {
+    const planOrder = planType === 'brand' ? BRAND_PLAN_ORDER : MANUFACTURER_PLAN_ORDER;
+    const index = planOrder.indexOf(currentTier as any);
+    const upgradeOptions = index !== -1 ? planOrder.slice(index + 1) : [];
+    const downgradeOptions = index === -1 ? [] : planOrder.slice(0, index);
 
     return {
       current: currentTier,
-      canUpgrade: index < BRAND_PLAN_ORDER.length - 1,
+      canUpgrade: index !== -1 && index < planOrder.length - 1,
       canDowngrade: index > 0,
-      nextTier: index < BRAND_PLAN_ORDER.length - 1 ? BRAND_PLAN_ORDER[index + 1] : null,
-      previousTier: index > 0 ? BRAND_PLAN_ORDER[index - 1] : null,
+      nextTier: index !== -1 && index < planOrder.length - 1 ? planOrder[index + 1] : null,
+      previousTier: index > 0 ? planOrder[index - 1] : null,
       upgradeOptions,
       downgradeOptions: downgradeOptions.reverse() // Show closest downgrade first
     };

@@ -1,10 +1,13 @@
 ﻿// src/models/subscription/subscription.model.ts
 import { Schema, model, Document, Types, Model } from 'mongoose';
+import { BRAND_PLAN_ORDER, MANUFACTURER_PLAN_ORDER } from '../../services/subscriptions/utils/planCatalog';
 
 export interface ISubscription extends Document {
   // Core subscription information
-  business: Types.ObjectId;
-  tier: 'foundation' | 'growth' | 'premium' | 'enterprise';
+  planType: 'brand' | 'manufacturer';
+  business?: Types.ObjectId; // Required for brand plans
+  manufacturer?: Types.ObjectId; // Required for manufacturer plans
+  tier: 'foundation' | 'growth' | 'premium' | 'enterprise' | 'starter' | 'professional' | 'unlimited';
   
   // Usage limits based on tier
   voteLimit: number;
@@ -96,6 +99,8 @@ export interface ISubscription extends Document {
 // Static methods interface - extends Model instead of Document
 export interface ISubscriptionModel extends Model<ISubscription> {
   findByBusiness(businessId: string): Promise<ISubscription | null>;
+  findByManufacturer(manufacturerId: string): Promise<ISubscription | null>;
+  findByEntity(entityId: string, planType: 'brand' | 'manufacturer'): Promise<ISubscription | null>;
   getActiveSubscriptions(): Promise<ISubscription[]>;
   getSubscriptionsByTier(tier: string): Promise<ISubscription[]>;
   getExpiringSoons(days?: number): Promise<ISubscription[]>;
@@ -106,19 +111,37 @@ export interface ISubscriptionModel extends Model<ISubscription> {
 const SubscriptionSchema = new Schema<ISubscription>(
   {
     // Core subscription information
+    planType: {
+      type: String,
+      enum: {
+        values: ['brand', 'manufacturer'],
+        message: 'Plan type must be brand or manufacturer'
+      },
+      required: [true, 'Plan type is required'],
+      index: true
+    },
+    
     business: {
       type: Schema.Types.ObjectId,
       ref: 'Business',
-      required: [true, 'Business reference is required'],
-      unique: true,
-      index: true
+      required: false, // Required only for brand plans (enforced in validation)
+      index: true,
+      sparse: true // Allows null values but enforces uniqueness when present
+    },
+    
+    manufacturer: {
+      type: Schema.Types.ObjectId,
+      ref: 'Manufacturer',
+      required: false, // Required only for manufacturer plans (enforced in validation)
+      index: true,
+      sparse: true // Allows null values but enforces uniqueness when present
     },
     
     tier: {
       type: String,
       enum: {
-        values: ['foundation', 'growth', 'premium', 'enterprise'],
-        message: 'Tier must be foundation, growth, premium, or enterprise'
+        values: ['foundation', 'growth', 'premium', 'enterprise', 'starter', 'professional', 'unlimited'],
+        message: 'Tier must be a valid brand or manufacturer tier'
       },
       required: [true, 'Subscription tier is required'],
       index: true
@@ -352,91 +375,184 @@ SubscriptionSchema.index({ stripeSubscriptionId: 1 });
 SubscriptionSchema.index({ currentVoteUsage: 1, voteLimit: 1 });
 SubscriptionSchema.index({ currentNftUsage: 1, nftLimit: 1 });
 
+// Composite indexes for plan type queries (improve performance for unified system)
+SubscriptionSchema.index({ planType: 1, business: 1 });
+SubscriptionSchema.index({ planType: 1, manufacturer: 1 });
+SubscriptionSchema.index({ planType: 1, tier: 1, status: 1 });
+SubscriptionSchema.index({ planType: 1, status: 1 });
+
 // ====================
 // VALIDATION MIDDLEWARE
 // ====================
 
-// Pre-validate: Set tier-based limits and features
+// Pre-validate: Ensure either business or manufacturer is set based on planType
 SubscriptionSchema.pre('validate', function (next) {
-  const tierConfig = {
-    foundation: { 
-      votes: 100, 
-      nfts: 50, 
-      api: 1000,
-      storage: 1,
-      overage: false,
-      features: {
-        analytics: true,
-        apiAccess: true,
-        customBranding: false,
-        prioritySupport: false,
-        webhooks: false,
-        customDomain: false,
-        whiteLabel: false,
-        sla: false
+  // Validate planType and entity reference
+  if (!this.planType) {
+    return next(new Error('Plan type is required'));
+  }
+  
+  if (this.planType === 'brand') {
+    if (!this.business) {
+      return next(new Error('Business reference is required for brand plans'));
+    }
+    if (this.manufacturer) {
+      return next(new Error('Manufacturer reference should not be set for brand plans'));
+    }
+  } else if (this.planType === 'manufacturer') {
+    if (!this.manufacturer) {
+      return next(new Error('Manufacturer reference is required for manufacturer plans'));
+    }
+    if (this.business) {
+      return next(new Error('Business reference should not be set for manufacturer plans'));
+    }
+  }
+  
+  next();
+});
+
+// Pre-validate: Set tier-based limits and features
+// Note: This hook sets defaults, but the service layer will override with plan-specific values
+SubscriptionSchema.pre('validate', function (next) {
+  // Only set defaults if not already set (allows service layer to set proper values)
+  if (this.voteLimit === undefined || this.nftLimit === undefined || 
+      this.apiLimit === undefined || this.storageLimit === undefined) {
+    
+    const tierConfig: Record<string, any> = {
+      // Brand tiers
+      foundation: { 
+        votes: 100, 
+        nfts: 50, 
+        api: 1000,
+        storage: 1,
+        overage: false,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: false,
+          prioritySupport: false,
+          webhooks: false,
+          customDomain: false,
+          whiteLabel: false,
+          sla: false
+        }
+      },
+      growth: { 
+        votes: 500, 
+        nfts: 150, 
+        api: 10000,
+        storage: 5,
+        overage: false,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: true,
+          prioritySupport: true,
+          webhooks: true,
+          customDomain: false,
+          whiteLabel: false,
+          sla: false
+        }
+      },
+      premium: { 
+        votes: 2000, 
+        nfts: 500, 
+        api: 100000,
+        storage: 25,
+        overage: true,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: true,
+          prioritySupport: true,
+          webhooks: true,
+          customDomain: true,
+          whiteLabel: false,
+          sla: false
+        }
+      },
+      enterprise: { 
+        votes: -1, 
+        nfts: -1, 
+        api: -1,
+        storage: 100,
+        overage: true,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: true,
+          prioritySupport: true,
+          webhooks: true,
+          customDomain: true,
+          whiteLabel: true,
+          sla: true
+        }
+      },
+      // Manufacturer tiers (mapped to subscription model fields)
+      starter: {
+        votes: 5, // brandConnections mapped to votes
+        nfts: 10, // supplyChainProducts mapped to nfts
+        api: 3, // supplyChainEndpoints mapped to api
+        storage: 1, // supplyChainEvents/100 mapped to storage
+        overage: false,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: false,
+          prioritySupport: false,
+          webhooks: false,
+          customDomain: false,
+          whiteLabel: false,
+          sla: false
+        }
+      },
+      professional: {
+        votes: 25, // brandConnections
+        nfts: 50, // supplyChainProducts
+        api: 10, // supplyChainEndpoints
+        storage: 5, // supplyChainEvents/100
+        overage: false,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: true,
+          prioritySupport: true,
+          webhooks: true,
+          customDomain: false,
+          whiteLabel: false,
+          sla: false
+        }
+      },
+      unlimited: {
+        votes: -1,
+        nfts: -1,
+        api: -1,
+        storage: -1,
+        overage: true,
+        features: {
+          analytics: true,
+          apiAccess: true,
+          customBranding: true,
+          prioritySupport: true,
+          webhooks: true,
+          customDomain: true,
+          whiteLabel: true,
+          sla: true
+        }
       }
-    },
-    growth: { 
-      votes: 500, 
-      nfts: 150, 
-      api: 10000,
-      storage: 5,
-      overage: false,
-      features: {
-        analytics: true,
-        apiAccess: true,
-        customBranding: true,
-        prioritySupport: true,
-        webhooks: true,
-        customDomain: false,
-        whiteLabel: false,
-        sla: false
-      }
-    },
-    premium: { 
-      votes: 2000, 
-      nfts: 500, 
-      api: 100000,
-      storage: 25,
-      overage: true,
-      features: {
-        analytics: true,
-        apiAccess: true,
-        customBranding: true,
-        prioritySupport: true,
-        webhooks: true,
-        customDomain: true,
-        whiteLabel: false,
-        sla: false
-      }
-    },
-    enterprise: { 
-      votes: -1, 
-      nfts: -1, 
-      api: -1,
-      storage: 100,
-      overage: true,
-      features: {
-        analytics: true,
-        apiAccess: true,
-        customBranding: true,
-        prioritySupport: true,
-        webhooks: true,
-        customDomain: true,
-        whiteLabel: true,
-        sla: true
+    };
+    
+    const config = tierConfig[this.tier];
+    if (config) {
+      if (this.voteLimit === undefined) this.voteLimit = config.votes;
+      if (this.nftLimit === undefined) this.nftLimit = config.nfts;
+      if (this.apiLimit === undefined) this.apiLimit = config.api;
+      if (this.storageLimit === undefined) this.storageLimit = config.storage;
+      if (this.allowOverage === undefined) this.allowOverage = config.overage;
+      if (!this.features || Object.keys(this.features).length === 0) {
+        this.features = config.features;
       }
     }
-  };
-  
-  const config = tierConfig[this.tier];
-  if (config) {
-    this.voteLimit = config.votes;
-    this.nftLimit = config.nfts;
-    this.apiLimit = config.api;
-    this.storageLimit = config.storage;
-    this.allowOverage = config.overage;
-    this.features = { ...this.features, ...config.features };
   }
   
   next();
@@ -642,15 +758,16 @@ SubscriptionSchema.methods.getUsagePercentages = function(): any {
 };
 
 // Plan change validation
+// Note: Both brand and manufacturer plans use 'enterprise' tier name, but planType disambiguates
 SubscriptionSchema.methods.canUpgrade = function(): boolean {
-  const tierOrder = ['foundation', 'growth', 'premium', 'enterprise'];
-  const currentIndex = tierOrder.indexOf(this.tier);
-  return currentIndex < tierOrder.length - 1;
+  const tierOrder = this.planType === 'brand' ? BRAND_PLAN_ORDER : MANUFACTURER_PLAN_ORDER;
+  const currentIndex = tierOrder.indexOf(this.tier as any);
+  return currentIndex !== -1 && currentIndex < tierOrder.length - 1;
 };
 
 SubscriptionSchema.methods.canDowngrade = function(): boolean {
-  const tierOrder = ['foundation', 'growth', 'premium', 'enterprise'];
-  const currentIndex = tierOrder.indexOf(this.tier);
+  const tierOrder = this.planType === 'brand' ? BRAND_PLAN_ORDER : MANUFACTURER_PLAN_ORDER;
+  const currentIndex = tierOrder.indexOf(this.tier as any);
   return currentIndex > 0;
 };
 
@@ -660,7 +777,21 @@ SubscriptionSchema.methods.canDowngrade = function(): boolean {
 
 // Find subscription by business
 SubscriptionSchema.statics.findByBusiness = function(businessId: string) {
-  return this.findOne({ business: businessId });
+  return this.findOne({ business: businessId, planType: 'brand' });
+};
+
+// Find subscription by manufacturer
+SubscriptionSchema.statics.findByManufacturer = function(manufacturerId: string) {
+  return this.findOne({ manufacturer: manufacturerId, planType: 'manufacturer' });
+};
+
+// Find subscription by entity (business or manufacturer)
+SubscriptionSchema.statics.findByEntity = function(entityId: string, planType: 'brand' | 'manufacturer') {
+  if (planType === 'brand') {
+    return this.findOne({ business: entityId, planType: 'brand' });
+  } else {
+    return this.findOne({ manufacturer: entityId, planType: 'manufacturer' });
+  }
 };
 
 // Get all active subscriptions
