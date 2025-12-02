@@ -691,12 +691,9 @@ TaskThreadSchema.statics.findByWorkspace = function(
 
   const query: any = { workspaceId };
 
-  // Only include non-archived threads (check if field doesn't exist or is null)
+  // Only include non-archived threads
   if (!options.includeArchived) {
-    query.$or = [
-      { archivedAt: { $exists: false } },
-      { archivedAt: null }
-    ];
+    query.archivedAt = null;
   }
 
   if (threadType) query.threadType = threadType;
@@ -717,10 +714,7 @@ TaskThreadSchema.statics.findUserTasks = function(
   const query: any = {
     threadType: 'task',
     'taskDetails.assignees': userId,
-    $or: [
-      { archivedAt: { $exists: false } },
-      { archivedAt: null }
-    ]
+    archivedAt: null
   };
 
   if (status) {
@@ -738,10 +732,7 @@ TaskThreadSchema.statics.findUnresolvedThreads = function(workspaceId: string) {
   return this.find({
     workspaceId,
     isResolved: false,
-    $or: [
-      { archivedAt: { $exists: false } },
-      { archivedAt: null }
-    ]
+    archivedAt: null
   })
     .sort({ isPinned: -1, lastActivityAt: -1 })
     .populate('createdBy', 'name email');
@@ -753,10 +744,7 @@ TaskThreadSchema.statics.getThreadStats = async function(workspaceId: string) {
     {
       $match: {
         workspaceId: new Types.ObjectId(workspaceId),
-        $or: [
-          { archivedAt: { $exists: false } },
-          { archivedAt: null }
-        ]
+        archivedAt: null
       }
     },
     {
@@ -778,10 +766,7 @@ TaskThreadSchema.statics.getThreadStats = async function(workspaceId: string) {
       $match: {
         workspaceId: new Types.ObjectId(workspaceId),
         threadType: 'task',
-        $or: [
-          { archivedAt: { $exists: false } },
-          { archivedAt: null }
-        ]
+        archivedAt: null
       }
     },
     {
@@ -805,10 +790,7 @@ TaskThreadSchema.statics.findOverdueTasks = function(workspaceId?: string) {
     threadType: 'task',
     'taskDetails.dueDate': { $lt: now },
     'taskDetails.status': { $nin: ['completed', 'cancelled'] },
-    $or: [
-      { archivedAt: { $exists: false } },
-      { archivedAt: null }
-    ]
+    archivedAt: null
   };
 
   if (workspaceId) {
