@@ -224,6 +224,24 @@ export class ConnectionValidationService {
         };
       }
 
+      // Special case: If this is a manufacturer and they are the workspace's manufacturer,
+      // grant them access even if not explicitly in manufacturerMembers
+      if (userType === 'manufacturer' && workspace.manufacturerId.toString() === userObjectId.toString()) {
+        return {
+          hasAccess: true,
+          role: 'owner' // The workspace's manufacturer has owner-level access
+        };
+      }
+
+      // Special case: If this is a brand and they are the workspace's brand,
+      // grant them access even if not explicitly in brandMembers
+      if (userType === 'brand' && workspace.brandId.toString() === userObjectId.toString()) {
+        return {
+          hasAccess: true,
+          role: 'owner' // The workspace's brand has owner-level access
+        };
+      }
+
       // Get the appropriate member array based on user type
       const memberArray = userType === 'brand'
         ? workspace.brandMembers

@@ -24,11 +24,25 @@ export class TaskManagementService {
    */
   public async createThread(input: ICreateTaskThreadInput): Promise<ITaskThread> {
     try {
-      // Verify workspace exists
-      const workspace = await Workspace.findById(input.workspaceId);
+      // Verify workspace exists and get ObjectId
+      let workspace: any;
+      let workspaceObjectId: Types.ObjectId;
 
-      if (!workspace) {
-        throw new Error('Workspace not found');
+      // Check if workspaceId is a UUID (contains hyphens) or ObjectId (24 hex chars)
+      if (input.workspaceId.includes('-')) {
+        // It's a UUID, need to look up workspace
+        workspace = await Workspace.findOne({ workspaceId: input.workspaceId });
+        if (!workspace) {
+          throw new Error('Workspace not found');
+        }
+        workspaceObjectId = workspace._id;
+      } else {
+        // It's an ObjectId
+        workspace = await Workspace.findById(input.workspaceId);
+        if (!workspace) {
+          throw new Error('Workspace not found');
+        }
+        workspaceObjectId = new Types.ObjectId(input.workspaceId);
       }
 
       // Check if workspace has taskManagement feature enabled
@@ -38,7 +52,7 @@ export class TaskManagementService {
 
       // Create thread
       const thread = await TaskThread.create({
-        workspaceId: new Types.ObjectId(input.workspaceId),
+        workspaceId: workspaceObjectId,
         createdBy: new Types.ObjectId(input.createdBy),
         threadType: input.threadType,
         title: input.title,
@@ -126,7 +140,23 @@ export class TaskManagementService {
     options?: { threadType?: ThreadType; isResolved?: boolean; limit?: number }
   ): Promise<ITaskThread[]> {
     try {
-      return await TaskThread.findByWorkspace(workspaceId, options);
+      // Resolve workspace by UUID or ObjectId
+      let workspaceObjectId: Types.ObjectId;
+
+      // Check if workspaceId is a UUID (contains hyphens) or ObjectId (24 hex chars)
+      if (workspaceId.includes('-')) {
+        // It's a UUID, need to look up workspace
+        const workspace = await Workspace.findOne({ workspaceId });
+        if (!workspace) {
+          throw new Error('Workspace not found');
+        }
+        workspaceObjectId = workspace._id;
+      } else {
+        // It's an ObjectId
+        workspaceObjectId = new Types.ObjectId(workspaceId);
+      }
+
+      return await TaskThread.findByWorkspace(workspaceObjectId.toString(), options);
     } catch (error) {
       throw new Error(`Failed to get workspace threads: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -139,9 +169,13 @@ export class TaskManagementService {
     filter: ITaskFilterOptions
   ): Promise<IPaginatedResponse<ITaskThread>> {
     try {
-      const query: any = {
-        archivedAt: { $exists: false }
-      };
+      const query: any = {};
+
+      // Only include non-archived threads (check if field doesn't exist or is null)
+      query.$or = [
+        { archivedAt: { $exists: false } },
+        { archivedAt: null }
+      ];
 
       // Apply filters
       if (filter.workspaceId) query.workspaceId = new Types.ObjectId(filter.workspaceId);

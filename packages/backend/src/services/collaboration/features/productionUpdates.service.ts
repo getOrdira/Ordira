@@ -22,11 +22,25 @@ export class ProductionUpdatesService {
    */
   public async createUpdate(input: ICreateProductionUpdateInput): Promise<IProductionUpdate> {
     try {
-      // Verify workspace exists
-      const workspace = await Workspace.findById(input.workspaceId);
+      // Verify workspace exists and get ObjectId
+      let workspace: any;
+      let workspaceObjectId: Types.ObjectId;
 
-      if (!workspace) {
-        throw new Error('Workspace not found');
+      // Check if workspaceId is a UUID (contains hyphens) or ObjectId (24 hex chars)
+      if (input.workspaceId.includes('-')) {
+        // It's a UUID, need to look up workspace
+        workspace = await Workspace.findOne({ workspaceId: input.workspaceId });
+        if (!workspace) {
+          throw new Error('Workspace not found');
+        }
+        workspaceObjectId = workspace._id;
+      } else {
+        // It's an ObjectId
+        workspace = await Workspace.findById(input.workspaceId);
+        if (!workspace) {
+          throw new Error('Workspace not found');
+        }
+        workspaceObjectId = new Types.ObjectId(input.workspaceId);
       }
 
       // Verify manufacturer matches workspace
@@ -41,7 +55,7 @@ export class ProductionUpdatesService {
 
       // Create the update
       const update = await ProductionUpdate.create({
-        workspaceId: new Types.ObjectId(input.workspaceId),
+        workspaceId: workspaceObjectId,
         manufacturerId: new Types.ObjectId(input.manufacturerId),
         createdBy: new Types.ObjectId(input.createdBy),
         title: input.title,
@@ -98,7 +112,23 @@ export class ProductionUpdatesService {
     options?: { limit?: number; updateType?: string }
   ): Promise<IProductionUpdate[]> {
     try {
-      const query: any = { workspaceId: new Types.ObjectId(workspaceId) };
+      // Resolve workspace by UUID or ObjectId
+      let workspaceObjectId: Types.ObjectId;
+
+      // Check if workspaceId is a UUID (contains hyphens) or ObjectId (24 hex chars)
+      if (workspaceId.includes('-')) {
+        // It's a UUID, need to look up workspace
+        const workspace = await Workspace.findOne({ workspaceId });
+        if (!workspace) {
+          throw new Error('Workspace not found');
+        }
+        workspaceObjectId = workspace._id;
+      } else {
+        // It's an ObjectId
+        workspaceObjectId = new Types.ObjectId(workspaceId);
+      }
+
+      const query: any = { workspaceId: workspaceObjectId };
 
       if (options?.updateType) {
         query.updateType = options.updateType;
