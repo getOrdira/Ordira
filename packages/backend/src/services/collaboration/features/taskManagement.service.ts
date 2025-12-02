@@ -171,11 +171,8 @@ export class TaskManagementService {
     try {
       const query: any = {};
 
-      // Only include non-archived threads (check if field doesn't exist or is null)
-      query.$or = [
-        { archivedAt: { $exists: false } },
-        { archivedAt: null }
-      ];
+      // Only include non-archived threads
+      query.archivedAt = null;
 
       // Apply filters
       if (filter.workspaceId) query.workspaceId = new Types.ObjectId(filter.workspaceId);

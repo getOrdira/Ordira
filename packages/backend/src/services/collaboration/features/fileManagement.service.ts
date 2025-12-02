@@ -132,10 +132,7 @@ export class FileManagementService {
 
       const query: any = {
         workspaceId: workspaceObjectId,
-        $or: [
-          { deletedAt: { $exists: false } },
-          { deletedAt: null }
-        ]
+        deletedAt: null
       };
 
       if (options?.category) {
@@ -182,10 +179,7 @@ export class FileManagementService {
 
       // Exclude deleted
       if (filter.excludeDeleted) {
-        query.$or = [
-          { deletedAt: { $exists: false } },
-          { deletedAt: null }
-        ];
+        query.deletedAt = null;
       }
 
       // Pagination
