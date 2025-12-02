@@ -120,12 +120,38 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
 
       const query = req.validatedQuery || {};
       
-      // Use query params if provided, otherwise resolve from connection context
+      // Get brandId and manufacturerId from query params or user context
       const queryBrandId = query.brandId;
       const queryManufacturerId = query.manufacturerId;
-      const { brandId, manufacturerId } = queryBrandId && queryManufacturerId
-        ? { brandId: queryBrandId, manufacturerId: queryManufacturerId }
-        : this.resolveConnectionPair(req);
+      
+      // Try to resolve from query params first
+      let brandId = queryBrandId;
+      let manufacturerId = queryManufacturerId;
+      
+      // If not in query, try to resolve from user context
+      if (!brandId) {
+        brandId = req.businessId || req.collaboration?.brandId?.toString();
+      }
+      if (!manufacturerId) {
+        manufacturerId = req.manufacturerId || req.collaboration?.manufacturerId?.toString();
+      }
+      
+      // If still missing, try resolveConnectionPair as last resort
+      if (!brandId || !manufacturerId) {
+        try {
+          const resolved = this.resolveConnectionPair(req);
+          brandId = brandId || resolved.brandId;
+          manufacturerId = manufacturerId || resolved.manufacturerId;
+        } catch (error) {
+          // If resolveConnectionPair fails, require query params
+          if (!queryBrandId || !queryManufacturerId) {
+            throw { 
+              statusCode: 400, 
+              message: 'Both brandId and manufacturerId are required in query parameters or connection context' 
+            };
+          }
+        }
+      }
 
       const filter = {
         brandId,

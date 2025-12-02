@@ -28,9 +28,10 @@ export class CollaborationModule extends BaseFeatureModule {
 
     // Combine modular routes into unified router
     // Note: Routes already have authentication via RouteConfigs.authenticated
-    // File, update, and task routes are nested under workspaces, so mount them at root
+    // Workspace routes use relative paths (/, /:workspaceId), so mount at /workspaces
+    // File, update, and task routes use full paths (/workspaces/:workspaceId/...), so mount at root
     const collaborationRoutes = Router();
-    collaborationRoutes.use('/', collaborationRoutesModule.collaborationWorkspaceRoutes);
+    collaborationRoutes.use('/workspaces', collaborationRoutesModule.collaborationWorkspaceRoutes);
     collaborationRoutes.use('/', collaborationRoutesModule.collaborationFileRoutes);
     collaborationRoutes.use('/', collaborationRoutesModule.collaborationProductionUpdateRoutes);
     collaborationRoutes.use('/', collaborationRoutesModule.collaborationTaskRoutes);
