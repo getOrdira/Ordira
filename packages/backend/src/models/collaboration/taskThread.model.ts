@@ -740,7 +740,10 @@ TaskThreadSchema.statics.findUnresolvedThreads = function(workspaceId: string) {
   return this.find({
     workspaceId,
     isResolved: false,
-    archivedAt: { $exists: false }
+    $or: [
+      { archivedAt: { $exists: false } },
+      { archivedAt: null }
+    ]
   })
     .sort({ isPinned: -1, lastActivityAt: -1 })
     .populate('createdBy', 'name email');
@@ -752,7 +755,10 @@ TaskThreadSchema.statics.getThreadStats = async function(workspaceId: string) {
     {
       $match: {
         workspaceId: new Types.ObjectId(workspaceId),
-        archivedAt: { $exists: false }
+        $or: [
+          { archivedAt: { $exists: false } },
+          { archivedAt: null }
+        ]
       }
     },
     {
@@ -774,7 +780,10 @@ TaskThreadSchema.statics.getThreadStats = async function(workspaceId: string) {
       $match: {
         workspaceId: new Types.ObjectId(workspaceId),
         threadType: 'task',
-        archivedAt: { $exists: false }
+        $or: [
+          { archivedAt: { $exists: false } },
+          { archivedAt: null }
+        ]
       }
     },
     {
@@ -798,7 +807,10 @@ TaskThreadSchema.statics.findOverdueTasks = function(workspaceId?: string) {
     threadType: 'task',
     'taskDetails.dueDate': { $lt: now },
     'taskDetails.status': { $nin: ['completed', 'cancelled'] },
-    archivedAt: { $exists: false }
+    $or: [
+      { archivedAt: { $exists: false } },
+      { archivedAt: null }
+    ]
   };
 
   if (workspaceId) {

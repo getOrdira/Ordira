@@ -184,7 +184,10 @@ export class FileManagementService {
 
       // Exclude deleted
       if (filter.excludeDeleted) {
-        query.deletedAt = { $exists: false };
+        query.$or = [
+          { deletedAt: { $exists: false } },
+          { deletedAt: null }
+        ];
       }
 
       // Pagination
