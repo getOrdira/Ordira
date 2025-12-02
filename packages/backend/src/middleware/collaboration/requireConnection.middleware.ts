@@ -37,7 +37,25 @@ export const requireConnection = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { brandId, manufacturerId } = req.collaboration || {};
+    // Try to get brandId and manufacturerId from multiple sources
+    const collaborationBrandId = req.collaboration?.brandId;
+    const collaborationManufacturerId = req.collaboration?.manufacturerId;
+    
+    // Also check validatedBody (set by route validation) and body
+    const bodyBrandId = (req as any).validatedBody?.brandId || (req as any).body?.brandId;
+    const bodyManufacturerId = (req as any).validatedBody?.manufacturerId || (req as any).body?.manufacturerId;
+    
+    // Also check query params (for GET requests)
+    const queryBrandId = (req as any).validatedQuery?.brandId || (req as any).query?.brandId;
+    const queryManufacturerId = (req as any).validatedQuery?.manufacturerId || (req as any).query?.manufacturerId;
+    
+    // Also check from user context (businessId for brand, manufacturerId for manufacturer)
+    const userBrandId = (req as any).businessId;
+    const userManufacturerId = (req as any).manufacturerId;
+    
+    // Resolve brandId and manufacturerId from available sources
+    const brandId = collaborationBrandId || bodyBrandId || queryBrandId || userBrandId;
+    const manufacturerId = collaborationManufacturerId || bodyManufacturerId || queryManufacturerId || userManufacturerId;
 
     if (!brandId || !manufacturerId) {
       res.status(400).json({
@@ -50,9 +68,23 @@ export const requireConnection = async (
       return;
     }
 
+    // Ensure they are ObjectIds
+    const brandIdObj = brandId instanceof Types.ObjectId ? brandId : new Types.ObjectId(brandId);
+    const manufacturerIdObj = manufacturerId instanceof Types.ObjectId ? manufacturerId : new Types.ObjectId(manufacturerId);
+    
+    // Populate req.collaboration if not already set
+    if (!req.collaboration) {
+      req.collaboration = {
+        brandId: brandIdObj,
+        manufacturerId: manufacturerIdObj,
+        userId: new Types.ObjectId((req as any).userId || (req as any).validatedBody?.createdBy),
+        userType: ((req as any).userType === 'business' ? 'brand' : 'manufacturer') as 'brand' | 'manufacturer'
+      };
+    }
+
     const connectionStatus = await connectionValidationService.validateConnection(
-      brandId,
-      manufacturerId
+      brandIdObj,
+      manufacturerIdObj
     );
 
     if (!connectionStatus.isConnected) {
@@ -62,8 +94,8 @@ export const requireConnection = async (
           code: 'CONNECTION_REQUIRED',
           message: connectionStatus.message || 'An active connection is required',
           details: {
-            brandId: brandId.toString(),
-            manufacturerId: manufacturerId.toString()
+            brandId: brandIdObj.toString(),
+            manufacturerId: manufacturerIdObj.toString()
           }
         }
       });
@@ -78,8 +110,8 @@ export const requireConnection = async (
           message: `Connection must be active (current status: ${connectionStatus.status})`,
           details: {
             connectionStatus: connectionStatus.status,
-            brandId: brandId.toString(),
-            manufacturerId: manufacturerId.toString()
+            brandId: brandIdObj.toString(),
+            manufacturerId: manufacturerIdObj.toString()
           }
         }
       });
