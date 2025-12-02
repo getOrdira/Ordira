@@ -691,9 +691,6 @@ TaskThreadSchema.statics.findByWorkspace = function(
 
   const query: any = { workspaceId };
 
-  if (threadType) query.threadType = threadType;
-  if (typeof isResolved === 'boolean') query.isResolved = isResolved;
-
   // Only include non-archived threads (check if field doesn't exist or is null)
   if (!options.includeArchived) {
     query.$or = [
@@ -701,6 +698,9 @@ TaskThreadSchema.statics.findByWorkspace = function(
       { archivedAt: null }
     ];
   }
+
+  if (threadType) query.threadType = threadType;
+  if (typeof isResolved === 'boolean') query.isResolved = isResolved;
 
   return this.find(query)
     .sort(sort)
@@ -716,14 +716,12 @@ TaskThreadSchema.statics.findUserTasks = function(
 ) {
   const query: any = {
     threadType: 'task',
-    'taskDetails.assignees': userId
+    'taskDetails.assignees': userId,
+    $or: [
+      { archivedAt: { $exists: false } },
+      { archivedAt: null }
+    ]
   };
-
-  // Only include non-archived threads
-  query.$or = [
-    { archivedAt: { $exists: false } },
-    { archivedAt: null }
-  ];
 
   if (status) {
     query['taskDetails.status'] = status;

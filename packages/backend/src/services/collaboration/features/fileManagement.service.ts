@@ -131,14 +131,12 @@ export class FileManagementService {
       }
 
       const query: any = {
-        workspaceId: workspaceObjectId
+        workspaceId: workspaceObjectId,
+        $or: [
+          { deletedAt: { $exists: false } },
+          { deletedAt: null }
+        ]
       };
-
-      // Only include non-deleted files (check if field doesn't exist or is null)
-      query.$or = [
-        { deletedAt: { $exists: false } },
-        { deletedAt: null }
-      ];
 
       if (options?.category) {
         query.fileCategory = options.category;
