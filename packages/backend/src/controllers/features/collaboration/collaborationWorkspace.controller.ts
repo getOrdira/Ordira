@@ -204,37 +204,40 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
    */
   async updateWorkspace(req: WorkspaceRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'UPDATE_WORKSPACE');
+      // Validate auth - if fails, it will send response and return early
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'UPDATE_WORKSPACE');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const updates = {
-          name: req.validatedBody?.name,
-          description: req.validatedBody?.description,
-          productionDetails: req.validatedBody?.productionDetails,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const workspace = await this.collaborationServices.core.workspaceManagement.updateWorkspace(
-          workspaceId,
-          updates
-        );
+      const updates = {
+        name: req.validatedBody?.name,
+        description: req.validatedBody?.description,
+        productionDetails: req.validatedBody?.productionDetails,
+      };
 
-        if (!workspace) {
-          throw { statusCode: 404, message: 'Workspace not found' };
-        }
+      const workspace = await this.collaborationServices.core.workspaceManagement.updateWorkspace(
+        workspaceId,
+        updates
+      );
 
-        this.logAction(req, 'UPDATE_WORKSPACE_SUCCESS', {
-          workspaceId,
-        });
+      if (!workspace) {
+        throw { statusCode: 404, message: 'Workspace not found' };
+      }
 
-        return { workspace };
+      this.logAction(req, 'UPDATE_WORKSPACE_SUCCESS', {
+        workspaceId,
       });
+
+      return { workspace };
     }, res, 'Workspace updated successfully', this.getRequestMeta(req));
   }
 

@@ -172,9 +172,21 @@ export abstract class CollaborationBaseController extends BaseController {
     userId: string,
     userType: 'brand' | 'manufacturer'
   ): Promise<void> {
+    // First, get the workspace to determine if workspaceId is UUID or ObjectId
+    const workspace = await this.collaborationServices.core.workspaceManagement.getWorkspaceById(workspaceId);
+    
+    if (!workspace) {
+      throw {
+        statusCode: 404,
+        message: 'Workspace not found'
+      };
+    }
+
+    // Use the MongoDB _id for access validation
+    const workspaceMongoId = workspace._id.toString();
     const accessResult = await this.collaborationServices.core.connectionValidation.validateWorkspaceAccess(
       new Types.ObjectId(userId),
-      new Types.ObjectId(workspaceId),
+      new Types.ObjectId(workspaceMongoId),
       userType
     );
 
