@@ -35,44 +35,47 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async createThread(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'CREATE_TASK_THREAD');
+      // Direct auth check - throws if not authenticated
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'CREATE_TASK_THREAD');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const input = {
-          workspaceId,
-          createdBy: userId,
-          threadType: req.validatedBody?.threadType || 'task',
-          title: req.validatedBody?.title,
-          description: req.validatedBody?.description,
-          taskDetails: req.validatedBody?.taskDetails ? {
-            assignees: req.validatedBody.taskDetails.assignees || [],
-            dueDate: req.validatedBody.taskDetails.dueDate ? new Date(req.validatedBody.taskDetails.dueDate) : undefined,
-            priority: req.validatedBody.taskDetails.priority || 'medium',
-            estimatedHours: req.validatedBody.taskDetails.estimatedHours,
-            tags: req.validatedBody.taskDetails.tags || [],
-            checklist: req.validatedBody.taskDetails.checklist || [],
-          } : undefined,
-          relatedEntities: req.validatedBody?.relatedEntities || [],
-          visibleToBrand: req.validatedBody?.visibleToBrand !== false,
-          visibleToManufacturer: req.validatedBody?.visibleToManufacturer !== false,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const thread = await this.collaborationServices.features.taskManagement.createThread(input);
+      const input = {
+        workspaceId,
+        createdBy: userId,
+        threadType: req.validatedBody?.threadType || 'task',
+        title: req.validatedBody?.title,
+        description: req.validatedBody?.description,
+        taskDetails: req.validatedBody?.taskDetails ? {
+          assignees: req.validatedBody.taskDetails.assignees || [],
+          dueDate: req.validatedBody.taskDetails.dueDate ? new Date(req.validatedBody.taskDetails.dueDate) : undefined,
+          priority: req.validatedBody.taskDetails.priority || 'medium',
+          estimatedHours: req.validatedBody.taskDetails.estimatedHours,
+          tags: req.validatedBody.taskDetails.tags || [],
+          checklist: req.validatedBody.taskDetails.checklist || [],
+        } : undefined,
+        relatedEntities: req.validatedBody?.relatedEntities || [],
+        visibleToBrand: req.validatedBody?.visibleToBrand !== false,
+        visibleToManufacturer: req.validatedBody?.visibleToManufacturer !== false,
+      };
 
-        this.logAction(req, 'CREATE_TASK_THREAD_SUCCESS', {
-          taskId: thread._id.toString(),
-          workspaceId,
-        });
+      const thread = await this.collaborationServices.features.taskManagement.createThread(input);
 
-        return { task: thread };
+      this.logAction(req, 'CREATE_TASK_THREAD_SUCCESS', {
+        taskId: thread._id.toString(),
+        workspaceId,
       });
+
+      return { task: thread };
     }, res, 'Task thread created successfully', this.getRequestMeta(req));
   }
 
@@ -81,32 +84,34 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async getThreadById(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_TASK_THREAD_BY_ID');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const taskId = req.validatedParams?.taskId;
-        if (!taskId) {
-          throw { statusCode: 400, message: 'Task ID is required' };
-        }
+      this.recordPerformance(req, 'GET_TASK_THREAD_BY_ID');
 
-        const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
+      const taskId = req.validatedParams?.taskId;
+      if (!taskId) {
+        throw { statusCode: 400, message: 'Task ID is required' };
+      }
 
-        if (!thread) {
-          throw { statusCode: 404, message: 'Thread not found' };
-        }
+      const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      if (!thread) {
+        throw { statusCode: 404, message: 'Thread not found' };
+      }
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        this.logAction(req, 'GET_TASK_THREAD_BY_ID_SUCCESS', {
-          taskId,
-        });
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
 
-        return { task: thread };
+      this.logAction(req, 'GET_TASK_THREAD_BY_ID_SUCCESS', {
+        taskId,
       });
+
+      return { task: thread };
     }, res, 'Task thread retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -115,40 +120,42 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async getWorkspaceThreads(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_WORKSPACE_THREADS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_WORKSPACE_THREADS');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const query = req.validatedQuery || {};
-        const isResolvedValue = typeof query.isResolved === 'boolean' 
-          ? query.isResolved 
-          : query.isResolved === 'true' ? true 
-          : query.isResolved === 'false' ? false 
-          : undefined;
-        const options = {
-          threadType: query.threadType,
-          isResolved: isResolvedValue,
-          limit: query.limit ? parseInt(query.limit.toString()) : undefined,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const threads = await this.collaborationServices.features.taskManagement.getWorkspaceThreads(
-          workspaceId,
-          options
-        );
+      const query = req.validatedQuery || {};
+      const isResolvedValue = typeof query.isResolved === 'boolean' 
+        ? query.isResolved 
+        : query.isResolved === 'true' ? true 
+        : query.isResolved === 'false' ? false 
+        : undefined;
+      const options = {
+        threadType: query.threadType,
+        isResolved: isResolvedValue,
+        limit: query.limit ? parseInt(query.limit.toString()) : undefined,
+      };
 
-        this.logAction(req, 'GET_WORKSPACE_THREADS_SUCCESS', {
-          workspaceId,
-          count: threads.length,
-        });
+      const threads = await this.collaborationServices.features.taskManagement.getWorkspaceThreads(
+        workspaceId,
+        options
+      );
 
-        return { tasks: threads };
+      this.logAction(req, 'GET_WORKSPACE_THREADS_SUCCESS', {
+        workspaceId,
+        count: threads.length,
       });
+
+      return { tasks: threads };
     }, res, 'Workspace threads retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -157,45 +164,47 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async getThreads(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_TASK_THREADS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const query = req.validatedQuery || {};
-        const isResolvedValue = typeof query.isResolved === 'boolean' 
-          ? query.isResolved 
-          : query.isResolved === 'true' ? true 
-          : query.isResolved === 'false' ? false 
-          : undefined;
-        const overdueOnlyValue = typeof query.overdueOnly === 'boolean'
-          ? query.overdueOnly
-          : query.overdueOnly === 'true';
-        const filter = {
-          workspaceId: query.workspaceId,
-          threadType: query.threadType,
-          isResolved: isResolvedValue,
-          status: query.status as 'todo' | 'in_progress' | 'review' | 'completed' | 'blocked' | 'cancelled' | undefined,
-          priority: query.priority as 'low' | 'medium' | 'high' | 'critical' | undefined,
-          assignedTo: query.assignedTo,
-          overdueOnly: overdueOnlyValue,
-          page: query.page || 1,
-          limit: query.limit || 20,
-          sortBy: query.sortBy || 'lastActivityAt',
-          sortOrder: query.sortOrder || 'desc',
-          dueDateFrom: query.dueDateFrom ? new Date(query.dueDateFrom) : undefined,
-          dueDateTo: query.dueDateTo ? new Date(query.dueDateTo) : undefined,
-        };
+      this.recordPerformance(req, 'GET_TASK_THREADS');
 
-        const result = await this.collaborationServices.features.taskManagement.getThreads(filter);
+      const query = req.validatedQuery || {};
+      const isResolvedValue = typeof query.isResolved === 'boolean' 
+        ? query.isResolved 
+        : query.isResolved === 'true' ? true 
+        : query.isResolved === 'false' ? false 
+        : undefined;
+      const overdueOnlyValue = typeof query.overdueOnly === 'boolean'
+        ? query.overdueOnly
+        : query.overdueOnly === 'true';
+      const filter = {
+        workspaceId: query.workspaceId,
+        threadType: query.threadType,
+        isResolved: isResolvedValue,
+        status: query.status as 'todo' | 'in_progress' | 'review' | 'completed' | 'blocked' | 'cancelled' | undefined,
+        priority: query.priority as 'low' | 'medium' | 'high' | 'critical' | undefined,
+        assignedTo: query.assignedTo,
+        overdueOnly: overdueOnlyValue,
+        page: query.page || 1,
+        limit: query.limit || 20,
+        sortBy: query.sortBy || 'lastActivityAt',
+        sortOrder: query.sortOrder || 'desc',
+        dueDateFrom: query.dueDateFrom ? new Date(query.dueDateFrom) : undefined,
+        dueDateTo: query.dueDateTo ? new Date(query.dueDateTo) : undefined,
+      };
 
-        this.logAction(req, 'GET_TASK_THREADS_SUCCESS', {
-          count: result.data.length,
-        });
+      const result = await this.collaborationServices.features.taskManagement.getThreads(filter);
 
-        return {
-          tasks: result.data,
-          pagination: result.pagination,
-        };
+      this.logAction(req, 'GET_TASK_THREADS_SUCCESS', {
+        count: result.data.length,
       });
+
+      return {
+        tasks: result.data,
+        pagination: result.pagination,
+      };
     }, res, 'Task threads retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -204,22 +213,24 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async getUserTasks(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_USER_TASKS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const query = req.validatedQuery || {};
-        const status = query.status as 'todo' | 'in_progress' | 'review' | 'completed' | 'blocked' | 'cancelled' | undefined;
+      this.recordPerformance(req, 'GET_USER_TASKS');
 
-        const tasks = await this.collaborationServices.features.taskManagement.getUserTasks(userId, status);
+      const userId = this.resolveUserId(req);
+      const query = req.validatedQuery || {};
+      const status = query.status as 'todo' | 'in_progress' | 'review' | 'completed' | 'blocked' | 'cancelled' | undefined;
 
-        this.logAction(req, 'GET_USER_TASKS_SUCCESS', {
-          userId,
-          count: tasks.length,
-        });
+      const tasks = await this.collaborationServices.features.taskManagement.getUserTasks(userId, status);
 
-        return { tasks };
+      this.logAction(req, 'GET_USER_TASKS_SUCCESS', {
+        userId,
+        count: tasks.length,
       });
+
+      return { tasks };
     }, res, 'User tasks retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -228,44 +239,46 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async updateTaskStatus(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'UPDATE_TASK_STATUS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const taskId = req.validatedParams?.taskId;
-        if (!taskId) {
-          throw { statusCode: 400, message: 'Task ID is required' };
-        }
+      this.recordPerformance(req, 'UPDATE_TASK_STATUS');
 
-        const userId = this.resolveUserId(req);
-        const status = req.validatedBody?.status as 'todo' | 'in_progress' | 'review' | 'completed' | 'blocked' | 'cancelled';
+      const taskId = req.validatedParams?.taskId;
+      if (!taskId) {
+        throw { statusCode: 400, message: 'Task ID is required' };
+      }
 
-        if (!status) {
-          throw { statusCode: 400, message: 'Status is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const status = req.validatedBody?.status as 'todo' | 'in_progress' | 'review' | 'completed' | 'blocked' | 'cancelled';
 
-        // Get thread to check workspace access
-        const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
-        if (!thread) {
-          throw { statusCode: 404, message: 'Thread not found' };
-        }
+      if (!status) {
+        throw { statusCode: 400, message: 'Status is required' };
+      }
 
-        const userType = this.resolveUserType(req);
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
+      // Get thread to check workspace access
+      const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
+      if (!thread) {
+        throw { statusCode: 404, message: 'Thread not found' };
+      }
 
-        const updatedThread = await this.collaborationServices.features.taskManagement.updateTaskStatus(
-          taskId,
-          status,
-          userId
-        );
+      const userType = this.resolveUserType(req);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
 
-        this.logAction(req, 'UPDATE_TASK_STATUS_SUCCESS', {
-          taskId,
-          status,
-        });
+      const updatedThread = await this.collaborationServices.features.taskManagement.updateTaskStatus(
+        taskId,
+        status,
+        userId
+      );
 
-        return { task: updatedThread };
+      this.logAction(req, 'UPDATE_TASK_STATUS_SUCCESS', {
+        taskId,
+        status,
       });
+
+      return { task: updatedThread };
     }, res, 'Task status updated successfully', this.getRequestMeta(req));
   }
 
@@ -274,43 +287,45 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async addComment(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'ADD_TASK_COMMENT');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const taskId = req.validatedParams?.taskId;
-        if (!taskId) {
-          throw { statusCode: 400, message: 'Task ID is required' };
-        }
+      this.recordPerformance(req, 'ADD_TASK_COMMENT');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const taskId = req.validatedParams?.taskId;
+      if (!taskId) {
+        throw { statusCode: 400, message: 'Task ID is required' };
+      }
 
-        // Get thread to check workspace access
-        const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
-        if (!thread) {
-          throw { statusCode: 404, message: 'Thread not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
+      // Get thread to check workspace access
+      const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
+      if (!thread) {
+        throw { statusCode: 404, message: 'Thread not found' };
+      }
 
-        const commentData = {
-          userId,
-          userType,
-          message: req.validatedBody?.message || req.validatedBody?.comment,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
 
-        const updatedThread = await this.collaborationServices.features.taskManagement.addComment(
-          taskId,
-          commentData
-        );
+      const commentData = {
+        userId,
+        userType,
+        message: req.validatedBody?.message || req.validatedBody?.comment,
+      };
 
-        this.logAction(req, 'ADD_TASK_COMMENT_SUCCESS', {
-          taskId,
-        });
+      const updatedThread = await this.collaborationServices.features.taskManagement.addComment(
+        taskId,
+        commentData
+      );
 
-        return { task: updatedThread };
+      this.logAction(req, 'ADD_TASK_COMMENT_SUCCESS', {
+        taskId,
       });
+
+      return { task: updatedThread };
     }, res, 'Comment added successfully', this.getRequestMeta(req));
   }
 
@@ -319,48 +334,50 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async addParticipant(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'ADD_TASK_PARTICIPANT');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const taskId = req.validatedParams?.taskId;
-        if (!taskId) {
-          throw { statusCode: 400, message: 'Task ID is required' };
-        }
+      this.recordPerformance(req, 'ADD_TASK_PARTICIPANT');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const taskId = req.validatedParams?.taskId;
+      if (!taskId) {
+        throw { statusCode: 400, message: 'Task ID is required' };
+      }
 
-        // Get thread to check workspace access
-        const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
-        if (!thread) {
-          throw { statusCode: 404, message: 'Thread not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
+      // Get thread to check workspace access
+      const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
+      if (!thread) {
+        throw { statusCode: 404, message: 'Thread not found' };
+      }
 
-        const participantUserId = req.validatedBody?.userId;
-        const participantUserType = req.validatedBody?.userType || userType;
-        const role = req.validatedBody?.role || 'commenter';
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
 
-        if (!participantUserId) {
-          throw { statusCode: 400, message: 'Participant user ID is required' };
-        }
+      const participantUserId = req.validatedBody?.userId;
+      const participantUserType = req.validatedBody?.userType || userType;
+      const role = req.validatedBody?.role || 'commenter';
 
-        const updatedThread = await this.collaborationServices.features.taskManagement.addParticipant(
-          taskId,
-          participantUserId,
-          participantUserType,
-          role
-        );
+      if (!participantUserId) {
+        throw { statusCode: 400, message: 'Participant user ID is required' };
+      }
 
-        this.logAction(req, 'ADD_TASK_PARTICIPANT_SUCCESS', {
-          taskId,
-          participantUserId,
-        });
+      const updatedThread = await this.collaborationServices.features.taskManagement.addParticipant(
+        taskId,
+        participantUserId,
+        participantUserType,
+        role
+      );
 
-        return { task: updatedThread };
+      this.logAction(req, 'ADD_TASK_PARTICIPANT_SUCCESS', {
+        taskId,
+        participantUserId,
       });
+
+      return { task: updatedThread };
     }, res, 'Participant added successfully', this.getRequestMeta(req));
   }
 
@@ -369,37 +386,39 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async resolveThread(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'RESOLVE_TASK_THREAD');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const taskId = req.validatedParams?.taskId;
-        if (!taskId) {
-          throw { statusCode: 400, message: 'Task ID is required' };
-        }
+      this.recordPerformance(req, 'RESOLVE_TASK_THREAD');
 
-        const userId = this.resolveUserId(req);
+      const taskId = req.validatedParams?.taskId;
+      if (!taskId) {
+        throw { statusCode: 400, message: 'Task ID is required' };
+      }
 
-        // Get thread to check workspace access
-        const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
-        if (!thread) {
-          throw { statusCode: 404, message: 'Thread not found' };
-        }
+      const userId = this.resolveUserId(req);
 
-        const userType = this.resolveUserType(req);
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
+      // Get thread to check workspace access
+      const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
+      if (!thread) {
+        throw { statusCode: 404, message: 'Thread not found' };
+      }
 
-        const updatedThread = await this.collaborationServices.features.taskManagement.resolveThread(
-          taskId,
-          userId
-        );
+      const userType = this.resolveUserType(req);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
 
-        this.logAction(req, 'RESOLVE_TASK_THREAD_SUCCESS', {
-          taskId,
-        });
+      const updatedThread = await this.collaborationServices.features.taskManagement.resolveThread(
+        taskId,
+        userId
+      );
 
-        return { task: updatedThread };
+      this.logAction(req, 'RESOLVE_TASK_THREAD_SUCCESS', {
+        taskId,
       });
+
+      return { task: updatedThread };
     }, res, 'Thread resolved successfully', this.getRequestMeta(req));
   }
 
@@ -408,41 +427,43 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async toggleChecklistItem(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'TOGGLE_CHECKLIST_ITEM');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const taskId = req.validatedParams?.taskId;
-        const itemId = req.validatedParams?.itemId || req.validatedBody?.itemId;
+      this.recordPerformance(req, 'TOGGLE_CHECKLIST_ITEM');
 
-        if (!taskId || !itemId) {
-          throw { statusCode: 400, message: 'Task ID and item ID are required' };
-        }
+      const taskId = req.validatedParams?.taskId;
+      const itemId = req.validatedParams?.itemId || req.validatedBody?.itemId;
 
-        const userId = this.resolveUserId(req);
+      if (!taskId || !itemId) {
+        throw { statusCode: 400, message: 'Task ID and item ID are required' };
+      }
 
-        // Get thread to check workspace access
-        const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
-        if (!thread) {
-          throw { statusCode: 404, message: 'Thread not found' };
-        }
+      const userId = this.resolveUserId(req);
 
-        const userType = this.resolveUserType(req);
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
+      // Get thread to check workspace access
+      const thread = await this.collaborationServices.features.taskManagement.getThreadById(taskId);
+      if (!thread) {
+        throw { statusCode: 404, message: 'Thread not found' };
+      }
 
-        const updatedThread = await this.collaborationServices.features.taskManagement.toggleChecklistItem(
-          taskId,
-          itemId,
-          userId
-        );
+      const userType = this.resolveUserType(req);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, thread.workspaceId.toString(), userId, userType);
 
-        this.logAction(req, 'TOGGLE_CHECKLIST_ITEM_SUCCESS', {
-          taskId,
-          itemId,
-        });
+      const updatedThread = await this.collaborationServices.features.taskManagement.toggleChecklistItem(
+        taskId,
+        itemId,
+        userId
+      );
 
-        return { task: updatedThread };
+      this.logAction(req, 'TOGGLE_CHECKLIST_ITEM_SUCCESS', {
+        taskId,
+        itemId,
       });
+
+      return { task: updatedThread };
     }, res, 'Checklist item toggled successfully', this.getRequestMeta(req));
   }
 
@@ -451,21 +472,23 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async getOverdueTasks(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_OVERDUE_TASKS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const query = req.validatedQuery || {};
-        const workspaceId = query.workspaceId;
+      this.recordPerformance(req, 'GET_OVERDUE_TASKS');
 
-        const tasks = await this.collaborationServices.features.taskManagement.getOverdueTasks(workspaceId);
+      const query = req.validatedQuery || {};
+      const workspaceId = query.workspaceId;
 
-        this.logAction(req, 'GET_OVERDUE_TASKS_SUCCESS', {
-          workspaceId,
-          count: tasks.length,
-        });
+      const tasks = await this.collaborationServices.features.taskManagement.getOverdueTasks(workspaceId);
 
-        return { tasks };
+      this.logAction(req, 'GET_OVERDUE_TASKS_SUCCESS', {
+        workspaceId,
+        count: tasks.length,
       });
+
+      return { tasks };
     }, res, 'Overdue tasks retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -474,27 +497,28 @@ export class CollaborationTaskController extends CollaborationBaseController {
    */
   async getThreadStats(req: TaskRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_THREAD_STATS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_THREAD_STATS');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const stats = await this.collaborationServices.features.taskManagement.getThreadStats(workspaceId);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        this.logAction(req, 'GET_THREAD_STATS_SUCCESS', {
-          workspaceId,
-        });
+      const stats = await this.collaborationServices.features.taskManagement.getThreadStats(workspaceId);
 
-        return { stats };
+      this.logAction(req, 'GET_THREAD_STATS_SUCCESS', {
+        workspaceId,
       });
+
+      return { stats };
     }, res, 'Thread statistics retrieved successfully', this.getRequestMeta(req));
   }
 }
 
 export const collaborationTaskController = new CollaborationTaskController();
-

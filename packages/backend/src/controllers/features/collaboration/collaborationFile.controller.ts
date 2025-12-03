@@ -33,40 +33,43 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async uploadFile(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'UPLOAD_FILE');
+      // Direct auth check - throws if not authenticated
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'UPLOAD_FILE');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const input = {
-          workspaceId,
-          uploadedBy: userId,
-          fileName: req.validatedBody?.fileName,
-          fileCategory: req.validatedBody?.fileCategory,
-          fileSize: req.validatedBody?.fileSize,
-          mimeType: req.validatedBody?.mimeType,
-          s3Key: req.validatedBody?.s3Key,
-          s3Url: req.validatedBody?.s3Url,
-          description: req.validatedBody?.description,
-          tags: req.validatedBody?.tags || [],
-          requiresApproval: req.validatedBody?.requiresApproval || false,
-          designMetadata: req.validatedBody?.designMetadata,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const file = await this.collaborationServices.features.fileManagement.uploadFile(input);
+      const input = {
+        workspaceId,
+        uploadedBy: userId,
+        fileName: req.validatedBody?.fileName,
+        fileCategory: req.validatedBody?.fileCategory,
+        fileSize: req.validatedBody?.fileSize,
+        mimeType: req.validatedBody?.mimeType,
+        s3Key: req.validatedBody?.s3Key,
+        s3Url: req.validatedBody?.s3Url,
+        description: req.validatedBody?.description,
+        tags: req.validatedBody?.tags || [],
+        requiresApproval: req.validatedBody?.requiresApproval || false,
+        designMetadata: req.validatedBody?.designMetadata,
+      };
 
-        this.logAction(req, 'UPLOAD_FILE_SUCCESS', {
-          fileId: file._id.toString(),
-          workspaceId,
-        });
+      const file = await this.collaborationServices.features.fileManagement.uploadFile(input);
 
-        return { file };
+      this.logAction(req, 'UPLOAD_FILE_SUCCESS', {
+        fileId: file._id.toString(),
+        workspaceId,
       });
+
+      return { file };
     }, res, 'File uploaded successfully', this.getRequestMeta(req));
   }
 
@@ -75,32 +78,34 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async getFileById(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_FILE_BY_ID');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      this.recordPerformance(req, 'GET_FILE_BY_ID');
 
-        const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      const fileId = req.validatedParams?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        if (!file) {
-          throw { statusCode: 404, message: 'File not found' };
-        }
+      const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      if (!file) {
+        throw { statusCode: 404, message: 'File not found' };
+      }
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        this.logAction(req, 'GET_FILE_BY_ID_SUCCESS', {
-          fileId,
-        });
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
 
-        return { file };
+      this.logAction(req, 'GET_FILE_BY_ID_SUCCESS', {
+        fileId,
       });
+
+      return { file };
     }, res, 'File retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -109,38 +114,40 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async getWorkspaceFiles(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_WORKSPACE_FILES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_WORKSPACE_FILES');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const query = req.validatedQuery || {};
-        const latestOnlyValue = typeof query.latestOnly === 'boolean'
-          ? query.latestOnly
-          : query.latestOnly === 'true';
-        const options = {
-          category: query.category,
-          latestOnly: latestOnlyValue,
-          limit: query.limit ? parseInt(query.limit.toString()) : undefined,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const files = await this.collaborationServices.features.fileManagement.getWorkspaceFiles(
-          workspaceId,
-          options
-        );
+      const query = req.validatedQuery || {};
+      const latestOnlyValue = typeof query.latestOnly === 'boolean'
+        ? query.latestOnly
+        : query.latestOnly === 'true';
+      const options = {
+        category: query.category,
+        latestOnly: latestOnlyValue,
+        limit: query.limit ? parseInt(query.limit.toString()) : undefined,
+      };
 
-        this.logAction(req, 'GET_WORKSPACE_FILES_SUCCESS', {
-          workspaceId,
-          count: files.length,
-        });
+      const files = await this.collaborationServices.features.fileManagement.getWorkspaceFiles(
+        workspaceId,
+        options
+      );
 
-        return { files };
+      this.logAction(req, 'GET_WORKSPACE_FILES_SUCCESS', {
+        workspaceId,
+        count: files.length,
       });
+
+      return { files };
     }, res, 'Workspace files retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -149,38 +156,40 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async getFiles(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_FILES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const query = req.validatedQuery || {};
-        const latestOnlyValue = typeof query.latestOnly === 'boolean'
-          ? query.latestOnly
-          : query.latestOnly === 'true';
-        const filter = {
-          workspaceId: query.workspaceId,
-          fileCategory: query.category as 'design' | 'technical_spec' | 'sample_photo' | 'production_photo' | 'contract' | 'certificate' | 'other' | undefined,
-          approvalStatus: query.approvalStatus as 'pending' | 'approved' | 'rejected' | 'needs_changes' | undefined,
-          uploadedBy: query.uploadedBy,
-          tags: query.tags,
-          latestVersionsOnly: latestOnlyValue,
-          excludeDeleted: true,
-          page: query.page || 1,
-          limit: query.limit || 20,
-          sortBy: query.sortBy || 'uploadedAt',
-          sortOrder: query.sortOrder || 'desc',
-        };
+      this.recordPerformance(req, 'GET_FILES');
 
-        const result = await this.collaborationServices.features.fileManagement.getFiles(filter);
+      const query = req.validatedQuery || {};
+      const latestOnlyValue = typeof query.latestOnly === 'boolean'
+        ? query.latestOnly
+        : query.latestOnly === 'true';
+      const filter = {
+        workspaceId: query.workspaceId,
+        fileCategory: query.category as 'design' | 'technical_spec' | 'sample_photo' | 'production_photo' | 'contract' | 'certificate' | 'other' | undefined,
+        approvalStatus: query.approvalStatus as 'pending' | 'approved' | 'rejected' | 'needs_changes' | undefined,
+        uploadedBy: query.uploadedBy,
+        tags: query.tags,
+        latestVersionsOnly: latestOnlyValue,
+        excludeDeleted: true,
+        page: query.page || 1,
+        limit: query.limit || 20,
+        sortBy: query.sortBy || 'uploadedAt',
+        sortOrder: query.sortOrder || 'desc',
+      };
 
-        this.logAction(req, 'GET_FILES_SUCCESS', {
-          count: result.data.length,
-        });
+      const result = await this.collaborationServices.features.fileManagement.getFiles(filter);
 
-        return {
-          files: result.data,
-          pagination: result.pagination,
-        };
+      this.logAction(req, 'GET_FILES_SUCCESS', {
+        count: result.data.length,
       });
+
+      return {
+        files: result.data,
+        pagination: result.pagination,
+      };
     }, res, 'Files retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -189,52 +198,54 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async createNewVersion(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'CREATE_FILE_VERSION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      this.recordPerformance(req, 'CREATE_FILE_VERSION');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const fileId = req.validatedParams?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        // Get parent file to check workspace access
-        const parentFile = await this.collaborationServices.features.fileManagement.getFileById(fileId);
-        if (!parentFile) {
-          throw { statusCode: 404, message: 'Parent file not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, parentFile.workspaceId.toString(), userId, userType);
+      // Get parent file to check workspace access
+      const parentFile = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      if (!parentFile) {
+        throw { statusCode: 404, message: 'Parent file not found' };
+      }
 
-        const input = {
-          uploadedBy: userId,
-          fileName: req.validatedBody?.fileName,
-          fileCategory: req.validatedBody?.fileCategory,
-          fileSize: req.validatedBody?.fileSize,
-          mimeType: req.validatedBody?.mimeType,
-          s3Key: req.validatedBody?.s3Key,
-          s3Url: req.validatedBody?.s3Url,
-          description: req.validatedBody?.description,
-          tags: req.validatedBody?.tags,
-          requiresApproval: req.validatedBody?.requiresApproval || false,
-          designMetadata: req.validatedBody?.designMetadata,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, parentFile.workspaceId.toString(), userId, userType);
 
-        const newVersion = await this.collaborationServices.features.fileManagement.createNewVersion(
-          fileId,
-          input
-        );
+      const input = {
+        uploadedBy: userId,
+        fileName: req.validatedBody?.fileName,
+        fileCategory: req.validatedBody?.fileCategory,
+        fileSize: req.validatedBody?.fileSize,
+        mimeType: req.validatedBody?.mimeType,
+        s3Key: req.validatedBody?.s3Key,
+        s3Url: req.validatedBody?.s3Url,
+        description: req.validatedBody?.description,
+        tags: req.validatedBody?.tags,
+        requiresApproval: req.validatedBody?.requiresApproval || false,
+        designMetadata: req.validatedBody?.designMetadata,
+      };
 
-        this.logAction(req, 'CREATE_FILE_VERSION_SUCCESS', {
-          fileId,
-          newVersionId: newVersion._id.toString(),
-        });
+      const newVersion = await this.collaborationServices.features.fileManagement.createNewVersion(
+        fileId,
+        input
+      );
 
-        return { file: newVersion };
+      this.logAction(req, 'CREATE_FILE_VERSION_SUCCESS', {
+        fileId,
+        newVersionId: newVersion._id.toString(),
       });
+
+      return { file: newVersion };
     }, res, 'File version created successfully', this.getRequestMeta(req));
   }
 
@@ -243,45 +254,47 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async addAnnotation(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'ADD_FILE_ANNOTATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      this.recordPerformance(req, 'ADD_FILE_ANNOTATION');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const fileId = req.validatedParams?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        // Get file to check workspace access
-        const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
-        if (!file) {
-          throw { statusCode: 404, message: 'File not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
+      // Get file to check workspace access
+      const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      if (!file) {
+        throw { statusCode: 404, message: 'File not found' };
+      }
 
-        const annotationData = {
-          userId,
-          userType,
-          coordinates: req.validatedBody?.coordinates || req.validatedBody?.position,
-          comment: req.validatedBody?.comment || req.validatedBody?.content,
-          category: req.validatedBody?.category,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
 
-        const updatedFile = await this.collaborationServices.features.fileManagement.addAnnotation(
-          fileId,
-          annotationData
-        );
+      const annotationData = {
+        userId,
+        userType,
+        coordinates: req.validatedBody?.coordinates || req.validatedBody?.position,
+        comment: req.validatedBody?.comment || req.validatedBody?.content,
+        category: req.validatedBody?.category,
+      };
 
-        this.logAction(req, 'ADD_FILE_ANNOTATION_SUCCESS', {
-          fileId,
-        });
+      const updatedFile = await this.collaborationServices.features.fileManagement.addAnnotation(
+        fileId,
+        annotationData
+      );
 
-        return { file: updatedFile };
+      this.logAction(req, 'ADD_FILE_ANNOTATION_SUCCESS', {
+        fileId,
       });
+
+      return { file: updatedFile };
     }, res, 'Annotation added successfully', this.getRequestMeta(req));
   }
 
@@ -290,41 +303,43 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async resolveAnnotation(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'RESOLVE_FILE_ANNOTATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        const annotationId = req.validatedParams?.annotationId || req.validatedBody?.annotationId;
+      this.recordPerformance(req, 'RESOLVE_FILE_ANNOTATION');
 
-        if (!fileId || !annotationId) {
-          throw { statusCode: 400, message: 'File ID and annotation ID are required' };
-        }
+      const fileId = req.validatedParams?.fileId;
+      const annotationId = req.validatedParams?.annotationId || req.validatedBody?.annotationId;
 
-        const userId = this.resolveUserId(req);
+      if (!fileId || !annotationId) {
+        throw { statusCode: 400, message: 'File ID and annotation ID are required' };
+      }
 
-        // Get file to check workspace access
-        const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
-        if (!file) {
-          throw { statusCode: 404, message: 'File not found' };
-        }
+      const userId = this.resolveUserId(req);
 
-        const userType = this.resolveUserType(req);
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
+      // Get file to check workspace access
+      const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      if (!file) {
+        throw { statusCode: 404, message: 'File not found' };
+      }
 
-        const updatedFile = await this.collaborationServices.features.fileManagement.resolveAnnotation(
-          fileId,
-          annotationId,
-          userId
-        );
+      const userType = this.resolveUserType(req);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
 
-        this.logAction(req, 'RESOLVE_FILE_ANNOTATION_SUCCESS', {
-          fileId,
-          annotationId,
-        });
+      const updatedFile = await this.collaborationServices.features.fileManagement.resolveAnnotation(
+        fileId,
+        annotationId,
+        userId
+      );
 
-        return { file: updatedFile };
+      this.logAction(req, 'RESOLVE_FILE_ANNOTATION_SUCCESS', {
+        fileId,
+        annotationId,
       });
+
+      return { file: updatedFile };
     }, res, 'Annotation resolved successfully', this.getRequestMeta(req));
   }
 
@@ -333,41 +348,43 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async approveFile(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'APPROVE_FILE');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      this.recordPerformance(req, 'APPROVE_FILE');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const fileId = req.validatedParams?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        // Get file to check workspace access
-        const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
-        if (!file) {
-          throw { statusCode: 404, message: 'File not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
+      // Get file to check workspace access
+      const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      if (!file) {
+        throw { statusCode: 404, message: 'File not found' };
+      }
 
-        const comments = req.validatedBody?.comments;
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
 
-        const updatedFile = await this.collaborationServices.features.fileManagement.approveFile(
-          fileId,
-          userId,
-          userType,
-          comments
-        );
+      const comments = req.validatedBody?.comments;
 
-        this.logAction(req, 'APPROVE_FILE_SUCCESS', {
-          fileId,
-        });
+      const updatedFile = await this.collaborationServices.features.fileManagement.approveFile(
+        fileId,
+        userId,
+        userType,
+        comments
+      );
 
-        return { file: updatedFile };
+      this.logAction(req, 'APPROVE_FILE_SUCCESS', {
+        fileId,
       });
+
+      return { file: updatedFile };
     }, res, 'File approved successfully', this.getRequestMeta(req));
   }
 
@@ -376,44 +393,46 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async rejectFile(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'REJECT_FILE');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      this.recordPerformance(req, 'REJECT_FILE');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const fileId = req.validatedParams?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        // Get file to check workspace access
-        const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
-        if (!file) {
-          throw { statusCode: 404, message: 'File not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
+      // Get file to check workspace access
+      const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      if (!file) {
+        throw { statusCode: 404, message: 'File not found' };
+      }
 
-        const reason = req.validatedBody?.reason || req.validatedBody?.comments;
-        if (!reason) {
-          throw { statusCode: 400, message: 'Rejection reason is required' };
-        }
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
 
-        const updatedFile = await this.collaborationServices.features.fileManagement.rejectFile(
-          fileId,
-          userId,
-          userType,
-          reason
-        );
+      const reason = req.validatedBody?.reason || req.validatedBody?.comments;
+      if (!reason) {
+        throw { statusCode: 400, message: 'Rejection reason is required' };
+      }
 
-        this.logAction(req, 'REJECT_FILE_SUCCESS', {
-          fileId,
-        });
+      const updatedFile = await this.collaborationServices.features.fileManagement.rejectFile(
+        fileId,
+        userId,
+        userType,
+        reason
+      );
 
-        return { file: updatedFile };
+      this.logAction(req, 'REJECT_FILE_SUCCESS', {
+        fileId,
       });
+
+      return { file: updatedFile };
     }, res, 'File rejected successfully', this.getRequestMeta(req));
   }
 
@@ -422,37 +441,39 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async deleteFile(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'DELETE_FILE');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const fileId = req.validatedParams?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      this.recordPerformance(req, 'DELETE_FILE');
 
-        const userId = this.resolveUserId(req);
+      const fileId = req.validatedParams?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        // Get file to check workspace access
-        const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
-        if (!file) {
-          throw { statusCode: 404, message: 'File not found' };
-        }
+      const userId = this.resolveUserId(req);
 
-        const userType = this.resolveUserType(req);
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
+      // Get file to check workspace access
+      const file = await this.collaborationServices.features.fileManagement.getFileById(fileId);
+      if (!file) {
+        throw { statusCode: 404, message: 'File not found' };
+      }
 
-        const deletedFile = await this.collaborationServices.features.fileManagement.deleteFile(
-          fileId,
-          userId
-        );
+      const userType = this.resolveUserType(req);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, file.workspaceId.toString(), userId, userType);
 
-        this.logAction(req, 'DELETE_FILE_SUCCESS', {
-          fileId,
-        });
+      const deletedFile = await this.collaborationServices.features.fileManagement.deleteFile(
+        fileId,
+        userId
+      );
 
-        return { file: deletedFile };
+      this.logAction(req, 'DELETE_FILE_SUCCESS', {
+        fileId,
       });
+
+      return { file: deletedFile };
     }, res, 'File deleted successfully', this.getRequestMeta(req));
   }
 
@@ -461,25 +482,27 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async getPendingApprovals(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_PENDING_APPROVALS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_PENDING_APPROVALS');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const files = await this.collaborationServices.features.fileManagement.getPendingApprovals(workspaceId);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        this.logAction(req, 'GET_PENDING_APPROVALS_SUCCESS', {
-          workspaceId,
-          count: files.length,
-        });
+      const files = await this.collaborationServices.features.fileManagement.getPendingApprovals(workspaceId);
 
-        return { files };
+      this.logAction(req, 'GET_PENDING_APPROVALS_SUCCESS', {
+        workspaceId,
+        count: files.length,
       });
+
+      return { files };
     }, res, 'Pending approvals retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -488,27 +511,28 @@ export class CollaborationFileController extends CollaborationBaseController {
    */
   async getFileStats(req: FileRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_FILE_STATS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_FILE_STATS');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const stats = await this.collaborationServices.features.fileManagement.getFileStats(workspaceId);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        this.logAction(req, 'GET_FILE_STATS_SUCCESS', {
-          workspaceId,
-        });
+      const stats = await this.collaborationServices.features.fileManagement.getFileStats(workspaceId);
 
-        return { stats };
+      this.logAction(req, 'GET_FILE_STATS_SUCCESS', {
+        workspaceId,
       });
+
+      return { stats };
     }, res, 'File statistics retrieved successfully', this.getRequestMeta(req));
   }
 }
 
 export const collaborationFileController = new CollaborationFileController();
-

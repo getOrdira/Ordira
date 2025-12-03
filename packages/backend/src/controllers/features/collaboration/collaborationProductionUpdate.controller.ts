@@ -32,44 +32,47 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async createUpdate(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'CREATE_PRODUCTION_UPDATE');
+      // Direct auth check - throws if not authenticated
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'CREATE_PRODUCTION_UPDATE');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // For production updates, manufacturerId should come from workspace or be the current user's manufacturer
-        const manufacturerId = req.manufacturerId || this.resolveManufacturerId(req);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const input = {
-          workspaceId,
-          manufacturerId,
-          createdBy: userId,
-          title: req.validatedBody?.title,
-          message: req.validatedBody?.message,
-          updateType: req.validatedBody?.updateType || 'general',
-          currentStatus: req.validatedBody?.currentStatus,
-          completionPercentage: req.validatedBody?.completionPercentage,
-          milestoneReached: req.validatedBody?.milestoneReached,
-          delayInfo: req.validatedBody?.delayInfo,
-          photos: req.validatedBody?.photos || [],
-          videos: req.validatedBody?.videos || [],
-          recipientIds: req.validatedBody?.recipientIds || [],
-        };
+      // For production updates, manufacturerId should come from workspace or be the current user's manufacturer
+      const manufacturerId = req.manufacturerId || this.resolveManufacturerId(req);
 
-        const update = await this.collaborationServices.features.productionUpdates.createUpdate(input);
+      const input = {
+        workspaceId,
+        manufacturerId,
+        createdBy: userId,
+        title: req.validatedBody?.title,
+        message: req.validatedBody?.message,
+        updateType: req.validatedBody?.updateType || 'general',
+        currentStatus: req.validatedBody?.currentStatus,
+        completionPercentage: req.validatedBody?.completionPercentage,
+        milestoneReached: req.validatedBody?.milestoneReached,
+        delayInfo: req.validatedBody?.delayInfo,
+        photos: req.validatedBody?.photos || [],
+        videos: req.validatedBody?.videos || [],
+        recipientIds: req.validatedBody?.recipientIds || [],
+      };
 
-        this.logAction(req, 'CREATE_PRODUCTION_UPDATE_SUCCESS', {
-          updateId: update._id.toString(),
-          workspaceId,
-        });
+      const update = await this.collaborationServices.features.productionUpdates.createUpdate(input);
 
-        return { update };
+      this.logAction(req, 'CREATE_PRODUCTION_UPDATE_SUCCESS', {
+        updateId: update._id.toString(),
+        workspaceId,
       });
+
+      return { update };
     }, res, 'Production update created successfully', this.getRequestMeta(req));
   }
 
@@ -78,32 +81,34 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async getUpdateById(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_PRODUCTION_UPDATE_BY_ID');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const updateId = req.validatedParams?.updateId;
-        if (!updateId) {
-          throw { statusCode: 400, message: 'Update ID is required' };
-        }
+      this.recordPerformance(req, 'GET_PRODUCTION_UPDATE_BY_ID');
 
-        const update = await this.collaborationServices.features.productionUpdates.getUpdateById(updateId);
+      const updateId = req.validatedParams?.updateId;
+      if (!updateId) {
+        throw { statusCode: 400, message: 'Update ID is required' };
+      }
 
-        if (!update) {
-          throw { statusCode: 404, message: 'Update not found' };
-        }
+      const update = await this.collaborationServices.features.productionUpdates.getUpdateById(updateId);
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      if (!update) {
+        throw { statusCode: 404, message: 'Update not found' };
+      }
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, update.workspaceId.toString(), userId, userType);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        this.logAction(req, 'GET_PRODUCTION_UPDATE_BY_ID_SUCCESS', {
-          updateId,
-        });
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, update.workspaceId.toString(), userId, userType);
 
-        return { update };
+      this.logAction(req, 'GET_PRODUCTION_UPDATE_BY_ID_SUCCESS', {
+        updateId,
       });
+
+      return { update };
     }, res, 'Production update retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -112,34 +117,36 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async getWorkspaceUpdates(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_WORKSPACE_UPDATES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_WORKSPACE_UPDATES');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const query = req.validatedQuery || {};
-        const options = {
-          limit: query.limit ? parseInt(query.limit.toString()) : undefined,
-          updateType: query.updateType,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        const updates = await this.collaborationServices.features.productionUpdates.getWorkspaceUpdates(
-          workspaceId,
-          options
-        );
+      const query = req.validatedQuery || {};
+      const options = {
+        limit: query.limit ? parseInt(query.limit.toString()) : undefined,
+        updateType: query.updateType,
+      };
 
-        this.logAction(req, 'GET_WORKSPACE_UPDATES_SUCCESS', {
-          workspaceId,
-          count: updates.length,
-        });
+      const updates = await this.collaborationServices.features.productionUpdates.getWorkspaceUpdates(
+        workspaceId,
+        options
+      );
 
-        return { updates };
+      this.logAction(req, 'GET_WORKSPACE_UPDATES_SUCCESS', {
+        workspaceId,
+        count: updates.length,
       });
+
+      return { updates };
     }, res, 'Workspace updates retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -148,37 +155,39 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async getUpdates(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_PRODUCTION_UPDATES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const query = req.validatedQuery || {};
-        const unviewedOnlyValue = typeof query.unviewedOnly === 'boolean'
-          ? query.unviewedOnly
-          : query.unviewedOnly === 'true';
-        const filter = {
-          workspaceId: query.workspaceId,
-          manufacturerId: query.manufacturerId,
-          updateType: query.updateType as 'status' | 'milestone' | 'delay' | 'quality' | 'general' | undefined,
-          unviewedOnly: unviewedOnlyValue,
-          page: query.page || 1,
-          limit: query.limit || 20,
-          sortBy: query.sortBy || 'createdAt',
-          sortOrder: query.sortOrder || 'desc',
-          dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
-          dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
-        };
+      this.recordPerformance(req, 'GET_PRODUCTION_UPDATES');
 
-        const result = await this.collaborationServices.features.productionUpdates.getUpdates(filter);
+      const query = req.validatedQuery || {};
+      const unviewedOnlyValue = typeof query.unviewedOnly === 'boolean'
+        ? query.unviewedOnly
+        : query.unviewedOnly === 'true';
+      const filter = {
+        workspaceId: query.workspaceId,
+        manufacturerId: query.manufacturerId,
+        updateType: query.updateType as 'status' | 'milestone' | 'delay' | 'quality' | 'general' | undefined,
+        unviewedOnly: unviewedOnlyValue,
+        page: query.page || 1,
+        limit: query.limit || 20,
+        sortBy: query.sortBy || 'createdAt',
+        sortOrder: query.sortOrder || 'desc',
+        dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+        dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+      };
 
-        this.logAction(req, 'GET_PRODUCTION_UPDATES_SUCCESS', {
-          count: result.data.length,
-        });
+      const result = await this.collaborationServices.features.productionUpdates.getUpdates(filter);
 
-        return {
-          updates: result.data,
-          pagination: result.pagination,
-        };
+      this.logAction(req, 'GET_PRODUCTION_UPDATES_SUCCESS', {
+        count: result.data.length,
       });
+
+      return {
+        updates: result.data,
+        pagination: result.pagination,
+      };
     }, res, 'Production updates retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -187,34 +196,36 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async markAsViewed(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'MARK_UPDATE_AS_VIEWED');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const updateId = req.validatedParams?.updateId;
-        if (!updateId) {
-          throw { statusCode: 400, message: 'Update ID is required' };
-        }
+      this.recordPerformance(req, 'MARK_UPDATE_AS_VIEWED');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const updateId = req.validatedParams?.updateId;
+      if (!updateId) {
+        throw { statusCode: 400, message: 'Update ID is required' };
+      }
 
-        // Get update to check workspace access
-        const update = await this.collaborationServices.features.productionUpdates.getUpdateById(updateId);
-        if (!update) {
-          throw { statusCode: 404, message: 'Update not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, update.workspaceId.toString(), userId, userType);
+      // Get update to check workspace access
+      const update = await this.collaborationServices.features.productionUpdates.getUpdateById(updateId);
+      if (!update) {
+        throw { statusCode: 404, message: 'Update not found' };
+      }
 
-        await this.collaborationServices.features.productionUpdates.markAsViewed(updateId, userId, userType);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, update.workspaceId.toString(), userId, userType);
 
-        this.logAction(req, 'MARK_UPDATE_AS_VIEWED_SUCCESS', {
-          updateId,
-        });
+      await this.collaborationServices.features.productionUpdates.markAsViewed(updateId, userId, userType);
 
-        return { success: true };
+      this.logAction(req, 'MARK_UPDATE_AS_VIEWED_SUCCESS', {
+        updateId,
       });
+
+      return { success: true };
     }, res, 'Update marked as viewed successfully', this.getRequestMeta(req));
   }
 
@@ -223,43 +234,45 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async addComment(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'ADD_UPDATE_COMMENT');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const updateId = req.validatedParams?.updateId;
-        if (!updateId) {
-          throw { statusCode: 400, message: 'Update ID is required' };
-        }
+      this.recordPerformance(req, 'ADD_UPDATE_COMMENT');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const updateId = req.validatedParams?.updateId;
+      if (!updateId) {
+        throw { statusCode: 400, message: 'Update ID is required' };
+      }
 
-        // Get update to check workspace access
-        const update = await this.collaborationServices.features.productionUpdates.getUpdateById(updateId);
-        if (!update) {
-          throw { statusCode: 404, message: 'Update not found' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, update.workspaceId.toString(), userId, userType);
+      // Get update to check workspace access
+      const update = await this.collaborationServices.features.productionUpdates.getUpdateById(updateId);
+      if (!update) {
+        throw { statusCode: 404, message: 'Update not found' };
+      }
 
-        const commentData = {
-          userId,
-          userType,
-          message: req.validatedBody?.message || req.validatedBody?.comment,
-        };
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, update.workspaceId.toString(), userId, userType);
 
-        const updatedUpdate = await this.collaborationServices.features.productionUpdates.addComment(
-          updateId,
-          commentData
-        );
+      const commentData = {
+        userId,
+        userType,
+        message: req.validatedBody?.message || req.validatedBody?.comment,
+      };
 
-        this.logAction(req, 'ADD_UPDATE_COMMENT_SUCCESS', {
-          updateId,
-        });
+      const updatedUpdate = await this.collaborationServices.features.productionUpdates.addComment(
+        updateId,
+        commentData
+      );
 
-        return { update: updatedUpdate };
+      this.logAction(req, 'ADD_UPDATE_COMMENT_SUCCESS', {
+        updateId,
       });
+
+      return { update: updatedUpdate };
     }, res, 'Comment added successfully', this.getRequestMeta(req));
   }
 
@@ -268,20 +281,22 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async getUnviewedUpdates(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_UNVIEWED_UPDATES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
+      this.recordPerformance(req, 'GET_UNVIEWED_UPDATES');
 
-        const updates = await this.collaborationServices.features.productionUpdates.getUnviewedUpdates(userId);
+      const userId = this.resolveUserId(req);
 
-        this.logAction(req, 'GET_UNVIEWED_UPDATES_SUCCESS', {
-          userId,
-          count: updates.length,
-        });
+      const updates = await this.collaborationServices.features.productionUpdates.getUnviewedUpdates(userId);
 
-        return { updates };
+      this.logAction(req, 'GET_UNVIEWED_UPDATES_SUCCESS', {
+        userId,
+        count: updates.length,
       });
+
+      return { updates };
     }, res, 'Unviewed updates retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -290,27 +305,28 @@ export class CollaborationProductionUpdateController extends CollaborationBaseCo
    */
   async getUpdateStats(req: ProductionUpdateRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_UPDATE_STATS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const workspaceId = this.resolveWorkspaceId(req);
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      this.recordPerformance(req, 'GET_UPDATE_STATS');
 
-        // Ensure user has access to workspace
-        await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
+      const workspaceId = this.resolveWorkspaceId(req);
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const stats = await this.collaborationServices.features.productionUpdates.getUpdateStats(workspaceId);
+      // Ensure user has access to workspace
+      await this.ensureWorkspaceAccess(req, workspaceId, userId, userType);
 
-        this.logAction(req, 'GET_UPDATE_STATS_SUCCESS', {
-          workspaceId,
-        });
+      const stats = await this.collaborationServices.features.productionUpdates.getUpdateStats(workspaceId);
 
-        return { stats };
+      this.logAction(req, 'GET_UPDATE_STATS_SUCCESS', {
+        workspaceId,
       });
+
+      return { stats };
     }, res, 'Update statistics retrieved successfully', this.getRequestMeta(req));
   }
 }
 
 export const collaborationProductionUpdateController = new CollaborationProductionUpdateController();
-
