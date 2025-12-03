@@ -158,6 +158,8 @@ export interface IFileUploadInput {
   fileCategory: FileCategory;
   s3Key: string;
   s3Url: string;
+  s3Bucket?: string;
+  s3Region?: string;
   fileSize: number;
   mimeType: string;
   description?: string;
