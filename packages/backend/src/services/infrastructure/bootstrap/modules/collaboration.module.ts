@@ -35,7 +35,7 @@ export class CollaborationModule extends BaseFeatureModule {
     collaborationRoutes.use('/', collaborationRoutesModule.collaborationFileRoutes);
     collaborationRoutes.use('/', collaborationRoutesModule.collaborationProductionUpdateRoutes);
     collaborationRoutes.use('/', collaborationRoutesModule.collaborationTaskRoutes);
-    collaborationRoutes.use('/', collaborationRoutesModule.collaborationMessagingRoutes);
+    collaborationRoutes.use('/messaging', collaborationRoutesModule.collaborationMessagingRoutes);
 
     // Collaboration routes - authentication handled by route builders
     app.use('/api/collaboration', collaborationRoutes);
