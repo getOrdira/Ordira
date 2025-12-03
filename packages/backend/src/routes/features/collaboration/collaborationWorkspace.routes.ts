@@ -38,7 +38,17 @@ const createWorkspaceBodySchema = Joi.object({
   manufacturerMembers: Joi.array().items(Joi.object({
     userId: objectIdSchema.required(),
     role: Joi.string().valid('owner', 'admin', 'member', 'viewer').required()
-  })).optional()
+  })).optional(),
+  // Optional: Override enabled features for the workspace (for testing or admin purposes)
+  enabledFeatures: Joi.object({
+    fileSharing: Joi.boolean().optional(),
+    realTimeUpdates: Joi.boolean().optional(),
+    taskManagement: Joi.boolean().optional(),
+    designReview: Joi.boolean().optional(),
+    supplyChainTracking: Joi.boolean().optional(),
+    videoUpdates: Joi.boolean().optional(),
+    automatedNotifications: Joi.boolean().optional()
+  }).optional()
 });
 
 const updateWorkspaceBodySchema = Joi.object({

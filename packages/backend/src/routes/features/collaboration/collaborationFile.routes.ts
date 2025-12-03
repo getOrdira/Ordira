@@ -44,6 +44,16 @@ const uploadFileBodySchema = Joi.object({
     units: Joi.string().max(20).optional(),
     software: Joi.string().max(100).optional(),
     renderUrl: Joi.string().uri().optional()
+  }).optional(),
+  
+  enabledFeatures: Joi.object({
+    fileSharing: Joi.boolean().optional(),
+    realTimeUpdates: Joi.boolean().optional(),
+    taskManagement: Joi.boolean().optional(),
+    designReview: Joi.boolean().optional(),
+    supplyChainTracking: Joi.boolean().optional(),
+    videoUpdates: Joi.boolean().optional(),
+    automatedNotifications: Joi.boolean().optional()
   }).optional()
 });
 

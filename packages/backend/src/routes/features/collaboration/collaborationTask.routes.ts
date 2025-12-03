@@ -45,7 +45,17 @@ const createThreadBodySchema = Joi.object({
     text: Joi.string().trim().min(1).max(500).required(),
     completed: Joi.boolean().default(false)
   })).optional(),
-  attachments: Joi.array().items(objectIdSchema).optional()
+  attachments: Joi.array().items(objectIdSchema).optional(),
+
+  enabledFeatures: Joi.object({
+    fileSharing: Joi.boolean().optional(),
+    realTimeUpdates: Joi.boolean().optional(),
+    taskManagement: Joi.boolean().optional(),
+    designReview: Joi.boolean().optional(),
+    supplyChainTracking: Joi.boolean().optional(),
+    videoUpdates: Joi.boolean().optional(),
+    automatedNotifications: Joi.boolean().optional()
+  }).optional()
 });
 
 const updateTaskStatusBodySchema = Joi.object({

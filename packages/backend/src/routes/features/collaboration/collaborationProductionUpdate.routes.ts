@@ -36,7 +36,17 @@ const createUpdateBodySchema = Joi.object({
   }).optional(),
   attachments: Joi.array().items(objectIdSchema).optional(),
   isUrgent: Joi.boolean().default(false),
-  notifyBrand: Joi.boolean().default(true)
+  notifyBrand: Joi.boolean().default(true),
+
+  enabledFeatures: Joi.object({
+    fileSharing: Joi.boolean().optional(),
+    realTimeUpdates: Joi.boolean().optional(),
+    taskManagement: Joi.boolean().optional(),
+    designReview: Joi.boolean().optional(),
+    supplyChainTracking: Joi.boolean().optional(),
+    videoUpdates: Joi.boolean().optional(),
+    automatedNotifications: Joi.boolean().optional()
+  }).optional()
 });
 
 const addCommentBodySchema = Joi.object({

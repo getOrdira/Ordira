@@ -61,7 +61,16 @@ const sendMessageBodySchema = Joi.object({
   })).optional(),
   replyToMessageId: uuidSchema.optional(),
   mentionedUserIds: Joi.array().items(objectIdSchema).optional(),
-  clientMessageId: Joi.string().optional()
+  clientMessageId: Joi.string().optional(),
+  enabledFeatures: Joi.object({
+    fileSharing: Joi.boolean().optional(),
+    realTimeUpdates: Joi.boolean().optional(),
+    taskManagement: Joi.boolean().optional(),
+    designReview: Joi.boolean().optional(),
+    supplyChainTracking: Joi.boolean().optional(),
+    videoUpdates: Joi.boolean().optional(),
+    automatedNotifications: Joi.boolean().optional()
+  }).optional()
 }).or('text', 'fileAttachments', 'sharedEntities');
 
 const editMessageBodySchema = Joi.object({
