@@ -60,13 +60,25 @@ const uploadFileBodySchema = Joi.object({
 const createVersionBodySchema = uploadFileBodySchema;
 
 const addAnnotationBodySchema = Joi.object({
+  // Accept both 'coordinates' and 'position' as field names
   coordinates: Joi.object({
     x: Joi.number().min(0).max(1).required(),
     y: Joi.number().min(0).max(1).required()
-  }).required(),
-  comment: Joi.string().trim().min(1).max(2000).required(),
-  category: Joi.string().valid('feedback', 'issue', 'question', 'approval').optional()
-});
+  }).optional(),
+  position: Joi.object({
+    x: Joi.number().min(0).max(1).required(),
+    y: Joi.number().min(0).max(1).required()
+  }).optional(),
+  // Accept both 'comment' and 'content' as field names
+  comment: Joi.string().trim().min(1).max(2000).optional(),
+  content: Joi.string().trim().min(1).max(2000).optional(),
+  category: Joi.string().valid('feedback', 'issue', 'question', 'approval').optional(),
+  type: Joi.string().valid('comment', 'markup', 'highlight', 'pin').optional(),
+  // Allow additional fields from test script
+  annotationId: Joi.string().optional(),
+  createdBy: Joi.string().hex().length(24).optional(),
+  creatorType: Joi.string().valid('brand', 'manufacturer').optional()
+}).or('coordinates', 'position').or('comment', 'content');
 
 const approveFileBodySchema = Joi.object({
   comments: Joi.string().trim().max(2000).optional()

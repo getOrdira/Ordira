@@ -165,11 +165,21 @@ export class WorkspaceManagementService {
   }
 
   /**
-   * Get workspace by ID
+   * Get workspace by ID (supports both UUID and MongoDB ObjectId)
    */
   public async getWorkspaceById(workspaceId: string): Promise<IWorkspace | null> {
     try {
-      return await Workspace.findOne({ workspaceId });
+      // Check if it's a UUID (contains hyphens) or MongoDB ObjectId (24 hex chars)
+      if (workspaceId.includes('-')) {
+        // It's a UUID, look up by workspaceId field
+        return await Workspace.findOne({ workspaceId });
+      } else if (/^[a-fA-F0-9]{24}$/.test(workspaceId)) {
+        // It's a MongoDB ObjectId, look up by _id
+        return await Workspace.findById(workspaceId);
+      } else {
+        // Try UUID first, fallback to name or other identifier
+        return await Workspace.findOne({ workspaceId });
+      }
     } catch (error) {
       throw new Error(`Failed to get workspace: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

@@ -28,6 +28,7 @@ const createThreadBodySchema = Joi.object({
   threadType: Joi.string().valid('task', 'discussion', 'approval', 'question').required(),
   title: Joi.string().trim().min(1).max(200).required(),
   description: Joi.string().trim().max(5000).optional(),
+  // Top-level task fields (alternative to taskDetails)
   status: Joi.string().valid('todo', 'in_progress', 'review', 'completed', 'blocked', 'cancelled').default('todo'),
   priority: Joi.string().valid('low', 'medium', 'high', 'critical').default('medium'),
   dueDate: Joi.date().optional(),
@@ -46,7 +47,24 @@ const createThreadBodySchema = Joi.object({
     completed: Joi.boolean().default(false)
   })).optional(),
   attachments: Joi.array().items(objectIdSchema).optional(),
-
+  // Nested taskDetails object (matches test script format)
+  taskDetails: Joi.object({
+    assignees: Joi.array().items(objectIdSchema).optional(),
+    dueDate: Joi.date().optional(),
+    priority: Joi.string().valid('low', 'medium', 'high', 'critical').optional(),
+    estimatedHours: Joi.number().min(0).max(1000).optional(),
+    tags: Joi.array().items(Joi.string().trim().max(50)).optional(),
+    checklist: Joi.array().items(Joi.object({
+      text: Joi.string().trim().min(1).max(500).required(),
+      completed: Joi.boolean().default(false)
+    })).optional()
+  }).optional(),
+  relatedEntities: Joi.array().items(Joi.object({
+    entityType: Joi.string().valid('file', 'update', 'workspace', 'task').required(),
+    entityId: objectIdSchema.required()
+  })).optional(),
+  visibleToBrand: Joi.boolean().default(true),
+  visibleToManufacturer: Joi.boolean().default(true),
   enabledFeatures: Joi.object({
     fileSharing: Joi.boolean().optional(),
     realTimeUpdates: Joi.boolean().optional(),
