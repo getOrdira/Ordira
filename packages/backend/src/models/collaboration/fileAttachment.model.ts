@@ -69,7 +69,7 @@ export interface IFileAttachment extends Document {
   // File Information
   fileName: string;
   fileType: string; // MIME type
-  fileCategory: 'design' | 'technical_drawing' | 'document' | 'photo' | 'video' | 'other';
+  fileCategory: 'design' | 'technical_spec' | 'sample_photo' | 'production_photo' | 'contract' | 'certificate' | 'other';
   fileSize: number; // bytes
 
   // S3 Storage
@@ -304,7 +304,7 @@ const FileAttachmentSchema = new Schema<IFileAttachment>(
     fileCategory: {
       type: String,
       enum: {
-        values: ['design', 'technical_drawing', 'document', 'photo', 'video', 'other'],
+        values: ['design', 'technical_spec', 'sample_photo', 'production_photo', 'contract', 'certificate', 'other'],
         message: 'Invalid file category'
       },
       required: [true, 'File category is required'],

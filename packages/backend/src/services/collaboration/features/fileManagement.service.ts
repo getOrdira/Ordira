@@ -483,15 +483,7 @@ export class FileManagementService {
   public async toSummary(file: IFileAttachment): Promise<IFileAttachmentSummary> {
     const unresolvedAnnotations = file.annotations.filter(a => !a.resolvedAt);
 
-    // Map model fileCategory to FileCategory type
-    const categoryMap: Record<string, FileCategory> = {
-      'design': 'design',
-      'technical_drawing': 'technical_spec',
-      'document': 'contract',
-      'photo': 'sample_photo',
-      'video': 'other',
-      'other': 'other'
-    };
+    // FileCategory is now aligned between model and types - no mapping needed
 
     // Map approvalStatus
     const statusMap: Record<string, ApprovalStatus> = {
@@ -537,7 +529,7 @@ export class FileManagementService {
       id: file._id.toString(),
       workspaceId: file.workspaceId.toString(),
       fileName: file.fileName,
-      fileCategory: categoryMap[file.fileCategory] || 'other',
+      fileCategory: file.fileCategory as FileCategory,
       fileSize: file.fileSize,
       mimeType: file.fileType, // Model uses fileType, not mimeType
       s3Url: file.s3Url,
