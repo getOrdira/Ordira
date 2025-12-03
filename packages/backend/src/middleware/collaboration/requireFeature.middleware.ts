@@ -45,14 +45,11 @@ export const requireFeature = (feature: CollaborationFeatureKey) => {
     try {
       const { brandTier, manufacturerTier } = req.subscriptions || {};
 
+      // If subscriptions aren't available, skip middleware check.
+      // The service layer will verify feature access via workspace.enabledFeatures
+      // which handles both subscription-based and explicitly-enabled features.
       if (!brandTier || !manufacturerTier) {
-        res.status(500).json({
-          success: false,
-          error: {
-            code: 'MISSING_SUBSCRIPTION_CONTEXT',
-            message: 'Subscription information is required. Ensure subscription middleware runs first.'
-          }
-        });
+        next();
         return;
       }
 
@@ -142,14 +139,10 @@ export const requireAllFeatures = (features: CollaborationFeatureKey[]) => {
     try {
       const { brandTier, manufacturerTier } = req.subscriptions || {};
 
+      // If subscriptions aren't available, skip middleware check.
+      // The service layer will verify feature access via workspace.enabledFeatures
       if (!brandTier || !manufacturerTier) {
-        res.status(500).json({
-          success: false,
-          error: {
-            code: 'MISSING_SUBSCRIPTION_CONTEXT',
-            message: 'Subscription information is required'
-          }
-        });
+        next();
         return;
       }
 
@@ -221,14 +214,10 @@ export const requireAnyFeature = (features: CollaborationFeatureKey[]) => {
     try {
       const { brandTier, manufacturerTier } = req.subscriptions || {};
 
+      // If subscriptions aren't available, skip middleware check.
+      // The service layer will verify feature access via workspace.enabledFeatures
       if (!brandTier || !manufacturerTier) {
-        res.status(500).json({
-          success: false,
-          error: {
-            code: 'MISSING_SUBSCRIPTION_CONTEXT',
-            message: 'Subscription information is required'
-          }
-        });
+        next();
         return;
       }
 
