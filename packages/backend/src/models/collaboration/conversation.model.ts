@@ -595,7 +595,7 @@ ConversationSchema.methods.updateLastMessage = function(
  * Find conversation by UUID
  */
 ConversationSchema.statics.findByConversationId = function(conversationId: string) {
-  return this.findOne({ conversationId, status: { $ne: 'deleted' } });
+  return this.findOne({ conversationId, status: { $in: ['active', 'archived'] } });
 };
 
 /**
@@ -609,7 +609,7 @@ ConversationSchema.statics.findDirectConversation = function(
     brandId,
     manufacturerId,
     conversationType: 'direct',
-    status: { $ne: 'deleted' }
+    status: { $in: ['active', 'archived'] }
   });
 };
 
@@ -620,7 +620,7 @@ ConversationSchema.statics.findWorkspaceConversation = function(workspaceId: str
   return this.findOne({
     workspaceId,
     conversationType: 'workspace',
-    status: { $ne: 'deleted' }
+    status: { $in: ['active', 'archived'] }
   });
 };
 
@@ -661,7 +661,7 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
     brandId,
     manufacturerId,
     conversationType: 'direct',
-    status: { $ne: 'deleted' }
+    status: { $in: ['active', 'archived'] }
   });
 
   if (conversation) {
@@ -715,7 +715,7 @@ ConversationSchema.statics.getOrCreateWorkspaceConversation = async function(
   let conversation = await this.findOne({
     workspaceId,
     conversationType: 'workspace',
-    status: { $ne: 'deleted' }
+    status: { $in: ['active', 'archived'] }
   });
 
   if (conversation) {

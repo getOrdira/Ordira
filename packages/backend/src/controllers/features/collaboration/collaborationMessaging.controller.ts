@@ -35,33 +35,35 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getOrCreateDirectConversation(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_OR_CREATE_DIRECT_CONVERSATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
-        const brandId = req.validatedParams?.brandId || req.validatedBody?.brandId || req.businessId;
-        const manufacturerId = req.validatedParams?.manufacturerId || req.validatedBody?.manufacturerId || req.manufacturerId;
+      this.recordPerformance(req, 'GET_OR_CREATE_DIRECT_CONVERSATION');
 
-        if (!brandId || !manufacturerId) {
-          throw { statusCode: 400, message: 'Both brandId and manufacturerId are required' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
+      const brandId = req.validatedParams?.brandId || req.validatedBody?.brandId || req.businessId;
+      const manufacturerId = req.validatedParams?.manufacturerId || req.validatedBody?.manufacturerId || req.manufacturerId;
 
-        const conversation = await messagingService.getOrCreateDirectConversation(
-          brandId,
-          manufacturerId,
-          userId,
-          userType
-        );
+      if (!brandId || !manufacturerId) {
+        throw { statusCode: 400, message: 'Both brandId and manufacturerId are required' };
+      }
 
-        this.logAction(req, 'GET_OR_CREATE_DIRECT_CONVERSATION_SUCCESS', {
-          conversationId: conversation.conversationId,
-          brandId,
-          manufacturerId
-        });
+      const conversation = await messagingService.getOrCreateDirectConversation(
+        brandId,
+        manufacturerId,
+        userId,
+        userType
+      );
 
-        return { conversation };
+      this.logAction(req, 'GET_OR_CREATE_DIRECT_CONVERSATION_SUCCESS', {
+        conversationId: conversation.conversationId,
+        brandId,
+        manufacturerId
       });
+
+      return { conversation };
     }, res, 'Conversation retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -70,24 +72,26 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getOrCreateWorkspaceConversation(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_OR_CREATE_WORKSPACE_CONVERSATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const workspaceId = this.resolveWorkspaceId(req);
+      this.recordPerformance(req, 'GET_OR_CREATE_WORKSPACE_CONVERSATION');
 
-        const conversation = await messagingService.getOrCreateWorkspaceConversation(
-          workspaceId,
-          userId
-        );
+      const userId = this.resolveUserId(req);
+      const workspaceId = this.resolveWorkspaceId(req);
 
-        this.logAction(req, 'GET_OR_CREATE_WORKSPACE_CONVERSATION_SUCCESS', {
-          conversationId: conversation.conversationId,
-          workspaceId
-        });
+      const conversation = await messagingService.getOrCreateWorkspaceConversation(
+        workspaceId,
+        userId
+      );
 
-        return { conversation };
+      this.logAction(req, 'GET_OR_CREATE_WORKSPACE_CONVERSATION_SUCCESS', {
+        conversationId: conversation.conversationId,
+        workspaceId
       });
+
+      return { conversation };
     }, res, 'Workspace conversation retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -96,32 +100,34 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getConversationById(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_CONVERSATION_BY_ID');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'GET_CONVERSATION_BY_ID');
 
-        const userId = this.resolveUserId(req);
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const conversation = await messagingService.getConversationById(conversationId);
-        if (!conversation) {
-          throw { statusCode: 404, message: 'Conversation not found' };
-        }
+      const userId = this.resolveUserId(req);
 
-        // Verify user has access
-        if (!conversation.isParticipant(userId)) {
-          throw { statusCode: 403, message: 'Access denied to this conversation' };
-        }
+      const conversation = await messagingService.getConversationById(conversationId);
+      if (!conversation) {
+        throw { statusCode: 404, message: 'Conversation not found' };
+      }
 
-        this.logAction(req, 'GET_CONVERSATION_BY_ID_SUCCESS', {
-          conversationId
-        });
+      // Verify user has access
+      if (!conversation.isParticipant(userId)) {
+        throw { statusCode: 403, message: 'Access denied to this conversation' };
+      }
 
-        return { conversation };
+      this.logAction(req, 'GET_CONVERSATION_BY_ID_SUCCESS', {
+        conversationId
       });
+
+      return { conversation };
     }, res, 'Conversation retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -130,25 +136,27 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getUserConversations(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_USER_CONVERSATIONS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const query = req.validatedQuery || {};
+      this.recordPerformance(req, 'GET_USER_CONVERSATIONS');
 
-        const conversations = await messagingService.getUserConversations(userId, {
-          status: query.status,
-          limit: query.limit,
-          unreadOnly: query.unreadOnly
-        });
+      const userId = this.resolveUserId(req);
+      const query = req.validatedQuery || {};
 
-        this.logAction(req, 'GET_USER_CONVERSATIONS_SUCCESS', {
-          userId,
-          count: conversations.length
-        });
-
-        return { conversations };
+      const conversations = await messagingService.getUserConversations(userId, {
+        status: query.status,
+        limit: query.limit,
+        unreadOnly: query.unreadOnly
       });
+
+      this.logAction(req, 'GET_USER_CONVERSATIONS_SUCCESS', {
+        userId,
+        count: conversations.length
+      });
+
+      return { conversations };
     }, res, 'Conversations retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -157,43 +165,45 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async sendMessage(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'SEND_MESSAGE');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId || req.validatedBody?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'SEND_MESSAGE');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const conversationId = req.validatedParams?.conversationId || req.validatedBody?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const body = req.validatedBody || {};
-        if (!body.text && !body.fileAttachments?.length && !body.sharedEntities?.length) {
-          throw { statusCode: 400, message: 'Message content is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        const message = await messagingService.sendMessage({
-          conversationId,
-          senderId: userId,
-          senderType: userType,
-          senderName: body.senderName || 'User',
-          senderAvatar: body.senderAvatar,
-          text: body.text || '',
-          fileAttachments: body.fileAttachments,
-          sharedEntities: body.sharedEntities,
-          replyToMessageId: body.replyToMessageId,
-          mentionedUserIds: body.mentionedUserIds,
-          clientMessageId: body.clientMessageId
-        });
+      const body = req.validatedBody || {};
+      if (!body.text && !body.fileAttachments?.length && !body.sharedEntities?.length) {
+        throw { statusCode: 400, message: 'Message content is required' };
+      }
 
-        this.logAction(req, 'SEND_MESSAGE_SUCCESS', {
-          messageId: message.messageId,
-          conversationId
-        });
-
-        return { message };
+      const message = await messagingService.sendMessage({
+        conversationId,
+        senderId: userId,
+        senderType: userType,
+        senderName: body.senderName || 'User',
+        senderAvatar: body.senderAvatar,
+        text: body.text || '',
+        fileAttachments: body.fileAttachments,
+        sharedEntities: body.sharedEntities,
+        replyToMessageId: body.replyToMessageId,
+        mentionedUserIds: body.mentionedUserIds,
+        clientMessageId: body.clientMessageId
       });
+
+      this.logAction(req, 'SEND_MESSAGE_SUCCESS', {
+        messageId: message.messageId,
+        conversationId
+      });
+
+      return { message };
     }, res, 'Message sent successfully', this.getRequestMeta(req));
   }
 
@@ -202,30 +212,32 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getMessages(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_MESSAGES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'GET_MESSAGES');
 
-        const userId = this.resolveUserId(req);
-        const query = req.validatedQuery || {};
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const messages = await messagingService.getMessages(conversationId, userId, {
-          limit: query.limit,
-          before: query.before,
-          after: query.after
-        });
+      const userId = this.resolveUserId(req);
+      const query = req.validatedQuery || {};
 
-        this.logAction(req, 'GET_MESSAGES_SUCCESS', {
-          conversationId,
-          count: messages.length
-        });
-
-        return { messages };
+      const messages = await messagingService.getMessages(conversationId, userId, {
+        limit: query.limit,
+        before: query.before,
+        after: query.after
       });
+
+      this.logAction(req, 'GET_MESSAGES_SUCCESS', {
+        conversationId,
+        count: messages.length
+      });
+
+      return { messages };
     }, res, 'Messages retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -234,26 +246,28 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async markAsRead(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'MARK_MESSAGES_AS_READ');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'MARK_MESSAGES_AS_READ');
 
-        const userId = this.resolveUserId(req);
-        const messageId = req.validatedBody?.messageId || req.validatedParams?.messageId;
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        await messagingService.markAsRead(conversationId, userId, messageId);
+      const userId = this.resolveUserId(req);
+      const messageId = req.validatedBody?.messageId || req.validatedParams?.messageId;
 
-        this.logAction(req, 'MARK_MESSAGES_AS_READ_SUCCESS', {
-          conversationId,
-          messageId
-        });
+      await messagingService.markAsRead(conversationId, userId, messageId);
 
-        return { success: true };
+      this.logAction(req, 'MARK_MESSAGES_AS_READ_SUCCESS', {
+        conversationId,
+        messageId
       });
+
+      return { success: true };
     }, res, 'Messages marked as read successfully', this.getRequestMeta(req));
   }
 
@@ -262,29 +276,31 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async editMessage(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'EDIT_MESSAGE');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const messageId = req.validatedParams?.messageId;
-        if (!messageId) {
-          throw { statusCode: 400, message: 'Message ID is required' };
-        }
+      this.recordPerformance(req, 'EDIT_MESSAGE');
 
-        const userId = this.resolveUserId(req);
-        const newText = req.validatedBody?.text;
+      const messageId = req.validatedParams?.messageId;
+      if (!messageId) {
+        throw { statusCode: 400, message: 'Message ID is required' };
+      }
 
-        if (!newText) {
-          throw { statusCode: 400, message: 'New message text is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const newText = req.validatedBody?.text;
 
-        const message = await messagingService.editMessage(messageId, userId, newText);
+      if (!newText) {
+        throw { statusCode: 400, message: 'New message text is required' };
+      }
 
-        this.logAction(req, 'EDIT_MESSAGE_SUCCESS', {
-          messageId
-        });
+      const message = await messagingService.editMessage(messageId, userId, newText);
 
-        return { message };
+      this.logAction(req, 'EDIT_MESSAGE_SUCCESS', {
+        messageId
       });
+
+      return { message };
     }, res, 'Message edited successfully', this.getRequestMeta(req));
   }
 
@@ -293,24 +309,26 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async deleteMessage(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'DELETE_MESSAGE');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const messageId = req.validatedParams?.messageId;
-        if (!messageId) {
-          throw { statusCode: 400, message: 'Message ID is required' };
-        }
+      this.recordPerformance(req, 'DELETE_MESSAGE');
 
-        const userId = this.resolveUserId(req);
+      const messageId = req.validatedParams?.messageId;
+      if (!messageId) {
+        throw { statusCode: 400, message: 'Message ID is required' };
+      }
 
-        const message = await messagingService.deleteMessage(messageId, userId);
+      const userId = this.resolveUserId(req);
 
-        this.logAction(req, 'DELETE_MESSAGE_SUCCESS', {
-          messageId
-        });
+      const message = await messagingService.deleteMessage(messageId, userId);
 
-        return { message };
+      this.logAction(req, 'DELETE_MESSAGE_SUCCESS', {
+        messageId
       });
+
+      return { message };
     }, res, 'Message deleted successfully', this.getRequestMeta(req));
   }
 
@@ -319,31 +337,33 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async addReaction(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'ADD_MESSAGE_REACTION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const messageId = req.validatedParams?.messageId;
-        if (!messageId) {
-          throw { statusCode: 400, message: 'Message ID is required' };
-        }
+      this.recordPerformance(req, 'ADD_MESSAGE_REACTION');
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
-        const emoji = req.validatedBody?.emoji;
+      const messageId = req.validatedParams?.messageId;
+      if (!messageId) {
+        throw { statusCode: 400, message: 'Message ID is required' };
+      }
 
-        if (!emoji) {
-          throw { statusCode: 400, message: 'Emoji is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
+      const emoji = req.validatedBody?.emoji;
 
-        const message = await messagingService.addReaction(messageId, userId, userType, emoji);
+      if (!emoji) {
+        throw { statusCode: 400, message: 'Emoji is required' };
+      }
 
-        this.logAction(req, 'ADD_MESSAGE_REACTION_SUCCESS', {
-          messageId,
-          emoji
-        });
+      const message = await messagingService.addReaction(messageId, userId, userType, emoji);
 
-        return { message };
+      this.logAction(req, 'ADD_MESSAGE_REACTION_SUCCESS', {
+        messageId,
+        emoji
       });
+
+      return { message };
     }, res, 'Reaction added successfully', this.getRequestMeta(req));
   }
 
@@ -352,30 +372,32 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async removeReaction(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'REMOVE_MESSAGE_REACTION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const messageId = req.validatedParams?.messageId;
-        if (!messageId) {
-          throw { statusCode: 400, message: 'Message ID is required' };
-        }
+      this.recordPerformance(req, 'REMOVE_MESSAGE_REACTION');
 
-        const userId = this.resolveUserId(req);
-        const emoji = req.validatedBody?.emoji || req.validatedQuery?.emoji;
+      const messageId = req.validatedParams?.messageId;
+      if (!messageId) {
+        throw { statusCode: 400, message: 'Message ID is required' };
+      }
 
-        if (!emoji) {
-          throw { statusCode: 400, message: 'Emoji is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const emoji = req.validatedBody?.emoji || req.validatedQuery?.emoji;
 
-        const message = await messagingService.removeReaction(messageId, userId, emoji);
+      if (!emoji) {
+        throw { statusCode: 400, message: 'Emoji is required' };
+      }
 
-        this.logAction(req, 'REMOVE_MESSAGE_REACTION_SUCCESS', {
-          messageId,
-          emoji
-        });
+      const message = await messagingService.removeReaction(messageId, userId, emoji);
 
-        return { message };
+      this.logAction(req, 'REMOVE_MESSAGE_REACTION_SUCCESS', {
+        messageId,
+        emoji
       });
+
+      return { message };
     }, res, 'Reaction removed successfully', this.getRequestMeta(req));
   }
 
@@ -384,36 +406,38 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async searchMessages(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'SEARCH_MESSAGES');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'SEARCH_MESSAGES');
 
-        const userId = this.resolveUserId(req);
-        const query = req.validatedQuery?.q || req.validatedBody?.query;
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        if (!query) {
-          throw { statusCode: 400, message: 'Search query is required' };
-        }
+      const userId = this.resolveUserId(req);
+      const query = req.validatedQuery?.q || req.validatedBody?.query;
 
-        const messages = await messagingService.searchMessages(
-          conversationId,
-          userId,
-          query,
-          { limit: req.validatedQuery?.limit }
-        );
+      if (!query) {
+        throw { statusCode: 400, message: 'Search query is required' };
+      }
 
-        this.logAction(req, 'SEARCH_MESSAGES_SUCCESS', {
-          conversationId,
-          query,
-          count: messages.length
-        });
+      const messages = await messagingService.searchMessages(
+        conversationId,
+        userId,
+        query,
+        { limit: req.validatedQuery?.limit }
+      );
 
-        return { messages };
+      this.logAction(req, 'SEARCH_MESSAGES_SUCCESS', {
+        conversationId,
+        query,
+        count: messages.length
       });
+
+      return { messages };
     }, res, 'Messages searched successfully', this.getRequestMeta(req));
   }
 
@@ -422,20 +446,22 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getUnreadCount(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_UNREAD_COUNT');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
+      this.recordPerformance(req, 'GET_UNREAD_COUNT');
 
-        const count = await messagingService.getUnreadCount(userId);
+      const userId = this.resolveUserId(req);
 
-        this.logAction(req, 'GET_UNREAD_COUNT_SUCCESS', {
-          userId,
-          count
-        });
+      const count = await messagingService.getUnreadCount(userId);
 
-        return { unreadCount: count };
+      this.logAction(req, 'GET_UNREAD_COUNT_SUCCESS', {
+        userId,
+        count
       });
+
+      return { unreadCount: count };
     }, res, 'Unread count retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -444,19 +470,21 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async getUnreadCounts(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'GET_UNREAD_COUNTS');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const userId = this.resolveUserId(req);
+      this.recordPerformance(req, 'GET_UNREAD_COUNTS');
 
-        const counts = await messagingService.getUnreadCounts(userId);
+      const userId = this.resolveUserId(req);
 
-        this.logAction(req, 'GET_UNREAD_COUNTS_SUCCESS', {
-          userId
-        });
+      const counts = await messagingService.getUnreadCounts(userId);
 
-        return { unreadCounts: counts };
+      this.logAction(req, 'GET_UNREAD_COUNTS_SUCCESS', {
+        userId
       });
+
+      return { unreadCounts: counts };
     }, res, 'Unread counts retrieved successfully', this.getRequestMeta(req));
   }
 
@@ -465,39 +493,41 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async shareFile(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'SHARE_FILE_IN_CONVERSATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'SHARE_FILE_IN_CONVERSATION');
 
-        const fileId = req.validatedBody?.fileId;
-        if (!fileId) {
-          throw { statusCode: 400, message: 'File ID is required' };
-        }
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const fileId = req.validatedBody?.fileId;
+      if (!fileId) {
+        throw { statusCode: 400, message: 'File ID is required' };
+      }
 
-        const message = await messagingService.shareFile(
-          conversationId,
-          fileId,
-          userId,
-          userType,
-          req.validatedBody?.senderName || 'User',
-          req.validatedBody?.text
-        );
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        this.logAction(req, 'SHARE_FILE_IN_CONVERSATION_SUCCESS', {
-          conversationId,
-          fileId,
-          messageId: message.messageId
-        });
+      const message = await messagingService.shareFile(
+        conversationId,
+        fileId,
+        userId,
+        userType,
+        req.validatedBody?.senderName || 'User',
+        req.validatedBody?.text
+      );
 
-        return { message };
+      this.logAction(req, 'SHARE_FILE_IN_CONVERSATION_SUCCESS', {
+        conversationId,
+        fileId,
+        messageId: message.messageId
       });
+
+      return { message };
     }, res, 'File shared successfully', this.getRequestMeta(req));
   }
 
@@ -506,39 +536,41 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async shareProductionUpdate(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'SHARE_UPDATE_IN_CONVERSATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'SHARE_UPDATE_IN_CONVERSATION');
 
-        const updateId = req.validatedBody?.updateId;
-        if (!updateId) {
-          throw { statusCode: 400, message: 'Update ID is required' };
-        }
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const updateId = req.validatedBody?.updateId;
+      if (!updateId) {
+        throw { statusCode: 400, message: 'Update ID is required' };
+      }
 
-        const message = await messagingService.shareProductionUpdate(
-          conversationId,
-          updateId,
-          userId,
-          userType,
-          req.validatedBody?.senderName || 'User',
-          req.validatedBody?.text
-        );
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        this.logAction(req, 'SHARE_UPDATE_IN_CONVERSATION_SUCCESS', {
-          conversationId,
-          updateId,
-          messageId: message.messageId
-        });
+      const message = await messagingService.shareProductionUpdate(
+        conversationId,
+        updateId,
+        userId,
+        userType,
+        req.validatedBody?.senderName || 'User',
+        req.validatedBody?.text
+      );
 
-        return { message };
+      this.logAction(req, 'SHARE_UPDATE_IN_CONVERSATION_SUCCESS', {
+        conversationId,
+        updateId,
+        messageId: message.messageId
       });
+
+      return { message };
     }, res, 'Production update shared successfully', this.getRequestMeta(req));
   }
 
@@ -547,39 +579,41 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async shareTask(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'SHARE_TASK_IN_CONVERSATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'SHARE_TASK_IN_CONVERSATION');
 
-        const taskId = req.validatedBody?.taskId;
-        if (!taskId) {
-          throw { statusCode: 400, message: 'Task ID is required' };
-        }
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const userId = this.resolveUserId(req);
-        const userType = this.resolveUserType(req);
+      const taskId = req.validatedBody?.taskId;
+      if (!taskId) {
+        throw { statusCode: 400, message: 'Task ID is required' };
+      }
 
-        const message = await messagingService.shareTask(
-          conversationId,
-          taskId,
-          userId,
-          userType,
-          req.validatedBody?.senderName || 'User',
-          req.validatedBody?.text
-        );
+      const userId = this.resolveUserId(req);
+      const userType = this.resolveUserType(req);
 
-        this.logAction(req, 'SHARE_TASK_IN_CONVERSATION_SUCCESS', {
-          conversationId,
-          taskId,
-          messageId: message.messageId
-        });
+      const message = await messagingService.shareTask(
+        conversationId,
+        taskId,
+        userId,
+        userType,
+        req.validatedBody?.senderName || 'User',
+        req.validatedBody?.text
+      );
 
-        return { message };
+      this.logAction(req, 'SHARE_TASK_IN_CONVERSATION_SUCCESS', {
+        conversationId,
+        taskId,
+        messageId: message.messageId
       });
+
+      return { message };
     }, res, 'Task shared successfully', this.getRequestMeta(req));
   }
 
@@ -588,27 +622,28 @@ export class CollaborationMessagingController extends CollaborationBaseControlle
    */
   async archiveConversation(req: MessagingRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      await this.validateAuth(req, res, async () => {
-        this.recordPerformance(req, 'ARCHIVE_CONVERSATION');
+      if (!req.userId || !req.userType) {
+        throw { statusCode: 401, message: 'Authentication required' };
+      }
 
-        const conversationId = req.validatedParams?.conversationId;
-        if (!conversationId) {
-          throw { statusCode: 400, message: 'Conversation ID is required' };
-        }
+      this.recordPerformance(req, 'ARCHIVE_CONVERSATION');
 
-        const userId = this.resolveUserId(req);
+      const conversationId = req.validatedParams?.conversationId;
+      if (!conversationId) {
+        throw { statusCode: 400, message: 'Conversation ID is required' };
+      }
 
-        const conversation = await messagingService.archiveConversation(conversationId, userId);
+      const userId = this.resolveUserId(req);
 
-        this.logAction(req, 'ARCHIVE_CONVERSATION_SUCCESS', {
-          conversationId
-        });
+      const conversation = await messagingService.archiveConversation(conversationId, userId);
 
-        return { conversation };
+      this.logAction(req, 'ARCHIVE_CONVERSATION_SUCCESS', {
+        conversationId
       });
+
+      return { conversation };
     }, res, 'Conversation archived successfully', this.getRequestMeta(req));
   }
 }
 
 export const collaborationMessagingController = new CollaborationMessagingController();
-
