@@ -107,6 +107,12 @@ export interface ICreateWorkspaceInput {
     targetDeliveryDate?: Date;
     productionStartDate?: Date;
   };
+  /**
+   * Optional: Override enabled features for the workspace.
+   * If provided, these will be used instead of subscription-based features.
+   * Useful for testing or admin-created workspaces.
+   */
+  enabledFeatures?: Partial<Record<CollaborationFeatureKey, boolean>>;
 }
 
 /**

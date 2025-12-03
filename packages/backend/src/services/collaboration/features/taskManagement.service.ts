@@ -33,21 +33,25 @@ export class TaskManagementService {
         // It's a UUID, need to look up workspace
         workspace = await Workspace.findOne({ workspaceId: input.workspaceId });
         if (!workspace) {
-          throw new Error('Workspace not found');
+          throw { statusCode: 404, code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' };
         }
         workspaceObjectId = workspace._id;
       } else {
         // It's an ObjectId
         workspace = await Workspace.findById(input.workspaceId);
         if (!workspace) {
-          throw new Error('Workspace not found');
+          throw { statusCode: 404, code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' };
         }
         workspaceObjectId = new Types.ObjectId(input.workspaceId);
       }
 
       // Check if workspace has taskManagement feature enabled
       if (input.threadType === 'task' && !workspace.enabledFeatures.taskManagement) {
-        throw new Error('Task management feature not enabled for this workspace');
+        throw {
+          statusCode: 403,
+          code: 'FEATURE_NOT_ENABLED',
+          message: 'Task management feature is not enabled for this workspace. Brand requires Growth plan or higher, and Manufacturer requires Professional plan or higher.'
+        };
       }
 
       // Create thread
@@ -113,7 +117,11 @@ export class TaskManagementService {
       }
 
       return thread;
-    } catch (error) {
+    } catch (error: any) {
+      // Re-throw errors with statusCode as-is (e.g., 403 feature not enabled)
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        throw error;
+      }
       throw new Error(`Failed to create thread: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

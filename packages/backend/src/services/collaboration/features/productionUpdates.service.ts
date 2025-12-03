@@ -31,26 +31,34 @@ export class ProductionUpdatesService {
         // It's a UUID, need to look up workspace
         workspace = await Workspace.findOne({ workspaceId: input.workspaceId });
         if (!workspace) {
-          throw new Error('Workspace not found');
+          throw { statusCode: 404, code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' };
         }
         workspaceObjectId = workspace._id;
       } else {
         // It's an ObjectId
         workspace = await Workspace.findById(input.workspaceId);
         if (!workspace) {
-          throw new Error('Workspace not found');
+          throw { statusCode: 404, code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' };
         }
         workspaceObjectId = new Types.ObjectId(input.workspaceId);
       }
 
       // Verify manufacturer matches workspace
       if (workspace.manufacturerId.toString() !== input.manufacturerId) {
-        throw new Error('Manufacturer ID does not match workspace');
+        throw {
+          statusCode: 403,
+          code: 'MANUFACTURER_MISMATCH',
+          message: 'Manufacturer ID does not match workspace. Only the workspace manufacturer can create production updates.'
+        };
       }
 
       // Check if workspace has realTimeUpdates feature enabled
       if (!workspace.enabledFeatures.realTimeUpdates) {
-        throw new Error('Real-time updates feature not enabled for this workspace');
+        throw {
+          statusCode: 403,
+          code: 'FEATURE_NOT_ENABLED',
+          message: 'Real-time updates feature is not enabled for this workspace. Brand requires Premium plan or higher, and Manufacturer requires Professional plan or higher.'
+        };
       }
 
       // Create the update
@@ -87,7 +95,11 @@ export class ProductionUpdatesService {
       );
 
       return update;
-    } catch (error) {
+    } catch (error: any) {
+      // Re-throw errors with statusCode as-is (e.g., 403 feature not enabled)
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        throw error;
+      }
       throw new Error(`Failed to create production update: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

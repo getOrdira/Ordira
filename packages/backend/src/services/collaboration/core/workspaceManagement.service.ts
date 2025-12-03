@@ -86,10 +86,30 @@ export class WorkspaceManagementService {
       }
 
       // Get all available features for this connection based on actual subscription tiers
-      const availableFeatures = featureAccessService.getAvailableFeatures(
-        brandPlanTier,
-        manufacturerPlanTier
-      );
+      // If enabledFeatures was explicitly provided (e.g., for testing), use those
+      let availableFeatures: Record<string, boolean>;
+      
+      if (input.enabledFeatures) {
+        // Use provided features, filling in defaults for any not specified
+        const defaultFeatures = featureAccessService.getAvailableFeatures(
+          brandPlanTier,
+          manufacturerPlanTier
+        );
+        availableFeatures = {
+          ...defaultFeatures,
+          ...input.enabledFeatures
+        };
+        logger.info('Using provided enabledFeatures for workspace creation', {
+          brandId: input.brandId,
+          manufacturerId: input.manufacturerId,
+          enabledFeatures: availableFeatures
+        });
+      } else {
+        availableFeatures = featureAccessService.getAvailableFeatures(
+          brandPlanTier,
+          manufacturerPlanTier
+        );
+      }
 
       // Create workspace with UUID
       const workspaceId = uuidv4();

@@ -62,6 +62,8 @@ export class CollaborationWorkspaceController extends CollaborationBaseControlle
         productionDetails: req.validatedBody?.productionDetails,
         brandMembers: req.validatedBody?.brandMembers,
         manufacturerMembers: req.validatedBody?.manufacturerMembers,
+        // Optional: Allow explicit feature enablement for testing or admin purposes
+        enabledFeatures: req.validatedBody?.enabledFeatures,
       };
 
       const workspace = await this.collaborationServices.core.workspaceManagement.createWorkspace(input);
