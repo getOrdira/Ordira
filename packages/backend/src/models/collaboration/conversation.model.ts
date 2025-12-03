@@ -606,8 +606,8 @@ ConversationSchema.statics.findDirectConversation = function(
   manufacturerId: string
 ) {
   return this.findOne({
-    brandId,
-    manufacturerId,
+    brandId: new Types.ObjectId(brandId),
+    manufacturerId: new Types.ObjectId(manufacturerId),
     conversationType: 'direct',
     status: { $in: ['active', 'archived'] }
   });
@@ -618,7 +618,7 @@ ConversationSchema.statics.findDirectConversation = function(
  */
 ConversationSchema.statics.findWorkspaceConversation = function(workspaceId: string) {
   return this.findOne({
-    workspaceId,
+    workspaceId: new Types.ObjectId(workspaceId),
     conversationType: 'workspace',
     status: { $in: ['active', 'archived'] }
   });
@@ -658,8 +658,8 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
 ) {
   // Try to find existing
   let conversation = await this.findOne({
-    brandId,
-    manufacturerId,
+    brandId: new Types.ObjectId(brandId),
+    manufacturerId: new Types.ObjectId(manufacturerId),
     conversationType: 'direct',
     status: { $in: ['active', 'archived'] }
   });
@@ -674,8 +674,8 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
   conversation = new this({
     conversationId: uuidv4(),
     conversationType: 'direct',
-    brandId,
-    manufacturerId,
+    brandId: new Types.ObjectId(brandId),
+    manufacturerId: new Types.ObjectId(manufacturerId),
     participants: [
       {
         userId: new Types.ObjectId(brandId),
@@ -713,7 +713,7 @@ ConversationSchema.statics.getOrCreateWorkspaceConversation = async function(
 ) {
   // Try to find existing
   let conversation = await this.findOne({
-    workspaceId,
+    workspaceId: new Types.ObjectId(workspaceId),
     conversationType: 'workspace',
     status: { $in: ['active', 'archived'] }
   });
@@ -728,7 +728,7 @@ ConversationSchema.statics.getOrCreateWorkspaceConversation = async function(
   conversation = new this({
     conversationId: uuidv4(),
     conversationType: 'workspace',
-    workspaceId,
+    workspaceId: new Types.ObjectId(workspaceId),
     workspaceUuid,
     name: `${workspaceName} Chat`,
     participants: [
