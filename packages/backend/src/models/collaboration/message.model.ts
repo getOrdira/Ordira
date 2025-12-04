@@ -737,8 +737,18 @@ MessageSchema.statics.searchMessages = async function(
       .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
       .limit(limit);
   } catch (error: any) {
-    // Fallback to regex search if text index doesn't exist
-    if (error.code === 4 || error.message?.includes('$search')) {
+    // Fallback to regex search if text index doesn't exist or other $text errors
+    // Error codes: 27 = IndexNotFound, 4 = InterruptedAtShutdown
+    // Also check for various error message patterns
+    const isTextIndexError =
+      error.code === 27 ||
+      error.code === 4 ||
+      error.codeName === 'IndexNotFound' ||
+      error.message?.includes('$search') ||
+      error.message?.includes('text index') ||
+      error.message?.includes('no text index');
+
+    if (isTextIndexError) {
       return await this.find({
         conversationId: conversationObjectId,
         isDeleted: false,

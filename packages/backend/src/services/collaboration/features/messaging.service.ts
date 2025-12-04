@@ -489,7 +489,8 @@ export class MessagingService {
       const message = await Message.findByMessageId(messageId);
       if (message) {
         await message.markAsRead(userId);
-        await conversation.updateLastRead(userId, messageId);
+        // Use message._id (ObjectId), not messageId (UUID) for lastReadMessageId
+        await conversation.updateLastRead(userId, message._id.toString());
       }
     } else {
       // Mark all unread messages as read
@@ -505,7 +506,8 @@ export class MessagingService {
       // Update conversation's last read
       if (unreadMessages.length > 0) {
         const lastMessage = unreadMessages[unreadMessages.length - 1];
-        await conversation.updateLastRead(userId, lastMessage.messageId);
+        // Use message._id (ObjectId), not messageId (UUID) for lastReadMessageId
+        await conversation.updateLastRead(userId, lastMessage._id.toString());
       }
     }
 
@@ -683,11 +685,19 @@ export class MessagingService {
     options: { limit?: number } = {}
   ): Promise<IMessage[]> {
     const conversation = await Conversation.findByConversationId(conversationId);
-    if (!conversation || !conversation.isParticipant(userId)) {
-      throw new Error('Access denied to conversation');
+    if (!conversation) {
+      throw { statusCode: 404, message: 'Conversation not found' };
+    }
+    if (!conversation.isParticipant(userId)) {
+      throw { statusCode: 403, message: 'Access denied to conversation' };
     }
 
-    return Message.searchMessages(conversation._id.toString(), query, options);
+    try {
+      return await Message.searchMessages(conversation._id.toString(), query, options);
+    } catch (error: any) {
+      logger.error('Search messages error', { conversationId, userId, query, error: error.message });
+      throw { statusCode: 500, message: 'Failed to search messages' };
+    }
   }
 
   /**
