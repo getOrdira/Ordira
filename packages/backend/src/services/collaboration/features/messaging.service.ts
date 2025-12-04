@@ -410,7 +410,7 @@ export class MessagingService {
       senderName,
       preview: this.createMessagePreview(text, content.contentType),
       contentType: content.contentType === 'mixed' ? 'text' : content.contentType,
-      sentAt: message.createdAt
+      sentAt: new Date()
     };
 
     await conversation.updateLastMessage(lastMessagePreview);

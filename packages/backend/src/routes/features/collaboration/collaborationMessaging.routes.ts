@@ -81,6 +81,10 @@ const reactionBodySchema = Joi.object({
   emoji: Joi.string().trim().min(1).max(20).required()
 });
 
+const reactionQuerySchema = Joi.object({
+  emoji: Joi.string().min(1).max(20).required()
+});
+
 const markAsReadBodySchema = Joi.object({
   messageId: uuidSchema.optional()
 });
@@ -265,7 +269,7 @@ builder.delete(
   createHandler(collaborationMessagingController, 'removeReaction'),
   {
     validateParams: messageIdParamsSchema,
-    validateQuery: reactionBodySchema
+    validateQuery: reactionQuerySchema
   }
 );
 

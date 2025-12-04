@@ -717,20 +717,35 @@ MessageSchema.statics.getUnreadMessages = function(
 /**
  * Search messages in conversation
  */
-MessageSchema.statics.searchMessages = function(
+MessageSchema.statics.searchMessages = async function(
   conversationId: string,
   searchQuery: string,
   options: any = {}
 ) {
   const { limit = 20 } = options;
 
-  return this.find({
-    conversationId,
-    isDeleted: false,
-    $text: { $search: searchQuery }
-  })
-    .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
-    .limit(limit);
+  try {
+    // Try using text index search first
+    return await this.find({
+      conversationId,
+      isDeleted: false,
+      $text: { $search: searchQuery }
+    })
+      .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
+      .limit(limit);
+  } catch (error: any) {
+    // Fallback to regex search if text index doesn't exist
+    if (error.code === 4 || error.message?.includes('$search')) {
+      return await this.find({
+        conversationId,
+        isDeleted: false,
+        'content.text': { $regex: searchQuery, $options: 'i' }
+      })
+        .sort({ createdAt: -1 })
+        .limit(limit);
+    }
+    throw error;
+  }
 };
 
 /**
