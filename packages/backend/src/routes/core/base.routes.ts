@@ -203,6 +203,9 @@ export class BaseRouteBuilder {
   ): this {
     const middlewares: RequestHandler[] = [];
 
+    if (options.validateQuery) {
+      middlewares.push(validateQuery(options.validateQuery));
+    }
     if (options.validateParams) {
       middlewares.push(validateParams(options.validateParams));
     }

@@ -446,11 +446,31 @@ ConversationSchema.virtual('hasUnread').get(function() {
 
 /**
  * Check if user is a participant
+ * For direct conversations, also checks if user is the brandId or manufacturerId
+ * (backward compatibility for conversations created before both parties were added as participants)
  */
 ConversationSchema.methods.isParticipant = function(userId: string): boolean {
-  return this.participants.some(
+  // Check participants array
+  const isInParticipants = this.participants.some(
     (p: IConversationParticipant) => p.userId.toString() === userId && p.isActive
   );
+
+  if (isInParticipants) {
+    return true;
+  }
+
+  // For direct conversations, also check brandId/manufacturerId for backward compatibility
+  if (this.conversationType === 'direct') {
+    const userIdStr = userId.toString();
+    if (this.brandId && this.brandId.toString() === userIdStr) {
+      return true;
+    }
+    if (this.manufacturerId && this.manufacturerId.toString() === userIdStr) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 /**
@@ -690,6 +710,11 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
     // Create new direct conversation
     const { v4: uuidv4 } = await import('uuid');
 
+    // For direct conversations, BOTH brand and manufacturer must be participants
+    // The creator is the owner, the other party is a member
+    const otherPartyId = creatorType === 'brand' ? manufacturerId : brandId;
+    const otherPartyType = creatorType === 'brand' ? 'manufacturer' : 'brand';
+
     conversation = new this({
       conversationId: uuidv4(),
       conversationType: 'direct',
@@ -703,10 +728,18 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
           joinedAt: new Date(),
           isActive: true,
           role: 'owner'
+        },
+        {
+          userId: new Types.ObjectId(otherPartyId),
+          userType: otherPartyType,
+          joinedAt: new Date(),
+          isActive: true,
+          role: 'member'
         }
       ],
       unreadCounts: [
-        { participantId: new Types.ObjectId(createdBy), count: 0 }
+        { participantId: new Types.ObjectId(createdBy), count: 0 },
+        { participantId: new Types.ObjectId(otherPartyId), count: 0 }
       ],
       createdBy: new Types.ObjectId(createdBy)
     });
