@@ -251,7 +251,7 @@ export class MessagingService {
    * Get conversation by ID
    */
   async getConversationById(conversationId: string): Promise<IConversation | null> {
-    return Conversation.findByConversationId(conversationId);
+    return await Conversation.findByConversationId(conversationId);
   }
 
   /**
@@ -300,7 +300,7 @@ export class MessagingService {
     brandId: string,
     manufacturerId: string
   ): Promise<IConversation | null> {
-    return Conversation.findDirectConversation(brandId, manufacturerId);
+    return await Conversation.findDirectConversation(brandId, manufacturerId);
   }
 
   /**

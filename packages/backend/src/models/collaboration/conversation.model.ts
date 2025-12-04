@@ -594,34 +594,47 @@ ConversationSchema.methods.updateLastMessage = function(
 /**
  * Find conversation by UUID
  */
-ConversationSchema.statics.findByConversationId = function(conversationId: string) {
-  return this.findOne()
-    .where('conversationId').equals(conversationId)
-    .where('status').in(['active', 'archived']);
+ConversationSchema.statics.findByConversationId = async function(conversationId: string) {
+  const conversation = await this.findOne({ conversationId });
+  // Filter out deleted conversations
+  if (conversation && conversation.status !== 'deleted') {
+    return conversation;
+  }
+  return null;
 };
 
 /**
  * Find direct conversation between brand and manufacturer
  */
-ConversationSchema.statics.findDirectConversation = function(
+ConversationSchema.statics.findDirectConversation = async function(
   brandId: string,
   manufacturerId: string
 ) {
-  return this.findOne()
-    .where('brandId').equals(new Types.ObjectId(brandId))
-    .where('manufacturerId').equals(new Types.ObjectId(manufacturerId))
-    .where('conversationType').equals('direct')
-    .where('status').in(['active', 'archived']);
+  const conversation = await this.findOne({
+    brandId: new Types.ObjectId(brandId),
+    manufacturerId: new Types.ObjectId(manufacturerId),
+    conversationType: 'direct'
+  });
+  // Filter out deleted conversations
+  if (conversation && conversation.status !== 'deleted') {
+    return conversation;
+  }
+  return null;
 };
 
 /**
  * Find workspace conversation
  */
-ConversationSchema.statics.findWorkspaceConversation = function(workspaceId: string) {
-  return this.findOne()
-    .where('workspaceId').equals(new Types.ObjectId(workspaceId))
-    .where('conversationType').equals('workspace')
-    .where('status').in(['active', 'archived']);
+ConversationSchema.statics.findWorkspaceConversation = async function(workspaceId: string) {
+  const conversation = await this.findOne({
+    workspaceId: new Types.ObjectId(workspaceId),
+    conversationType: 'workspace'
+  });
+  // Filter out deleted conversations
+  if (conversation && conversation.status !== 'deleted') {
+    return conversation;
+  }
+  return null;
 };
 
 /**
@@ -658,15 +671,20 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
 ) {
   try {
     // Try to find existing (exclude deleted conversations)
-    // Use query builder to avoid Mongoose trying to cast $in operator
-    let conversation = await this.findOne()
-      .where('brandId').equals(new Types.ObjectId(brandId))
-      .where('manufacturerId').equals(new Types.ObjectId(manufacturerId))
-      .where('conversationType').equals('direct')
-      .where('status').in(['active', 'archived']);
+    // Query without status filter, then filter in code to avoid Mongoose casting issues
+    let conversation = await this.findOne({
+      brandId: new Types.ObjectId(brandId),
+      manufacturerId: new Types.ObjectId(manufacturerId),
+      conversationType: 'direct'
+    });
 
-    if (conversation) {
+    // Filter out deleted conversations
+    if (conversation && conversation.status !== 'deleted') {
       return conversation;
+    }
+    // If found but deleted, treat as not found (will create new)
+    if (conversation && conversation.status === 'deleted') {
+      conversation = null;
     }
 
     // Create new direct conversation
@@ -715,14 +733,19 @@ ConversationSchema.statics.getOrCreateWorkspaceConversation = async function(
 ) {
   try {
     // Try to find existing (exclude deleted conversations)
-    // Use query builder to avoid Mongoose trying to cast $in operator
-    let conversation = await this.findOne()
-      .where('workspaceId').equals(new Types.ObjectId(workspaceId))
-      .where('conversationType').equals('workspace')
-      .where('status').in(['active', 'archived']);
+    // Query without status filter, then filter in code to avoid Mongoose casting issues
+    let conversation = await this.findOne({
+      workspaceId: new Types.ObjectId(workspaceId),
+      conversationType: 'workspace'
+    });
 
-    if (conversation) {
+    // Filter out deleted conversations
+    if (conversation && conversation.status !== 'deleted') {
       return conversation;
+    }
+    // If found but deleted, treat as not found (will create new)
+    if (conversation && conversation.status === 'deleted') {
+      conversation = null;
     }
 
     // Create new workspace conversation
