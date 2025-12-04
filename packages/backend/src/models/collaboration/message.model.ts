@@ -724,10 +724,13 @@ MessageSchema.statics.searchMessages = async function(
 ) {
   const { limit = 20 } = options;
 
+  // Convert string to ObjectId for proper MongoDB query
+  const conversationObjectId = new Types.ObjectId(conversationId);
+
   try {
     // Try using text index search first
     return await this.find({
-      conversationId,
+      conversationId: conversationObjectId,
       isDeleted: false,
       $text: { $search: searchQuery }
     })
@@ -737,7 +740,7 @@ MessageSchema.statics.searchMessages = async function(
     // Fallback to regex search if text index doesn't exist
     if (error.code === 4 || error.message?.includes('$search')) {
       return await this.find({
-        conversationId,
+        conversationId: conversationObjectId,
         isDeleted: false,
         'content.text': { $regex: searchQuery, $options: 'i' }
       })
