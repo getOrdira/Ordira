@@ -656,50 +656,52 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
   createdBy: string,
   creatorType: 'brand' | 'manufacturer'
 ) {
-  // Try to find existing
-  let conversation = await this.findOne({
-    brandId: new Types.ObjectId(brandId),
-    manufacturerId: new Types.ObjectId(manufacturerId),
-    conversationType: 'direct',
-    status: { $in: ['active', 'archived'] }
-  });
+  try {
+    // Try to find existing
+    let conversation = await this.findOne({
+      brandId: new Types.ObjectId(brandId),
+      manufacturerId: new Types.ObjectId(manufacturerId),
+      conversationType: 'direct',
+      status: { $in: ['active', 'archived'] }
+    });
 
-  if (conversation) {
-    return conversation;
+    if (conversation) {
+      return conversation;
+    }
+
+    // Create new direct conversation
+    const { v4: uuidv4 } = await import('uuid');
+
+    conversation = new this({
+      conversationId: uuidv4(),
+      conversationType: 'direct',
+      brandId: new Types.ObjectId(brandId),
+      manufacturerId: new Types.ObjectId(manufacturerId),
+      status: 'active',
+      participants: [
+        {
+          userId: new Types.ObjectId(createdBy),
+          userType: creatorType,
+          joinedAt: new Date(),
+          isActive: true,
+          role: 'owner'
+        }
+      ],
+      unreadCounts: [
+        { participantId: new Types.ObjectId(createdBy), count: 0 }
+      ],
+      createdBy: new Types.ObjectId(createdBy)
+    });
+
+    return await conversation.save();
+  } catch (error: any) {
+    // Re-throw with more context
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error && error.name === 'ValidationError' 
+      ? JSON.stringify(error) 
+      : errorMessage;
+    throw new Error(`Failed to get or create direct conversation: ${errorDetails}`);
   }
-
-  // Create new direct conversation
-  const { v4: uuidv4 } = await import('uuid');
-
-  conversation = new this({
-    conversationId: uuidv4(),
-    conversationType: 'direct',
-    brandId: new Types.ObjectId(brandId),
-    manufacturerId: new Types.ObjectId(manufacturerId),
-    participants: [
-      {
-        userId: new Types.ObjectId(brandId),
-        userType: 'brand',
-        joinedAt: new Date(),
-        isActive: true,
-        role: 'owner'
-      },
-      {
-        userId: new Types.ObjectId(manufacturerId),
-        userType: 'manufacturer',
-        joinedAt: new Date(),
-        isActive: true,
-        role: 'owner'
-      }
-    ],
-    unreadCounts: [
-      { participantId: new Types.ObjectId(brandId), count: 0 },
-      { participantId: new Types.ObjectId(manufacturerId), count: 0 }
-    ],
-    createdBy: new Types.ObjectId(createdBy)
-  });
-
-  return conversation.save();
 };
 
 /**
@@ -711,42 +713,52 @@ ConversationSchema.statics.getOrCreateWorkspaceConversation = async function(
   workspaceName: string,
   createdBy: string
 ) {
-  // Try to find existing
-  let conversation = await this.findOne({
-    workspaceId: new Types.ObjectId(workspaceId),
-    conversationType: 'workspace',
-    status: { $in: ['active', 'archived'] }
-  });
+  try {
+    // Try to find existing
+    let conversation = await this.findOne({
+      workspaceId: new Types.ObjectId(workspaceId),
+      conversationType: 'workspace',
+      status: { $in: ['active', 'archived'] }
+    });
 
-  if (conversation) {
-    return conversation;
+    if (conversation) {
+      return conversation;
+    }
+
+    // Create new workspace conversation
+    const { v4: uuidv4 } = await import('uuid');
+
+    conversation = new this({
+      conversationId: uuidv4(),
+      conversationType: 'workspace',
+      workspaceId: new Types.ObjectId(workspaceId),
+      workspaceUuid,
+      name: `${workspaceName} Chat`,
+      status: 'active',
+      participants: [
+        {
+          userId: new Types.ObjectId(createdBy),
+          userType: 'brand', // Will be updated based on actual user
+          joinedAt: new Date(),
+          isActive: true,
+          role: 'owner'
+        }
+      ],
+      unreadCounts: [
+        { participantId: new Types.ObjectId(createdBy), count: 0 }
+      ],
+      createdBy: new Types.ObjectId(createdBy)
+    });
+
+    return await conversation.save();
+  } catch (error: any) {
+    // Re-throw with more context
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error && error.name === 'ValidationError' 
+      ? JSON.stringify(error) 
+      : errorMessage;
+    throw new Error(`Failed to get or create workspace conversation: ${errorDetails}`);
   }
-
-  // Create new workspace conversation
-  const { v4: uuidv4 } = await import('uuid');
-
-  conversation = new this({
-    conversationId: uuidv4(),
-    conversationType: 'workspace',
-    workspaceId: new Types.ObjectId(workspaceId),
-    workspaceUuid,
-    name: `${workspaceName} Chat`,
-    participants: [
-      {
-        userId: new Types.ObjectId(createdBy),
-        userType: 'brand', // Will be updated based on actual user
-        joinedAt: new Date(),
-        isActive: true,
-        role: 'owner'
-      }
-    ],
-    unreadCounts: [
-      { participantId: new Types.ObjectId(createdBy), count: 0 }
-    ],
-    createdBy: new Types.ObjectId(createdBy)
-  });
-
-  return conversation.save();
 };
 
 // ====================

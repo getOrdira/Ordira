@@ -107,23 +107,32 @@ export class MessagingService {
     createdBy: string,
     creatorType: 'brand' | 'manufacturer'
   ): Promise<IConversation> {
-    // Validate connection exists
-    const connectionStatus = await connectionValidationService.validateConnection(
-      new Types.ObjectId(brandId),
-      new Types.ObjectId(manufacturerId)
-    );
+    try {
+      // Validate connection exists
+      const connectionStatus = await connectionValidationService.validateConnection(
+        new Types.ObjectId(brandId),
+        new Types.ObjectId(manufacturerId)
+      );
 
-    if (!connectionStatus.isConnected || connectionStatus.status !== 'active') {
-      throw new Error('An active connection is required to start a conversation');
+      if (!connectionStatus.isConnected || connectionStatus.status !== 'active') {
+        throw { statusCode: 403, code: 'CONNECTION_REQUIRED', message: 'An active connection is required to start a conversation' };
+      }
+
+      // Use static method to get or create
+      return await Conversation.getOrCreateDirectConversation(
+        brandId,
+        manufacturerId,
+        createdBy,
+        creatorType
+      );
+    } catch (error: any) {
+      // Re-throw structured errors as-is
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        throw error;
+      }
+      // Wrap other errors
+      throw { statusCode: 500, code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Failed to get or create direct conversation' };
     }
-
-    // Use static method to get or create
-    return Conversation.getOrCreateDirectConversation(
-      brandId,
-      manufacturerId,
-      createdBy,
-      creatorType
-    );
   }
 
   /**
@@ -133,18 +142,27 @@ export class MessagingService {
     workspaceId: string,
     createdBy: string
   ): Promise<IConversation> {
-    // Get workspace details
-    const workspace = await Workspace.findById(workspaceId);
-    if (!workspace) {
-      throw new Error('Workspace not found');
-    }
+    try {
+      // Get workspace details
+      const workspace = await Workspace.findById(workspaceId);
+      if (!workspace) {
+        throw { statusCode: 404, code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' };
+      }
 
-    return Conversation.getOrCreateWorkspaceConversation(
-      workspaceId,
-      workspace.workspaceId,
-      workspace.name,
-      createdBy
-    );
+      return await Conversation.getOrCreateWorkspaceConversation(
+        workspaceId,
+        workspace.workspaceId,
+        workspace.name,
+        createdBy
+      );
+    } catch (error: any) {
+      // Re-throw structured errors as-is
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        throw error;
+      }
+      // Wrap other errors
+      throw { statusCode: 500, code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Failed to get or create workspace conversation' };
+    }
   }
 
   /**
