@@ -595,7 +595,9 @@ ConversationSchema.methods.updateLastMessage = function(
  * Find conversation by UUID
  */
 ConversationSchema.statics.findByConversationId = function(conversationId: string) {
-  return this.findOne({ conversationId, status: { $in: ['active', 'archived'] } });
+  return this.findOne()
+    .where('conversationId').equals(conversationId)
+    .where('status').in(['active', 'archived']);
 };
 
 /**
@@ -605,23 +607,21 @@ ConversationSchema.statics.findDirectConversation = function(
   brandId: string,
   manufacturerId: string
 ) {
-  return this.findOne({
-    brandId: new Types.ObjectId(brandId),
-    manufacturerId: new Types.ObjectId(manufacturerId),
-    conversationType: 'direct',
-    status: { $in: ['active', 'archived'] }
-  });
+  return this.findOne()
+    .where('brandId').equals(new Types.ObjectId(brandId))
+    .where('manufacturerId').equals(new Types.ObjectId(manufacturerId))
+    .where('conversationType').equals('direct')
+    .where('status').in(['active', 'archived']);
 };
 
 /**
  * Find workspace conversation
  */
 ConversationSchema.statics.findWorkspaceConversation = function(workspaceId: string) {
-  return this.findOne({
-    workspaceId: new Types.ObjectId(workspaceId),
-    conversationType: 'workspace',
-    status: { $in: ['active', 'archived'] }
-  });
+  return this.findOne()
+    .where('workspaceId').equals(new Types.ObjectId(workspaceId))
+    .where('conversationType').equals('workspace')
+    .where('status').in(['active', 'archived']);
 };
 
 /**
@@ -657,13 +657,13 @@ ConversationSchema.statics.getOrCreateDirectConversation = async function(
   creatorType: 'brand' | 'manufacturer'
 ) {
   try {
-    // Try to find existing
-    let conversation = await this.findOne({
-      brandId: new Types.ObjectId(brandId),
-      manufacturerId: new Types.ObjectId(manufacturerId),
-      conversationType: 'direct',
-      status: { $in: ['active', 'archived'] }
-    });
+    // Try to find existing (exclude deleted conversations)
+    // Use query builder to avoid Mongoose trying to cast $in operator
+    let conversation = await this.findOne()
+      .where('brandId').equals(new Types.ObjectId(brandId))
+      .where('manufacturerId').equals(new Types.ObjectId(manufacturerId))
+      .where('conversationType').equals('direct')
+      .where('status').in(['active', 'archived']);
 
     if (conversation) {
       return conversation;
@@ -714,12 +714,12 @@ ConversationSchema.statics.getOrCreateWorkspaceConversation = async function(
   createdBy: string
 ) {
   try {
-    // Try to find existing
-    let conversation = await this.findOne({
-      workspaceId: new Types.ObjectId(workspaceId),
-      conversationType: 'workspace',
-      status: { $in: ['active', 'archived'] }
-    });
+    // Try to find existing (exclude deleted conversations)
+    // Use query builder to avoid Mongoose trying to cast $in operator
+    let conversation = await this.findOne()
+      .where('workspaceId').equals(new Types.ObjectId(workspaceId))
+      .where('conversationType').equals('workspace')
+      .where('status').in(['active', 'archived']);
 
     if (conversation) {
       return conversation;
