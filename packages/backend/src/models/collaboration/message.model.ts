@@ -727,6 +727,9 @@ MessageSchema.statics.searchMessages = async function(
   // Convert string to ObjectId for proper MongoDB query
   const conversationObjectId = new Types.ObjectId(conversationId);
 
+  // Escape special regex characters in search query
+  const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   try {
     // Try using text index search first
     return await this.find({
@@ -746,13 +749,15 @@ MessageSchema.statics.searchMessages = async function(
       error.codeName === 'IndexNotFound' ||
       error.message?.includes('$search') ||
       error.message?.includes('text index') ||
-      error.message?.includes('no text index');
+      error.message?.includes('no text index') ||
+      error.message?.includes('Cast to string failed');
 
     if (isTextIndexError) {
+      // Use regex search on content.text field (nested path)
       return await this.find({
         conversationId: conversationObjectId,
         isDeleted: false,
-        'content.text': { $regex: searchQuery, $options: 'i' }
+        'content.text': { $regex: escapedQuery, $options: 'i' }
       })
         .sort({ createdAt: -1 })
         .limit(limit);
