@@ -22,7 +22,7 @@ const syncBodySchema = Joi.object({
   forceSync: Joi.boolean().optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Generate Wix OAuth installation URL
 builder.post(

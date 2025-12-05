@@ -24,7 +24,7 @@ const syncBodySchema = Joi.object({
   batchSize: Joi.number().integer().min(1).max(500).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Connect WooCommerce with credentials
 builder.post(

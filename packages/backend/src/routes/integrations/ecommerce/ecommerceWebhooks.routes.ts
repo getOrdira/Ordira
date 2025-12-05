@@ -35,7 +35,7 @@ const callbackUrlBodySchema = Joi.object({
   queryParams: Joi.object().pattern(Joi.string(), Joi.alternatives().try(Joi.string(), Joi.number(), Joi.boolean())).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // List provider webhooks
 builder.get(

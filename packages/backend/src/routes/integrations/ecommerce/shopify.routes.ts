@@ -27,7 +27,7 @@ const syncBodySchema = Joi.object({
   batchSize: Joi.number().integer().min(1).max(500).optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Generate Shopify OAuth installation URL
 builder.post(

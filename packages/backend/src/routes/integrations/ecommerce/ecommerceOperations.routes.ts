@@ -52,7 +52,7 @@ const orderWebhookQuerySchema = Joi.object({
   timestamp: Joi.string().optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Sync products
 builder.post(

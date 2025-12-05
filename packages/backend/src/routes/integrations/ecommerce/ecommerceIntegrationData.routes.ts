@@ -59,7 +59,7 @@ const listQuerySchema = Joi.object({
   provider: providerSchema.optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Get integration status
 builder.get(

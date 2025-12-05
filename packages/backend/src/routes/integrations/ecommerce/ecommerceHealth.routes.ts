@@ -37,7 +37,7 @@ const analyticsQuerySchema = Joi.object({
   includeHealthDetails: Joi.boolean().optional()
 });
 
-const builder = createRouteBuilder(RouteConfigs.tenant);
+const builder = createRouteBuilder(RouteConfigs.authenticated);
 
 // Get connection health report
 builder.get(
