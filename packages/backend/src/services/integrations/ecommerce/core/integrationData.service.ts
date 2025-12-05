@@ -85,7 +85,10 @@ export class IntegrationDataService {
     const config = this.getFieldConfig(provider);
     const businessObjectId = this.toObjectId(businessId);
 
+    // Select all fields including those with select: false (like shopifyAccessToken)
+    // The + prefix in Mongoose explicitly includes fields that have select: false
     const settings = await BrandSettings.findOne({ business: businessObjectId })
+      .select('+shopifyAccessToken +shopifyWebhookSecret +wooConsumerKey +wooConsumerSecret +wixApiKey +wixRefreshToken')
       .lean<{ [key: string]: unknown }>()
       .exec();
 
@@ -323,14 +326,21 @@ export class IntegrationDataService {
         return [];
       }
 
+      // Use $and to avoid Mongoose casting issues with String fields
+      // When a field is defined as String type, Mongoose tries to cast query operators to strings
       const query: Record<string, unknown> = {
-        [connectionField]: {
-          $exists: true,
-          $nin: [null, '']
-        }
+        $and: [
+          { [connectionField]: { $exists: true } },
+          { [connectionField]: { $ne: null } },
+          { [connectionField]: { $ne: '' } }
+        ]
       };
 
-      const results = await BrandSettings.find(query, { business: 1 }).lean().exec();
+      // Select fields with select: false to check for connections
+      const results = await BrandSettings.find(query)
+        .select('+shopifyAccessToken +shopifyWebhookSecret +wooConsumerKey +wooConsumerSecret +wixApiKey +wixRefreshToken business')
+        .lean()
+        .exec();
 
       return results
         .filter((doc) => doc.business)
