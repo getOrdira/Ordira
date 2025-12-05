@@ -61,7 +61,7 @@ export class AssociationService {
     contractType: 'supplychain' | 'voting' | 'nft'
   ): Promise<IAssociationResult> {
     try {
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       const updateData: any = {
         [`web3Settings.${contractType}Contract`]: contractAddress,
@@ -100,7 +100,7 @@ export class AssociationService {
     contractType: 'supplychain' | 'voting' | 'nft'
   ): Promise<IBusinessContractMapping> {
     try {
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       const brandSettings = await BrandSettings.findOne({ business: businessId });
       
@@ -160,7 +160,7 @@ export class AssociationService {
     contractType: 'supplychain' | 'voting' | 'nft'
   ): Promise<IAssociationResult> {
     try {
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       const unsetData: any = {
         [`web3Settings.${contractType}Contract`]: '',
@@ -194,7 +194,7 @@ export class AssociationService {
    */
   async getAllBusinessContractMappings(businessId: string): Promise<IContractAssociation[]> {
     try {
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       const brandSettings = await BrandSettings.findOne({ business: businessId });
       
@@ -243,7 +243,7 @@ export class AssociationService {
       // First validate the association exists
       await this.validateBusinessContractAssociation(contractAddress, businessId, contractType);
 
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       await BrandSettings.findOneAndUpdate(
         { business: businessId },
@@ -318,7 +318,7 @@ export class AssociationService {
    */
   async validateBusinessExists(businessId: string): Promise<boolean> {
     try {
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       const brandSettings = await BrandSettings.findOne({ business: businessId });
       return !!brandSettings;
@@ -334,7 +334,7 @@ export class AssociationService {
    */
   async getBusinessesByContractAddress(contractAddress: string): Promise<string[]> {
     try {
-      const { BrandSettings } = require('../../../models/brandSettings.model');
+      const { BrandSettings } = require('../../../models/brands/brandSettings.model');
       
       const brandSettings = await BrandSettings.find({
         $or: [

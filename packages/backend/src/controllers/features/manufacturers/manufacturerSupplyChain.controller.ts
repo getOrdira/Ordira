@@ -146,7 +146,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async deploySupplyChainContract(req: DeployContractRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'DEPLOY_SUPPLY_CHAIN_CONTRACT');
 
         const contractInfo = await this.supplyChainService.deploySupplyChainContract(
@@ -155,7 +155,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'DEPLOY_SUPPLY_CHAIN_CONTRACT_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           contractAddress: contractInfo.contractAddress,
           manufacturerName: contractInfo.manufacturerName,
@@ -173,13 +172,12 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getSupplyChainContractInfo(req: GetContractInfoRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_SUPPLY_CHAIN_CONTRACT_INFO');
 
         const contractInfo = await this.supplyChainService.getSupplyChainContractInfo(req.validatedParams.manufacturerId);
 
         this.logAction(req, 'GET_SUPPLY_CHAIN_CONTRACT_INFO_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           hasContract: !!contractInfo,
           contractAddress: contractInfo?.contractAddress
@@ -196,7 +194,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async createSupplyChainEndpoint(req: CreateEndpointRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'CREATE_SUPPLY_CHAIN_ENDPOINT');
 
         const endpointData = {
@@ -211,7 +209,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'CREATE_SUPPLY_CHAIN_ENDPOINT_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           endpointId: endpoint.id,
           endpointName: endpoint.name,
@@ -230,13 +227,12 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getSupplyChainEndpoints(req: GetEndpointsRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_SUPPLY_CHAIN_ENDPOINTS');
 
         const endpoints = await this.supplyChainService.getSupplyChainEndpoints(req.validatedParams.manufacturerId);
 
         this.logAction(req, 'GET_SUPPLY_CHAIN_ENDPOINTS_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           endpointsCount: endpoints.length
         });
@@ -252,7 +248,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async registerSupplyChainProduct(req: RegisterProductRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'REGISTER_SUPPLY_CHAIN_PRODUCT');
 
         const productData = {
@@ -267,7 +263,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'REGISTER_SUPPLY_CHAIN_PRODUCT_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           productId: product.id,
           productName: product.name,
@@ -285,13 +280,12 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getSupplyChainProducts(req: GetProductsRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_SUPPLY_CHAIN_PRODUCTS');
 
         const products = await this.supplyChainService.getSupplyChainProducts(req.validatedParams.manufacturerId);
 
         this.logAction(req, 'GET_SUPPLY_CHAIN_PRODUCTS_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           productsCount: products.length
         });
@@ -307,7 +301,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async logSupplyChainEvent(req: LogEventRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'LOG_SUPPLY_CHAIN_EVENT');
 
         const eventData = {
@@ -324,7 +318,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'LOG_SUPPLY_CHAIN_EVENT_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           eventId: event.id,
           productId: event.productId,
@@ -344,7 +337,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getSupplyChainProductEvents(req: GetProductEventsRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_SUPPLY_CHAIN_PRODUCT_EVENTS');
 
         const events = await this.supplyChainService.getSupplyChainProductEvents(
@@ -353,7 +346,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'GET_SUPPLY_CHAIN_PRODUCT_EVENTS_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           productId: req.validatedQuery.productId,
           eventsCount: events.length
@@ -370,13 +362,12 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getSupplyChainDashboard(req: GetDashboardRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_SUPPLY_CHAIN_DASHBOARD');
 
         const dashboard = await this.supplyChainService.getSupplyChainDashboard(req.validatedParams.manufacturerId);
 
         this.logAction(req, 'GET_SUPPLY_CHAIN_DASHBOARD_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           hasContract: !!dashboard.contractInfo,
           endpointsCount: dashboard.endpoints.length,
@@ -399,7 +390,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async generateProductQrCode(req: GenerateQRCodeRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GENERATE_PRODUCT_QRCODE');
 
         const qrResult = await this.supplyChainService.generateProductQrCode(
@@ -408,7 +399,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'GENERATE_PRODUCT_QRCODE_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           productId: req.validatedQuery.productId,
           qrCodeUrl: qrResult.qrCodeUrl,
@@ -427,7 +417,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async generateBatchProductQrCodes(req: GenerateBatchQRCodesRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GENERATE_BATCH_PRODUCT_QRCodes');
 
         const batchResults = await this.supplyChainService.generateBatchProductQrCodes(
@@ -439,7 +429,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         const failureCount = batchResults.filter(r => !r.success).length;
 
         this.logAction(req, 'GENERATE_BATCH_PRODUCT_QRCodes_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           requestedCount: req.validatedBody.productIds.length,
           successCount,
@@ -457,7 +446,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getProductQrCodeInfo(req: GetQRCodeInfoRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_PRODUCT_QRCODE_INFO');
 
         const qrInfo = await this.supplyChainService.getProductQrCodeInfo(
@@ -466,7 +455,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'GET_PRODUCT_QRCODE_INFO_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           productId: req.validatedQuery.productId,
           hasQrCode: qrInfo.hasQrCode,
@@ -485,7 +473,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async updateEndpointStatus(req: UpdateEndpointStatusRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'UPDATE_ENDPOINT_STATUS');
 
         const endpoint = await this.supplyChainService.updateEndpointStatus(
@@ -495,7 +483,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'UPDATE_ENDPOINT_STATUS_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           endpointId: req.validatedBody.endpointId,
           isActive: req.validatedBody.isActive
@@ -512,7 +499,7 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async deactivateSupplyChainContract(req: DeactivateContractRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'DEACTIVATE_SUPPLY_CHAIN_CONTRACT');
 
         const deactivationResult = await this.supplyChainService.deactivateSupplyChainContract(
@@ -520,7 +507,6 @@ export class ManufacturerSupplyChainController extends BaseController {
         );
 
         this.logAction(req, 'DEACTIVATE_SUPPLY_CHAIN_CONTRACT_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           success: deactivationResult.success,
           deactivatedAt: deactivationResult.deactivatedAt
@@ -537,13 +523,12 @@ export class ManufacturerSupplyChainController extends BaseController {
    */
   async getSupplyChainStatistics(req: GetStatisticsRequest, res: Response, next: NextFunction): Promise<void> {
     await this.handleAsync(async () => {
-      this.validateBusinessUser(req, res, async () => {
+      this.validateManufacturerUser(req, res, async () => {
         this.recordPerformance(req, 'GET_SUPPLY_CHAIN_STATISTICS');
 
         const statistics = await this.supplyChainService.getSupplyChainStatistics(req.validatedParams.manufacturerId);
 
         this.logAction(req, 'GET_SUPPLY_CHAIN_STATISTICS_SUCCESS', {
-          businessId: req.businessId,
           manufacturerId: req.validatedParams.manufacturerId,
           totalContracts: statistics.totalContracts,
           totalEvents: statistics.totalEvents,

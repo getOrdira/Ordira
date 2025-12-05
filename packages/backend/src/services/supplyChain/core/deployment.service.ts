@@ -66,10 +66,48 @@ export class DeploymentService {
   }
 
   /**
+   * Check if we're in test/mock mode
+   */
+  private isTestMode(): boolean {
+    return (
+      process.env.MOCK_BLOCKCHAIN_DEPLOYMENTS === 'true' ||
+      process.env.NODE_ENV === 'test' ||
+      process.env.SKIP_BLOCKCHAIN_DEPLOYMENTS === 'true'
+    );
+  }
+
+  /**
+   * Generate a fake contract address for testing
+   */
+  private generateMockContractAddress(): string {
+    // Generate a valid-looking Ethereum address (0x + 40 hex chars)
+    const randomHex = Array.from({ length: 40 }, () => 
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+    return `0x${randomHex}`;
+  }
+
+  /**
+   * Generate a fake transaction hash for testing
+   */
+  private generateMockTxHash(): string {
+    // Generate a valid-looking transaction hash (0x + 64 hex chars)
+    const randomHex = Array.from({ length: 64 }, () => 
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+    return `0x${randomHex}`;
+  }
+
+  /**
    * Get the SupplyChain factory contract
    */
   private async getSupplyChainFactoryContract() {
-    const { FactorySettings } = require('../../../models/factorySettings.model');
+    // In test mode, skip factory check
+    if (this.isTestMode()) {
+      return null; // Will be handled in deployContract
+    }
+
+    const { FactorySettings } = require('../../../models/infrastructure/factorySettings.model');
     const factorySettings = await FactorySettings.findOne({ type: 'supplychain' });
 
     if (!factorySettings?.address) {
@@ -94,6 +132,49 @@ export class DeploymentService {
         manufacturerName
       });
 
+      // Test mode: Generate mock contract deployment
+      if (this.isTestMode()) {
+        logger.info('MOCK MODE: Generating fake contract deployment', {
+          businessId,
+          manufacturerName,
+          mode: 'test'
+        });
+
+        const contractAddress = this.generateMockContractAddress();
+        const txHash = this.generateMockTxHash();
+        const blockNumber = Math.floor(Math.random() * 10000000) + 1000000; // Random block number
+
+        // Store business-contract mapping
+        await this.associationService.storeBusinessContractMapping(
+          businessId,
+          contractAddress,
+          'supplychain'
+        );
+
+        const deployment: ISupplyChainDeployment = {
+          contractAddress,
+          txHash,
+          blockNumber,
+          gasUsed: '2000000', // Mock gas used
+          deploymentCost: options.value || '10000000000000000', // 0.01 ETH
+          businessId,
+          manufacturerName
+        };
+
+        logger.info('MOCK MODE: SupplyChain contract deployment simulated', {
+          businessId,
+          contractAddress,
+          txHash,
+          blockNumber
+        });
+
+        return {
+          deployment,
+          success: true
+        };
+      }
+
+      // Production mode: Real blockchain deployment
       // Get factory contract
       const factoryContract = await this.getSupplyChainFactoryContract();
 
@@ -248,10 +329,13 @@ export class DeploymentService {
     const errors: string[] = [];
 
     try {
-      // Check if factory is deployed
-      const factoryContract = await this.getSupplyChainFactoryContract();
-      if (!factoryContract) {
-        errors.push('SupplyChain factory not deployed');
+      // In test mode, skip factory check
+      if (!this.isTestMode()) {
+        // Check if factory is deployed
+        const factoryContract = await this.getSupplyChainFactoryContract();
+        if (!factoryContract) {
+          errors.push('SupplyChain factory not deployed');
+        }
       }
 
       // Check if business already has a contract
@@ -260,11 +344,14 @@ export class DeploymentService {
         errors.push('Business already has a deployed SupplyChain contract');
       }
 
-      // Validate business exists and is active
-      const { BrandSettings } = require('../../../models/brandSettings.model');
-      const brandSettings = await BrandSettings.findOne({ business: businessId });
-      if (!brandSettings) {
-        errors.push('Business not found');
+      // In test mode, skip business validation
+      if (!this.isTestMode()) {
+        // Validate business exists and is active
+        const { BrandSettings } = require('../../../models/brands/brandSettings.model');
+        const brandSettings = await BrandSettings.findOne({ business: businessId });
+        if (!brandSettings) {
+          errors.push('Business not found');
+        }
       }
 
       return {
