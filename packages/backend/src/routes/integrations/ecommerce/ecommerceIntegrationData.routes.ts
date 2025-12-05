@@ -26,7 +26,10 @@ const upsertParamsSchema = Joi.object({
 });
 
 const upsertBodySchema = Joi.object({
-  domain: Joi.string().uri().optional(),
+  domain: Joi.alternatives().try(
+    Joi.string().uri(),
+    Joi.string().hostname()
+  ).optional(),
   accessToken: Joi.string().optional(),
   refreshToken: Joi.string().optional(),
   secret: Joi.string().optional(),

@@ -312,18 +312,42 @@ export class IntegrationDataService {
    * Retrieve a list of business IDs that currently have the provider connected.
    */
   async listConnectedBusinesses(provider: EcommerceProvider): Promise<string[]> {
-    const config = this.getFieldConfig(provider);
+    try {
+      const config = this.getFieldConfig(provider);
 
-    const query: Record<string, unknown> = {
-      [config.accessTokenField ?? config.secretField ?? config.refreshTokenField ?? config.domainField]: {
-        $exists: true,
-        $nin: [null, '']
+      // Determine which field to check for connection status
+      const connectionField = config.accessTokenField ?? config.secretField ?? config.refreshTokenField ?? config.domainField;
+      
+      if (!connectionField) {
+        logger.warn('No connection field found for provider', { provider });
+        return [];
       }
-    };
 
-    const results = await BrandSettings.find(query, { business: 1 }).lean().exec();
+      const query: Record<string, unknown> = {
+        [connectionField]: {
+          $exists: true,
+          $nin: [null, '']
+        }
+      };
 
-    return results.map((doc) => doc.business.toString());
+      const results = await BrandSettings.find(query, { business: 1 }).lean().exec();
+
+      return results
+        .filter((doc) => doc.business)
+        .map((doc) => doc.business.toString());
+    } catch (error: any) {
+      logger.error('Failed to list connected businesses', {
+        provider,
+        error: error.message,
+        stack: error.stack
+      });
+      throw new EcommerceIntegrationError('Failed to list connected businesses', {
+        provider,
+        code: 'LIST_CONNECTED_ERROR',
+        statusCode: 500,
+        severity: 'medium'
+      });
+    }
   }
 
   private getFieldConfig(provider: EcommerceProvider): ProviderFieldConfig {

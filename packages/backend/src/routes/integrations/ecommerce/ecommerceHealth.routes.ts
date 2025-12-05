@@ -20,7 +20,10 @@ const healthQuerySchema = Joi.object({
 
 const webhookDefinitionSchema = Joi.object({
   topic: Joi.string().required(),
-  callbackUrl: Joi.string().uri().required(),
+  address: Joi.string().uri().required(),
+  method: Joi.string().valid('POST', 'GET', 'PUT', 'PATCH', 'DELETE').optional(),
+  format: Joi.string().valid('json', 'xml').optional(),
+  headers: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
   metadata: Joi.object().optional()
 });
 

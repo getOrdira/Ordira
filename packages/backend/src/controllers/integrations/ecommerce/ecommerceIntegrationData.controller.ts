@@ -116,8 +116,18 @@ export class EcommerceIntegrationDataController extends EcommerceBaseController 
         (req.validatedBody ?? (req.body as Partial<IntegrationCredentialsInput>) ?? {}) as Partial<IntegrationCredentialsInput>
       );
 
+      // Normalize domain: strip protocol if present
+      let normalizedDomain: string | undefined;
+      if (payload.domain) {
+        const domainStr = this.parseString(payload.domain);
+        if (domainStr) {
+          // Remove protocol and trailing slash if present
+          normalizedDomain = domainStr.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+        }
+      }
+
       const credentials: IntegrationCredentialsInput = {
-        domain: this.parseString(payload.domain),
+        domain: normalizedDomain,
         accessToken: payload.accessToken ? String(payload.accessToken) : undefined,
         refreshToken: payload.refreshToken ? String(payload.refreshToken) : undefined,
         secret: payload.secret ? String(payload.secret) : undefined,
