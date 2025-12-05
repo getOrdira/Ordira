@@ -42,17 +42,16 @@ export class SupplyChainModule extends BaseFeatureModule {
     const supplyChainRoutes = Router();
     supplyChainRoutes.use('/deployment', supplyChainRoutesModule.supplyChainDeploymentRoutes);
     supplyChainRoutes.use('/association', supplyChainRoutesModule.supplyChainAssociationRoutes);
-    supplyChainRoutes.use('/contract/read', supplyChainRoutesModule.supplyChainContractReadRoutes);
-    supplyChainRoutes.use('/contract/write', supplyChainRoutesModule.supplyChainContractWriteRoutes);
+    supplyChainRoutes.use('/contract-read', supplyChainRoutesModule.supplyChainContractReadRoutes);
+    supplyChainRoutes.use('/contract-write', supplyChainRoutesModule.supplyChainContractWriteRoutes);
     supplyChainRoutes.use('/qr-code', supplyChainRoutesModule.supplyChainQrCodeRoutes);
     supplyChainRoutes.use('/dashboard', supplyChainRoutesModule.supplyChainDashboardRoutes);
     supplyChainRoutes.use('/analytics', supplyChainRoutesModule.supplyChainAnalyticsRoutes);
     supplyChainRoutes.use('/product-lifecycle', supplyChainRoutesModule.supplyChainProductLifecycleRoutes);
 
-    // Supply chain management for manufacturers
-    app.use('/api/supply-chain',
+    // Supply chain management for manufacturers - mounted at /api/features/supplyChain
+    app.use('/api/features/supplyChain',
       authenticate,
-      requireManufacturer,
       supplyChainRoutes
     );
 

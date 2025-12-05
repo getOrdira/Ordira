@@ -54,9 +54,11 @@ export abstract class SupplyChainBaseController extends BaseController {
 
   /**
    * Ensure a business identifier exists in the request.
+   * Supports both brand (businessId) and manufacturer (manufacturerId) contexts.
    */
   protected requireBusinessId(req: BaseRequest): string {
-    const candidate =
+    // Try businessId first (for brands)
+    const businessCandidate =
       req.businessId ??
       req.validatedParams?.businessId ??
       req.validatedBody?.businessId ??
@@ -65,14 +67,30 @@ export abstract class SupplyChainBaseController extends BaseController {
       (req.body as any)?.businessId ??
       (req.query as any)?.businessId;
 
-    const businessId = this.parseString(candidate);
-    if (!businessId) {
-      throw {
-        statusCode: 400,
-        message: 'Business identifier is required for supply chain operation',
-      };
+    const businessId = this.parseString(businessCandidate);
+    if (businessId) {
+      return businessId;
     }
-    return businessId;
+
+    // Fall back to manufacturerId (for manufacturers)
+    const manufacturerCandidate =
+      req.manufacturerId ??
+      req.validatedParams?.manufacturerId ??
+      req.validatedBody?.manufacturerId ??
+      req.validatedQuery?.manufacturerId ??
+      (req.params as any)?.manufacturerId ??
+      (req.body as any)?.manufacturerId ??
+      (req.query as any)?.manufacturerId;
+
+    const manufacturerId = this.parseString(manufacturerCandidate);
+    if (manufacturerId) {
+      return manufacturerId;
+    }
+
+    throw {
+      statusCode: 400,
+      message: 'Business or manufacturer identifier is required for supply chain operation',
+    };
   }
 
   /**

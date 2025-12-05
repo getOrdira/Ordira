@@ -71,6 +71,12 @@ export class ManufacturersModule extends BaseFeatureModule {
       manufacturerRoutesModule.manufacturerAccountRoutes
     );
 
+    // Manufacturer supply chain features - mounted at /api/features/manufacturers
+    app.use('/api/features/manufacturers',
+      authenticate,
+      manufacturerRoutesModule.manufacturerSupplyChainRoutes
+    );
+
     logger.info(`✅ ${this.name} module routes registered`);
   }
 }
