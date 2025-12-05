@@ -54,6 +54,7 @@ export class AssociationService {
 
   /**
    * Store business-contract mapping
+   * Stores in both BrandSettings (for brands) and Manufacturer (for manufacturers if supplychain)
    */
   async storeBusinessContractMapping(
     businessId: string,
@@ -75,6 +76,28 @@ export class AssociationService {
         { upsert: true }
       );
 
+      // Also store in Manufacturer model if this is a supplychain contract
+      // (The manufacturer service also stores it, but this ensures consistency)
+      if (contractType === 'supplychain') {
+        try {
+          const { Manufacturer } = require('../../../models/manufacturer/manufacturer.model');
+          await Manufacturer.findByIdAndUpdate(businessId, {
+            $set: {
+              'supplyChainSettings.contractAddress': contractAddress,
+              'supplyChainSettings.deployedAt': new Date(),
+              'supplyChainSettings.networkId': process.env.CHAIN_ID || '8453',
+              'supplyChainSettings.isActive': true
+            }
+          });
+        } catch (manufacturerError: any) {
+          // If manufacturer not found, that's okay - might be a brand
+          logger.debug('Manufacturer not found for contract mapping (may be a brand)', {
+            businessId,
+            error: manufacturerError.message
+          });
+        }
+      }
+
       logger.info('Business contract mapping stored successfully', {
         businessId,
         contractAddress,
@@ -94,30 +117,48 @@ export class AssociationService {
 
   /**
    * Get business-contract mapping
+   * Checks both BrandSettings (for brands) and Manufacturer (for manufacturers)
    */
   async getBusinessContractMapping(
     businessId: string,
     contractType: 'supplychain' | 'voting' | 'nft'
   ): Promise<IBusinessContractMapping> {
     try {
+      // First check BrandSettings (for brands)
       const { BrandSettings } = require('../../../models/brands/brandSettings.model');
-      
       const brandSettings = await BrandSettings.findOne({ business: businessId });
       
-      if (!brandSettings) {
-        return { deployed: false };
+      if (brandSettings) {
+        const contractAddress = brandSettings.web3Settings?.[`${contractType}Contract`];
+        const deployedAt = brandSettings[`${contractType}Settings`]?.contractDeployedAt;
+        const networkId = brandSettings[`${contractType}Settings`]?.networkId;
+
+        if (contractAddress) {
+          return {
+            deployed: true,
+            contractAddress,
+            deployedAt,
+            networkId
+          };
+        }
       }
 
-      const contractAddress = brandSettings.web3Settings?.[`${contractType}Contract`];
-      const deployedAt = brandSettings[`${contractType}Settings`]?.contractDeployedAt;
-      const networkId = brandSettings[`${contractType}Settings`]?.networkId;
+      // If not found in BrandSettings, check Manufacturer (for manufacturers)
+      if (contractType === 'supplychain') {
+        const { Manufacturer } = require('../../../models/manufacturer/manufacturer.model');
+        const manufacturer = await Manufacturer.findById(businessId);
+        
+        if (manufacturer?.supplyChainSettings?.contractAddress) {
+          return {
+            deployed: true,
+            contractAddress: manufacturer.supplyChainSettings.contractAddress,
+            deployedAt: manufacturer.supplyChainSettings.deployedAt,
+            networkId: manufacturer.supplyChainSettings.networkId || process.env.CHAIN_ID || '8453'
+          };
+        }
+      }
 
-      return {
-        deployed: !!contractAddress,
-        contractAddress,
-        deployedAt,
-        networkId
-      };
+      return { deployed: false };
 
     } catch (error: any) {
       logger.error('Failed to get business contract mapping:', error);

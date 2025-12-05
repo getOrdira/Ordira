@@ -255,15 +255,21 @@ export class SupplyChainQrCodeService {
     logoUrl: string
   ): Promise<IQrCodeGenerationResult> {
     try {
+      // Ensure data has type field if not present
+      const qrCodeData = {
+        ...request.data,
+        type: request.type || request.data?.type || QrCodeType.SUPPLY_CHAIN_TRACKING
+      };
+
       // Validate QR code data
-      const validation = await this.validationService.validateQrCodeData(request.data);
+      const validation = await this.validationService.validateQrCodeData(qrCodeData);
       if (!validation.valid) {
         throw new QrCodeFeatureError(`Validation failed: ${validation.errors.join(', ')}`, 400);
       }
 
       // Generate QR code with logo
       const qrCode = await generateQrCodeWithLogo(
-        JSON.stringify(request.data),
+        JSON.stringify(qrCodeData),
         logoUrl,
         request.options
       );

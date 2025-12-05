@@ -522,27 +522,43 @@ export class SupplyChainService {
     productId: string
   ): Promise<QrCodeGenerationResult> {
     try {
-      // Import Product model dynamically to avoid circular dependencies
-      const { Product } = await import('../../../models/products/product.model');
-
-      // Find the product
-      const product = await Product.findOne({
-        _id: productId,
-        manufacturer: manufacturerId
-      });
-
-      if (!product) {
-        throw new SupplyChainError('Product not found or access denied', 404, 'PRODUCT_NOT_FOUND');
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        throw new SupplyChainError('No supply chain contract deployed', 400, 'NO_CONTRACT');
       }
 
-      // Generate QR code using the product's method
-      await product.generateSupplyChainQrCode();
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+
+      // Get supply chain product from contract (productId is a supply chain product ID, not MongoDB ObjectId)
+      const productsResult = await this.contractReadService.getProducts(contractAddress, manufacturerId);
+      
+      if (!productsResult.success || !productsResult.data) {
+        throw new SupplyChainError('Failed to fetch supply chain products', 500, 'PRODUCTS_FETCH_ERROR');
+      }
+
+      const product = productsResult.data.find(p => p.productId === productId);
+      if (!product) {
+        throw new SupplyChainError('Product not found in supply chain contract', 404, 'PRODUCT_NOT_FOUND');
+      }
+
+      // Generate QR code using QR code service
+      const qrCodeResult = await this.qrCodeService.generateSupplyChainQrCode({
+        contractAddress,
+        businessId: manufacturerId,
+        productId: product.productId,
+        productName: product.name,
+        manufacturerId,
+        options: {
+          size: 300,
+          errorCorrectionLevel: 'H'
+        }
+      });
 
       return {
-        qrCodeUrl: product.supplyChainQrCode!.qrCodeUrl,
-        qrCodeData: product.supplyChainQrCode!.qrCodeData,
-        productName: product.title,
-        generatedAt: product.supplyChainQrCode!.generatedAt
+        qrCodeUrl: qrCodeResult.qrCode || '',
+        qrCodeData: qrCodeResult.qrCode || '',
+        productName: product.name,
+        generatedAt: new Date()
       };
 
     } catch (error: any) {
@@ -652,23 +668,38 @@ export class SupplyChainService {
     productId: string
   ): Promise<ProductQrCodeInfo> {
     try {
-      const { Product } = await import('../../../models/products/product.model');
-
-      const product = await Product.findOne({
-        _id: productId,
-        manufacturer: manufacturerId
-      }).select('title supplyChainQrCode');
-
-      if (!product) {
-        throw new SupplyChainError('Product not found or access denied', 404, 'PRODUCT_NOT_FOUND');
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        return {
+          hasQrCode: false,
+          productName: 'Unknown Product'
+        };
       }
 
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
+
+      // Get supply chain product from contract (productId is a supply chain product ID, not MongoDB ObjectId)
+      const productsResult = await this.contractReadService.getProducts(contractAddress, manufacturerId);
+      
+      if (!productsResult.success || !productsResult.data) {
+        return {
+          hasQrCode: false,
+          productName: 'Unknown Product'
+        };
+      }
+
+      const product = productsResult.data.find(p => p.productId === productId);
+      if (!product) {
+        return {
+          hasQrCode: false,
+          productName: 'Unknown Product'
+        };
+      }
+
+      // For now, we don't store QR codes persistently, so we'll indicate they can be generated
       return {
-        hasQrCode: !!product.supplyChainQrCode?.isActive,
-        qrCodeUrl: product.supplyChainQrCode?.qrCodeUrl,
-        generatedAt: product.supplyChainQrCode?.generatedAt,
-        isActive: product.supplyChainQrCode?.isActive,
-        productName: product.title
+        hasQrCode: false, // QR codes are generated on-demand
+        productName: product.name || 'Unknown Product'
       };
 
     } catch (error: any) {
