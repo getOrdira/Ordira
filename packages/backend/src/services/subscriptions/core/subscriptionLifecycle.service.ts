@@ -1,6 +1,7 @@
 ﻿import { BillingManagementService, billingManagementService } from '../features/billingManagement.service';
 import { outboundNotificationService } from '../../notifications';
 import { Subscription, ISubscription } from '../../../models/subscription/subscription.model';
+import { Business } from '../../../models/core/business.model';
 import {
   CreateSubscriptionInput,
   UpdateSubscriptionInput,
@@ -22,6 +23,7 @@ import { BrandPlanKey, ManufacturerPlanKey } from '../utils/types';
 import { SubscriptionDataService, subscriptionDataService } from './subscriptionData.service';
 import { SubscriptionPlanValidationService, subscriptionPlanValidationService } from '../validation/planValidation.service';
 import { SubscriptionError } from '../utils/errors';
+import { logger } from '../../../utils/logger';
 
 export class SubscriptionLifecycleService {
   constructor(
@@ -106,6 +108,28 @@ export class SubscriptionLifecycleService {
 
     const subscription = await Subscription.create(subscriptionData);
 
+    // Update Business model plan field for brand subscriptions (for middleware compatibility)
+    if (planType === 'brand' && isBrandPlan(data.tier)) {
+      try {
+        await Business.findByIdAndUpdate(
+          data.businessId,
+          { plan: data.tier },
+          { new: true }
+        );
+        logger.info('Business plan field updated', {
+          businessId: data.businessId,
+          plan: data.tier
+        });
+      } catch (error: any) {
+        logger.error('Failed to update Business plan field', {
+          businessId: data.businessId,
+          plan: data.tier,
+          error: error.message
+        });
+        // Don't throw - subscription was created successfully
+      }
+    }
+
     // Send welcome notification
     const entityId = planType === 'brand' 
       ? subscription.business?.toString() || data.businessId
@@ -146,6 +170,7 @@ export class SubscriptionLifecycleService {
 
     const subscription = await this.dataService.requireByEntity(entityId, planType);
     const previousTier = subscription.tier;
+    const previousStatus = subscription.status;
 
     if (updates.tier && updates.tier !== subscription.tier) {
       const validation = this.planValidationService.validateTierChange(
@@ -198,6 +223,48 @@ export class SubscriptionLifecycleService {
     }
 
     await subscription.save();
+
+    // Update Business model plan field for brand subscriptions (for middleware compatibility)
+    if (planType === 'brand') {
+      let shouldUpdatePlan = false;
+      let newPlan: string | undefined;
+
+      // Case 1: Tier changed (upgrade or downgrade)
+      if (updates.tier && isBrandPlan(updates.tier)) {
+        shouldUpdatePlan = true;
+        newPlan = updates.tier;
+      }
+      // Case 2: Subscription reactivated (status changed from canceled/inactive to active)
+      else if (updates.status === 'active' && 
+               (previousStatus === 'canceled' || previousStatus === 'inactive')) {
+        // Restore Business plan to subscription tier when reactivating
+        shouldUpdatePlan = true;
+        newPlan = subscription.tier as string;
+      }
+
+      if (shouldUpdatePlan && newPlan) {
+        try {
+          await Business.findByIdAndUpdate(
+            entityId,
+            { plan: newPlan },
+            { new: true }
+          );
+          logger.info('Business plan field updated', {
+            businessId: entityId,
+            plan: newPlan,
+            previousPlan: previousTier,
+            reason: updates.tier ? 'tier_change' : 'reactivation'
+          });
+        } catch (error: any) {
+          logger.error('Failed to update Business plan field', {
+            businessId: entityId,
+            plan: newPlan,
+            error: error.message
+          });
+          // Don't throw - subscription was updated successfully
+        }
+      }
+    }
 
     if (updates.tier || updates.billingCycle) {
       await this.billingService.changePlan(entityId, subscription.tier, {
@@ -281,6 +348,28 @@ export class SubscriptionLifecycleService {
     });
 
     await subscription.save();
+
+    // Update Business model plan field for brand subscriptions when canceled immediately
+    // (When canceled at period end, subscription is still active, so keep current plan)
+    if (cancelImmediately && planType === 'brand') {
+      try {
+        await Business.findByIdAndUpdate(
+          entityId,
+          { plan: 'foundation' },
+          { new: true }
+        );
+        logger.info('Business plan field reset to foundation after immediate cancellation', {
+          businessId: entityId,
+          previousPlan: previousTier
+        });
+      } catch (error: any) {
+        logger.error('Failed to update Business plan field after cancellation', {
+          businessId: entityId,
+          error: error.message
+        });
+        // Don't throw - subscription was canceled successfully
+      }
+    }
 
     if (subscription.stripeSubscriptionId) {
       await this.billingService.cancelSubscription(
