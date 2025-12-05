@@ -529,44 +529,28 @@ export class ContractReadService {
    * Execute get contract stats call
    */
   private async executeGetContractStats(contract: any): Promise<[bigint, bigint, bigint, string, string]> {
-    return await (contract as unknown as { 
-      read: { 
-        getContractStats: () => Promise<[bigint, bigint, bigint, string, string]> 
-      } 
-    }).read.getContractStats();
+    return await (contract as any).getContractStats();
   }
 
   /**
    * Execute get manufacturer endpoints call
    */
   private async executeGetManufacturerEndpoints(contract: any): Promise<bigint[]> {
-    return await (contract as unknown as { 
-      read: { 
-        getManufacturerEndpoints: () => Promise<bigint[]> 
-      } 
-    }).read.getManufacturerEndpoints();
+    return await (contract as any).getManufacturerEndpoints();
   }
 
   /**
    * Execute get manufacturer products call
    */
   private async executeGetManufacturerProducts(contract: any): Promise<bigint[]> {
-    return await (contract as unknown as { 
-      read: { 
-        getManufacturerProducts: () => Promise<bigint[]> 
-      } 
-    }).read.getManufacturerProducts();
+    return await (contract as any).getManufacturerProducts();
   }
 
   /**
    * Execute get product events call
    */
   private async executeGetProductEvents(contract: any, productId: string): Promise<bigint[]> {
-    return await (contract as unknown as { 
-      read: { 
-        getProductEvents: (args: [string]) => Promise<bigint[]> 
-      } 
-    }).read.getProductEvents([productId]);
+    return await (contract as any).getProductEvents(productId);
   }
 
   /**
@@ -580,18 +564,7 @@ export class ContractReadService {
     eventCount?: bigint;
     createdAt?: bigint;
   }> {
-    return await (contract as unknown as { 
-      read: { 
-        getEndpoint: (args: [bigint]) => Promise<{
-          name: string;
-          eventType: string;
-          isActive: boolean;
-          location?: string;
-          eventCount?: bigint;
-          createdAt?: bigint;
-        }> 
-      } 
-    }).read.getEndpoint([id]);
+    return await (contract as any).getEndpoint(id);
   }
 
   /**
@@ -605,18 +578,7 @@ export class ContractReadService {
     totalEvents?: bigint;
     createdAt?: bigint;
   }> {
-    return await (contract as unknown as { 
-      read: { 
-        getProduct: (args: [bigint]) => Promise<{
-          productId: string;
-          name: string;
-          isActive: boolean;
-          description?: string;
-          totalEvents?: bigint;
-          createdAt?: bigint;
-        }> 
-      } 
-    }).read.getProduct([id]);
+    return await (contract as any).getProduct(id);
   }
 
   /**
@@ -633,21 +595,7 @@ export class ContractReadService {
     loggedBy?: string;
     isValid?: boolean;
   }> {
-    return await (contract as unknown as { 
-      read: { 
-        getEvent: (args: [bigint]) => Promise<{
-          endpointId: bigint;
-          productId: string;
-          eventData: string;
-          timestamp: bigint;
-          eventType?: string;
-          location?: string;
-          details?: string;
-          loggedBy?: string;
-          isValid?: boolean;
-        }> 
-      } 
-    }).read.getEvent([id]);
+    return await (contract as any).getEvent(id);
   }
 
   /**

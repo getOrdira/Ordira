@@ -368,15 +368,12 @@ export class ContractWriteService {
     contract: any,
     endpointData: IEndpointData
   ): Promise<{ hash: string }> {
-    return await (contract as unknown as { 
-      write: { 
-        createEndpoint: (args: [string, string, string]) => Promise<{ hash: string }> 
-      } 
-    }).write.createEndpoint([
+    const tx = await (contract as any).createEndpoint(
       endpointData.name,
       endpointData.eventType,
       endpointData.location
-    ]);
+    );
+    return { hash: tx.hash };
   }
 
   /**
@@ -386,15 +383,12 @@ export class ContractWriteService {
     contract: any,
     productData: IProductData
   ): Promise<{ hash: string }> {
-    return await (contract as unknown as { 
-      write: { 
-        registerProduct: (args: [string, string, string]) => Promise<{ hash: string }> 
-      } 
-    }).write.registerProduct([
+    const tx = await (contract as any).registerProduct(
       productData.productId,
       productData.name,
       productData.description
-    ]);
+    );
+    return { hash: tx.hash };
   }
 
   /**
@@ -404,17 +398,14 @@ export class ContractWriteService {
     contract: any,
     eventData: IEventData
   ): Promise<{ hash: string }> {
-    return await (contract as unknown as { 
-      write: { 
-        logEvent: (args: [bigint, string, string, string, string]) => Promise<{ hash: string }> 
-      } 
-    }).write.logEvent([
+    const tx = await (contract as any).logEvent(
       BigInt(eventData.endpointId),
       eventData.productId,
       eventData.eventType,
       eventData.location,
       eventData.details
-    ]);
+    );
+    return { hash: tx.hash };
   }
 
   /**
@@ -434,15 +425,11 @@ export class ContractWriteService {
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
       
-      return await (contract as unknown as { 
-        estimateGas: { 
-          createEndpoint: (args: [string, string, string]) => Promise<bigint> 
-        } 
-      }).estimateGas.createEndpoint([
+      return await (contract as any).createEndpoint.estimateGas(
         endpointData.name,
         endpointData.eventType,
         endpointData.location
-      ]);
+      );
 
     } catch (error: any) {
       logger.error('Estimate create endpoint gas error:', error);
@@ -467,15 +454,11 @@ export class ContractWriteService {
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
       
-      return await (contract as unknown as { 
-        estimateGas: { 
-          registerProduct: (args: [string, string, string]) => Promise<bigint> 
-        } 
-      }).estimateGas.registerProduct([
+      return await (contract as any).registerProduct.estimateGas(
         productData.productId,
         productData.name,
         productData.description
-      ]);
+      );
 
     } catch (error: any) {
       logger.error('Estimate register product gas error:', error);
@@ -500,17 +483,13 @@ export class ContractWriteService {
 
       const contract = BlockchainProviderService.getContract(contractAddress, supplyChainAbi);
       
-      return await (contract as unknown as { 
-        estimateGas: { 
-          logEvent: (args: [bigint, string, string, string, string]) => Promise<bigint> 
-        } 
-      }).estimateGas.logEvent([
+      return await (contract as any).logEvent.estimateGas(
         BigInt(eventData.endpointId),
         eventData.productId,
         eventData.eventType,
         eventData.location,
         eventData.details
-      ]);
+      );
 
     } catch (error: any) {
       logger.error('Estimate log event gas error:', error);
