@@ -561,39 +561,85 @@ export class SupplyChainService {
     productIds: string[]
   ): Promise<BatchQrCodeResult[]> {
     try {
-      const { Product } = await import('../../../models/products/product.model');
+      const manufacturer = await Manufacturer.findById(manufacturerId);
+      if (!manufacturer?.supplyChainSettings?.contractAddress) {
+        throw new SupplyChainError('No supply chain contract deployed', 400, 'NO_CONTRACT');
+      }
 
-      const products = await Product.find({
-        _id: { $in: productIds },
-        manufacturer: manufacturerId
-      });
+      const contractAddress = manufacturer.supplyChainSettings.contractAddress;
 
+      // Get supply chain products from the contract
+      const productsResult = await this.contractReadService.getProducts(contractAddress, manufacturerId);
+      
+      if (!productsResult.success || !productsResult.data) {
+        throw new SupplyChainError('Failed to fetch supply chain products', 500, 'PRODUCTS_FETCH_ERROR');
+      }
+
+      // Filter to only requested productIds
+      const requestedProducts = productsResult.data.filter(product => 
+        productIds.includes(product.productId)
+      );
+
+      // Generate QR codes for each product
       const results = await Promise.allSettled(
-        products.map(async (product) => {
-          await product.generateSupplyChainQrCode();
+        requestedProducts.map(async (product) => {
+          const qrCodeResult = await this.qrCodeService.generateSupplyChainQrCode({
+            contractAddress,
+            businessId: manufacturerId,
+            productId: product.productId,
+            productName: product.name,
+            manufacturerId,
+            options: {
+              size: 300,
+              errorCorrectionLevel: 'H'
+            }
+          });
+
           return {
-            productId: product._id.toString(),
+            productId: product.productId,
             success: true,
-            qrCodeUrl: product.supplyChainQrCode!.qrCodeUrl,
-            qrCodeData: product.supplyChainQrCode!.qrCodeData,
-            productName: product.title
+            qrCodeUrl: qrCodeResult.qrCode || '',
+            qrCodeData: qrCodeResult.qrCode || '', // QR code is base64 data URL
+            productName: product.name
           };
         })
       );
 
-      return results.map((result, index) => {
-        if (result.status === 'fulfilled') {
+      // Map results, including products that weren't found
+      const productMap = new Map(requestedProducts.map(p => [p.productId, p]));
+      
+      return productIds.map((productId, index) => {
+        const product = productMap.get(productId);
+        if (!product) {
+          return {
+            productId,
+            success: false,
+            error: 'Product not found in supply chain contract'
+          };
+        }
+
+        const result = results.find((_, idx) => requestedProducts[idx]?.productId === productId);
+        if (result && result.status === 'fulfilled') {
           return result.value;
+        } else if (result && result.status === 'rejected') {
+          return {
+            productId,
+            success: false,
+            error: result.reason?.message || 'Failed to generate QR code'
+          };
         } else {
           return {
-            productId: productIds[index],
+            productId,
             success: false,
-            error: result.reason.message
+            error: 'QR code generation failed'
           };
         }
       });
 
     } catch (error: any) {
+      if (error instanceof SupplyChainError) {
+        throw error;
+      }
       throw new SupplyChainError(`Failed to generate batch QR codes: ${error.message}`, 500, 'BATCH_QR_ERROR');
     }
   }

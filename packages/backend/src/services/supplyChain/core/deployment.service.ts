@@ -104,6 +104,7 @@ export class DeploymentService {
   private async getSupplyChainFactoryContract() {
     // In test mode, skip factory check
     if (this.isTestMode()) {
+      logger.info('MOCK MODE: Skipping factory contract check');
       return null; // Will be handled in deployContract
     }
 
@@ -111,6 +112,15 @@ export class DeploymentService {
     const factorySettings = await FactorySettings.findOne({ type: 'supplychain' });
 
     if (!factorySettings?.address) {
+      // If factory not found and we're not in production, enable test mode automatically
+      if (process.env.NODE_ENV !== 'production') {
+        logger.warn('Factory not deployed, enabling test mode automatically', {
+          nodeEnv: process.env.NODE_ENV
+        });
+        // Set flag to enable test mode for this deployment
+        process.env.MOCK_BLOCKCHAIN_DEPLOYMENTS = 'true';
+        return null;
+      }
       throw new DeploymentError('SupplyChain factory not deployed. Please deploy factory first.', 500);
     }
 
