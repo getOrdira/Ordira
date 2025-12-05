@@ -4,11 +4,11 @@
  * Handles third-party integration routes and middleware registration.
  */
 
-import { Application, Router } from 'express';
+import { Application } from 'express';
 import { BaseFeatureModule } from './base.module';
 import { ServiceToken } from './types';
 import { SERVICE_TOKENS } from '../../dependency-injection/core/diContainer.service';
-import { requireBusinessPlan } from '../../../../middleware/auth/unifiedAuth.middleware';
+import { authenticate, requireBusinessPlan } from '../../../../middleware/auth/unifiedAuth.middleware';
 import { logger } from '../../logging';
 
 export class IntegrationsModule extends BaseFeatureModule {
@@ -45,8 +45,10 @@ export class IntegrationsModule extends BaseFeatureModule {
     integrationsRouter.use('/blockchain', integrationRoutesModule.blockchainIntegrationRoutes);
     integrationsRouter.use('/domains', integrationRoutesModule.domainIntegrationRoutes);
 
-    // Integrations - requires Growth plan or higher
+    // Integrations - requires authentication AND Growth plan or higher
+    // Note: authenticate must run before requireBusinessPlan to populate req.business
     app.use('/api/integrations',
+      (req, res, next) => authenticate(req as any, res, next),
       requireBusinessPlan(['growth', 'premium', 'enterprise']),
       integrationsRouter
     );

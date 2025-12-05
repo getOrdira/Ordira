@@ -111,18 +111,61 @@ class SupplyChainError extends Error {
  * Supply chain management service - handles blockchain supply chain features
  */
 export class SupplyChainService {
-  private readonly registry: SupplyChainServicesRegistry;
-  private readonly deploymentService: DeploymentService;
-  private readonly contractReadService: ContractReadService;
-  private readonly contractWriteService: ContractWriteService;
-  private qrCodeService: SupplyChainQrCodeService;
+  private _registry: SupplyChainServicesRegistry | null = null;
+  private _deploymentService: DeploymentService | null = null;
+  private _contractReadService: ContractReadService | null = null;
+  private _contractWriteService: ContractWriteService | null = null;
+  private _qrCodeService: SupplyChainQrCodeService | null = null;
+
+  private get registry(): SupplyChainServicesRegistry {
+    if (!this._registry) {
+      this._registry = SupplyChainServicesRegistry.getInstance();
+    }
+    return this._registry;
+  }
+
+  private get deploymentService(): DeploymentService {
+    if (!this._deploymentService) {
+      this._deploymentService = this.registry.deploymentService;
+      if (!this._deploymentService) {
+        throw new Error('DeploymentService is not initialized. Check SupplyChainServicesRegistry initialization.');
+      }
+    }
+    return this._deploymentService;
+  }
+
+  private get contractReadService(): ContractReadService {
+    if (!this._contractReadService) {
+      this._contractReadService = this.registry.contractReadService;
+      if (!this._contractReadService) {
+        throw new Error('ContractReadService is not initialized. Check SupplyChainServicesRegistry initialization.');
+      }
+    }
+    return this._contractReadService;
+  }
+
+  private get contractWriteService(): ContractWriteService {
+    if (!this._contractWriteService) {
+      this._contractWriteService = this.registry.contractWriteService;
+      if (!this._contractWriteService) {
+        throw new Error('ContractWriteService is not initialized. Check SupplyChainServicesRegistry initialization.');
+      }
+    }
+    return this._contractWriteService;
+  }
+
+  private get qrCodeService(): SupplyChainQrCodeService {
+    if (!this._qrCodeService) {
+      this._qrCodeService = SupplyChainQrCodeService.getInstance();
+      if (!this._qrCodeService) {
+        throw new Error('SupplyChainQrCodeService is not initialized.');
+      }
+    }
+    return this._qrCodeService;
+  }
 
   constructor() {
-    this.qrCodeService = SupplyChainQrCodeService.getInstance();
-    this.registry = SupplyChainServicesRegistry.getInstance();
-    this.deploymentService = this.registry.deploymentService;
-    this.contractReadService = this.registry.contractReadService;
-    this.contractWriteService = this.registry.contractWriteService;
+    // Lazy initialization - services will be initialized on first access
   }
 
   /**

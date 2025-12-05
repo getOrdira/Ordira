@@ -82,6 +82,20 @@ export class SupplyChainServicesRegistry {
     // Initialize utility services
     this.mappers = SupplyChainMappers.getInstance();
     this.logParsingService = LogParsingService.getInstance();
+
+    // Validate all services are initialized
+    if (!this.contractReadService) {
+      throw new Error('ContractReadService failed to initialize');
+    }
+    if (!this.contractWriteService) {
+      throw new Error('ContractWriteService failed to initialize');
+    }
+    if (!this.deploymentService) {
+      throw new Error('DeploymentService failed to initialize');
+    }
+    if (!this.associationService) {
+      throw new Error('AssociationService failed to initialize');
+    }
   }
 
   public static getInstance(): SupplyChainServicesRegistry {
