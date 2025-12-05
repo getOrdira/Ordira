@@ -716,6 +716,7 @@ MessageSchema.statics.getUnreadMessages = function(
 
 /**
  * Search messages in conversation
+ * Uses regex search directly since text index may not be available
  */
 MessageSchema.statics.searchMessages = async function(
   conversationId: string,
@@ -727,43 +728,21 @@ MessageSchema.statics.searchMessages = async function(
   // Convert string to ObjectId for proper MongoDB query
   const conversationObjectId = new Types.ObjectId(conversationId);
 
-  // Escape special regex characters in search query
+  // Escape special regex characters in search query for safe regex matching
   const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  // Use RegExp object directly for reliable cross-version compatibility
+  const searchRegex = new RegExp(escapedQuery, 'i');
 
-  try {
-    // Try using text index search first
-    return await this.find({
-      conversationId: conversationObjectId,
-      isDeleted: false,
-      $text: { $search: searchQuery }
-    })
-      .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
-      .limit(limit);
-  } catch (error: any) {
-    // Fallback to regex search if text index doesn't exist or other $text errors
-    // Error codes: 27 = IndexNotFound, 4 = InterruptedAtShutdown
-    // Also check for various error message patterns
-    const isTextIndexError =
-      error.code === 27 ||
-      error.code === 4 ||
-      error.codeName === 'IndexNotFound' ||
-      error.message?.includes('$search') ||
-      error.message?.includes('text index') ||
-      error.message?.includes('no text index') ||
-      error.message?.includes('Cast to string failed');
-
-    if (isTextIndexError) {
-      // Use regex search on content.text field (nested path)
-      return await this.find({
-        conversationId: conversationObjectId,
-        isDeleted: false,
-        'content.text': { $regex: escapedQuery, $options: 'i' }
-      })
-        .sort({ createdAt: -1 })
-        .limit(limit);
-    }
-    throw error;
-  }
+  // Use regex search on content.text field (nested path)
+  // Skip $text index as it may not exist or have issues
+  return await this.find({
+    conversationId: conversationObjectId,
+    isDeleted: false,
+    'content.text': searchRegex
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit);
 };
 
 /**
