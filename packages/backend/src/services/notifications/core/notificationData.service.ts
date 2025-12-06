@@ -121,12 +121,21 @@ export class NotificationDataService {
   }
 
   async cleanupOlderThan(daysToKeep: number = 90): Promise<number> {
-    const cutoffDate = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
-    const result = await Notification.deleteMany({ createdAt: { $lt: cutoffDate }, read: true });
-    if (result.deletedCount) {
-      logger.info('Cleaned up old notifications', { count: result.deletedCount });
+    try {
+      const cutoffDate = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
+      const result = await Notification.deleteMany({ 
+        createdAt: { $lt: cutoffDate }, 
+        read: true,
+        deletedAt: { $exists: false } // Don't delete already soft-deleted notifications
+      });
+      if (result.deletedCount) {
+        logger.info('Cleaned up old notifications', { count: result.deletedCount, daysToKeep });
+      }
+      return result.deletedCount || 0;
+    } catch (error) {
+      logger.error('Error cleaning up old notifications', { error, daysToKeep });
+      throw error;
     }
-    return result.deletedCount || 0;
   }
 
   async getStats(recipient: NotificationRecipient): Promise<{ total: number; unread: number; byType: Record<string, number>; recent: number; }> {
