@@ -161,7 +161,12 @@ export class IntegrationDataService {
     };
 
     if (credentials.domain !== undefined) {
-      $set[config.domainField] = credentials.domain?.trim() || null;
+      // Normalize domain: remove protocol and trailing slash
+      let normalizedDomain = credentials.domain?.trim() || null;
+      if (normalizedDomain) {
+        normalizedDomain = normalizedDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+      }
+      $set[config.domainField] = normalizedDomain;
     }
 
     if (credentials.accessToken !== undefined && config.accessTokenField) {
@@ -326,14 +331,14 @@ export class IntegrationDataService {
         return [];
       }
 
-      // Use $and to avoid Mongoose casting issues with String fields
-      // When a field is defined as String type, Mongoose tries to cast query operators to strings
+      // Use $type to ensure the field is a string and exists, avoiding casting issues
+      // This approach works better with Mongoose's type system
       const query: Record<string, unknown> = {
-        $and: [
-          { [connectionField]: { $exists: true } },
-          { [connectionField]: { $ne: null } },
-          { [connectionField]: { $ne: '' } }
-        ]
+        [connectionField]: {
+          $exists: true,
+          $type: 'string',
+          $ne: ''
+        }
       };
 
       // Select fields with select: false to check for connections

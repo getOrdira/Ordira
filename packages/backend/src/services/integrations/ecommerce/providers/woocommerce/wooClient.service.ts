@@ -254,7 +254,12 @@ export class WooCommerceClientService {
       });
     }
 
-    const baseURL = `${record.domain}${this.restPath}`;
+    // Ensure domain has protocol (default to https)
+    let domain = record.domain;
+    if (domain && !domain.startsWith('http://') && !domain.startsWith('https://')) {
+      domain = `https://${domain}`;
+    }
+    const baseURL = `${domain}${this.restPath}`;
     const verifySsl = (record.metadata?.verifySsl as boolean | undefined) ?? true;
 
     return httpClientFactoryService.createClient({
