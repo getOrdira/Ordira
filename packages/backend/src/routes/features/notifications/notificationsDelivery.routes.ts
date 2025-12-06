@@ -21,7 +21,7 @@ const deliverNotificationBodySchema = Joi.object({
   }).required(),
   options: Joi.object({
     channels: Joi.array().items(Joi.string().valid('email', 'sms', 'push', 'inApp', 'webhook')).optional(),
-    priority: Joi.string().valid('low', 'normal', 'high', 'urgent').optional(),
+    priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
     delayUntil: Joi.date().optional(),
     retryOnFailure: Joi.boolean().optional(),
     maxRetries: Joi.number().integer().min(0).max(10).optional()

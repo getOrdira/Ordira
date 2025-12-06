@@ -29,8 +29,11 @@ export class NotificationsModule extends BaseFeatureModule {
     const { Router } = await import('express');
 
     // Combine modular routes into unified router
+    // IMPORTANT: Mount specific path routes BEFORE inbox routes
+    // because inbox has /:id which would catch paths like /preferences
     const notificationRoutes = Router();
-    notificationRoutes.use('/', notificationRoutesModule.notificationsInboxRoutes);
+    
+    // Specific sub-routes first (before the catch-all /:id in inbox)
     notificationRoutes.use('/preferences', notificationRoutesModule.notificationsPreferencesRoutes);
     notificationRoutes.use('/template', notificationRoutesModule.notificationsTemplateRoutes);
     notificationRoutes.use('/outbound', notificationRoutesModule.notificationsOutboundRoutes);
@@ -39,6 +42,9 @@ export class NotificationsModule extends BaseFeatureModule {
     notificationRoutes.use('/triggers', notificationRoutesModule.notificationsTriggersRoutes);
     notificationRoutes.use('/analytics', notificationRoutesModule.notificationsAnalyticsRoutes);
     notificationRoutes.use('/maintenance', notificationRoutesModule.notificationsMaintenanceRoutes);
+    
+    // Inbox routes last (has /:id which is a catch-all pattern)
+    notificationRoutes.use('/', notificationRoutesModule.notificationsInboxRoutes);
 
     // Enhanced notification system with authentication
     app.use('/api/notifications', 
